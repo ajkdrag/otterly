@@ -122,6 +122,10 @@ fn parse_internal_markdown_target(raw_href: &str) -> Option<String> {
     Some(href.to_string())
 }
 
+fn markdown_destination_needs_angle_brackets(value: &str) -> bool {
+    value.chars().any(char::is_whitespace)
+}
+
 fn parse_wiki_link_target(raw_target: &str) -> Option<String> {
     let trimmed = raw_target.trim();
     if trimmed.is_empty() {
@@ -496,11 +500,25 @@ pub(crate) fn rewrite_links(
                 if !span.starts_with('[') || !span.ends_with(')') {
                     continue;
                 }
-                let label = match span.rfind("](") {
-                    Some(pos) => &span[1..pos],
+                let split = match span.rfind("](") {
+                    Some(pos) => pos,
                     None => continue,
                 };
-                let replacement = format!("[{label}]({new_href})");
+                let label = &span[1..split];
+                let raw_destination = &span[split + 2..span.len() - 1];
+                let trimmed_destination = raw_destination.trim();
+                let had_angle_wrapping = trimmed_destination.starts_with('<')
+                    && trimmed_destination.ends_with('>')
+                    && trimmed_destination.len() >= 2;
+
+                let replacement_destination = if had_angle_wrapping
+                    || markdown_destination_needs_angle_brackets(&new_href)
+                {
+                    format!("<{new_href}>")
+                } else {
+                    new_href.clone()
+                };
+                let replacement = format!("[{label}]({replacement_destination})");
                 if replacement != span {
                     replacements.push((byte_start, byte_end, replacement));
                 }

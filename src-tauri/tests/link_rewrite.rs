@@ -433,6 +433,26 @@ fn rewrite_markdown_link_note_relative_target() {
 }
 
 #[test]
+fn rewrite_markdown_link_preserves_angle_wrapping_for_spaced_target() {
+    let mut map = HashMap::new();
+    map.insert(
+        "Folder10/a cappella surgical gown.md".into(),
+        "Folder0/a cappella surgical gown.md".into(),
+    );
+    let result = rewrite_links(
+        "[ref](<Folder10/a cappella surgical gown.md>)",
+        "Folder3/a cappella magnetic recorder.md",
+        "Folder3/a cappella magnetic recorder.md",
+        &map,
+    );
+    assert!(result.changed);
+    assert_eq!(
+        result.markdown,
+        "[ref](<Folder0/a cappella surgical gown.md>)"
+    );
+}
+
+#[test]
 fn vault_relative_markdown_link_unchanged_on_source_move() {
     let map = HashMap::new();
     let result = rewrite_links(
