@@ -12,11 +12,7 @@ import type { CursorInfo } from "$lib/shared/types/editor";
 import { Slice } from "@milkdown/kit/prose/model";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import {
-  configureLinkTooltip,
-  linkTooltipPlugin,
-  linkTooltipConfig,
-} from "@milkdown/kit/component/link-tooltip";
+import { create_link_tooltip_plugin } from "./link_tooltip_plugin";
 import {
   commonmark,
   inlineCodeSchema,
@@ -34,14 +30,7 @@ import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import { prism } from "@milkdown/plugin-prism";
 import { indent } from "@milkdown/plugin-indent";
 import { replaceAll } from "@milkdown/kit/utils";
-import {
-  Check,
-  ImageOff,
-  Link,
-  LoaderCircle,
-  Pencil,
-  Trash2,
-} from "lucide-static";
+import { ImageOff, LoaderCircle } from "lucide-static";
 import type { BufferConfig, EditorPort } from "$lib/features/editor/ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
 import { as_asset_path } from "$lib/shared/types/ids";
@@ -119,19 +108,6 @@ const IMAGE_LOAD_ERROR_PLACEHOLDER = create_icon_placeholder_data_uri(
   ImageOff,
   "#b91c1c",
 );
-
-function resize_icon(svg: string, size: number): string {
-  return svg
-    .replace(/width="24"/, `width="${String(size)}"`)
-    .replace(/height="24"/, `height="${String(size)}"`);
-}
-
-const LINK_TOOLTIP_ICONS = {
-  link: resize_icon(Link, 16),
-  edit: resize_icon(Pencil, 14),
-  trash: resize_icon(Trash2, 14),
-  check: resize_icon(Check, 14),
-} as const;
 
 const LARGE_DOC_LINE_THRESHOLD = 8000;
 const LARGE_DOC_CHAR_THRESHOLD = 400_000;
@@ -279,17 +255,7 @@ export function create_milkdown_editor_port(args?: {
           ctx.set(defaultValueCtx, initial_markdown);
           ctx.set(editorViewOptionsCtx, { editable: () => true });
         })
-        .config(configureLinkTooltip)
-        .config((ctx) => {
-          ctx.update(linkTooltipConfig.key, (defaultConfig) => ({
-            ...defaultConfig,
-            linkIcon: LINK_TOOLTIP_ICONS.link,
-            editButton: LINK_TOOLTIP_ICONS.edit,
-            removeButton: LINK_TOOLTIP_ICONS.trash,
-            confirmButton: LINK_TOOLTIP_ICONS.check,
-            inputPlaceholder: "Enter URL...",
-          }));
-        })
+
         .use(commonmark)
         .use(imageBlockComponent)
         .config((ctx) => {
@@ -414,7 +380,7 @@ export function create_milkdown_editor_port(args?: {
         .use(prism)
         .use(code_block_copy_plugin)
         .use(indent)
-        .use(linkTooltipPlugin)
+        .use(create_link_tooltip_plugin())
         .use(listItemBlockComponent)
         .use(markdown_link_input_rule_plugin)
         .use(image_input_rule_plugin)
