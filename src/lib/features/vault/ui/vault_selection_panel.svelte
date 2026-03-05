@@ -9,6 +9,7 @@
   import {
     clamp_vault_selection,
     duplicate_vault_names,
+    format_vault_path,
     move_vault_selection,
   } from "$lib/features/vault/domain/vault_switcher";
   import { onMount } from "svelte";
@@ -164,14 +165,7 @@
   }
 
   function format_path(path: string, vault_name: string): string {
-    if (duplicate_names.has(vault_name)) {
-      return path;
-    }
-    const parts = path.split(/[/\\\\]/);
-    if (parts.length > 3) {
-      return `.../${parts.slice(-2).join("/")}`;
-    }
-    return path;
+    return format_vault_path(path, vault_name, duplicate_names);
   }
 
   function format_last_opened(vault: Vault): string {

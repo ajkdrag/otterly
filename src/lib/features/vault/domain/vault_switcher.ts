@@ -43,3 +43,18 @@ export function duplicate_vault_names(vaults: Vault[]): Set<string> {
   }
   return duplicates;
 }
+
+export function format_vault_path(
+  path: string,
+  vault_name: string,
+  duplicate_names: Set<string>,
+): string {
+  if (duplicate_names.has(vault_name)) {
+    return path;
+  }
+  const parts = path.split(/[/\\]/);
+  if (parts.length > 3) {
+    return `.../${parts.slice(-2).join("/")}`;
+  }
+  return path;
+}

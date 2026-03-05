@@ -414,10 +414,6 @@ export class UIStore {
     this.vault_switcher_open = !this.vault_switcher_open;
   }
 
-  set_vault_switcher_open(open: boolean) {
-    this.vault_switcher_open = open;
-  }
-
   toggle_context_rail() {
     this.context_rail_open = !this.context_rail_open;
   }

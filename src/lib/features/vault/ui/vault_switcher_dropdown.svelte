@@ -10,6 +10,7 @@
   import {
     clamp_vault_selection,
     duplicate_vault_names,
+    format_vault_path,
     move_vault_selection,
   } from "$lib/features/vault/domain/vault_switcher";
   import {
@@ -129,13 +130,6 @@
 
   function vault_initial(name: string): string {
     return name.charAt(0).toUpperCase();
-  }
-
-  function format_path(path: string, name: string): string {
-    if (dup_names.has(name)) return path;
-    const parts = path.split(/[/\\]/);
-    if (parts.length > 3) return `.../${parts.slice(-2).join("/")}`;
-    return path;
   }
 
   function flat_index(vault: Vault): number {
@@ -280,7 +274,7 @@
             {/if}
           </div>
           <span class="VaultSwitcher__item-path">
-            {format_path(vault.path, vault.name)}
+            {format_vault_path(vault.path, vault.name, dup_names)}
           </span>
         </div>
         {#if is_active}

@@ -328,6 +328,8 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       );
       if (result.status === "failed") {
         toast.error(result.error);
+      } else {
+        stores.vault.vault_git_cache.delete(vault_id as VaultId);
       }
     },
   });
