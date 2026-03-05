@@ -234,6 +234,7 @@ export function create_app_context(input: {
     default_mount_config: input.default_mount_config,
     split_view_store: stores.split_view,
     split_view_service,
+    notes_port: input.ports.notes,
   });
 
   const cleanup_reactors = mount_reactors({

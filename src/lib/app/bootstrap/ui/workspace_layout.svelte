@@ -10,6 +10,7 @@
     VaultSwitcherDropdown,
   } from "$lib/features/vault";
   import { NoteEditor, NoteDetailsDialog } from "$lib/features/note";
+  import { SplitNoteEditor } from "$lib/features/split_view";
   import { TabBar } from "$lib/features/tab";
   import { FindInFileBar } from "$lib/features/search";
   import { EditorStatusBar } from "$lib/features/editor";
@@ -32,6 +33,7 @@
   const { stores, action_registry } = use_app_context();
 
   let starred_expanded_node_ids = $state(new SvelteSet<string>());
+  const split_view_active = $derived(stores.split_view.active);
 
   function starred_node_id(root_path: string, relative_path: string): string {
     return `starred:${root_path}:${relative_path}`;
@@ -705,7 +707,30 @@
                   on_close={() =>
                     void action_registry.execute(ACTION_IDS.find_in_file_close)}
                 />
-                <NoteEditor />
+                {#if split_view_active}
+                  <Resizable.PaneGroup direction="horizontal">
+                    <Resizable.Pane defaultSize={50} minSize={30}>
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div
+                        class="h-full"
+                        onclick={() =>
+                          void action_registry.execute(
+                            ACTION_IDS.split_view_set_active_pane,
+                            "primary",
+                          )}
+                      >
+                        <NoteEditor />
+                      </div>
+                    </Resizable.Pane>
+                    <Resizable.Handle withHandle />
+                    <Resizable.Pane defaultSize={50} minSize={30}>
+                      <SplitNoteEditor />
+                    </Resizable.Pane>
+                  </Resizable.PaneGroup>
+                {:else}
+                  <NoteEditor />
+                {/if}
               </div>
             </Sidebar.Inset>
           </Resizable.Pane>

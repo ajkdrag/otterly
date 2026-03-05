@@ -27,8 +27,15 @@ export class SplitViewService {
     return this.secondary_store;
   }
 
-  async open_to_side(note: OpenNoteState, root: HTMLDivElement): Promise<void> {
-    log.info("Opening note in split view", { note_id: note.meta.id });
+  activate(note: OpenNoteState): void {
+    this.split_view_store.open_secondary(note);
+  }
+
+  async mount_secondary(
+    note: OpenNoteState,
+    root: HTMLDivElement,
+  ): Promise<void> {
+    log.info("Mounting secondary editor", { note_id: note.meta.id });
 
     if (!this.secondary_editor) {
       this.secondary_store = new EditorStore();
@@ -47,23 +54,19 @@ export class SplitViewService {
 
     this.secondary_store?.set_open_note(note);
     await this.secondary_editor.mount({ root, note });
-    this.split_view_store.open_secondary(note);
   }
 
-  switch_buffer(note: OpenNoteState): void {
-    if (!this.secondary_editor || !this.secondary_store) return;
-    this.secondary_store.set_open_note(note);
-    this.secondary_editor.open_buffer(note);
-    this.split_view_store.set_secondary_note(note);
-  }
-
-  close(): void {
-    log.info("Closing split view");
+  unmount_secondary(): void {
     if (this.secondary_editor) {
       this.secondary_editor.unmount();
       this.secondary_editor = null;
     }
     this.secondary_store = null;
+  }
+
+  close(): void {
+    log.info("Closing split view");
+    this.unmount_secondary();
     this.split_view_store.close();
   }
 
