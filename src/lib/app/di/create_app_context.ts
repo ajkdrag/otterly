@@ -58,6 +58,7 @@ export function create_app_context(input: {
         }),
     },
     search_service,
+    stores.outline,
   );
 
   const settings_service = new SettingsService(
@@ -173,6 +174,7 @@ export function create_app_context(input: {
       search: stores.search,
       tab: stores.tab,
       git: stores.git,
+      outline: stores.outline,
     },
     services: {
       vault: vault_service,
