@@ -264,7 +264,6 @@
     flex-direction: column;
     gap: var(--space-4);
     padding: var(--space-2) 0;
-    overflow: hidden;
     min-width: 0;
   }
 
