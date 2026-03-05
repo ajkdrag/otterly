@@ -26,10 +26,7 @@ export function extract_headings(doc: ProseNode): OutlineHeading[] {
   return headings;
 }
 
-function headings_equal(
-  a: OutlineHeading[],
-  b: OutlineHeading[],
-): boolean {
+function headings_equal(a: OutlineHeading[], b: OutlineHeading[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     const ah = a[i];

@@ -33,11 +33,7 @@ function create_schema_with_headings() {
   });
 }
 
-function make_heading(
-  schema: Schema,
-  level: number,
-  text: string,
-): ProseNode {
+function make_heading(schema: Schema, level: number, text: string): ProseNode {
   return schema.node("heading", { level }, text ? [schema.text(text)] : []);
 }
 
@@ -56,9 +52,7 @@ describe("extract_headings", () => {
 
   it("extracts single heading", () => {
     const schema = create_schema_with_headings();
-    const doc = schema.node("doc", null, [
-      make_heading(schema, 1, "Title"),
-    ]);
+    const doc = schema.node("doc", null, [make_heading(schema, 1, "Title")]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(1);
     expect(headings[0].level).toBe(1);
@@ -88,9 +82,7 @@ describe("extract_headings", () => {
 
   it("handles empty headings", () => {
     const schema = create_schema_with_headings();
-    const doc = schema.node("doc", null, [
-      make_heading(schema, 1, ""),
-    ]);
+    const doc = schema.node("doc", null, [make_heading(schema, 1, "")]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(1);
     expect(headings[0].text).toBe("");
