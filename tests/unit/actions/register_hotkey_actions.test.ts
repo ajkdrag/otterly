@@ -10,6 +10,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { OutlineStore } from "$lib/features/outline";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import type { HotkeyBinding, HotkeyOverride } from "$lib/features/hotkey";
 
@@ -39,6 +40,7 @@ function create_harness() {
     search: new SearchStore(),
     tab: new TabStore(),
     git: new GitStore(),
+    outline: new OutlineStore(),
   };
 
   const services = {

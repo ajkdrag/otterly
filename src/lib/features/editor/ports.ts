@@ -1,6 +1,6 @@
 import type { VaultId } from "$lib/shared/types/ids";
 import type { CursorInfo, PastedImagePayload } from "$lib/shared/types/editor";
-import type { OutlineHeading } from "$lib/features/outline/types/outline";
+import type { OutlineHeading } from "$lib/features/outline";
 
 export type BufferConfig = {
   note_path: string;

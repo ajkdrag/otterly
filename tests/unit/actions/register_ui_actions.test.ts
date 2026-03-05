@@ -10,6 +10,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { OutlineStore } from "$lib/features/outline";
 
 describe("register_ui_actions", () => {
   it("opens and closes vault dashboard", async () => {
@@ -28,6 +29,7 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
+      outline: new OutlineStore(),
     };
 
     register_ui_actions({
@@ -65,6 +67,7 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
+      outline: new OutlineStore(),
     };
 
     register_ui_actions({

@@ -1,6 +1,6 @@
 <script lang="ts">
   import LinksPanel from "$lib/features/links/ui/links_panel.svelte";
-  import OutlinePanel from "$lib/features/outline/ui/outline_panel.svelte";
+  import { OutlinePanel } from "$lib/features/outline";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
 
   const { stores } = use_app_context();

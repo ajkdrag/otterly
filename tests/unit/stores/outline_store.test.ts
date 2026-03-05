@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { OutlineStore } from "$lib/features/outline/state/outline_store.svelte";
-import type { OutlineHeading } from "$lib/features/outline/types/outline";
+import { OutlineStore } from "$lib/features/outline";
+import type { OutlineHeading } from "$lib/features/outline";
 
 function heading(level: number, text: string, pos: number): OutlineHeading {
-  return { id: `h-${pos}`, level, text, pos };
+  return { id: `h-${String(pos)}`, level, text, pos };
 }
 
 describe("OutlineStore", () => {

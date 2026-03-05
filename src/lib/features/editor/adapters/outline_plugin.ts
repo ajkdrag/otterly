@@ -1,7 +1,7 @@
 import { $prose } from "@milkdown/kit/utils";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
-import type { OutlineHeading } from "$lib/features/outline/types/outline";
+import type { OutlineHeading } from "$lib/features/outline";
 
 type OutlinePluginState = {
   headings: OutlineHeading[];
@@ -15,7 +15,7 @@ export function extract_headings(doc: ProseNode): OutlineHeading[] {
   doc.descendants((node, pos) => {
     if (node.type.name === "heading" && node.attrs.level) {
       headings.push({
-        id: `h-${pos}`,
+        id: `h-${String(pos)}`,
         level: node.attrs.level as number,
         text: node.textContent,
         pos,
@@ -32,8 +32,9 @@ function headings_equal(
 ): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    const ah = a[i]!;
-    const bh = b[i]!;
+    const ah = a[i];
+    const bh = b[i];
+    if (!ah || !bh) return false;
     if (ah.level !== bh.level || ah.text !== bh.text || ah.pos !== bh.pos) {
       return false;
     }

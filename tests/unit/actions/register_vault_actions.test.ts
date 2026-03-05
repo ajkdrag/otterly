@@ -10,6 +10,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { OutlineStore } from "$lib/features/outline";
 import { as_vault_id, as_vault_path } from "$lib/shared/types/ids";
 import {
   create_open_note_state,
@@ -28,6 +29,7 @@ function create_vault_actions_harness() {
     search: new SearchStore(),
     tab: new TabStore(),
     git: new GitStore(),
+    outline: new OutlineStore(),
   };
 
   const services = {

@@ -55,8 +55,11 @@
     let last_id: string | null = null;
 
     for (let i = 0; i < headings.length && i < cached_heading_tops.length; i++) {
-      if (cached_heading_tops[i]! <= threshold) {
-        last_id = headings[i]!.id;
+      const top = cached_heading_tops[i];
+      const h = headings[i];
+      if (top === undefined || !h) break;
+      if (top <= threshold) {
+        last_id = h.id;
       } else {
         break;
       }
@@ -119,7 +122,8 @@
     for (const heading of headings) {
       while (
         skip_below_level.length > 0 &&
-        heading.level <= skip_below_level[skip_below_level.length - 1]!
+        heading.level <=
+          (skip_below_level[skip_below_level.length - 1] ?? 0)
       ) {
         skip_below_level.pop();
       }
@@ -150,7 +154,7 @@
     );
   }
 
-  function toggle_collapsed(event: MouseEvent, heading: OutlineHeading) {
+  function toggle_collapsed(event: Event, heading: OutlineHeading) {
     event.stopPropagation();
     stores.outline.toggle_collapsed(heading.id);
   }
@@ -175,14 +179,16 @@
           onclick={() => handle_click(heading)}
         >
           {#if has_children(heading)}
-            <button
-              type="button"
+            <span
+              role="button"
+              tabindex="-1"
               class="OutlinePanel__chevron"
               class:OutlinePanel__chevron--collapsed={collapsed_ids.has(heading.id)}
               onclick={(e) => toggle_collapsed(e, heading)}
+              onkeydown={(e) => { if (e.key === "Enter") toggle_collapsed(e, heading); }}
             >
               <ChevronRightIcon />
-            </button>
+            </span>
           {:else}
             <span class="OutlinePanel__chevron-spacer"></span>
           {/if}
