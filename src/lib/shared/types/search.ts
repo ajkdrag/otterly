@@ -13,6 +13,7 @@ export type SearchCommandDefinition = {
     | "git_create_checkpoint"
     | "git_init_repo"
     | "toggle_links_panel"
+    | "toggle_outline_panel"
     | "check_for_updates";
   label: string;
   description: string;
@@ -26,6 +27,7 @@ export type SearchCommandDefinition = {
     | "history"
     | "bookmark"
     | "link"
+    | "list-tree"
     | "refresh-cw";
 };
 

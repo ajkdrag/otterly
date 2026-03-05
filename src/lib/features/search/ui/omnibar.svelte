@@ -16,6 +16,7 @@
   import KeyboardIcon from "@lucide/svelte/icons/keyboard";
   import LinkIcon from "@lucide/svelte/icons/link";
   import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
+  import ListTreeIcon from "@lucide/svelte/icons/list-tree";
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import type { OmnibarItem, OmnibarScope } from "$lib/shared/types/search";
   import type { NoteMeta } from "$lib/shared/types/note";
@@ -35,6 +36,7 @@
     history: HistoryIcon,
     bookmark: BookmarkIcon,
     link: LinkIcon,
+    "list-tree": ListTreeIcon,
     "refresh-cw": RefreshCwIcon,
   };
 

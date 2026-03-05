@@ -73,6 +73,21 @@ export function register_ui_actions(input: ActionRegistrationInput) {
   });
 
   registry.register({
+    id: ACTION_IDS.ui_toggle_outline_panel,
+    label: "Toggle Outline Panel",
+    execute: () => {
+      if (
+        stores.ui.context_rail_open &&
+        stores.ui.context_rail_tab === "outline"
+      ) {
+        stores.ui.toggle_context_rail();
+      } else {
+        stores.ui.set_context_rail_tab("outline");
+      }
+    },
+  });
+
+  registry.register({
     id: ACTION_IDS.ui_open_vault_dashboard,
     label: "Open Vault Dashboard",
     shortcut: "CmdOrCtrl+Shift+D",
@@ -87,6 +102,15 @@ export function register_ui_actions(input: ActionRegistrationInput) {
     label: "Close Vault Dashboard",
     execute: () => {
       set_vault_dashboard_open(false);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.outline_scroll_to_heading,
+    label: "Scroll to Heading",
+    execute: (pos: unknown) => {
+      if (typeof pos !== "number") return;
+      services.editor.scroll_to_position(pos);
     },
   });
 }

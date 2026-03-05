@@ -67,11 +67,11 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
-    action_id: ACTION_IDS.vault_request_change,
+    action_id: ACTION_IDS.ui_toggle_outline_panel,
     key: "CmdOrCtrl+Shift+O",
     phase: "capture",
-    label: "Change Vault",
-    description: "Switch to a different vault",
+    label: "Toggle Outline Panel",
+    description: "Show or hide the document outline",
     category: "navigation",
   },
   {

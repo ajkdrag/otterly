@@ -87,6 +87,20 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "link",
   },
   {
+    id: "toggle_outline_panel",
+    label: "Toggle Outline Panel",
+    description: "Show or hide the document heading outline",
+    keywords: [
+      "outline",
+      "headings",
+      "toc",
+      "table of contents",
+      "navigation",
+      "structure",
+    ],
+    icon: "list-tree",
+  },
+  {
     id: "check_for_updates",
     label: "Check for Updates",
     description: "Check if a new version of Otterly is available",

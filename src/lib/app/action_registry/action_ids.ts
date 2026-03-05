@@ -79,6 +79,7 @@ export const ACTION_IDS = {
   ui_select_folder: "ui.select_folder",
   ui_set_sidebar_view: "ui.set_sidebar_view",
   ui_toggle_context_rail: "ui.toggle_context_rail",
+  ui_toggle_outline_panel: "ui.toggle_outline_panel",
   ui_open_vault_dashboard: "ui.open_vault_dashboard",
   ui_close_vault_dashboard: "ui.close_vault_dashboard",
 
@@ -100,6 +101,8 @@ export const ACTION_IDS = {
   omnibar_confirm_item: "omnibar.confirm_item",
   omnibar_confirm_cross_vault_open: "omnibar.confirm_cross_vault_open",
   omnibar_cancel_cross_vault_open: "omnibar.cancel_cross_vault_open",
+
+  outline_scroll_to_heading: "outline.scroll_to_heading",
 
   find_in_file_toggle: "find_in_file.toggle",
   find_in_file_open: "find_in_file.open",
