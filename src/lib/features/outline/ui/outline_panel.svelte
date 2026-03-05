@@ -54,7 +54,11 @@
     const threshold = container.scrollTop + 80;
     let last_id: string | null = null;
 
-    for (let i = 0; i < headings.length && i < cached_heading_tops.length; i++) {
+    for (
+      let i = 0;
+      i < headings.length && i < cached_heading_tops.length;
+      i++
+    ) {
       const top = cached_heading_tops[i];
       const h = headings[i];
       if (top === undefined || !h) break;
@@ -73,9 +77,7 @@
       }
     }
 
-    stores.outline.set_active_heading(
-      last_id ?? headings[0]?.id ?? null,
-    );
+    stores.outline.set_active_heading(last_id ?? headings[0]?.id ?? null);
   }
 
   function handle_scroll() {
@@ -122,8 +124,7 @@
     for (const heading of headings) {
       while (
         skip_below_level.length > 0 &&
-        heading.level <=
-          (skip_below_level[skip_below_level.length - 1] ?? 0)
+        heading.level <= (skip_below_level[skip_below_level.length - 1] ?? 0)
       ) {
         skip_below_level.pop();
       }
@@ -183,9 +184,13 @@
               role="button"
               tabindex="-1"
               class="OutlinePanel__chevron"
-              class:OutlinePanel__chevron--collapsed={collapsed_ids.has(heading.id)}
+              class:OutlinePanel__chevron--collapsed={collapsed_ids.has(
+                heading.id,
+              )}
               onclick={(e) => toggle_collapsed(e, heading)}
-              onkeydown={(e) => { if (e.key === "Enter") toggle_collapsed(e, heading); }}
+              onkeydown={(e) => {
+                if (e.key === "Enter") toggle_collapsed(e, heading);
+              }}
             >
               <ChevronRightIcon />
             </span>

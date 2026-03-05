@@ -67,9 +67,7 @@ describe("vault_switcher", () => {
 
     it("returns short paths as-is for unique names", () => {
       const dupes = new Set<string>();
-      expect(format_vault_path("/docs/Work", "Work", dupes)).toBe(
-        "/docs/Work",
-      );
+      expect(format_vault_path("/docs/Work", "Work", dupes)).toBe("/docs/Work");
     });
   });
 });
