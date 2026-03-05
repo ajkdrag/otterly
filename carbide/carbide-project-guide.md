@@ -136,14 +136,22 @@ We add:
 - Auto-commit option (configurable: off, on-save, every N minutes)
 - More prominent status bar git widget (Otterly's exists but may need polish)
 
-**6. Terminal Panel** [New]
+**6. Terminal Panel** [Use existing plugin — don't build from scratch]
+- **Use [`tauri-plugin-pty`](https://github.com/Tnze/tauri-plugin-pty)** — a Tauri 2-native PTY plugin
+  - Rust: `cargo add tauri-plugin-pty` → one-liner `.plugin(tauri_plugin_pty::init())`
+  - Frontend: `npm install tauri-pty` + xterm.js + xterm-addon-fit
+  - Handles PTY spawn, resize, data transport via Tauri events out of the box
+  - No need to write custom `terminal_spawn`/`terminal_write`/`terminal_resize` commands
 - Bottom panel toggled with Cmd+` (like VS Code)
-- PTY-based terminal using `portable-pty` Rust crate
 - Shell inherits user's default shell (zsh/bash) and environment
 - Working directory = current vault root
 - Resize handle between editor and terminal
 - Multiple terminal tabs (stretch goal)
 - Why: comp bio workflows need terminal access for scripts, conda, git operations
+- **Reference implementations:**
+  - [marc2332/tauri-terminal](https://github.com/marc2332/tauri-terminal) — minimal xterm.js + portable-pty example
+  - [Terminon](https://github.com/Shabari-K-S/terminon) — full Tauri v2 terminal app (split panes, SSH profiles)
+  - [terraphim-liquid-glass-terminal](https://github.com/terraphim/terraphim-liquid-glass-terminal) — WebGL xterm rendering
 
 **7. In-App Document Viewer** [New — neither project has non-markdown viewing]
 Open non-markdown files directly in the editor area instead of launching external apps:
@@ -312,17 +320,33 @@ Result: I can push/pull from within the app, and optionally auto-commit on save.
 ### Prompt 6: Terminal Panel
 
 ```text
-Implement the embedded terminal panel:
+Implement the embedded terminal panel using tauri-plugin-pty (don't build from scratch).
+
+## Research Findings (March 2026)
+
+The best option is `tauri-plugin-pty` — a Tauri 2-native plugin that handles all the
+PTY plumbing. No need to manually wire portable-pty + custom Tauri commands.
+
+- GitHub: https://github.com/Tnze/tauri-plugin-pty
+- crates.io: https://crates.io/crates/tauri-plugin-pty
+- npm: tauri-pty
+
+Other references studied:
+- marc2332/tauri-terminal — minimal example (xterm.js + portable-pty)
+- Terminon (Shabari-K-S/terminon) — full terminal app, Tauri v2 + React + xterm.js
+- terraphim-liquid-glass-terminal — WebGL xterm, high-perf PTY management
+
+## Implementation
 
 Rust side:
-- Add portable-pty crate to Cargo.toml
-- Tauri commands: terminal_spawn, terminal_write, terminal_resize, terminal_kill
-- Spawn PTY with user's default shell, inheriting full environment
-- Working directory defaults to vault root
-- Bidirectional streaming via Tauri events (not request/response)
+- cargo add tauri-plugin-pty
+- Register plugin: .plugin(tauri_plugin_pty::init())
+- That's it — no custom terminal_spawn/write/resize/kill commands needed
+- Working directory defaults to vault root (configure on spawn)
 
 Frontend:
-- Add xterm.js and xterm-addon-fit to package.json
+- npm install tauri-pty xterm xterm-addon-fit
+- Create TerminalPanel.svelte: mount xterm.js, connect via tauri-pty's API
 - Bottom panel toggled with Cmd+`
 - Draggable resize handle between editor area and terminal
 - Terminal persists across file/tab switches
