@@ -1,5 +1,6 @@
 import type { VaultId } from "$lib/shared/types/ids";
 import type { CursorInfo, PastedImagePayload } from "$lib/shared/types/editor";
+import type { OutlineHeading } from "$lib/features/outline/types/outline";
 
 export type BufferConfig = {
   note_path: string;
@@ -30,6 +31,7 @@ export type EditorSession = {
   rename_buffer: (old_note_path: string, new_note_path: string) => void;
   close_buffer: (note_path: string) => void;
   update_find_state?: (query: string, selected_index: number) => void;
+  scroll_to_position?: (pos: number) => void;
 };
 
 export type EditorEventHandlers = {
@@ -40,6 +42,7 @@ export type EditorEventHandlers = {
   on_external_link_click?: (url: string) => void;
   on_image_paste_requested?: (payload: PastedImagePayload) => void;
   on_wiki_suggest_query?: (query: string) => void;
+  on_outline_change?: (headings: OutlineHeading[]) => void;
 };
 
 export type EditorSessionConfig = {

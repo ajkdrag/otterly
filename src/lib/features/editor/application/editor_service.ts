@@ -14,6 +14,7 @@ import type { EditorStore } from "$lib/features/editor/state/editor_store.svelte
 import type { VaultStore } from "$lib/features/vault";
 import type { OpStore } from "$lib/app";
 import type { SearchService } from "$lib/features/search";
+import type { OutlineStore } from "$lib/features/outline";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -54,6 +55,7 @@ export class EditorService {
     private readonly op_store: OpStore,
     private readonly callbacks: EditorServiceCallbacks,
     private readonly search_service?: SearchService,
+    private readonly outline_store?: OutlineStore,
   ) {}
 
   is_mounted(): boolean {
@@ -162,6 +164,10 @@ export class EditorService {
 
   update_find_state(query: string, selected_index: number) {
     this.session?.update_find_state?.(query, selected_index);
+  }
+
+  scroll_to_position(pos: number) {
+    this.session?.scroll_to_position?.(pos);
   }
 
   private next_session_generation(): number {
@@ -284,6 +290,14 @@ export class EditorService {
     if (this.search_service) {
       events.on_wiki_suggest_query = (query: string) => {
         this.handle_wiki_suggest_query(generation, query);
+      };
+    }
+
+    if (this.outline_store) {
+      const outline_store = this.outline_store;
+      events.on_outline_change = (headings) => {
+        if (!this.is_generation_current(generation)) return;
+        outline_store.set_headings(headings);
       };
     }
 
