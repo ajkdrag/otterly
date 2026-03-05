@@ -6,7 +6,6 @@ import {
   filter_commands,
   create_commands,
 } from "$lib/features/editor/adapters/slash_command_plugin";
-import type { Node as ProsemirrorNode } from "@milkdown/kit/prose/model";
 
 function create_schema() {
   return new Schema({
@@ -38,6 +37,55 @@ function create_schema() {
         code: true,
         toDOM: () => ["pre", ["code", 0]] as const,
         parseDOM: [{ tag: "pre" }],
+      },
+      blockquote: {
+        group: "block",
+        content: "block+",
+        toDOM: () => ["blockquote", 0] as const,
+        parseDOM: [{ tag: "blockquote" }],
+      },
+      bullet_list: {
+        group: "block",
+        content: "list_item+",
+        toDOM: () => ["ul", 0] as const,
+        parseDOM: [{ tag: "ul" }],
+      },
+      ordered_list: {
+        group: "block",
+        content: "list_item+",
+        toDOM: () => ["ol", 0] as const,
+        parseDOM: [{ tag: "ol" }],
+      },
+      list_item: {
+        content: "block+",
+        toDOM: () => ["li", 0] as const,
+        parseDOM: [{ tag: "li" }],
+      },
+      table: {
+        group: "block",
+        content: "table_row+",
+        toDOM: () => ["table", ["tbody", 0]] as const,
+        parseDOM: [{ tag: "table" }],
+      },
+      table_row: {
+        content: "(table_header | table_cell)+",
+        toDOM: () => ["tr", 0] as const,
+        parseDOM: [{ tag: "tr" }],
+      },
+      table_header: {
+        content: "paragraph",
+        toDOM: () => ["th", 0] as const,
+        parseDOM: [{ tag: "th" }],
+      },
+      table_cell: {
+        content: "paragraph",
+        toDOM: () => ["td", 0] as const,
+        parseDOM: [{ tag: "td" }],
+      },
+      hr: {
+        group: "block",
+        toDOM: () => ["hr"] as const,
+        parseDOM: [{ tag: "hr" }],
       },
       text: { group: "inline" },
     },
@@ -129,8 +177,7 @@ describe("extract_slash_query_from_state", () => {
 });
 
 describe("filter_commands", () => {
-  const noop_parser = () => ({}) as ProsemirrorNode;
-  const all = create_commands(noop_parser);
+  const all = create_commands();
 
   it("returns all commands for empty query", () => {
     expect(filter_commands(all, "")).toHaveLength(all.length);
@@ -183,8 +230,7 @@ describe("filter_commands", () => {
 
 describe("create_commands", () => {
   it("contains all expected command ids", () => {
-    const noop_parser = () => ({}) as ProsemirrorNode;
-    const commands = create_commands(noop_parser);
+    const commands = create_commands();
     const ids = commands.map((c) => c.id);
 
     expect(ids).toContain("h1");
@@ -202,8 +248,7 @@ describe("create_commands", () => {
   });
 
   it("each command has a non-empty label and icon", () => {
-    const noop_parser = () => ({}) as ProsemirrorNode;
-    const commands = create_commands(noop_parser);
+    const commands = create_commands();
 
     for (const cmd of commands) {
       expect(cmd.label.length).toBeGreaterThan(0);
@@ -212,8 +257,7 @@ describe("create_commands", () => {
   });
 
   it("heading commands have a level keyword matching their id", () => {
-    const noop_parser = () => ({}) as ProsemirrorNode;
-    const commands = create_commands(noop_parser);
+    const commands = create_commands();
     const headings = commands.filter(
       (c) => c.id.startsWith("h") && c.id.length === 2,
     );
@@ -222,29 +266,122 @@ describe("create_commands", () => {
       expect(h.keywords).toContain(h.id);
     }
   });
+});
 
-  it("heading insert calls setBlockType via dispatch", () => {
-    const schema = create_schema();
-    const para = schema.nodes["paragraph"].create(null, schema.text("/h1"));
-    const doc = schema.nodes["doc"].create(null, [para]);
-    const initial_state = EditorState.create({ doc });
-    const state_with_cursor = initial_state.apply(
-      initial_state.tr.setSelection(TextSelection.create(doc, 4)),
-    );
+function make_slash_state(slash_text: string): {
+  state: EditorState;
+  schema: Schema;
+} {
+  const schema = create_schema();
+  const para = schema.nodes["paragraph"].create(null, schema.text(slash_text));
+  const doc = schema.nodes["doc"].create(null, [para]);
+  const initial = EditorState.create({ doc });
+  const state = initial.apply(
+    initial.tr.setSelection(TextSelection.create(doc, 1 + slash_text.length)),
+  );
+  return { state, schema };
+}
 
-    const dispatched: unknown[] = [];
-    const mock_view = {
-      state: state_with_cursor,
-      dispatch: (tr: unknown) => dispatched.push(tr),
-      focus: vi.fn(),
-    } as unknown as import("@milkdown/kit/prose/view").EditorView;
+function make_mock_view(state: EditorState) {
+  const dispatched: unknown[] = [];
+  const view = {
+    state,
+    dispatch: (tr: unknown) => dispatched.push(tr),
+    focus: vi.fn(),
+  } as unknown as import("@milkdown/kit/prose/view").EditorView;
+  return { view, dispatched };
+}
 
-    const noop_parser = () => ({}) as ProsemirrorNode;
-    const commands = create_commands(noop_parser);
-    const h1 = commands.find((c) => c.id === "h1");
-    if (!h1) throw new Error("h1 command not found");
+function find_cmd(id: string) {
+  const cmd = create_commands().find((c) => c.id === id);
+  if (!cmd) throw new Error(`command "${id}" not found`);
+  return cmd;
+}
 
-    h1.insert(mock_view, 1);
+describe("slash command insert", () => {
+  it("heading insert dispatches a transaction", () => {
+    const { state } = make_slash_state("/h1");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("h1").insert(view, 1);
     expect(dispatched).toHaveLength(1);
+  });
+
+  it("blockquote insert creates a blockquote node", () => {
+    const { state } = make_slash_state("/blockquote");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("blockquote").insert(view, 1);
+    expect(dispatched).toHaveLength(1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    const first = tr.doc.firstChild;
+    expect(first?.type.name).toBe("blockquote");
+    expect(first?.firstChild?.type.name).toBe("paragraph");
+  });
+
+  it("bullet list insert creates a bullet_list node", () => {
+    const { state } = make_slash_state("/bullet");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("bullet").insert(view, 1);
+    expect(dispatched).toHaveLength(1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    const first = tr.doc.firstChild;
+    expect(first?.type.name).toBe("bullet_list");
+    expect(first?.firstChild?.type.name).toBe("list_item");
+  });
+
+  it("ordered list insert creates an ordered_list node", () => {
+    const { state } = make_slash_state("/ordered");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("ordered").insert(view, 1);
+    expect(dispatched).toHaveLength(1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    const first = tr.doc.firstChild;
+    expect(first?.type.name).toBe("ordered_list");
+    expect(first?.firstChild?.type.name).toBe("list_item");
+  });
+
+  it("table insert creates a table with header and body rows", () => {
+    const { state } = make_slash_state("/table");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("table").insert(view, 1);
+    expect(dispatched).toHaveLength(1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    const table = tr.doc.firstChild;
+    expect(table?.type.name).toBe("table");
+    expect(table?.childCount).toBe(2);
+    expect(table?.child(0).firstChild?.type.name).toBe("table_header");
+    expect(table?.child(1).firstChild?.type.name).toBe("table_cell");
+  });
+
+  it("table insert adds a trailing paragraph", () => {
+    const { state } = make_slash_state("/table");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("table").insert(view, 1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    expect(tr.doc.childCount).toBe(2);
+    expect(tr.doc.child(1).type.name).toBe("paragraph");
+  });
+
+  it("divider insert creates an hr with trailing paragraph", () => {
+    const { state } = make_slash_state("/divider");
+    const { view, dispatched } = make_mock_view(state);
+
+    find_cmd("divider").insert(view, 1);
+    expect(dispatched).toHaveLength(1);
+
+    const tr = dispatched[0] as import("@milkdown/kit/prose/state").Transaction;
+    expect(tr.doc.firstChild?.type.name).toBe("hr");
+    expect(tr.doc.childCount).toBe(2);
+    expect(tr.doc.child(1).type.name).toBe("paragraph");
   });
 });

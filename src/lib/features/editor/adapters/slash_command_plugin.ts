@@ -1,5 +1,4 @@
 import { $prose } from "@milkdown/kit/utils";
-import { parserCtx } from "@milkdown/kit/core";
 import {
   Plugin,
   PluginKey,
@@ -8,7 +7,6 @@ import {
 } from "@milkdown/kit/prose/state";
 import { SlashProvider } from "@milkdown/kit/plugin/slash";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import type { Node as ProsemirrorNode } from "@milkdown/kit/prose/model";
 
 export const slash_plugin_key = new PluginKey("slash-command");
 
@@ -99,41 +97,99 @@ function make_code_block_insert() {
   };
 }
 
-function make_block_insert(
-  parser: (md: string) => ProsemirrorNode,
-  markdown: string,
-  trailing_para = false,
-) {
+function make_blockquote_insert() {
   return (view: EditorView, from: number) => {
     const { state } = view;
+    const bq = state.schema.nodes["blockquote"];
+    const para = state.schema.nodes["paragraph"];
+    if (!bq || !para) return;
+
     const $pos = state.doc.resolve(from);
-    const para_start = $pos.before();
-    const para_end = $pos.after();
-
-    let doc_node: ProsemirrorNode;
-    try {
-      doc_node = parser(markdown);
-    } catch {
-      return;
-    }
-
-    const block = doc_node.firstChild;
-    if (!block) return;
-
-    const para_type = state.schema.nodes["paragraph"];
-    const nodes: ProsemirrorNode[] =
-      trailing_para && para_type ? [block, para_type.create()] : [block];
-
-    const tr = state.tr.replaceWith(para_start, para_end, nodes);
-    const cursor = TextSelection.findFrom(tr.doc.resolve(para_start + 1), 1);
-    if (cursor) tr.setSelection(cursor);
+    const tr = state.tr.replaceWith(
+      $pos.before(),
+      $pos.after(),
+      bq.create(null, para.create()),
+    );
+    const sel = TextSelection.findFrom(tr.doc.resolve($pos.before() + 1), 1);
+    if (sel) tr.setSelection(sel);
     view.dispatch(tr.scrollIntoView());
   };
 }
 
-export function create_commands(
-  parser: (md: string) => ProsemirrorNode,
-): SlashCommand[] {
+function make_list_insert(list_type_name: string) {
+  return (view: EditorView, from: number) => {
+    const { state } = view;
+    const list = state.schema.nodes[list_type_name];
+    const item = state.schema.nodes["list_item"];
+    const para = state.schema.nodes["paragraph"];
+    if (!list || !item || !para) return;
+
+    const $pos = state.doc.resolve(from);
+    const tr = state.tr.replaceWith(
+      $pos.before(),
+      $pos.after(),
+      list.create(null, item.create(null, para.create())),
+    );
+    const sel = TextSelection.findFrom(tr.doc.resolve($pos.before() + 1), 1);
+    if (sel) tr.setSelection(sel);
+    view.dispatch(tr.scrollIntoView());
+  };
+}
+
+function make_table_insert() {
+  return (view: EditorView, from: number) => {
+    const { state } = view;
+    const { nodes: n } = state.schema;
+    const table = n["table"];
+    const row = n["table_row"];
+    const header = n["table_header"];
+    const cell = n["table_cell"];
+    const para = n["paragraph"];
+    if (!table || !row || !header || !cell || !para) return;
+
+    const $pos = state.doc.resolve(from);
+    const start = $pos.before();
+
+    const header_row = row.create(null, [
+      header.create(null, para.create(null, state.schema.text("Col 1"))),
+      header.create(null, para.create(null, state.schema.text("Col 2"))),
+    ]);
+    const body_row = row.create(null, [
+      cell.create(null, para.create()),
+      cell.create(null, para.create()),
+    ]);
+
+    const tr = state.tr.replaceWith(start, $pos.after(), [
+      table.create(null, [header_row, body_row]),
+      para.create(),
+    ]);
+    const sel = TextSelection.findFrom(tr.doc.resolve(start + 1), 1);
+    if (sel) tr.setSelection(sel);
+    view.dispatch(tr.scrollIntoView());
+  };
+}
+
+function make_divider_insert() {
+  return (view: EditorView, from: number) => {
+    const { state } = view;
+    const hr = state.schema.nodes["hr"];
+    const para = state.schema.nodes["paragraph"];
+    if (!hr || !para) return;
+
+    const $pos = state.doc.resolve(from);
+    const start = $pos.before();
+
+    const tr = state.tr.replaceWith(start, $pos.after(), [
+      hr.create(),
+      para.create(),
+    ]);
+    const sel = TextSelection.findFrom(tr.doc.resolve(start + 1), 1);
+    if (sel) tr.setSelection(sel);
+    view.dispatch(tr.scrollIntoView());
+  };
+}
+
+export function create_commands(): SlashCommand[] {
   return [
     {
       id: "h1",
@@ -197,11 +253,7 @@ export function create_commands(
       description: "Grid with rows and columns",
       icon: "⊞",
       keywords: ["table", "grid", "spreadsheet", "data"],
-      insert: make_block_insert(
-        parser,
-        "| Col 1 | Col 2 |\n| --- | --- |\n|  |  |",
-        true,
-      ),
+      insert: make_table_insert(),
     },
     {
       id: "bullet",
@@ -209,7 +261,7 @@ export function create_commands(
       description: "Unordered list of items",
       icon: "•",
       keywords: ["bullet", "list", "unordered", "ul", "items"],
-      insert: make_block_insert(parser, "- "),
+      insert: make_list_insert("bullet_list"),
     },
     {
       id: "ordered",
@@ -217,7 +269,7 @@ export function create_commands(
       description: "Numbered list of items",
       icon: "#",
       keywords: ["ordered", "list", "numbered", "ol", "number"],
-      insert: make_block_insert(parser, "1. "),
+      insert: make_list_insert("ordered_list"),
     },
     {
       id: "blockquote",
@@ -225,7 +277,7 @@ export function create_commands(
       description: "Indented quote or callout",
       icon: "❝",
       keywords: ["quote", "blockquote", "callout", "cite"],
-      insert: make_block_insert(parser, "> "),
+      insert: make_blockquote_insert(),
     },
     {
       id: "divider",
@@ -233,7 +285,7 @@ export function create_commands(
       description: "Horizontal rule to separate sections",
       icon: "—",
       keywords: ["divider", "hr", "horizontal", "rule", "separator", "line"],
-      insert: make_block_insert(parser, "---", true),
+      insert: make_divider_insert(),
     },
   ];
 }
@@ -320,9 +372,8 @@ function scroll_selected_into_view(
   }
 }
 
-export const slash_command_plugin = $prose((ctx) => {
-  const parser = ctx.get(parserCtx);
-  const all_commands = create_commands(parser);
+export const slash_command_plugin = $prose(() => {
+  const all_commands = create_commands();
 
   let slash_state: SlashState = EMPTY_STATE;
   let menu: HTMLElement | null = null;
