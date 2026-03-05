@@ -186,4 +186,12 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     description: "Jump to previous search match",
     category: "editing",
   },
+  {
+    action_id: ACTION_IDS.split_view_toggle,
+    key: "CmdOrCtrl+\\",
+    phase: "capture",
+    label: "Toggle Split View",
+    description: "Split the editor to view two documents side by side",
+    category: "navigation",
+  },
 ];

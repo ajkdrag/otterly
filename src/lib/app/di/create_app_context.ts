@@ -17,6 +17,10 @@ import { GitService } from "$lib/features/git";
 import { HotkeyService } from "$lib/features/hotkey";
 import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
+import {
+  SplitViewService,
+  register_split_view_actions,
+} from "$lib/features/split_view";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -163,6 +167,13 @@ export function create_app_context(input: {
     now_ms,
   );
 
+  const split_view_service = new SplitViewService(
+    input.ports.editor,
+    stores.vault,
+    stores.op,
+    stores.split_view,
+  );
+
   register_actions({
     registry: action_registry,
     stores: {
@@ -193,6 +204,38 @@ export function create_app_context(input: {
     default_mount_config: input.default_mount_config,
   });
 
+  register_split_view_actions({
+    registry: action_registry,
+    stores: {
+      ui: stores.ui,
+      vault: stores.vault,
+      notes: stores.notes,
+      editor: stores.editor,
+      op: stores.op,
+      search: stores.search,
+      tab: stores.tab,
+      git: stores.git,
+      outline: stores.outline,
+    },
+    services: {
+      vault: vault_service,
+      note: note_service,
+      folder: folder_service,
+      settings: settings_service,
+      search: search_service,
+      editor: editor_service,
+      clipboard: clipboard_service,
+      shell: shell_service,
+      tab: tab_service,
+      git: git_service,
+      hotkey: hotkey_service,
+      theme: theme_service,
+    },
+    default_mount_config: input.default_mount_config,
+    split_view_store: stores.split_view,
+    split_view_service,
+  });
+
   const cleanup_reactors = mount_reactors({
     editor_store: stores.editor,
     ui_store: stores.ui,
@@ -218,6 +261,7 @@ export function create_app_context(input: {
     action_registry,
     destroy: () => {
       cleanup_reactors();
+      split_view_service.destroy();
       editor_service.unmount();
     },
   };
