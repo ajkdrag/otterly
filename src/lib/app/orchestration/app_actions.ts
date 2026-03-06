@@ -186,56 +186,6 @@ async function resolve_pending_file_open(
   }
 }
 
-async function resolve_pending_file_open(
-  input: ActionRegistrationInput,
-): Promise<void> {
-  if (!is_tauri) return;
-
-  const has_vault = input.stores.vault.vault !== null;
-  if (has_vault) return;
-
-  try {
-    const pending_path = await tauri_invoke<string | null>(
-      "get_pending_file_open",
-    );
-    if (!pending_path) return;
-
-    log.info("Cold start with pending file open", {
-      file_path: pending_path,
-    });
-
-    const resolution =
-      await input.services.vault.resolve_file_to_vault(pending_path);
-
-    const vault_path = resolution
-      ? resolution.vault_path
-      : pending_path.substring(0, pending_path.lastIndexOf("/"));
-
-    const relative_path = resolution
-      ? resolution.relative_path
-      : pending_path.substring(pending_path.lastIndexOf("/") + 1);
-
-    const open_config = {
-      ...input.default_mount_config,
-      bootstrap_default_vault_path: as_vault_path(vault_path),
-      open_file_after_mount: relative_path,
-    };
-
-    const vault_result = await input.services.vault.initialize(open_config);
-    if (vault_result.status === "ready" && vault_result.has_vault) {
-      await mount_ready_vault_state(input, vault_result);
-      await input.registry.execute(ACTION_IDS.note_open, {
-        note_path: as_note_path(relative_path),
-        cleanup_if_missing: false,
-      });
-    }
-  } catch (error) {
-    log.error("Failed to handle pending file open", {
-      error: String(error),
-    });
-  }
-}
-
 async function execute_app_mounted(input: ActionRegistrationInput) {
   set_startup_loading(input);
 

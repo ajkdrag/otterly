@@ -55,9 +55,9 @@ describe("extract_headings", () => {
     const doc = schema.node("doc", null, [make_heading(schema, 1, "Title")]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(1);
-    expect(headings[0].level).toBe(1);
-    expect(headings[0].text).toBe("Title");
-    expect(headings[0].id).toMatch(/^h-\d+$/);
+    expect(headings[0]!.level).toBe(1);
+    expect(headings[0]!.text).toBe("Title");
+    expect(headings[0]!.id).toMatch(/^h-\d+$/);
   });
 
   it("extracts multiple headings with correct levels", () => {
@@ -85,7 +85,7 @@ describe("extract_headings", () => {
     const doc = schema.node("doc", null, [make_heading(schema, 1, "")]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(1);
-    expect(headings[0].text).toBe("");
+    expect(headings[0]!.text).toBe("");
   });
 
   it("assigns unique IDs based on position", () => {
@@ -96,7 +96,7 @@ describe("extract_headings", () => {
     ]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(2);
-    expect(headings[0].id).not.toBe(headings[1].id);
+    expect(headings[0]!.id).not.toBe(headings[1]!.id);
   });
 
   it("preserves heading positions", () => {
@@ -108,6 +108,6 @@ describe("extract_headings", () => {
     ]);
     const headings = extract_headings(doc);
     expect(headings).toHaveLength(2);
-    expect(headings[0].pos).toBeLessThan(headings[1].pos);
+    expect(headings[0]!.pos).toBeLessThan(headings[1]!.pos);
   });
 });
