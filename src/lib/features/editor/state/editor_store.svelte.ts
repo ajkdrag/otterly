@@ -52,6 +52,7 @@ export class EditorStore {
     }
   }
 
+  /** Replaces the stored mtime for conflict detection. Set to 0 to disable the mtime guard. */
   update_mtime(note_id: NoteId, mtime_ms: number) {
     if (!this.open_note) return;
     if (this.open_note.meta.id !== note_id) return;

@@ -81,10 +81,12 @@ export class NoteService {
     private readonly on_file_written?: (path: string) => void,
   ) {}
 
+  /** Clears the currently-open note from the editor. Used by the watcher reactor on external delete. */
   clear_open_note() {
     this.editor_store.clear_open_note();
   }
 
+  /** Zeroes the mtime so the next save skips the mtime conflict check. Used after "Keep my changes". */
   skip_mtime_guard(note_id: NoteId) {
     this.editor_store.update_mtime(note_id, 0);
   }

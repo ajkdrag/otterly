@@ -104,10 +104,12 @@ export class TabService {
     this.tab_store.set_dirty(tab_id, is_dirty);
   }
 
+  /** Clears cached content for a tab so it re-reads from disk on next activation. */
   invalidate_cache(note_path: NotePath) {
     this.tab_store.invalidate_cache_by_path(note_path);
   }
 
+  /** Closes the tab for the given path. Used by the watcher reactor on external delete. */
   remove_tab(note_path: NotePath) {
     this.tab_store.remove_tab_by_path(note_path);
   }

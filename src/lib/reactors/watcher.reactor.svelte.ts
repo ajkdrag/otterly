@@ -18,8 +18,13 @@ import {
 const log = create_logger("watcher_reactor");
 const TREE_REFRESH_DEBOUNCE_MS = 300;
 
+/** Dirty state of a non-active tab, or null if no background tab exists for the path. */
 export type BackgroundTabInfo = { is_dirty: boolean } | null;
 
+/**
+ * Discriminated union returned by `resolve_watcher_event_decision`.
+ * Each variant maps to a specific handler action in the watcher reactor.
+ */
 export type WatcherEventDecision =
   | { action: "reload"; note_path: NotePath }
   | { action: "conflict_toast"; note_path: NotePath }
@@ -31,6 +36,10 @@ export type WatcherEventDecision =
   | { action: "log_only"; path: string }
   | { action: "ignore" };
 
+/**
+ * Pure decision function: maps a filesystem event + current editor/tab state
+ * to an action the reactor should take.
+ */
 export function resolve_watcher_event_decision(
   event: VaultFsEvent,
   current_vault_id: string | null,
@@ -83,6 +92,13 @@ export function resolve_watcher_event_decision(
   }
 }
 
+/**
+ * Reactor that starts/stops the filesystem watcher when the vault changes,
+ * and dispatches incoming events through `resolve_watcher_event_decision`.
+ *
+ * Self-writes are suppressed before reaching the decision function.
+ * File tree refreshes are debounced (300ms) to batch rapid add/remove events.
+ */
 export function create_watcher_reactor(
   vault_store: VaultStore,
   editor_store: EditorStore,

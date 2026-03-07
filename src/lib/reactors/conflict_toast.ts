@@ -7,9 +7,14 @@ type ConflictCallbacks = {
   on_keep: () => void;
 };
 
+/**
+ * Deduplicating manager for conflict toasts. At most one toast per note path
+ * is shown at a time. Shared between the watcher and autosave reactors.
+ */
 export class ConflictToastManager {
   private active = new Map<string, string | number>();
 
+  /** Shows a conflict toast for the given path. No-op if one is already active. */
   show(note_path: string, callbacks: ConflictCallbacks): void {
     if (this.active.has(note_path)) return;
 
@@ -43,6 +48,11 @@ export class ConflictToastManager {
   }
 }
 
+/**
+ * Creates conflict callbacks for the currently-open note.
+ * "Reload" re-opens from disk; "Keep" zeroes the mtime guard so the
+ * next save overwrites without a conflict check.
+ */
 export function active_note_conflict_callbacks(
   note_path: NotePath,
   note_id: NoteId,

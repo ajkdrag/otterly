@@ -1,3 +1,4 @@
+/** Filesystem event emitted by the Rust watcher backend via Tauri event subscription. */
 export type VaultFsEvent =
   | {
       type: "note_changed_externally";
