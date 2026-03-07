@@ -1,6 +1,5 @@
 import { toast } from "svelte-sonner";
 import type { NoteId, NotePath } from "$lib/shared/types/ids";
-import type { EditorStore } from "$lib/features/editor";
 import type { NoteService } from "$lib/features/note";
 
 type ConflictCallbacks = {
@@ -48,14 +47,13 @@ export function active_note_conflict_callbacks(
   note_path: NotePath,
   note_id: NoteId,
   note_service: NoteService,
-  editor_store: EditorStore,
 ): ConflictCallbacks {
   return {
     on_reload: () => {
       void note_service.open_note(note_path, false, { force_reload: true });
     },
     on_keep: () => {
-      editor_store.update_mtime(note_id, 0);
+      note_service.skip_mtime_guard(note_id);
     },
   };
 }

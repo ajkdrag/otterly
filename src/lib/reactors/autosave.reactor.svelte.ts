@@ -32,12 +32,7 @@ export function create_autosave_reactor(
           if (result.status === "conflict") {
             conflict_toast_manager.show(
               note_path,
-              active_note_conflict_callbacks(
-                note_path,
-                note_id,
-                note_service,
-                editor_store,
-              ),
+              active_note_conflict_callbacks(note_path, note_id, note_service),
             );
           }
         });

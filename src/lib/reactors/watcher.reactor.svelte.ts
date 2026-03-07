@@ -144,7 +144,6 @@ export function create_watcher_reactor(
               decision.note_path,
               note_id,
               note_service,
-              editor_store,
             ),
           );
           break;

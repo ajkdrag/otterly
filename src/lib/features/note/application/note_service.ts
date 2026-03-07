@@ -6,6 +6,7 @@ import {
   type MarkdownText,
   type NotePath,
   type AssetPath,
+  type NoteId,
   type VaultId,
 } from "$lib/shared/types/ids";
 import type { NoteDoc, NoteMeta } from "$lib/shared/types/note";
@@ -82,6 +83,10 @@ export class NoteService {
 
   clear_open_note() {
     this.editor_store.clear_open_note();
+  }
+
+  skip_mtime_guard(note_id: NoteId) {
+    this.editor_store.update_mtime(note_id, 0);
   }
 
   private get_active_vault_id(): VaultId | null {
@@ -760,7 +765,7 @@ export class NoteService {
   }
 
   private is_mtime_conflict_error(error: unknown): boolean {
-    return error_message(error).includes("conflict:mtime_mismatch");
+    return error_message(error).startsWith("conflict:");
   }
 
   private is_note_exists_error(error: unknown): boolean {

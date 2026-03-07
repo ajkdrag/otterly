@@ -18,7 +18,7 @@ describe("autosave.reactor", () => {
       {
         save_note: vi.fn(),
       } as never,
-      { show: vi.fn(), has: vi.fn(), dismiss: vi.fn() } as never,
+      { show: vi.fn(), dismiss_all: vi.fn() } as never,
     );
 
     expect(typeof unmount).toBe("function");
