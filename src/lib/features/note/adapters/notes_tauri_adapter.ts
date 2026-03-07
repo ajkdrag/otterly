@@ -93,12 +93,16 @@ export function create_notes_tauri_adapter(): NotesPort {
       offset: number,
       limit: number,
     ): Promise<FolderContents> {
-      return await invoke_notes<FolderContents>("list_folder_contents", {
-        vaultId: vault_id,
-        folderPath: folder_path,
-        offset,
-        limit,
-      });
+      const contents = await invoke_notes<FolderContents>(
+        "list_folder_contents",
+        {
+          vaultId: vault_id,
+          folderPath: folder_path,
+          offset,
+          limit,
+        },
+      );
+      return { ...contents, files: contents.files ?? [] };
     },
     async rename_folder(vault_id: VaultId, from_path: string, to_path: string) {
       await invoke_notes_args<undefined>("rename_folder", {

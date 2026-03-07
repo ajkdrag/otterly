@@ -17,7 +17,7 @@ export function create_tab_persist_reactor(
   function schedule_persist() {
     const serialized = JSON.stringify({
       tabs: tab_store.tabs.map((t) => ({
-        p: t.note_path,
+        p: t.kind === "note" ? t.note_path : t.file_path,
         pin: t.is_pinned,
       })),
       active: tab_store.active_tab_id,

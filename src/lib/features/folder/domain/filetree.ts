@@ -1,23 +1,26 @@
 import type { NoteMeta } from "$lib/shared/types/note";
-import type { MoveItem } from "$lib/shared/types/filetree";
+import type { FileMeta, MoveItem } from "$lib/shared/types/filetree";
 
 export type FileTreeNode = {
   name: string;
   path: string;
   children: Map<string, FileTreeNode>;
   note: NoteMeta | null;
+  file_meta: FileMeta | null;
   is_folder: boolean;
 };
 
 export function build_filetree(
   notes: NoteMeta[],
   folder_paths: string[] = [],
+  files: FileMeta[] = [],
 ): FileTreeNode {
   const root: FileTreeNode = {
     name: "",
     path: "",
     children: new Map(),
     note: null,
+    file_meta: null,
     is_folder: true,
   };
 
@@ -36,6 +39,7 @@ export function build_filetree(
           path: node_path,
           children: new Map(),
           note: is_last ? note : null,
+          file_meta: null,
           is_folder: !is_last,
         });
       }
@@ -61,12 +65,51 @@ export function build_filetree(
           path: node_path,
           children: new Map(),
           note: null,
+          file_meta: null,
           is_folder: true,
         });
       }
       const next_node = current.children.get(part);
       if (!next_node) throw new Error(`Missing node for part: ${part}`);
       current = next_node;
+    }
+  }
+
+  for (const file of files) {
+    const parts = file.path.split("/").filter(Boolean);
+    let current = root;
+    let node_path = "";
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part) continue;
+      const is_last = i === parts.length - 1;
+      node_path = node_path ? `${node_path}/${part}` : part;
+      if (is_last) {
+        if (!current.children.has(part)) {
+          current.children.set(part, {
+            name: file.name,
+            path: node_path,
+            children: new Map(),
+            note: null,
+            file_meta: file,
+            is_folder: false,
+          });
+        }
+      } else {
+        if (!current.children.has(part)) {
+          current.children.set(part, {
+            name: part,
+            path: node_path,
+            children: new Map(),
+            note: null,
+            file_meta: null,
+            is_folder: true,
+          });
+        }
+        const next_node = current.children.get(part);
+        if (!next_node) throw new Error(`Missing node for part: ${part}`);
+        current = next_node;
+      }
     }
   }
 

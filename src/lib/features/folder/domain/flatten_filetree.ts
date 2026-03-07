@@ -1,5 +1,6 @@
 import type { NoteMeta } from "$lib/shared/types/note";
 import type {
+  FileMeta,
   FlatTreeNode,
   FolderLoadState,
   FolderPaginationState,
@@ -13,6 +14,7 @@ import {
 export type FlattenInput = {
   notes: NoteMeta[];
   folder_paths: string[];
+  files: FileMeta[];
   expanded_paths: Set<string>;
   load_states: Map<string, FolderLoadState>;
   error_messages: Map<string, string>;
@@ -24,13 +26,14 @@ export function flatten_filetree(input: FlattenInput): FlatTreeNode[] {
   const {
     notes,
     folder_paths,
+    files,
     expanded_paths,
     load_states,
     error_messages,
     show_hidden_files,
     pagination,
   } = input;
-  const tree = sort_tree(build_filetree(notes, folder_paths));
+  const tree = sort_tree(build_filetree(notes, folder_paths, files));
   const result: FlatTreeNode[] = [];
 
   function visit(
@@ -58,6 +61,7 @@ export function flatten_filetree(input: FlattenInput): FlatTreeNode[] {
         has_error: load_state === "error",
         error_message: error_messages.get(child.path) ?? null,
         note: child.note,
+        file_meta: child.file_meta,
         parent_path,
         is_load_more: false,
       };
@@ -86,6 +90,7 @@ export function flatten_filetree(input: FlattenInput): FlatTreeNode[] {
         has_error: pagination_state.load_state === "error",
         error_message: pagination_state.error_message,
         note: null,
+        file_meta: null,
         parent_path: node.path,
         is_load_more: true,
       });

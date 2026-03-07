@@ -25,6 +25,7 @@ function mock_open_note(path: string): OpenNoteState {
 
 function mock_tab(path: string): Tab {
   return {
+    kind: "note",
     id: path,
     note_path: as_note_path(path),
     title: path,

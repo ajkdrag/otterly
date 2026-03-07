@@ -282,6 +282,7 @@ export function create_mock_notes_port(): NotesPort & {
       return Promise.resolve({
         notes: paged_notes,
         subfolders: paged_subfolders,
+        files: [],
         total_count,
         has_more: end < total_count,
       });

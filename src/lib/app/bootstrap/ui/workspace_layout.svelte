@@ -78,6 +78,7 @@
     flatten_filetree({
       notes: stores.notes.notes,
       folder_paths: stores.notes.folder_paths,
+      files: [],
       expanded_paths: stores.ui.filetree.expanded_paths,
       load_states: stores.ui.filetree.load_states,
       error_messages: stores.ui.filetree.error_messages,
@@ -134,6 +135,7 @@
           has_error: false,
           error_message: null,
           note: note_meta,
+          file_meta: null,
           parent_path: null,
           is_load_more: false,
         });
@@ -156,6 +158,7 @@
         has_error: root_load_state === "error",
         error_message: stores.ui.filetree.error_messages.get(root_path) ?? null,
         note: null,
+        file_meta: null,
         parent_path: null,
         is_load_more: false,
       });
@@ -218,6 +221,7 @@
                   path: actual_path,
                 } as NoteMeta)
               : null,
+            file_meta: null,
             parent_path: parent_actual_path,
             is_load_more: false,
           });
@@ -248,6 +252,7 @@
             has_error: pagination_state.load_state === "error",
             error_message: pagination_state.error_message,
             note: null,
+            file_meta: null,
             parent_path: parent_actual_path,
             is_load_more: true,
           });

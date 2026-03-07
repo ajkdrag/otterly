@@ -355,6 +355,7 @@ describe("register_tab_actions", () => {
       const { registry, stores, services } = create_tab_actions_harness();
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.push_closed_history({
+        kind: "note",
         note_path: np("closed.md"),
         title: "closed",
         scroll_top: 50,
@@ -519,7 +520,8 @@ describe("register_tab_actions", () => {
       expect(stores.tab.tabs).toHaveLength(2);
       expect(stores.tab.find_tab_by_path(np("a.md"))).toBeNull();
       expect(stores.tab.closed_tab_history).toHaveLength(1);
-      expect(stores.tab.closed_tab_history[0]?.note_path).toBe("a.md");
+      const entry = stores.tab.closed_tab_history[0];
+      expect(entry?.kind === "note" ? entry.note_path : null).toBe("a.md");
     });
 
     it("returns false when all tabs are dirty or pinned", () => {

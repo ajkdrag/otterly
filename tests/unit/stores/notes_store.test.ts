@@ -22,6 +22,7 @@ function folder_contents(
   return {
     notes,
     subfolders,
+    files: [],
     total_count: notes.length + subfolders.length,
     has_more: false,
   };
@@ -158,6 +159,7 @@ describe("NotesStore.append_folder_page", () => {
     store.append_folder_page("", {
       notes: [note("b.md")],
       subfolders: ["alpha"],
+      files: [],
       total_count: 4,
       has_more: true,
     });
@@ -165,6 +167,7 @@ describe("NotesStore.append_folder_page", () => {
     store.append_folder_page("", {
       notes: [note("c.md")],
       subfolders: ["beta"],
+      files: [],
       total_count: 4,
       has_more: false,
     });
@@ -179,6 +182,7 @@ describe("NotesStore.append_folder_page", () => {
     store.append_folder_page("", {
       notes: [note("b.md")],
       subfolders: ["alpha"],
+      files: [],
       total_count: 3,
       has_more: true,
     });
@@ -186,6 +190,7 @@ describe("NotesStore.append_folder_page", () => {
     store.append_folder_page("", {
       notes: [note("b.md")],
       subfolders: ["alpha"],
+      files: [],
       total_count: 3,
       has_more: false,
     });

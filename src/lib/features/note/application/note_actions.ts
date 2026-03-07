@@ -213,9 +213,9 @@ export function register_note_actions(input: ActionRegistrationInput) {
 
         await capture_active_tab_snapshot(input);
 
-        const open_names = stores.tab.tabs.map((t) =>
-          note_name_from_path(t.note_path),
-        );
+        const open_names = stores.tab.tabs
+          .filter((t) => t.kind === "note")
+          .map((t) => note_name_from_path(t.note_path));
         services.note.create_new_note(open_names);
 
         const open_note = stores.editor.open_note;
@@ -471,7 +471,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
         close_delete_dialog(input);
 
         const active_tab = stores.tab.active_tab;
-        if (active_tab) {
+        if (active_tab && active_tab.kind === "note") {
           await services.note.open_note(active_tab.note_path, false);
         }
       },

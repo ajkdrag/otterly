@@ -46,8 +46,10 @@ export class TabStore {
 
   find_tab_by_path(note_path: NotePath): Tab | null {
     return (
-      this.tabs.find((t) => paths_equal_ignore_case(t.note_path, note_path)) ??
-      null
+      this.tabs.find(
+        (t) =>
+          t.kind === "note" && paths_equal_ignore_case(t.note_path, note_path),
+      ) ?? null
     );
   }
 
@@ -60,8 +62,35 @@ export class TabStore {
     }
 
     const tab: Tab = {
+      kind: "note",
       id: note_path,
       note_path,
+      title,
+      is_pinned: false,
+      is_dirty: false,
+    };
+
+    this.tabs = [...this.tabs, tab];
+    this.active_tab_id = tab.id;
+    this.mru_order = [tab.id, ...this.mru_order];
+    return tab;
+  }
+
+  open_document_tab(file_path: string, title: string, file_type: string): Tab {
+    const existing = this.tabs.find(
+      (t) => t.kind === "document" && t.file_path === file_path,
+    );
+    if (existing) {
+      this.active_tab_id = existing.id;
+      this.move_to_front_mru(existing.id);
+      return existing;
+    }
+
+    const tab: Tab = {
+      kind: "document",
+      id: file_path,
+      file_path,
+      file_type,
       title,
       is_pinned: false,
       is_dirty: false,
@@ -203,7 +232,10 @@ export class TabStore {
 
   invalidate_cache_by_path(note_path: NotePath) {
     const tab_ids = this.tabs
-      .filter((t) => paths_equal_ignore_case(t.note_path, note_path))
+      .filter(
+        (t) =>
+          t.kind === "note" && paths_equal_ignore_case(t.note_path, note_path),
+      )
       .map((t) => t.id);
     if (tab_ids.length === 0) return;
     const ids_to_clear = new Set(tab_ids);
@@ -236,11 +268,11 @@ export class TabStore {
 
   update_tab_path(old_path: NotePath, new_path: NotePath) {
     const tab = this.find_tab_by_path(old_path);
-    if (!tab) return;
+    if (!tab || tab.kind !== "note") return;
 
     const new_title = note_name_from_path(new_path);
     this.tabs = this.tabs.map((t) =>
-      t.id === tab.id
+      t.id === tab.id && t.kind === "note"
         ? { ...t, id: new_path, note_path: new_path, title: new_title }
         : t,
     );
@@ -275,11 +307,12 @@ export class TabStore {
   update_tab_path_prefix(old_prefix: string, new_prefix: string) {
     let active_changed = false;
     let new_active_id = this.active_tab_id;
-    const snapshot_renames: [string, string][] = [];
+    const renames = new Map<string, string>();
 
+    const lower_prefix = old_prefix.toLowerCase();
     this.tabs = this.tabs.map((t) => {
+      if (t.kind !== "note") return t;
       const lower_path = t.note_path.toLowerCase();
-      const lower_prefix = old_prefix.toLowerCase();
       if (!lower_path.startsWith(lower_prefix)) return t;
       const new_path =
         `${new_prefix}${t.note_path.slice(old_prefix.length)}` as NotePath;
@@ -288,7 +321,7 @@ export class TabStore {
         active_changed = true;
         new_active_id = new_path;
       }
-      snapshot_renames.push([t.id, new_path]);
+      renames.set(t.id, new_path);
       return { ...t, id: new_path, note_path: new_path, title: new_title };
     });
 
@@ -296,37 +329,26 @@ export class TabStore {
       this.active_tab_id = new_active_id;
     }
 
-    if (snapshot_renames.length > 0) {
+    if (renames.size > 0) {
       const next = new Map(
-        [...this.editor_snapshots].filter(
-          ([id]) => !snapshot_renames.some(([old_id]) => old_id === id),
-        ),
+        [...this.editor_snapshots].filter(([id]) => !renames.has(id)),
       );
-      for (const [old_id, new_id] of snapshot_renames) {
+      for (const [old_id, new_id] of renames) {
         const snapshot = this.editor_snapshots.get(old_id);
-        if (snapshot) {
-          next.set(new_id, snapshot);
-        }
+        if (snapshot) next.set(new_id, snapshot);
       }
       this.editor_snapshots = next;
 
       const next_cache = new Map(
-        [...this.note_cache].filter(
-          ([id]) => !snapshot_renames.some(([old_id]) => old_id === id),
-        ),
+        [...this.note_cache].filter(([id]) => !renames.has(id)),
       );
-      for (const [old_id, new_id] of snapshot_renames) {
+      for (const [old_id, new_id] of renames) {
         const cached = this.note_cache.get(old_id);
-        if (cached) {
-          next_cache.set(new_id, cached);
-        }
+        if (cached) next_cache.set(new_id, cached);
       }
       this.note_cache = next_cache;
 
-      this.mru_order = this.mru_order.map((id) => {
-        const rename = snapshot_renames.find(([old_id]) => old_id === id);
-        return rename ? rename[1] : id;
-      });
+      this.mru_order = this.mru_order.map((id) => renames.get(id) ?? id);
     }
   }
 

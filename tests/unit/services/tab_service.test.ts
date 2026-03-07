@@ -76,8 +76,8 @@ describe("TabService", () => {
         "open_tabs",
         {
           tabs: [
-            { note_path: beta, is_pinned: true, cursor: null },
-            { note_path: alpha, is_pinned: false, cursor: null },
+            { kind: "note", note_path: beta, is_pinned: true, cursor: null },
+            { kind: "note", note_path: alpha, is_pinned: false, cursor: null },
           ],
           active_tab_path: beta,
         },
@@ -134,8 +134,18 @@ describe("TabService", () => {
         "open_tabs",
         {
           tabs: [
-            { note_path: alpha, is_pinned: false, cursor: alpha_cursor },
-            { note_path: beta, is_pinned: false, cursor: beta_cursor },
+            {
+              kind: "note",
+              note_path: alpha,
+              is_pinned: false,
+              cursor: alpha_cursor,
+            },
+            {
+              kind: "note",
+              note_path: beta,
+              is_pinned: false,
+              cursor: beta_cursor,
+            },
           ],
           active_tab_path: beta,
         },
@@ -168,7 +178,9 @@ describe("TabService", () => {
         as_vault_id("vault-a"),
         "open_tabs",
         {
-          tabs: [{ note_path: known, is_pinned: false, cursor: null }],
+          tabs: [
+            { kind: "note", note_path: known, is_pinned: false, cursor: null },
+          ],
           active_tab_path: null,
         },
       );
@@ -210,8 +222,8 @@ describe("TabService", () => {
         "open_tabs",
         {
           tabs: [
-            { note_path: alpha, is_pinned: false, cursor: null },
-            { note_path: beta, is_pinned: false, cursor: null },
+            { kind: "note", note_path: alpha, is_pinned: false, cursor: null },
+            { kind: "note", note_path: beta, is_pinned: false, cursor: null },
           ],
           active_tab_path: alpha,
         },
@@ -226,11 +238,13 @@ describe("TabService", () => {
       const persisted: PersistedTabState = {
         tabs: [
           {
+            kind: "note",
             note_path: as_note_path("docs/alpha.md"),
             is_pinned: false,
             cursor: null,
           },
           {
+            kind: "note",
             note_path: as_note_path("docs/beta.md"),
             is_pinned: true,
             cursor: null,
@@ -243,6 +257,7 @@ describe("TabService", () => {
 
       expect(tab_store.tabs).toEqual([
         {
+          kind: "note",
           id: as_note_path("docs/alpha.md"),
           note_path: as_note_path("docs/alpha.md"),
           title: "alpha",
@@ -250,6 +265,7 @@ describe("TabService", () => {
           is_dirty: false,
         },
         {
+          kind: "note",
           id: as_note_path("docs/beta.md"),
           note_path: as_note_path("docs/beta.md"),
           title: "beta",
@@ -272,11 +288,13 @@ describe("TabService", () => {
       const persisted: PersistedTabState = {
         tabs: [
           {
+            kind: "note",
             note_path: as_note_path("docs/alpha.md"),
             is_pinned: false,
             cursor: alpha_cursor,
           },
           {
+            kind: "note",
             note_path: as_note_path("docs/beta.md"),
             is_pinned: false,
             cursor: null,
@@ -300,6 +318,7 @@ describe("TabService", () => {
       const persisted: PersistedTabState = {
         tabs: [
           {
+            kind: "note",
             note_path: as_note_path("docs/alpha.md"),
             is_pinned: false,
             cursor: null,
@@ -330,6 +349,68 @@ describe("TabService", () => {
     });
   });
 
+  describe("round-trip persistence: mixed note and document tabs", () => {
+    it("saves and restores note and document tabs", async () => {
+      const { service, vault_settings_port, tab_store, notes_store } =
+        create_setup();
+
+      const alpha = as_note_path("docs/alpha.md");
+      notes_store.set_notes([
+        {
+          id: alpha,
+          path: alpha,
+          name: "alpha",
+          title: "alpha",
+          mtime_ms: 0,
+          size_bytes: 0,
+        },
+      ]);
+
+      tab_store.open_tab(alpha, "alpha");
+      tab_store.open_document_tab("/reports/q1.pdf", "q1.pdf", "pdf");
+
+      await service.save_tabs();
+
+      const saved_call = vault_settings_port.set_vault_setting.mock.calls[0];
+      const saved_state = saved_call?.[2] as PersistedTabState;
+
+      expect(saved_state.tabs).toHaveLength(2);
+      expect(saved_state.tabs[0]).toMatchObject({
+        kind: "note",
+        note_path: alpha,
+      });
+      expect(saved_state.tabs[1]).toMatchObject({
+        kind: "document",
+        file_path: "/reports/q1.pdf",
+        file_type: "pdf",
+      });
+
+      const new_tab_store = new TabStore();
+      const restore_vault_store = new VaultStore();
+      restore_vault_store.set_vault(
+        create_test_vault({ id: as_vault_id("vault-a") }),
+      );
+      const restore_service = new TabService(
+        vault_settings_port as never,
+        restore_vault_store,
+        new_tab_store,
+        notes_store,
+        { open_note: vi.fn().mockResolvedValue({ status: "opened" }) } as never,
+      );
+
+      await restore_service.restore_tabs(saved_state);
+
+      expect(new_tab_store.tabs).toHaveLength(2);
+      const note_tab = new_tab_store.tabs.find((t) => t.kind === "note");
+      const doc_tab = new_tab_store.tabs.find((t) => t.kind === "document");
+      expect(note_tab?.kind === "note" && note_tab.note_path).toBe(alpha);
+      expect(doc_tab?.kind === "document" && doc_tab.file_path).toBe(
+        "/reports/q1.pdf",
+      );
+      expect(doc_tab?.is_dirty).toBe(false);
+    });
+  });
+
   describe("sync_dirty_state", () => {
     it("delegates to tab_store.set_dirty", () => {
       const { service, tab_store } = create_setup();
@@ -349,6 +430,7 @@ describe("TabService", () => {
       const persisted: PersistedTabState = {
         tabs: [
           {
+            kind: "note",
             note_path: as_note_path("docs/alpha.md"),
             is_pinned: true,
             cursor: { line: 1, column: 1, total_lines: 1, total_words: 0 },

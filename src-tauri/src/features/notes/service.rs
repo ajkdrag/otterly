@@ -11,6 +11,15 @@ use std::time::Instant;
 use tauri::AppHandle;
 use walkdir::WalkDir;
 
+const VIEWABLE_EXTENSIONS: &[&str] = &[
+    "md", "pdf", "png", "jpg", "jpeg", "gif", "svg", "webp", "csv", "tsv", "py", "r", "rs", "ts",
+    "js", "json", "yaml", "yml", "toml", "sh", "txt", "log",
+];
+
+fn is_viewable_extension(ext: &str) -> bool {
+    VIEWABLE_EXTENSIONS.contains(&ext.to_lowercase().as_str())
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct NoteMeta {
     pub id: String,
@@ -19,6 +28,15 @@ pub struct NoteMeta {
     pub title: String,
     pub mtime_ms: i64,
     pub size_bytes: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FileMeta {
+    pub path: String,
+    pub name: String,
+    pub extension: String,
+    pub size_bytes: i64,
+    pub mtime_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -634,11 +652,20 @@ pub(crate) fn scan_folder_entries(target: &Path) -> Result<Vec<FolderEntry>, Str
         if constants::is_excluded_folder(&name) {
             continue;
         }
+        if name.starts_with('.') {
+            continue;
+        }
 
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
         let is_dir = file_type.is_dir();
-        if !is_dir && !name.ends_with(".md") {
-            continue;
+        if !is_dir {
+            let ext = std::path::Path::new(&name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+            if !is_viewable_extension(ext) {
+                continue;
+            }
         }
 
         items.push(FolderEntry { name, is_dir });
@@ -692,6 +719,7 @@ pub(crate) fn get_or_scan_folder_entries(
 #[derive(Debug, Clone, Serialize)]
 pub struct FolderContents {
     pub notes: Vec<NoteMeta>,
+    pub files: Vec<FileMeta>,
     pub subfolders: Vec<String>,
     pub total_count: usize,
     pub has_more: bool,
@@ -1150,6 +1178,7 @@ pub fn list_folder_contents(
     let end = start.saturating_add(limit).min(total_count);
 
     let mut notes = Vec::new();
+    let mut files = Vec::new();
     let mut subfolders = Vec::new();
 
     for entry in &items[start..end] {
@@ -1161,13 +1190,29 @@ pub fn list_folder_contents(
 
         if entry.is_dir {
             subfolders.push(rel);
-        } else {
+        } else if entry.name.ends_with(".md") {
             notes.push(build_note_meta(&root, &rel)?);
+        } else {
+            let abs = root.join(&rel);
+            let (mtime_ms, size_bytes) = file_meta(&abs)?;
+            let ext = std::path::Path::new(&entry.name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_string();
+            files.push(FileMeta {
+                path: rel,
+                name: entry.name.clone(),
+                extension: ext,
+                size_bytes,
+                mtime_ms,
+            });
         }
     }
 
     Ok(FolderContents {
         notes,
+        files,
         subfolders,
         total_count,
         has_more: end < total_count,
@@ -1197,7 +1242,7 @@ pub fn get_folder_stats(
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
-            !constants::is_excluded_folder(&name)
+            !constants::is_excluded_folder(&name) && !name.starts_with('.')
         })
         .filter_map(|e| e.ok())
     {
@@ -1205,10 +1250,15 @@ pub fn get_folder_stats(
             continue;
         }
 
-        if entry.file_type().is_file()
-            && entry.path().extension().and_then(|e| e.to_str()) == Some("md")
-        {
-            note_count += 1;
+        if entry.file_type().is_file() {
+            let ext = entry
+                .path()
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+            if is_viewable_extension(ext) {
+                note_count += 1;
+            }
             continue;
         }
 
@@ -1221,4 +1271,21 @@ pub fn get_folder_stats(
         note_count,
         folder_count,
     })
+}
+
+#[tauri::command]
+pub fn read_vault_file(
+    app: AppHandle,
+    vault_id: String,
+    relative_path: String,
+) -> Result<String, String> {
+    let root = storage::vault_path(&app, &vault_id)?;
+    let abs = safe_vault_abs(&root, &relative_path)?;
+
+    let meta = std::fs::metadata(&abs).map_err(|e| e.to_string())?;
+    if meta.len() > 5 * 1024 * 1024 {
+        return Err("file exceeds 5 MB limit".to_string());
+    }
+
+    std::fs::read_to_string(&abs).map_err(|e| e.to_string())
 }

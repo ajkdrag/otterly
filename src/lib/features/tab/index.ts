@@ -8,4 +8,10 @@ export {
 export { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 export { default as TabBar } from "$lib/features/tab/ui/tab_bar.svelte";
 export { default as TabCloseConfirmDialog } from "$lib/features/tab/ui/tab_close_confirm_dialog.svelte";
-export type { Tab, PersistedTabState } from "$lib/features/tab/types/tab";
+export type {
+  Tab,
+  TabId,
+  PersistedTab,
+  PersistedTabState,
+  ClosedTabEntry,
+} from "$lib/features/tab/types/tab";

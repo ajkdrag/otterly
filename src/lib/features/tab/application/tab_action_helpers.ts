@@ -1,8 +1,33 @@
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
-import type { Tab, TabId } from "$lib/features/tab/types/tab";
+import type {
+  ClosedTabEntry,
+  Tab,
+  TabEditorSnapshot,
+  TabId,
+} from "$lib/features/tab/types/tab";
 import type { NotePath } from "$lib/shared/types/ids";
 import { parent_folder_path } from "$lib/shared/utils/path";
 import { toast } from "svelte-sonner";
+
+function make_closed_tab_entry(
+  tab: Tab,
+  snapshot: TabEditorSnapshot | null,
+): ClosedTabEntry {
+  const base = {
+    title: tab.title,
+    scroll_top: snapshot?.scroll_top ?? 0,
+    cursor: snapshot?.cursor ?? null,
+  };
+  if (tab.kind === "note") {
+    return { ...base, kind: "note", note_path: tab.note_path };
+  }
+  return {
+    ...base,
+    kind: "document",
+    file_path: tab.file_path,
+    file_type: tab.file_type,
+  };
+}
 
 export function ensure_tab_capacity(input: ActionRegistrationInput): boolean {
   const { stores, services } = input;
@@ -16,14 +41,11 @@ export function ensure_tab_capacity(input: ActionRegistrationInput): boolean {
   }
 
   const snapshot = stores.tab.get_snapshot(victim.id);
-  stores.tab.push_closed_history({
-    note_path: victim.note_path,
-    title: victim.title,
-    scroll_top: snapshot?.scroll_top ?? 0,
-    cursor: snapshot?.cursor ?? null,
-  });
+  stores.tab.push_closed_history(make_closed_tab_entry(victim, snapshot));
   stores.tab.close_tab(victim.id);
-  services.editor.close_buffer?.(victim.note_path);
+  if (victim.kind === "note") {
+    services.editor.close_buffer?.(victim.note_path);
+  }
   return true;
 }
 
@@ -73,7 +95,7 @@ export async function capture_active_tab_snapshot(
 export async function open_active_tab_note(input: ActionRegistrationInput) {
   const { stores, services } = input;
   const active_tab = stores.tab.active_tab;
-  if (!active_tab) {
+  if (!active_tab || active_tab.kind !== "note") {
     stores.editor.clear_open_note();
     stores.outline.clear();
     return;
@@ -219,16 +241,13 @@ export async function close_tab_immediate(
   if (!tab) return;
 
   const snapshot = stores.tab.get_snapshot(tab_id);
-  stores.tab.push_closed_history({
-    note_path: tab.note_path,
-    title: tab.title,
-    scroll_top: snapshot?.scroll_top ?? 0,
-    cursor: snapshot?.cursor ?? null,
-  });
+  stores.tab.push_closed_history(make_closed_tab_entry(tab, snapshot));
 
   const was_active = stores.tab.active_tab_id === tab_id;
   stores.tab.close_tab(tab_id);
-  services.editor.close_buffer?.(tab.note_path);
+  if (tab.kind === "note") {
+    services.editor.close_buffer?.(tab.note_path);
+  }
 
   if (was_active) {
     await open_active_tab_note(input);

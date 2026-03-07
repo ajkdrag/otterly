@@ -17,10 +17,12 @@
   const { stores, action_registry } = use_app_context();
 
   function find_note_meta(tab: Tab): NoteMeta | null {
+    if (tab.kind !== "note") return null;
     return stores.notes.notes.find((n) => n.path === tab.note_path) ?? null;
   }
 
   function is_starred(tab: Tab): boolean {
+    if (tab.kind !== "note") return false;
     return stores.notes.starred_paths.includes(tab.note_path);
   }
 
@@ -233,7 +235,7 @@
                   {/snippet}
                 </Tooltip.Trigger>
                 <Tooltip.Content side="bottom" sideOffset={4}>
-                  {tab.note_path}
+                  {tab.kind === "note" ? tab.note_path : tab.file_path}
                 </Tooltip.Content>
               </Tooltip.Root>
             {/snippet}
@@ -308,11 +310,15 @@
                 Reveal in File Tree
               </ContextMenu.Item>
               <ContextMenu.Item
-                onSelect={() =>
-                  void action_registry.execute(
-                    ACTION_IDS.split_view_open_to_side,
-                    tab.note_path,
-                  )}
+                disabled={tab.kind !== "note"}
+                onSelect={() => {
+                  if (tab.kind === "note") {
+                    void action_registry.execute(
+                      ACTION_IDS.split_view_open_to_side,
+                      tab.note_path,
+                    );
+                  }
+                }}
               >
                 <Columns2 class="mr-2 h-4 w-4" />
                 Open to Side
@@ -322,7 +328,7 @@
               <ContextMenu.Item
                 disabled={!note_meta}
                 onSelect={() => {
-                  if (note_meta) {
+                  if (note_meta && tab.kind === "note") {
                     void action_registry.execute(
                       ACTION_IDS.note_toggle_star,
                       tab.note_path,

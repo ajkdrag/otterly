@@ -2,6 +2,14 @@ import type { NoteMeta } from "$lib/shared/types/note";
 
 export type FolderLoadState = "unloaded" | "loading" | "loaded" | "error";
 
+export type FileMeta = {
+  path: string;
+  name: string;
+  extension: string;
+  size_bytes: number;
+  mtime_ms: number;
+};
+
 export type FlatTreeNode = {
   id: string;
   path: string;
@@ -13,6 +21,7 @@ export type FlatTreeNode = {
   has_error: boolean;
   error_message: string | null;
   note: NoteMeta | null;
+  file_meta: FileMeta | null;
   parent_path: string | null;
   is_load_more: boolean;
 };
@@ -20,6 +29,7 @@ export type FlatTreeNode = {
 export type FolderContents = {
   notes: NoteMeta[];
   subfolders: string[];
+  files?: FileMeta[];
   total_count: number;
   has_more: boolean;
 };

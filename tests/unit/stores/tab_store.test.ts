@@ -32,7 +32,8 @@ describe("TabStore", () => {
 
       expect(store.tabs).toHaveLength(1);
       expect(tab.id).toBe("docs/a.md");
-      expect(tab.note_path).toBe("docs/a.md");
+      expect(tab.kind).toBe("note");
+      if (tab.kind === "note") expect(tab.note_path).toBe("docs/a.md");
       expect(tab.title).toBe("a");
       expect(store.active_tab_id).toBe("docs/a.md");
     });
@@ -65,6 +66,55 @@ describe("TabStore", () => {
       store.open_tab(np("c.md"), "c");
 
       expect(store.tabs.map((t) => t.id)).toEqual(["a.md", "b.md", "c.md"]);
+    });
+  });
+
+  describe("open_document_tab", () => {
+    it("creates a document tab with correct fields", () => {
+      const store = new TabStore();
+      const tab = store.open_document_tab(
+        "/docs/report.pdf",
+        "report.pdf",
+        "pdf",
+      );
+
+      expect(store.tabs).toHaveLength(1);
+      expect(tab.kind).toBe("document");
+      expect(tab.id).toBe("/docs/report.pdf");
+      expect(tab.is_dirty).toBe(false);
+      if (tab.kind === "document") {
+        expect(tab.file_path).toBe("/docs/report.pdf");
+        expect(tab.file_type).toBe("pdf");
+      }
+      expect(tab.title).toBe("report.pdf");
+      expect(store.active_tab_id).toBe("/docs/report.pdf");
+    });
+
+    it("activates existing document tab if same file_path", () => {
+      const store = new TabStore();
+      store.open_document_tab("/docs/a.pdf", "a.pdf", "pdf");
+      store.open_tab(np("notes/b.md"), "b");
+      const returned = store.open_document_tab("/docs/a.pdf", "a.pdf", "pdf");
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.active_tab_id).toBe("/docs/a.pdf");
+      expect(returned.id).toBe("/docs/a.pdf");
+    });
+
+    it("document tab is_dirty is always false", () => {
+      const store = new TabStore();
+      const tab = store.open_document_tab("/x.pdf", "x.pdf", "pdf");
+
+      expect(tab.is_dirty).toBe(false);
+    });
+
+    it("document tabs appear in MRU order", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.open_document_tab("/b.pdf", "b.pdf", "pdf");
+
+      expect(store.mru_order[0]).toBe("/b.pdf");
+      expect(store.mru_order[1]).toBe("a.md");
     });
   });
 
@@ -365,9 +415,10 @@ describe("TabStore", () => {
 
       store.update_tab_path(np("docs/old.md"), np("docs/new.md"));
 
-      expect(store.tabs[0]?.id).toBe("docs/new.md");
-      expect(store.tabs[0]?.note_path).toBe("docs/new.md");
-      expect(store.tabs[0]?.title).toBe("new");
+      const tab = store.tabs[0];
+      expect(tab?.id).toBe("docs/new.md");
+      expect(tab?.kind === "note" && tab.note_path).toBe("docs/new.md");
+      expect(tab?.title).toBe("new");
       expect(store.active_tab_id).toBe("docs/new.md");
     });
 
@@ -404,11 +455,9 @@ describe("TabStore", () => {
 
       store.update_tab_path_prefix("docs/", "notes/");
 
-      expect(store.tabs.map((t) => t.note_path)).toEqual([
-        "notes/a.md",
-        "notes/b.md",
-        "other/c.md",
-      ]);
+      expect(
+        store.tabs.map((t) => (t.kind === "note" ? t.note_path : t.file_path)),
+      ).toEqual(["notes/a.md", "notes/b.md", "other/c.md"]);
       expect(store.active_tab_id).toBe("notes/a.md");
     });
 
@@ -420,11 +469,9 @@ describe("TabStore", () => {
 
       store.update_tab_path_prefix("docs/", "notes/");
 
-      expect(store.tabs.map((t) => t.note_path)).toEqual([
-        "notes/a.md",
-        "notes/b.md",
-        "other/c.md",
-      ]);
+      expect(
+        store.tabs.map((t) => (t.kind === "note" ? t.note_path : t.file_path)),
+      ).toEqual(["notes/a.md", "notes/b.md", "other/c.md"]);
     });
 
     it("migrates note cache on prefix change", () => {
@@ -517,12 +564,14 @@ describe("TabStore", () => {
     it("pushes and pops closed tab entries", () => {
       const store = new TabStore();
       store.push_closed_history({
+        kind: "note",
         note_path: np("a.md"),
         title: "a",
         scroll_top: 10,
         cursor: null,
       });
       store.push_closed_history({
+        kind: "note",
         note_path: np("b.md"),
         title: "b",
         scroll_top: 20,
@@ -531,7 +580,7 @@ describe("TabStore", () => {
 
       const entry = store.pop_closed_history();
 
-      expect(entry?.note_path).toBe("b.md");
+      expect(entry?.kind === "note" && entry.note_path).toBe("b.md");
       expect(store.closed_tab_history).toHaveLength(1);
     });
 
@@ -545,6 +594,7 @@ describe("TabStore", () => {
       const store = new TabStore();
       for (let i = 0; i < 15; i++) {
         store.push_closed_history({
+          kind: "note",
           note_path: np(`${String(i)}.md`),
           title: String(i),
           scroll_top: 0,
@@ -561,6 +611,7 @@ describe("TabStore", () => {
       const store = new TabStore();
       const tabs = [
         {
+          kind: "note" as const,
           id: "a.md",
           note_path: np("a.md"),
           title: "a",
@@ -568,6 +619,7 @@ describe("TabStore", () => {
           is_dirty: false,
         },
         {
+          kind: "note" as const,
           id: "b.md",
           note_path: np("b.md"),
           title: "b",
@@ -586,6 +638,7 @@ describe("TabStore", () => {
       const store = new TabStore();
       const tabs = [
         {
+          kind: "note" as const,
           id: "a.md",
           note_path: np("a.md"),
           title: "a",
@@ -712,6 +765,7 @@ describe("TabStore", () => {
       store.set_dirty("a.md", true);
       store.set_snapshot("a.md", { scroll_top: 50, cursor: null });
       store.push_closed_history({
+        kind: "note",
         note_path: np("b.md"),
         title: "b",
         scroll_top: 0,

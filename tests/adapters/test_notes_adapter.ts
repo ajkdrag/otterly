@@ -232,6 +232,7 @@ export function create_test_notes_adapter(): NotesPort {
       return {
         notes: paged_notes,
         subfolders: paged_subfolders,
+        files: [],
         total_count,
         has_more: end < total_count,
       };

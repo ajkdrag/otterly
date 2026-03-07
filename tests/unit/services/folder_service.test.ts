@@ -438,10 +438,11 @@ describe("FolderService", () => {
         new_prefix: "archive/work/",
       },
     ]);
-    expect(tab_store.tabs.map((tab) => tab.note_path)).toEqual([
-      "archive/note-001.md",
-      "archive/work/todo.md",
-    ]);
+    expect(
+      tab_store.tabs.map((tab) =>
+        tab.kind === "note" ? tab.note_path : tab.file_path,
+      ),
+    ).toEqual(["archive/note-001.md", "archive/work/todo.md"]);
   });
 
   it("move_items preserves successful entries when some fail", async () => {

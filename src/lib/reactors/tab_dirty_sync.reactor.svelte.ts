@@ -9,6 +9,7 @@ export function resolve_tab_dirty_sync(
   active_tab: Tab | null,
 ): { tab_id: string; is_dirty: boolean } | null {
   if (!open_note || !active_tab) return null;
+  if (active_tab.kind !== "note") return null;
   if (open_note.meta.path !== active_tab.note_path) return null;
   return { tab_id: active_tab.id, is_dirty: open_note.is_dirty };
 }

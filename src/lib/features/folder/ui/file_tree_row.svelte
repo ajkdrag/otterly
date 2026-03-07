@@ -1,3 +1,55 @@
+<script module lang="ts">
+  import {
+    File,
+    FileCode,
+    FileImage,
+    FileSpreadsheet,
+    FileText,
+  } from "@lucide/svelte";
+
+  const IMAGE_EXTENSIONS = new Set([
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "svg",
+    "webp",
+    "avif",
+    "ico",
+  ]);
+  const CODE_EXTENSIONS = new Set([
+    "ts",
+    "js",
+    "tsx",
+    "jsx",
+    "py",
+    "rs",
+    "go",
+    "java",
+    "c",
+    "cpp",
+    "h",
+    "html",
+    "css",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "sh",
+  ]);
+  const SHEET_EXTENSIONS = new Set(["csv", "tsv", "xlsx", "xls"]);
+  const TEXT_EXTENSIONS = new Set(["txt", "pdf", "rtf", "log"]);
+
+  function file_icon_component(ext: string) {
+    const lower = ext.toLowerCase();
+    if (IMAGE_EXTENSIONS.has(lower)) return FileImage;
+    if (CODE_EXTENSIONS.has(lower)) return FileCode;
+    if (SHEET_EXTENSIONS.has(lower)) return FileSpreadsheet;
+    if (TEXT_EXTENSIONS.has(lower)) return FileText;
+    return File;
+  }
+</script>
+
 <script lang="ts">
   import type { FlatTreeNode } from "$lib/shared/types/filetree";
   import type { NoteMeta } from "$lib/shared/types/note";
@@ -5,7 +57,6 @@
   import {
     ChevronRight,
     ChevronDown,
-    FileText,
     Trash2,
     Pencil,
     LoaderCircle,
@@ -233,6 +284,10 @@
           <RefreshCw />
         </button>
       {/if}
+    {:else if node.file_meta}
+      {@const IconComponent = file_icon_component(node.file_meta.extension)}
+      <IconComponent class="TreeRow__type-icon" />
+      <span class="TreeRow__label TreeRow__label--file">{node.name}</span>
     {:else}
       <FileText class="TreeRow__type-icon" />
       <span class="TreeRow__label">{node.name}</span>
@@ -340,6 +395,8 @@
       </ContextMenu.Content>
     </ContextMenu.Portal>
   </ContextMenu.Root>
+{:else if node.file_meta}
+  {@render row_content()}
 {:else if node.note}
   <ContextMenu.Root>
     <ContextMenu.Trigger class="w-full">
@@ -553,6 +610,10 @@
 
   .TreeRow__label--muted {
     font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
+  .TreeRow__label--file {
     color: var(--muted-foreground);
   }
 

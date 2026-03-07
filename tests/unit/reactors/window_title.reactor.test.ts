@@ -23,6 +23,7 @@ function mock_vault(name: string): Vault {
 
 function mock_tab(title: string, is_dirty = false): Tab {
   return {
+    kind: "note",
     id: title,
     note_path: as_note_path(`${title}.md`),
     title,

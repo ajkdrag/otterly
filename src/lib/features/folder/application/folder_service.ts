@@ -335,9 +335,9 @@ export class FolderService {
       this.notes_store.remove_folder(folder_path);
       this.notes_store.remove_recent_notes_by_prefix(folder_prefix);
 
-      const open_names = this.tab_store.tabs.map((t) =>
-        note_name_from_path(t.note_path),
-      );
+      const open_names = this.tab_store.tabs
+        .filter((t) => t.kind === "note")
+        .map((t) => note_name_from_path(t.note_path));
       const ensured = ensure_open_note({
         vault: this.vault_store.vault,
         open_names,

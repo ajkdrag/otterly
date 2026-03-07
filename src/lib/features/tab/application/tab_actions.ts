@@ -205,6 +205,16 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       if (!entry) return;
 
       await capture_active_tab_snapshot(input);
+
+      if (entry.kind === "document") {
+        stores.tab.open_document_tab(
+          entry.file_path,
+          entry.title,
+          entry.file_type,
+        );
+        return;
+      }
+
       const tab = try_open_tab(input, entry.note_path, entry.title);
       if (!tab) return;
 
@@ -267,8 +277,9 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       const tab = find_tab(id);
       if (!tab) return;
 
+      const path = tab.kind === "note" ? tab.note_path : tab.file_path;
       try {
-        await services.clipboard.copy_text(tab.note_path);
+        await services.clipboard.copy_text(path);
         toast.success("Path copied");
       } catch {
         toast.error("Failed to copy path");
@@ -284,6 +295,7 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       const tab = find_tab(id);
       if (!tab) return;
 
+      if (tab.kind !== "note") return;
       await registry.execute(ACTION_IDS.filetree_reveal_note, {
         note_path: tab.note_path,
       });

@@ -5,11 +5,13 @@ export type TabId = string;
 
 export type Tab = {
   id: TabId;
-  note_path: NotePath;
   title: string;
   is_pinned: boolean;
   is_dirty: boolean;
-};
+} & (
+  | { kind: "note"; note_path: NotePath }
+  | { kind: "document"; file_path: string; file_type: string }
+);
 
 export type TabEditorSnapshot = {
   scroll_top: number;
@@ -17,19 +19,23 @@ export type TabEditorSnapshot = {
 };
 
 export type ClosedTabEntry = {
-  note_path: NotePath;
   title: string;
   scroll_top: number;
   cursor: CursorInfo | null;
-};
+} & (
+  | { kind: "note"; note_path: NotePath }
+  | { kind: "document"; file_path: string; file_type: string }
+);
 
 export type PersistedTab = {
-  note_path: NotePath;
   is_pinned: boolean;
   cursor: CursorInfo | null;
-};
+} & (
+  | { kind: "note"; note_path: NotePath }
+  | { kind: "document"; file_path: string; file_type: string }
+);
 
 export type PersistedTabState = {
   tabs: PersistedTab[];
-  active_tab_path: NotePath | null;
+  active_tab_path: string | null;
 };

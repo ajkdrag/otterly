@@ -20,6 +20,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [],
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -34,6 +35,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -53,6 +55,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: ["folder"],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -72,6 +75,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: ["folder"],
+      files: [],
       expanded_paths: new Set(["folder"]),
       load_states: new Map(),
       error_messages: new Map(),
@@ -91,6 +95,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [],
       folder_paths: ["folder"],
+      files: [],
       expanded_paths: new Set(["folder"]),
       load_states: new Map<string, FolderLoadState>([["folder", "loading"]]),
       error_messages: new Map(),
@@ -107,6 +112,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [],
       folder_paths: ["folder"],
+      files: [],
       expanded_paths: new Set(["folder"]),
       load_states: new Map<string, FolderLoadState>([["folder", "error"]]),
       error_messages: new Map([["folder", "not a directory"]]),
@@ -125,6 +131,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: ["a", "a/b", "a/b/c"],
+      files: [],
       expanded_paths: new Set(["a", "a/b", "a/b/c"]),
       load_states: new Map(),
       error_messages: new Map(),
@@ -148,6 +155,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: ["folder"],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -167,6 +175,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: [".hidden"],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -182,6 +191,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: [".hidden"],
+      files: [],
       expanded_paths: new Set([".hidden"]),
       load_states: new Map(),
       error_messages: new Map(),
@@ -201,6 +211,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -216,6 +227,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes,
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -232,6 +244,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [make_note("a.md")],
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -259,6 +272,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [make_note("docs/a.md")],
       folder_paths: ["docs"],
+      files: [],
       expanded_paths: new Set(["docs"]),
       load_states: new Map([["docs", "loaded"]]),
       error_messages: new Map(),
@@ -286,6 +300,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [make_note("a.md")],
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -311,6 +326,7 @@ describe("flatten_filetree", () => {
     const result = flatten_filetree({
       notes: [make_note("a.md")],
       folder_paths: [],
+      files: [],
       expanded_paths: new Set(),
       load_states: new Map(),
       error_messages: new Map(),
@@ -332,5 +348,99 @@ describe("flatten_filetree", () => {
     expect(result[1]?.is_load_more).toBe(true);
     expect(result[1]?.has_error).toBe(true);
     expect(result[1]?.error_message).toBe("network failed");
+  });
+
+  it("produces file node with file_meta set for FileMeta entries", () => {
+    const file_meta = {
+      path: "image.png",
+      name: "image.png",
+      extension: "png",
+      size_bytes: 1024,
+      mtime_ms: 0,
+    };
+    const result = flatten_filetree({
+      notes: [],
+      folder_paths: [],
+      files: [file_meta],
+      expanded_paths: new Set(),
+      load_states: new Map(),
+      error_messages: new Map(),
+      show_hidden_files: false,
+      pagination: new Map(),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.is_folder).toBe(false);
+    expect(result[0]?.note).toBeNull();
+    expect(result[0]?.file_meta).toEqual(file_meta);
+    expect(result[0]?.name).toBe("image.png");
+    expect(result[0]?.depth).toBe(0);
+  });
+
+  it("places file nodes alongside note nodes in flat tree", () => {
+    const note = make_note("readme.md");
+    const file_meta = {
+      path: "image.png",
+      name: "image.png",
+      extension: "png",
+      size_bytes: 512,
+      mtime_ms: 0,
+    };
+    const result = flatten_filetree({
+      notes: [note],
+      folder_paths: [],
+      files: [file_meta],
+      expanded_paths: new Set(),
+      load_states: new Map(),
+      error_messages: new Map(),
+      show_hidden_files: false,
+      pagination: new Map(),
+    });
+
+    expect(result).toHaveLength(2);
+    const note_node = result.find((n) => n.note !== null);
+    const file_node = result.find((n) => n.file_meta !== null);
+    expect(note_node).toBeDefined();
+    expect(file_node).toBeDefined();
+    expect(file_node?.is_folder).toBe(false);
+  });
+
+  it("note and folder nodes have file_meta null", () => {
+    const result = flatten_filetree({
+      notes: [make_note("folder/note.md")],
+      folder_paths: ["folder"],
+      files: [],
+      expanded_paths: new Set(["folder"]),
+      load_states: new Map(),
+      error_messages: new Map(),
+      show_hidden_files: false,
+      pagination: new Map(),
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.file_meta).toBeNull();
+    expect(result[1]?.file_meta).toBeNull();
+  });
+
+  it("defaults files to empty when not provided via build_filetree directly", () => {
+    const file_meta = {
+      path: "doc.pdf",
+      name: "doc.pdf",
+      extension: "pdf",
+      size_bytes: 2048,
+      mtime_ms: 0,
+    };
+    const result = flatten_filetree({
+      notes: [],
+      folder_paths: [],
+      files: [file_meta],
+      expanded_paths: new Set(),
+      load_states: new Map(),
+      error_messages: new Map(),
+      show_hidden_files: false,
+      pagination: new Map(),
+    });
+
+    expect(result[0]?.file_meta?.extension).toBe("pdf");
   });
 });
