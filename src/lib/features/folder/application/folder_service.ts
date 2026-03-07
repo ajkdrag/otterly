@@ -17,7 +17,6 @@ import { ensure_open_note } from "$lib/features/note";
 import { create_logger } from "$lib/shared/utils/logger";
 import { move_destination_path } from "$lib/features/folder/domain/filetree";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
-import { note_name_from_path } from "$lib/shared/utils/path";
 import {
   run_link_repair_operation,
   type LinkRepairService,
@@ -335,12 +334,10 @@ export class FolderService {
       this.notes_store.remove_folder(folder_path);
       this.notes_store.remove_recent_notes_by_prefix(folder_prefix);
 
-      const open_names = this.tab_store.tabs.map((t) =>
-        note_name_from_path(t.note_path),
-      );
+      const open_titles = this.tab_store.tabs.map((tab) => tab.title);
       const ensured = ensure_open_note({
         vault: this.vault_store.vault,
-        open_names,
+        open_titles,
         open_note: contains_open_note ? null : this.editor_store.open_note,
         now_ms: this.now_ms(),
       });

@@ -60,6 +60,19 @@ describe("tab_dirty_sync.reactor", () => {
       expect(resolve_tab_dirty_sync(null, active_tab)).toBeNull();
       expect(resolve_tab_dirty_sync(open_note, null)).toBeNull();
     });
+
+    it("forces drafts to stay dirty", () => {
+      const open_note = mock_open_note("draft:1:Untitled-1");
+      open_note.meta.name = "Untitled-1";
+      open_note.meta.title = "Untitled-1";
+      open_note.is_dirty = false;
+      const active_tab = mock_tab("draft:1:Untitled-1");
+
+      expect(resolve_tab_dirty_sync(open_note, active_tab)).toEqual({
+        tab_id: "draft:1:Untitled-1",
+        is_dirty: true,
+      });
+    });
   });
 
   it("returns a cleanup function", () => {

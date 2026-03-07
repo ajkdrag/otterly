@@ -14,6 +14,7 @@ import type { EditorStore } from "$lib/features/editor/state/editor_store.svelte
 import type { VaultStore } from "$lib/features/vault";
 import type { OpStore } from "$lib/app";
 import type { SearchService } from "$lib/features/search";
+import { is_draft_note_path } from "$lib/features/note";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -257,8 +258,8 @@ export class EditorService {
         });
       },
       on_dirty_state_change: (is_dirty: boolean) => {
-        this.with_active_note_id(generation, (id) => {
-          this.editor_store.set_dirty(id, is_dirty);
+        this.with_active_note_identity(generation, (id, path) => {
+          this.editor_store.set_dirty(id, is_draft_note_path(path) || is_dirty);
         });
       },
       on_cursor_change: (cursor: CursorInfo) => {

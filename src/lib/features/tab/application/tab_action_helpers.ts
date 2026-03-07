@@ -1,5 +1,6 @@
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import type { Tab, TabId } from "$lib/features/tab/types/tab";
+import { is_draft_note_path } from "$lib/features/note";
 import type { NotePath } from "$lib/shared/types/ids";
 import { parent_folder_path } from "$lib/shared/utils/path";
 import { toast } from "svelte-sonner";
@@ -15,10 +16,13 @@ function resolve_closed_tab_draft(
   const active_open_note =
     stores.tab.active_tab_id === tab_id ? stores.editor.open_note : null;
   const note = cached_note ?? active_open_note;
-  if (!note || note.meta.path.endsWith(".md")) {
+  if (!note || !is_draft_note_path(note.meta.path)) {
     return null;
   }
-  return note;
+  return {
+    ...note,
+    is_dirty: true,
+  };
 }
 
 function push_closed_tab_history(
@@ -178,7 +182,7 @@ export async function save_dirty_tab(
   const is_active_untitled =
     stores.tab.active_tab_id === tab_id &&
     open_note &&
-    !open_note.meta.path.endsWith(".md");
+    is_draft_note_path(open_note.meta.path);
   if (is_active_untitled) {
     return "needs_path";
   }
@@ -193,7 +197,7 @@ export async function save_dirty_tab(
 
   const cached = stores.tab.get_cached_note(tab_id);
   if (cached) {
-    if (!cached.meta.path.endsWith(".md")) {
+    if (is_draft_note_path(cached.meta.path)) {
       stores.tab.activate_tab(tab_id);
       stores.editor.set_open_note(cached);
       return "needs_path";

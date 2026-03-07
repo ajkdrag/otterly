@@ -17,6 +17,7 @@ import {
   parse_note_open_input,
   save_and_insert_image,
 } from "$lib/features/note/application/note_action_helpers";
+import { is_draft_note_path } from "$lib/features/note/domain/ensure_open_note";
 import type { NoteMeta } from "$lib/shared/types/note";
 import { as_note_path, type NotePath } from "$lib/shared/types/ids";
 import type { ImagePasteRequest } from "$lib/shared/types/editor";
@@ -157,7 +158,9 @@ export function register_note_actions(input: ActionRegistrationInput) {
       return;
     }
     const folder_path = stores.ui.selected_folder_path;
-    const filename = filename_from_path(open_note.meta.path) || "Untitled";
+    const filename = is_draft_note_path(open_note.meta.path)
+      ? `${open_note.meta.title || "Untitled"}.md`
+      : filename_from_path(open_note.meta.path) || "Untitled";
     stores.ui.save_note_dialog = {
       open: true,
       folder_path,
@@ -278,10 +281,8 @@ export function register_note_actions(input: ActionRegistrationInput) {
 
         await capture_active_tab_snapshot(input);
 
-        const open_names = stores.tab.tabs.map((t) =>
-          note_name_from_path(t.note_path),
-        );
-        services.note.create_new_note(open_names);
+        const open_titles = stores.tab.tabs.map((tab) => tab.title);
+        services.note.create_new_note(open_titles);
 
         const open_note = stores.editor.open_note;
         if (!open_note) {
@@ -625,8 +626,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
         }
 
         const source = parse_save_request_payload(payload)?.source ?? "manual";
-        const is_untitled = !open_note.meta.path.endsWith(".md");
-        if (!is_untitled) {
+        if (!is_draft_note_path(open_note.meta.path)) {
           await services.note.save_note(null, true);
           return;
         }

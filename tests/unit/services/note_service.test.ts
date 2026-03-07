@@ -805,8 +805,8 @@ describe("NoteService", () => {
 
     editor_store.set_open_note({
       meta: {
-        id: as_note_path("Untitled-1"),
-        path: as_note_path("Untitled-1"),
+        id: as_note_path("draft:1:Untitled-1"),
+        path: as_note_path("draft:1:Untitled-1"),
         name: "Untitled-1",
         title: "Untitled-1",
         mtime_ms: 0,
@@ -827,7 +827,7 @@ describe("NoteService", () => {
 
     const editor_service = {
       flush: vi.fn().mockReturnValue({
-        note_id: as_note_path("Untitled-1"),
+        note_id: as_note_path("draft:1:Untitled-1"),
         markdown: as_markdown_text("draft"),
       }),
       mark_clean: vi.fn(),
@@ -860,7 +860,7 @@ describe("NoteService", () => {
       markdown: as_markdown_text("draft"),
     });
     expect(rename_buffer).toHaveBeenCalledWith(
-      as_note_path("Untitled-1"),
+      as_note_path("draft:1:Untitled-1"),
       as_note_path("docs/my-note.md"),
     );
     expect(editor_store.open_note?.meta.path).toBe(
@@ -1059,8 +1059,8 @@ describe("NoteService", () => {
 
     editor_store.set_open_note({
       meta: {
-        id: as_note_path("Untitled-1"),
-        path: as_note_path("Untitled-1"),
+        id: as_note_path("draft:1:Untitled-1"),
+        path: as_note_path("draft:1:Untitled-1"),
         name: "Untitled-1",
         title: "Untitled-1",
         mtime_ms: 0,

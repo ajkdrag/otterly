@@ -4,6 +4,7 @@ export { NotesStore } from "$lib/features/note/state/note_store.svelte";
 export {
   ensure_open_note,
   create_untitled_open_note,
+  is_draft_note_path,
 } from "$lib/features/note/domain/ensure_open_note";
 export {
   to_markdown_asset_target,

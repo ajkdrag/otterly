@@ -2,6 +2,7 @@ import type { EditorStore } from "$lib/features/editor";
 import type { UIStore } from "$lib/app";
 import type { NoteService } from "$lib/features/note";
 import type { TabService } from "$lib/features/tab";
+import { is_draft_note_path } from "$lib/features/note";
 
 const AUTOSAVE_DELAY_MS = 2000;
 
@@ -19,7 +20,7 @@ export function create_autosave_reactor(
 
       const open_note = editor_store.open_note;
       if (!open_note?.is_dirty) return;
-      if (!open_note.meta.path.endsWith(".md")) return;
+      if (is_draft_note_path(open_note.meta.path)) return;
 
       const note_path = open_note.meta.path;
 

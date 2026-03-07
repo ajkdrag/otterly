@@ -249,9 +249,13 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       }
 
       if (entry.draft_note) {
-        stores.editor.set_open_note(entry.draft_note);
-        stores.tab.set_cached_note(tab.id, entry.draft_note);
-        stores.tab.set_dirty(tab.id, entry.draft_note.is_dirty);
+        const draft_note = {
+          ...entry.draft_note,
+          is_dirty: true,
+        };
+        stores.editor.set_open_note(draft_note);
+        stores.tab.set_cached_note(tab.id, draft_note);
+        stores.tab.set_dirty(tab.id, true);
         return;
       }
 

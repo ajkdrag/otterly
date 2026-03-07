@@ -40,6 +40,25 @@ function mock_open_note(path: string): OpenNoteState {
   };
 }
 
+function mock_draft_open_note(
+  path: string,
+  title: string = "Untitled-1",
+): OpenNoteState {
+  return {
+    meta: {
+      id: as_note_path(path),
+      path: as_note_path(path),
+      name: title,
+      title,
+      mtime_ms: 0,
+      size_bytes: 0,
+    },
+    markdown: as_markdown_text(""),
+    buffer_id: `buffer:${path}`,
+    is_dirty: false,
+  };
+}
+
 function create_tab_actions_harness() {
   const registry = new ActionRegistry();
   const stores = {
@@ -389,8 +408,9 @@ describe("register_tab_actions", () => {
 
     it("restores an untitled draft from closed history", async () => {
       const { registry, stores, services } = create_tab_actions_harness();
+      const draft_path = np("draft:1:Untitled-1");
       const untitled_note = {
-        ...mock_open_note("Untitled-1"),
+        ...mock_draft_open_note("draft:1:Untitled-1"),
         buffer_id: "untitled-buffer",
         markdown: as_markdown_text("draft"),
         is_dirty: true,
@@ -399,7 +419,7 @@ describe("register_tab_actions", () => {
       stores.tab.open_tab(np("other.md"), "other");
       stores.editor.set_open_note(mock_open_note("other.md"));
       stores.tab.push_closed_history({
-        note_path: np("Untitled-1"),
+        note_path: draft_path,
         title: "Untitled-1",
         scroll_top: 0,
         cursor: null,
@@ -408,12 +428,12 @@ describe("register_tab_actions", () => {
 
       await registry.execute(ACTION_IDS.tab_reopen_closed);
 
-      expect(stores.tab.active_tab_id).toBe("Untitled-1");
-      expect(stores.editor.open_note?.meta.path).toBe("Untitled-1");
+      expect(stores.tab.active_tab_id).toBe(draft_path);
+      expect(stores.editor.open_note?.meta.path).toBe(draft_path);
       expect(stores.editor.open_note?.markdown).toBe(as_markdown_text("draft"));
       expect(stores.tab.active_tab?.is_dirty).toBe(true);
       expect(services.note.open_note).not.toHaveBeenCalledWith(
-        "Untitled-1",
+        draft_path,
         false,
       );
     });
@@ -532,17 +552,18 @@ describe("register_tab_actions", () => {
 
     it("routes untitled save-and-close through the save dialog", async () => {
       const { registry, stores, services } = create_tab_actions_harness();
-      stores.tab.open_tab(np("Untitled-1"), "Untitled-1");
-      stores.tab.set_dirty("Untitled-1", true);
+      const draft_path = np("draft:1:Untitled-1");
+      stores.tab.open_tab(draft_path, "Untitled-1");
+      stores.tab.set_dirty(draft_path, true);
       stores.editor.set_open_note({
-        ...mock_open_note("Untitled-1"),
+        ...mock_draft_open_note("draft:1:Untitled-1"),
         buffer_id: "untitled-buffer",
         is_dirty: true,
       });
 
       stores.ui.tab_close_confirm = {
         open: true,
-        tab_id: "Untitled-1",
+        tab_id: draft_path,
         tab_title: "Untitled-1",
         pending_dirty_tab_ids: [],
         close_mode: "single",
@@ -560,10 +581,11 @@ describe("register_tab_actions", () => {
 
     it("closes an untitled tab after save dialog confirmation", async () => {
       const { registry, stores, services } = create_tab_actions_harness();
-      stores.tab.open_tab(np("Untitled-1"), "Untitled-1");
-      stores.tab.set_dirty("Untitled-1", true);
+      const draft_path = np("draft:1:Untitled-1");
+      stores.tab.open_tab(draft_path, "Untitled-1");
+      stores.tab.set_dirty(draft_path, true);
       stores.editor.set_open_note({
-        ...mock_open_note("Untitled-1"),
+        ...mock_draft_open_note("draft:1:Untitled-1"),
         buffer_id: "untitled-buffer",
         is_dirty: true,
       });
@@ -585,7 +607,7 @@ describe("register_tab_actions", () => {
 
       stores.ui.tab_close_confirm = {
         open: true,
-        tab_id: "Untitled-1",
+        tab_id: draft_path,
         tab_title: "Untitled-1",
         pending_dirty_tab_ids: [],
         close_mode: "single",

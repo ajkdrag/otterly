@@ -2,6 +2,7 @@ import type { EditorStore } from "$lib/features/editor";
 import type { GitStore } from "$lib/features/git";
 import type { UIStore } from "$lib/app";
 import type { GitService } from "$lib/features/git";
+import { is_draft_note_path } from "$lib/features/note";
 
 const AUTOCOMMIT_DELAY_MS = 30_000;
 const RETRY_DELAY_WHILE_COMMITTING_MS = 1_000;
@@ -58,7 +59,7 @@ export function create_git_autocommit_reactor(
       if (!open_note) return;
 
       const path = open_note.meta.path;
-      if (!path.endsWith(".md")) return;
+      if (is_draft_note_path(path)) return;
 
       if (open_note.is_dirty) {
         dirty_paths.add(path);

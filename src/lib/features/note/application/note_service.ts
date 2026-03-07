@@ -22,7 +22,10 @@ import type {
   NoteSaveResult,
 } from "$lib/features/note/types/note_service_result";
 import { error_message } from "$lib/shared/utils/error_message";
-import { create_untitled_open_note } from "$lib/features/note/domain/ensure_open_note";
+import {
+  create_untitled_open_note,
+  is_draft_note_path,
+} from "$lib/features/note/domain/ensure_open_note";
 import { parent_folder_path } from "$lib/shared/utils/path";
 import { resolve_existing_note_path } from "$lib/features/note/domain/note_lookup";
 import { note_path_exists } from "$lib/features/note/domain/note_path_exists";
@@ -166,9 +169,9 @@ export class NoteService {
     }
   }
 
-  create_new_note(open_names: string[]) {
+  create_new_note(open_titles: string[]) {
     const open_note = create_untitled_open_note({
-      open_names,
+      open_titles,
       now_ms: this.now_ms(),
     });
 
@@ -470,7 +473,7 @@ export class NoteService {
 
   private add_open_note_to_recent() {
     const open_meta = this.editor_store.open_note?.meta;
-    if (!open_meta || !open_meta.path.endsWith(".md")) {
+    if (!open_meta || is_draft_note_path(open_meta.path)) {
       return;
     }
     this.notes_store.add_recent_note(open_meta);
@@ -489,7 +492,7 @@ export class NoteService {
 
   private apply_opened_note(doc: NoteDoc, options?: OpenNoteOptions) {
     this.notes_store.add_note(doc.meta);
-    if (doc.meta.path.endsWith(".md")) {
+    if (!is_draft_note_path(doc.meta.path)) {
       this.notes_store.add_recent_note(doc.meta);
     }
 
@@ -558,8 +561,7 @@ export class NoteService {
     target_path: NotePath | null,
     overwrite: boolean,
   ): SavePlanDecision {
-    const is_untitled = !open_note.meta.path.endsWith(".md");
-    if (!is_untitled) {
+    if (!is_draft_note_path(open_note.meta.path)) {
       return {
         status: "ready",
         plan: {

@@ -12,7 +12,7 @@ describe("ensure_open_note", () => {
   test("does nothing without vault", () => {
     const result = ensure_open_note({
       vault: null as Vault | null,
-      open_names: [],
+      open_titles: [],
       open_note: null as OpenNoteState | null,
       now_ms: 123,
     });
@@ -20,7 +20,7 @@ describe("ensure_open_note", () => {
     expect(result).toBe(null);
   });
 
-  test("creates Untitled-1 when vault exists and open_note missing", () => {
+  test("creates a draft Untitled-1 note when vault exists and open_note missing", () => {
     const vault: Vault = {
       id: "v" as VaultId,
       name: "Vault",
@@ -30,16 +30,18 @@ describe("ensure_open_note", () => {
 
     const result = ensure_open_note({
       vault,
-      open_names: [],
+      open_titles: [],
       open_note: null as OpenNoteState | null,
       now_ms: 1000,
     });
 
-    expect(result?.meta.path).toBe("Untitled-1" as NotePath);
+    expect(result?.meta.path).toBe("draft:1000:Untitled-1" as NotePath);
+    expect(result?.meta.title).toBe("Untitled-1");
+    expect(result?.is_dirty).toBe(true);
     expect(result?.markdown).toBe(as_markdown_text(""));
   });
 
-  test("creates next Untitled-N avoiding existing open names", () => {
+  test("creates next Untitled-N avoiding existing open titles", () => {
     const vault: Vault = {
       id: "v" as VaultId,
       name: "Vault",
@@ -49,12 +51,13 @@ describe("ensure_open_note", () => {
 
     const result = ensure_open_note({
       vault,
-      open_names: ["Untitled-2", "welcome"],
+      open_titles: ["Untitled-2", "welcome"],
       open_note: null as OpenNoteState | null,
       now_ms: 1000,
     });
 
-    expect(result?.meta.path).toBe(as_note_path("Untitled-3"));
+    expect(result?.meta.path).toBe(as_note_path("draft:1000:Untitled-3"));
+    expect(result?.meta.title).toBe("Untitled-3");
   });
 
   test("does not overwrite existing open_note", () => {
@@ -81,7 +84,7 @@ describe("ensure_open_note", () => {
 
     const result = ensure_open_note({
       vault,
-      open_names: [],
+      open_titles: [],
       open_note: existing,
       now_ms: 1000,
     });
@@ -91,51 +94,53 @@ describe("ensure_open_note", () => {
 });
 
 describe("create_untitled_open_note", () => {
-  test("creates Untitled-1 when no open names exist", () => {
+  test("creates Untitled-1 when no open titles exist", () => {
     const result = create_untitled_open_note({
-      open_names: [],
+      open_titles: [],
       now_ms: 1000,
     });
 
-    expect(result.meta.path).toBe("Untitled-1" as NotePath);
+    expect(result.meta.path).toBe("draft:1000:Untitled-1" as NotePath);
     expect(result.meta.title).toBe("Untitled-1");
+    expect(result.is_dirty).toBe(true);
     expect(result.markdown).toBe(as_markdown_text(""));
   });
 
   test("creates Untitled-2 when Untitled-1 is open", () => {
     const result = create_untitled_open_note({
-      open_names: ["Untitled-1"],
+      open_titles: ["Untitled-1"],
       now_ms: 1000,
     });
 
-    expect(result.meta.path).toBe("Untitled-2" as NotePath);
+    expect(result.meta.path).toBe("draft:1000:Untitled-2" as NotePath);
     expect(result.meta.title).toBe("Untitled-2");
   });
 
   test("picks max+1 without gap-filling", () => {
     const result = create_untitled_open_note({
-      open_names: ["Untitled-1", "Untitled-3"],
+      open_titles: ["Untitled-1", "Untitled-3"],
       now_ms: 1000,
     });
 
-    expect(result.meta.path).toBe("Untitled-4" as NotePath);
+    expect(result.meta.path).toBe("draft:1000:Untitled-4" as NotePath);
+    expect(result.meta.title).toBe("Untitled-4");
   });
 
   test("ignores non-untitled names", () => {
     const result = create_untitled_open_note({
-      open_names: ["foo", "bar", "welcome"],
+      open_titles: ["foo", "bar", "welcome"],
       now_ms: 1000,
     });
 
-    expect(result.meta.path).toBe("Untitled-1" as NotePath);
+    expect(result.meta.path).toBe("draft:1000:Untitled-1" as NotePath);
   });
 
   test("ignores names that partially match untitled pattern", () => {
     const result = create_untitled_open_note({
-      open_names: ["Untitled-1-draft", "My-Untitled-2", "Untitled-abc"],
+      open_titles: ["Untitled-1-draft", "My-Untitled-2", "Untitled-abc"],
       now_ms: 1000,
     });
 
-    expect(result.meta.path).toBe("Untitled-1" as NotePath);
+    expect(result.meta.path).toBe("draft:1000:Untitled-1" as NotePath);
   });
 });
