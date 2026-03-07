@@ -176,7 +176,7 @@ describe("watcher_reactor", () => {
       });
     });
 
-    it("just refreshes tree for non-open note", () => {
+    it("just refreshes tree for non-open note without background tab", () => {
       const decision = resolve_watcher_event_decision(
         removed_event("notes/other.md"),
         VAULT_ID,
@@ -185,6 +185,20 @@ describe("watcher_reactor", () => {
         NO_BG_TAB,
       );
       expect(decision).toEqual({ action: "refresh_tree" });
+    });
+
+    it("removes background tab and refreshes tree for deleted background note", () => {
+      const decision = resolve_watcher_event_decision(
+        removed_event("notes/bg.md"),
+        VAULT_ID,
+        "notes/active.md",
+        false,
+        bg_tab(false),
+      );
+      expect(decision).toEqual({
+        action: "remove_background_tab_and_refresh",
+        note_path: "notes/bg.md",
+      });
     });
   });
 

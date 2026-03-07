@@ -722,6 +722,7 @@ export class NoteService {
   async write_note_content(note_path: NotePath, markdown: MarkdownText) {
     const vault = this.vault_store.vault;
     if (!vault) return;
+    this.on_file_written?.(note_path);
     await this.notes_port.write_note(vault.id, note_path, markdown);
   }
 

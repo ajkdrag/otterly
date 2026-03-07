@@ -27,6 +27,7 @@ export type WatcherEventDecision =
   | { action: "background_conflict_toast"; note_path: NotePath }
   | { action: "refresh_tree" }
   | { action: "clear_and_refresh"; note_path: NotePath }
+  | { action: "remove_background_tab_and_refresh"; note_path: NotePath }
   | { action: "log_only"; path: string }
   | { action: "ignore" };
 
@@ -65,14 +66,15 @@ export function resolve_watcher_event_decision(
     case "note_added":
       return { action: "refresh_tree" };
     case "note_removed": {
+      const rp = event.note_path as NotePath;
       if (
         open_note_path &&
         paths_equal_ignore_case(event.note_path, open_note_path)
       ) {
-        return {
-          action: "clear_and_refresh",
-          note_path: event.note_path as NotePath,
-        };
+        return { action: "clear_and_refresh", note_path: rp };
+      }
+      if (find_background_tab(event.note_path)) {
+        return { action: "remove_background_tab_and_refresh", note_path: rp };
       }
       return { action: "refresh_tree" };
     }
@@ -168,6 +170,10 @@ export function create_watcher_reactor(
           break;
         case "clear_and_refresh":
           note_service.clear_open_note();
+          tab_service.remove_tab(decision.note_path);
+          debounced_tree_refresh();
+          break;
+        case "remove_background_tab_and_refresh":
           tab_service.remove_tab(decision.note_path);
           debounced_tree_refresh();
           break;
