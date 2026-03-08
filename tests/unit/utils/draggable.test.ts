@@ -140,6 +140,33 @@ describe("draggable", () => {
     expect(on_drag_end).toHaveBeenCalledOnce();
   });
 
+  it("calls on_drag_end when drag is cancelled", () => {
+    const on_drag_end = vi.fn();
+    draggable(node, { on_drag_end });
+
+    node.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 150,
+        clientY: 150,
+        button: 0,
+        bubbles: true,
+        pointerId: 1,
+      }),
+    );
+
+    document.dispatchEvent(
+      new PointerEvent("pointercancel", {
+        clientX: 200,
+        clientY: 180,
+        bubbles: true,
+        pointerId: 1,
+      }),
+    );
+
+    expect(on_drag_end).toHaveBeenCalledOnce();
+    expect(node.style.cursor).toBe("");
+  });
+
   it("ignores right-click", () => {
     const on_drag_start = vi.fn();
     draggable(node, { on_drag_start });

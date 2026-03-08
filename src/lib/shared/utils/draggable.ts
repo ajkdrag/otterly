@@ -18,6 +18,7 @@ export function draggable(
 ): { update: (opts: DraggableOptions) => void; destroy: () => void } {
   let current_options = options;
   let is_dragging = false;
+  let active_pointer_id: number | null = null;
   let start_pointer: Position = { x: 0, y: 0 };
   let start_position: Position = { x: 0, y: 0 };
 
@@ -50,6 +51,37 @@ export function draggable(
     };
   }
 
+  function finish_drag(notify_drag_end = true) {
+    if (!is_dragging) return;
+
+    is_dragging = false;
+    node.style.cursor = "";
+
+    document.removeEventListener("pointermove", on_pointer_move);
+    document.removeEventListener("pointerup", on_pointer_up);
+    document.removeEventListener("pointercancel", on_pointer_cancel);
+
+    const handle = get_handle();
+    if (
+      active_pointer_id !== null &&
+      typeof handle.releasePointerCapture === "function"
+    ) {
+      const has_capture =
+        typeof handle.hasPointerCapture === "function"
+          ? handle.hasPointerCapture(active_pointer_id)
+          : true;
+      if (has_capture) {
+        handle.releasePointerCapture(active_pointer_id);
+      }
+    }
+
+    active_pointer_id = null;
+
+    if (notify_drag_end) {
+      current_options.on_drag_end?.();
+    }
+  }
+
   function on_pointer_down(e: PointerEvent) {
     if (e.button !== 0) return;
 
@@ -58,6 +90,7 @@ export function draggable(
     if (is_interactive_target(e.target)) return;
 
     is_dragging = true;
+    active_pointer_id = e.pointerId;
     start_pointer = { x: e.clientX, y: e.clientY };
 
     const rect = node.getBoundingClientRect();
@@ -77,6 +110,7 @@ export function draggable(
 
     document.addEventListener("pointermove", on_pointer_move);
     document.addEventListener("pointerup", on_pointer_up);
+    document.addEventListener("pointercancel", on_pointer_cancel);
   }
 
   function on_pointer_move(e: PointerEvent) {
@@ -95,19 +129,13 @@ export function draggable(
   }
 
   function on_pointer_up(e: PointerEvent) {
-    if (!is_dragging) return;
+    if (active_pointer_id !== null && e.pointerId !== active_pointer_id) return;
+    finish_drag();
+  }
 
-    is_dragging = false;
-    node.style.cursor = "";
-    const handle = get_handle();
-    if (typeof handle.releasePointerCapture === "function") {
-      handle.releasePointerCapture(e.pointerId);
-    }
-
-    document.removeEventListener("pointermove", on_pointer_move);
-    document.removeEventListener("pointerup", on_pointer_up);
-
-    current_options.on_drag_end?.();
+  function on_pointer_cancel(e: PointerEvent) {
+    if (active_pointer_id !== null && e.pointerId !== active_pointer_id) return;
+    finish_drag();
   }
 
   function setup() {
@@ -118,8 +146,7 @@ export function draggable(
   function cleanup() {
     const handle = get_handle();
     handle.removeEventListener("pointerdown", on_pointer_down);
-    document.removeEventListener("pointermove", on_pointer_move);
-    document.removeEventListener("pointerup", on_pointer_up);
+    finish_drag(false);
   }
 
   setup();

@@ -113,6 +113,12 @@
     dialog_element.style.cursor = "";
   }
 
+  function request_close() {
+    if (is_saving) return;
+    reset_drag_styles();
+    on_close();
+  }
+
   $effect(() => {
     if (!dialog_element) return;
 
@@ -123,14 +129,19 @@
       action.destroy();
     };
   });
+
+  $effect(() => {
+    if (!open) {
+      reset_drag_styles();
+    }
+  });
 </script>
 
 <Dialog.Root
   {open}
   onOpenChange={(value: boolean) => {
-    if (!value && !is_saving) {
-      reset_drag_styles();
-      on_close();
+    if (!value) {
+      request_close();
     }
   }}
 >
@@ -410,7 +421,7 @@
       <Button
         variant="outline"
         class="transition-colors"
-        onclick={on_close}
+        onclick={request_close}
         disabled={is_saving}
       >
         Cancel
