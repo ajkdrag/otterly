@@ -22,6 +22,7 @@
   import type { Theme } from "$lib/shared/types/theme";
   import type { HotkeyConfig, HotkeyBinding } from "$lib/features/hotkey";
   import { slide } from "svelte/transition";
+  import { draggable } from "$lib/shared/utils/draggable";
 
   type Props = {
     open: boolean;
@@ -99,15 +100,41 @@
     { id: "misc", label: "Misc", icon: SlidersIcon },
     { id: "hotkeys", label: "Hotkeys", icon: KeyboardIcon },
   ];
+
+  let dialog_element = $state<HTMLElement | null>(null);
+
+  function reset_drag_styles() {
+    if (!dialog_element) return;
+    dialog_element.style.left = "";
+    dialog_element.style.top = "";
+    dialog_element.style.transform = "";
+    dialog_element.style.translate = "";
+    dialog_element.style.transition = "";
+    dialog_element.style.cursor = "";
+  }
+
+  $effect(() => {
+    if (!dialog_element) return;
+
+    const element = dialog_element;
+    const action = draggable(element, {});
+
+    return () => {
+      action.destroy();
+    };
+  });
 </script>
 
 <Dialog.Root
   {open}
   onOpenChange={(value: boolean) => {
-    if (!value && !is_saving) on_close();
+    if (!value && !is_saving) {
+      reset_drag_styles();
+      on_close();
+    }
   }}
 >
-  <Dialog.Content class="SettingsDialog">
+  <Dialog.Content bind:ref={dialog_element} class="SettingsDialog">
     <Dialog.Header class="sr-only">
       <Dialog.Title>Settings</Dialog.Title>
       <Dialog.Description>Customize your editor experience</Dialog.Description>
@@ -414,6 +441,7 @@
     padding: 0;
     gap: 0;
     overflow: hidden;
+    cursor: grab;
   }
 
   .SettingsDialog__panels {
@@ -439,6 +467,7 @@
     font-weight: 600;
     color: var(--foreground);
     padding: var(--space-2) var(--space-2) var(--space-3);
+    user-select: none;
   }
 
   .SettingsDialog__nav-item {
