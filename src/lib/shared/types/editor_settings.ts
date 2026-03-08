@@ -10,6 +10,7 @@ export type EditorSettings = {
   attachment_folder: string;
   show_hidden_files: boolean;
   autosave_enabled: boolean;
+  autosave_delay_ms: number;
   git_autocommit_enabled: boolean;
   show_vault_dashboard_on_open: boolean;
   max_open_tabs: number;
@@ -20,6 +21,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   attachment_folder: ".assets",
   show_hidden_files: false,
   autosave_enabled: true,
+  autosave_delay_ms: 2000,
   git_autocommit_enabled: false,
   show_vault_dashboard_on_open: true,
   max_open_tabs: 5,
@@ -32,6 +34,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "show_vault_dashboard_on_open",
   "git_autocommit_enabled",
   "autosave_enabled",
+  "autosave_delay_ms",
   "editor_max_width_ch",
 ] as const;
 

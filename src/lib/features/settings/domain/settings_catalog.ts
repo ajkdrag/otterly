@@ -54,6 +54,22 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     ],
   },
   {
+    key: "autosave_delay_ms",
+    label: "Autosave Delay",
+    description:
+      "Delay in milliseconds before automatically saving after edits",
+    category: "Files",
+    keywords: [
+      "autosave",
+      "delay",
+      "time",
+      "save",
+      "automatic",
+      "performance",
+      "interval",
+    ],
+  },
+  {
     key: "git_autocommit_enabled",
     label: "Git Auto-commit",
     description: "Automatically commit saved changes to Git",

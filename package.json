@@ -55,6 +55,7 @@
     "@tauri-apps/cli": "^2.10.0",
     "@types/node": "^22.19.7",
     "bits-ui": "^2.15.4",
+    "jsdom": "^28.1.0",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.12.2",
     "paneforge": "^1.0.2",

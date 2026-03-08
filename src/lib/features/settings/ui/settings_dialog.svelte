@@ -21,6 +21,8 @@
   import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
   import type { Theme } from "$lib/shared/types/theme";
   import type { HotkeyConfig, HotkeyBinding } from "$lib/features/hotkey";
+  import { slide } from "svelte/transition";
+  import { draggable } from "$lib/shared/utils/draggable";
 
   type Props = {
     open: boolean;
@@ -98,15 +100,52 @@
     { id: "misc", label: "Misc", icon: SlidersIcon },
     { id: "hotkeys", label: "Hotkeys", icon: KeyboardIcon },
   ];
+
+  let dialog_element = $state<HTMLElement | null>(null);
+
+  function reset_drag_styles() {
+    if (!dialog_element) return;
+    dialog_element.style.left = "";
+    dialog_element.style.top = "";
+    dialog_element.style.transform = "";
+    dialog_element.style.translate = "";
+    dialog_element.style.transition = "";
+    dialog_element.style.cursor = "";
+  }
+
+  function request_close() {
+    if (is_saving) return;
+    reset_drag_styles();
+    on_close();
+  }
+
+  $effect(() => {
+    if (!dialog_element) return;
+
+    const element = dialog_element;
+    const action = draggable(element, {});
+
+    return () => {
+      action.destroy();
+    };
+  });
+
+  $effect(() => {
+    if (!open) {
+      reset_drag_styles();
+    }
+  });
 </script>
 
 <Dialog.Root
   {open}
   onOpenChange={(value: boolean) => {
-    if (!value && !is_saving) on_close();
+    if (!value) {
+      request_close();
+    }
   }}
 >
-  <Dialog.Content class="SettingsDialog">
+  <Dialog.Content bind:ref={dialog_element} class="SettingsDialog">
     <Dialog.Header class="sr-only">
       <Dialog.Title>Settings</Dialog.Title>
       <Dialog.Description>Customize your editor experience</Dialog.Description>
@@ -278,6 +317,48 @@
                 }}
               />
             </div>
+            {#if editor_settings.autosave_enabled}
+              <div class="SettingsDialog__row" transition:slide>
+                <div class="SettingsDialog__label-group">
+                  <span class="SettingsDialog__label">Autosave Delay (ms)</span>
+                  <span class="SettingsDialog__description"
+                    >Delay before automatically saving after edits</span
+                  >
+                </div>
+                <div class="flex items-center gap-3">
+                  <Slider
+                    type="single"
+                    value={editor_settings.autosave_delay_ms}
+                    onValueChange={(v: number | undefined) => {
+                      if (v !== undefined) {
+                        update("autosave_delay_ms", v);
+                      }
+                    }}
+                    min={500}
+                    max={10000}
+                    step={100}
+                    class="w-32"
+                  />
+                  <span class="text-sm tabular-nums w-14"
+                    >{editor_settings.autosave_delay_ms}ms</span
+                  >
+                  <button
+                    type="button"
+                    class="SettingsDialog__reset"
+                    onclick={() =>
+                      update(
+                        "autosave_delay_ms",
+                        DEFAULT_EDITOR_SETTINGS.autosave_delay_ms,
+                      )}
+                    disabled={editor_settings.autosave_delay_ms ===
+                      DEFAULT_EDITOR_SETTINGS.autosave_delay_ms}
+                    title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.autosave_delay_ms)}ms)`}
+                  >
+                    <RotateCcw />
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         {:else if active_category === "git"}
           <h2 class="SettingsDialog__content-header">Git</h2>
@@ -340,7 +421,7 @@
       <Button
         variant="outline"
         class="transition-colors"
-        onclick={on_close}
+        onclick={request_close}
         disabled={is_saving}
       >
         Cancel
@@ -371,6 +452,7 @@
     padding: 0;
     gap: 0;
     overflow: hidden;
+    cursor: grab;
   }
 
   .SettingsDialog__panels {
@@ -396,6 +478,7 @@
     font-weight: 600;
     color: var(--foreground);
     padding: var(--space-2) var(--space-2) var(--space-3);
+    user-select: none;
   }
 
   .SettingsDialog__nav-item {

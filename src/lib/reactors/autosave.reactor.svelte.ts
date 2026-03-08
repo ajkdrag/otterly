@@ -4,8 +4,6 @@ import type { NoteService } from "$lib/features/note";
 import type { TabService } from "$lib/features/tab";
 import { is_draft_note_path } from "$lib/features/note";
 
-const AUTOSAVE_DELAY_MS = 2000;
-
 export function create_autosave_reactor(
   editor_store: EditorStore,
   ui_store: UIStore,
@@ -23,6 +21,7 @@ export function create_autosave_reactor(
       if (is_draft_note_path(open_note.meta.path)) return;
 
       const note_path = open_note.meta.path;
+      const delay = ui_store.editor_settings.autosave_delay_ms;
 
       const handle = setTimeout(() => {
         void note_service.save_note(null, true).then((result) => {
@@ -30,7 +29,7 @@ export function create_autosave_reactor(
             tab_service.mark_conflict(note_path);
           }
         });
-      }, AUTOSAVE_DELAY_MS);
+      }, delay);
 
       return () => {
         clearTimeout(handle);
