@@ -216,10 +216,17 @@ jobs:
           pattern: release-metadata-*
           merge-multiple: true
 
+      - name: Fetch release asset names
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: gh release view "$TAG_NAME" --json assets --jq '[.assets[].name]' > release-assets.json
+
       - name: Build updater manifest
         run: |
           node scripts/build_latest_json.mjs \
             --input-dir=release-metadata \
+            --release-assets=release-assets.json \
             --repo=${{ github.repository }} \
             --tag=${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }} \
             --output=latest.json

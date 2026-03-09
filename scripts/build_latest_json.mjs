@@ -15,6 +15,10 @@ function readMetadataFiles(directory) {
     );
 }
 
+function readReleaseAssets(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
 function encodeAssetName(assetName) {
   return assetName
     .split("/")
@@ -22,20 +26,50 @@ function encodeAssetName(assetName) {
     .join("/");
 }
 
+function resolveReleaseAssetName(platform, releaseAssets) {
+  const matcher =
+    platform === "darwin-aarch64"
+      ? (name) => name.endsWith("_aarch64.app.tar.gz")
+      : platform === "darwin-x86_64"
+        ? (name) => name.endsWith("_x64.app.tar.gz")
+        : platform === "linux-x86_64"
+          ? (name) =>
+              name.endsWith(".AppImage") && !name.endsWith(".AppImage.sig")
+          : platform === "windows-x86_64"
+            ? (name) => name.endsWith("-setup.exe")
+            : null;
+
+  if (!matcher) {
+    throw new Error(`Unsupported updater platform: ${platform}`);
+  }
+
+  const assetName = releaseAssets.find(matcher);
+
+  if (!assetName) {
+    throw new Error(`No uploaded release asset found for ${platform}`);
+  }
+
+  return assetName;
+}
+
 const args = parseScriptArgs(process.argv.slice(2));
 const inputDir = args.get("input-dir");
+const releaseAssetsPath = args.get("release-assets");
 const repo = args.get("repo");
 const tag = args.get("tag");
 const outputPath = args.get("output");
 
-if (!inputDir || !repo || !tag || !outputPath) {
+if (!inputDir || !releaseAssetsPath || !repo || !tag || !outputPath) {
   throw new Error(
-    "Missing required arguments: --input-dir, --repo, --tag, --output",
+    "Missing required arguments: --input-dir, --release-assets, --repo, --tag, --output",
   );
 }
 
 const workspaceRoot = path.resolve(import.meta.dirname, "..");
 const metadataEntries = readMetadataFiles(path.join(workspaceRoot, inputDir));
+const releaseAssets = readReleaseAssets(
+  path.join(workspaceRoot, releaseAssetsPath),
+);
 
 if (metadataEntries.length === 0) {
   throw new Error("No updater metadata files found");
@@ -55,9 +89,11 @@ for (const entry of metadataEntries) {
     );
   }
 
+  const assetName = resolveReleaseAssetName(entry.platform, releaseAssets);
+
   platforms[entry.platform] = {
     signature: entry.signature,
-    url: `https://github.com/${repo}/releases/download/${tag}/${encodeAssetName(entry.asset_name)}`,
+    url: `https://github.com/${repo}/releases/download/${tag}/${encodeAssetName(assetName)}`,
   };
 }
 
