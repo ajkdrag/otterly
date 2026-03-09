@@ -14,7 +14,7 @@
      ---------------------------------------- */
   --font-family-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-family-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "JetBrains Mono", ui-monospace, sfmono-regular, menlo, monaco, consolas,
     monospace;
 
   /* ----------------------------------------
@@ -133,7 +133,6 @@
      Warm-tinted shadows for cohesion.
      ---------------------------------------- */
   --shadow-color: oklch(0.25 0.01 66);
-
   --shadow-xs: 0 1px 2px
     color-mix(in oklch, var(--shadow-color) 5%, transparent);
   --shadow-sm:
@@ -182,25 +181,21 @@
   --size-icon: 1rem; /* 16px */
   --size-icon-md: 1.25rem; /* 20px */
   --size-icon-lg: 1.5rem; /* 24px */
-
   --size-touch-xs: 1.5rem; /* 24px - minimum touch */
   --size-touch-sm: 1.75rem; /* 28px */
   --size-touch: 2rem; /* 32px - default touch target */
   --size-touch-md: 2.25rem; /* 36px */
   --size-touch-lg: 2.5rem; /* 40px */
-
   --size-activity-bar: 2.75rem; /* 44px */
   --size-activity-icon: 1.25rem; /* 20px */
   --size-status-bar: 1.625rem; /* 26px — slightly taller to match mockup */
   --size-tree-row: 1.875rem; /* 30px */
-
   --size-dialog-sm: 24rem;
   --size-dialog-md: 28rem;
   --size-dialog-lg: 32rem;
   --size-dialog-xl: 40rem;
   --size-dialog-list-height: 20rem;
   --size-dialog-list-height-lg: 28rem;
-
   --size-tree-indent: 1rem;
   --size-tree-base-padding: 0.5rem;
 
@@ -226,7 +221,6 @@
   --duration-normal: 150ms;
   --duration-slow: 200ms;
   --duration-slower: 300ms;
-
   --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
@@ -279,12 +273,9 @@
   --interactive-border-strong: var(--teal-500);
   --interactive-disabled: var(--teal-400);
   --interactive-disabled-bg: var(--teal-100);
-
   --focus-ring: oklch(0.68 0.11 var(--accent-hue));
   --focus-ring-offset: oklch(0.175 0 0);
-
   --selection-bg: oklch(0.28 0.05 var(--accent-hue));
-
   --warning: oklch(0.86 0.12 90);
   --warning-bg: oklch(0.24 0.035 85);
   --warning-text-on-bg: oklch(0.88 0.08 90);
@@ -336,7 +327,6 @@
 
   /* Shadows more subtle in dark mode */
   --shadow-color: oklch(0.05 0 0);
-
   --indicator-dirty: oklch(0.7 0.1 44);
   --indicator-clean: var(--interactive);
 }
@@ -349,7 +339,7 @@
   /* Font family */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "JetBrains Mono", ui-monospace, sfmono-regular, menlo, monaco, consolas,
     monospace;
 
   /* Interactive colors */
@@ -395,6 +385,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
   /* Focus ring uses spruce accent */
   *:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -423,12 +419,6 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
-  }
-
-  /* Firefox scrollbar */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 }
 
