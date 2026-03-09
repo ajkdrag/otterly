@@ -31,7 +31,9 @@ For adding/updating any feature, always refer to the decision tree in the archit
   - `pnpm lint` — oxlint linting
   - `pnpm test` — Vitest unit/integration tests
   - `cd src-tauri && cargo check` — Rust type checking (run from `src-tauri/` directory)
+  - `cd src-tauri && cargo clippy -- -D warnings` — Rust linting
   - `pnpm format` — Prettier (writes formatting)
+  - `cd src-tauri && cargo fmt` — Rust formatting
 - Add tests in the right location (if we should), even if the user might have forgotten to ask you to create them
 
 ## Implementation Guidelines
