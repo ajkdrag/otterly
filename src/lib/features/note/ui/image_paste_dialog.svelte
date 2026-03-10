@@ -116,6 +116,12 @@
           oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
             on_update_filename(e.currentTarget.value);
           }}
+          onkeydown={(e: KeyboardEvent) => {
+            if (e.key === "Enter" && is_valid() && !is_saving) {
+              e.preventDefault();
+              on_confirm();
+            }
+          }}
           placeholder="e.g., image-1234567890.png"
           disabled={is_saving}
         />

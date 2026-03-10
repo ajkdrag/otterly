@@ -36,21 +36,19 @@ export function sanitize_note_name(name: string): string {
     sanitized = "_" + sanitized.slice(1);
   }
 
+  // Strip any existing extension (find last dot)
+  const ext_index = sanitized.lastIndexOf(".");
+  if (ext_index > 0) {
+    sanitized = sanitized.slice(0, ext_index);
+  }
+
   if (sanitized.length > MAX_LENGTH) {
     sanitized = sanitized.slice(0, MAX_LENGTH);
   }
 
-  const ext_index = sanitized.lastIndexOf(".");
-  const base_name = ext_index > 0 ? sanitized.slice(0, ext_index) : sanitized;
-  const extension = ext_index > 0 ? sanitized.slice(ext_index) : "";
-
-  if (WINDOWS_RESERVED.has(base_name.toLowerCase())) {
-    sanitized = base_name + "_" + extension;
+  if (WINDOWS_RESERVED.has(sanitized.toLowerCase())) {
+    sanitized = sanitized + "_";
   }
 
-  if (!sanitized.toLowerCase().endsWith(".md")) {
-    sanitized = sanitized + ".md";
-  }
-
-  return sanitized;
+  return sanitized + ".md";
 }

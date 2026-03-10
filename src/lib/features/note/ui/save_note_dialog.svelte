@@ -3,6 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import type { NotePath } from "$lib/shared/types/ids";
+  import { sanitize_note_name } from "$lib/features/note/domain/sanitize_note_name";
   import { tick } from "svelte";
 
   interface Props {
@@ -41,7 +42,12 @@
     if (!new_path) return "";
     const path = String(new_path);
     const last_slash = path.lastIndexOf("/");
-    return last_slash >= 0 ? path.slice(last_slash + 1) : path;
+    let filename = last_slash >= 0 ? path.slice(last_slash + 1) : path;
+    // Strip .md extension for display (user only types basename)
+    if (filename.endsWith(".md")) {
+      filename = filename.slice(0, -3);
+    }
+    return filename;
   });
 
   $effect(() => {
@@ -54,7 +60,9 @@
   });
 
   function update_filename(value: string) {
-    const full_path = folder_path ? `${folder_path}/${value}` : value;
+    // Sanitize the filename (ensures .md extension, handles special chars)
+    const sanitized = sanitize_note_name(value);
+    const full_path = folder_path ? `${folder_path}/${sanitized}` : sanitized;
     on_update_path(full_path as NotePath);
   }
 
@@ -97,25 +105,33 @@
         {#if folder_path}
           <p class="text-sm text-muted-foreground">Location: {folder_path}/</p>
         {/if}
-        <Input
-          bind:ref={input_el}
-          type="text"
-          value={display_filename}
-          onchange={(e: Event & { currentTarget: HTMLInputElement }) => {
-            update_filename(e.currentTarget.value);
-          }}
-          oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-            update_filename(e.currentTarget.value);
-          }}
-          onkeydown={(e: KeyboardEvent) => {
-            if (e.key === "Enter" && is_valid() && !is_busy) {
-              e.preventDefault();
-              on_confirm();
-            }
-          }}
-          placeholder="e.g., my-note.md"
-          disabled={is_busy}
-        />
+        <div class="flex items-center">
+          <Input
+            bind:ref={input_el}
+            type="text"
+            value={display_filename}
+            onchange={(e: Event & { currentTarget: HTMLInputElement }) => {
+              update_filename(e.currentTarget.value);
+            }}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              update_filename(e.currentTarget.value);
+            }}
+            onkeydown={(e: KeyboardEvent) => {
+              if (e.key === "Enter" && is_valid() && !is_busy) {
+                e.preventDefault();
+                on_confirm();
+              }
+            }}
+            placeholder="e.g., my-note"
+            disabled={is_busy}
+            class="rounded-r-none"
+          />
+          <span
+            class="px-3 py-2 bg-muted text-muted-foreground border border-l-0 rounded-r-md text-sm"
+          >
+            .md
+          </span>
+        </div>
       </div>
     {/if}
 

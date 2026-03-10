@@ -38,11 +38,11 @@ describe("sanitize_note_name", () => {
 
   it("adds .md extension if missing", () => {
     expect(sanitize_note_name("my-note")).toBe("my-note.md");
-    expect(sanitize_note_name("my-note.txt")).toBe("my-note.txt.md");
   });
 
-  it("preserves .md extension if already present", () => {
+  it("strips any existing extension and adds .md", () => {
+    expect(sanitize_note_name("my-note.txt")).toBe("my-note.md");
     expect(sanitize_note_name("my-note.md")).toBe("my-note.md");
-    expect(sanitize_note_name("my-note.MD")).toBe("my-note.MD");
+    expect(sanitize_note_name("my-note.MD")).toBe("my-note.md");
   });
 });
