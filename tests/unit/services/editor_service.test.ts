@@ -42,6 +42,7 @@ function create_session(initial_markdown: string): EditorSession {
     }),
     get_markdown: vi.fn(() => current_markdown),
     insert_text_at_cursor: vi.fn(),
+    set_selection: vi.fn(),
     mark_clean: vi.fn(),
     is_dirty: vi.fn(() => false),
     focus: vi.fn(),

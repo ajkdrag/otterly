@@ -7,6 +7,7 @@ import type { SearchService } from "$lib/features/search";
 import type { EditorService } from "$lib/features/editor";
 import type { ClipboardService } from "$lib/features/clipboard";
 import type { ShellService } from "$lib/features/shell";
+import type { SessionService } from "$lib/features/session";
 import type { TabService } from "$lib/features/tab";
 import type { GitService } from "$lib/features/git";
 import type { HotkeyService } from "$lib/features/hotkey";
@@ -41,6 +42,7 @@ export type ActionRegistrationInput = {
     editor: EditorService;
     clipboard: ClipboardService;
     shell: ShellService;
+    session: SessionService;
     tab: TabService;
     git: GitService;
     hotkey: HotkeyService;

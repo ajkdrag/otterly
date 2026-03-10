@@ -1,6 +1,9 @@
 export const ACTION_IDS = {
   app_mounted: "app.mounted",
   app_check_for_updates: "app.check_for_updates",
+  app_request_quit: "app.request_quit",
+  app_confirm_quit: "app.confirm_quit",
+  app_cancel_quit: "app.cancel_quit",
   app_editor_mount: "app.editor.mount",
   app_editor_unmount: "app.editor.unmount",
 

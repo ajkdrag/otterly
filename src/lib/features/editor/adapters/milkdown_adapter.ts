@@ -6,7 +6,12 @@ import {
   editorViewCtx,
   parserCtx,
 } from "@milkdown/kit/core";
-import { EditorState, Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import {
+  EditorState,
+  Plugin,
+  PluginKey,
+  TextSelection,
+} from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import type { CursorInfo } from "$lib/shared/types/editor";
 import { Slice } from "@milkdown/kit/prose/model";
@@ -159,7 +164,14 @@ function calculate_cursor_info(view: EditorView): CursorInfo {
   const column = $from ? $from.parentOffset + 1 : 1;
   const total_lines = count_doc_lines(doc);
   const total_words = count_doc_words(doc);
-  return { line, column, total_lines, total_words };
+  return {
+    line,
+    column,
+    total_lines,
+    total_words,
+    anchor: selection.anchor,
+    head: selection.head,
+  };
 }
 
 const cursor_plugin_key = new PluginKey("cursor-tracker");
@@ -192,6 +204,8 @@ function create_cursor_plugin(on_cursor_change: (info: CursorInfo) => void) {
                   ...cached,
                   line: $from ? line_from_pos(doc, $from.pos) : 1,
                   column: $from ? $from.parentOffset + 1 : 1,
+                  anchor: view.state.selection.anchor,
+                  head: view.state.selection.head,
                 };
               }
 
@@ -601,6 +615,22 @@ export function create_milkdown_editor_port(args?: {
               view.dispatch(tr.scrollIntoView());
               view.focus();
             }
+          });
+        },
+        set_selection(anchor: number, head: number) {
+          if (!editor) return;
+          run_editor_action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const max_position = view.state.doc.content.size;
+            const safe_anchor = Math.min(Math.max(anchor, 0), max_position);
+            const safe_head = Math.min(Math.max(head, 0), max_position);
+            const selection = TextSelection.create(
+              view.state.doc,
+              safe_anchor,
+              safe_head,
+            );
+            view.dispatch(view.state.tr.setSelection(selection));
+            view.focus();
           });
         },
         mark_clean,

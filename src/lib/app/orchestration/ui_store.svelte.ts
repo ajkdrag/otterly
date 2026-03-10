@@ -134,6 +134,11 @@ const INITIAL_CHECKPOINT_DIALOG = {
   description: "",
 } as const;
 
+const INITIAL_QUIT_CONFIRM = {
+  open: false,
+  is_quitting: false,
+} as const;
+
 const INITIAL_HOTKEY_RECORDER: HotkeyRecorderState = {
   open: false,
   action_id: null,
@@ -322,6 +327,11 @@ export class UIStore {
     description: string;
   }>({ ...INITIAL_CHECKPOINT_DIALOG });
 
+  quit_confirm = $state<{
+    open: boolean;
+    is_quitting: boolean;
+  }>({ ...INITIAL_QUIT_CONFIRM });
+
   context_rail_open = $state(false);
   context_rail_tab = $state<ContextRailTab>("links");
 
@@ -466,6 +476,7 @@ export class UIStore {
     this.tab_close_confirm = { ...INITIAL_TAB_CLOSE_CONFIRM };
     this.version_history_dialog = { ...INITIAL_VERSION_HISTORY_DIALOG };
     this.checkpoint_dialog = { ...INITIAL_CHECKPOINT_DIALOG };
+    this.quit_confirm = { ...INITIAL_QUIT_CONFIRM };
     this.context_rail_open = false;
     this.context_rail_tab = "links";
   }

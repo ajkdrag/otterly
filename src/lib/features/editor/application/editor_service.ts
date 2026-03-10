@@ -153,6 +153,16 @@ export class EditorService {
     });
   }
 
+  restore_cursor(cursor: CursorInfo | null) {
+    if (!cursor) return;
+    if (cursor.anchor === undefined) return;
+
+    const head = cursor.head ?? cursor.anchor;
+    requestAnimationFrame(() => {
+      this.session?.set_selection(cursor.anchor ?? head, head);
+    });
+  }
+
   focus() {
     this.session?.focus();
   }

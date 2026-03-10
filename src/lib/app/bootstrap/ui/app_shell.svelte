@@ -37,6 +37,7 @@
       stores.ui.rename_folder_dialog.open ||
       stores.ui.image_paste_dialog.open ||
       stores.ui.tab_close_confirm.open ||
+      stores.ui.quit_confirm.open ||
       stores.ui.help_dialog.open,
   );
 

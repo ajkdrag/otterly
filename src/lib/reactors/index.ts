@@ -1,3 +1,4 @@
+import { create_app_close_request_reactor } from "$lib/reactors/app_close_request.reactor.svelte";
 import { create_editor_sync_reactor } from "$lib/reactors/editor_sync.reactor.svelte";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
@@ -6,7 +7,7 @@ import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_recent_notes_persist_reactor } from "$lib/reactors/recent_notes_persist.reactor.svelte";
 import { create_starred_persist_reactor } from "$lib/reactors/starred_persist.reactor.svelte";
 import { create_tab_dirty_sync_reactor } from "$lib/reactors/tab_dirty_sync.reactor.svelte";
-import { create_tab_persist_reactor } from "$lib/reactors/tab_persist.reactor.svelte";
+import { create_session_persist_reactor } from "$lib/reactors/session_persist.reactor.svelte";
 import { create_git_autocommit_reactor } from "$lib/reactors/git_autocommit.reactor.svelte";
 import { create_recent_commands_persist_reactor } from "$lib/reactors/recent_commands_persist.reactor.svelte";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
@@ -27,6 +28,7 @@ import type { EditorService } from "$lib/features/editor";
 import type { NoteService } from "$lib/features/note";
 import type { VaultService } from "$lib/features/vault";
 import type { SettingsService } from "$lib/features/settings";
+import type { SessionService } from "$lib/features/session";
 import type { TabService } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
 import type { GitService } from "$lib/features/git";
@@ -50,6 +52,7 @@ export type ReactorContext = {
   note_service: NoteService;
   vault_service: VaultService;
   settings_service: SettingsService;
+  session_service: SessionService;
   tab_service: TabService;
   git_service: GitService;
   links_service: LinksService;
@@ -61,7 +64,16 @@ export function mount_reactors(context: ReactorContext): () => void {
   const conflict_toast_manager = new ConflictToastManager();
 
   const unmounts = [
-    create_editor_sync_reactor(context.editor_store, context.editor_service),
+    create_app_close_request_reactor(
+      context.tab_store,
+      context.ui_store,
+      context.action_registry,
+    ),
+    create_editor_sync_reactor(
+      context.editor_store,
+      context.tab_store,
+      context.editor_service,
+    ),
     create_editor_width_reactor(context.ui_store),
     create_autosave_reactor(
       context.editor_store,
@@ -93,10 +105,11 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.note_service,
       conflict_toast_manager,
     ),
-    create_tab_persist_reactor(
+    create_session_persist_reactor(
+      context.editor_store,
       context.tab_store,
       context.vault_store,
-      context.tab_service,
+      context.session_service,
     ),
     create_git_autocommit_reactor(
       context.editor_store,

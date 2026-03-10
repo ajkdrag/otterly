@@ -23,6 +23,7 @@
   import { VersionHistoryDialog, CheckpointDialog } from "$lib/features/git";
   import { HotkeyRecorderDialog } from "$lib/features/hotkey";
   import HelpDialog from "$lib/app/bootstrap/ui/help_dialog.svelte";
+  import QuitConfirmDialog from "$lib/app/bootstrap/ui/quit_confirm_dialog.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { OmnibarItem } from "$lib/shared/types/search";
@@ -398,6 +399,13 @@
   on_toggle_apply_to_all={(checked) => {
     stores.ui.tab_close_confirm.apply_to_all = checked;
   }}
+/>
+
+<QuitConfirmDialog
+  open={stores.ui.quit_confirm.open}
+  is_quitting={stores.ui.quit_confirm.is_quitting}
+  on_confirm={() => void action_registry.execute(ACTION_IDS.app_confirm_quit)}
+  on_cancel={() => void action_registry.execute(ACTION_IDS.app_cancel_quit)}
 />
 
 <VersionHistoryDialog

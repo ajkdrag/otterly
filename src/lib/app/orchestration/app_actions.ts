@@ -3,9 +3,10 @@ import type { ActionRegistrationInput } from "$lib/app/action_registry/action_re
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
-import { is_tauri } from "$lib/shared/utils/detect_platform";
+import { detect_platform } from "$lib/shared/utils/detect_platform";
 import { toast } from "svelte-sonner";
 import { create_logger } from "$lib/shared/utils/logger";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const log = create_logger("app_actions");
 
@@ -138,7 +139,7 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
 }
 
 async function execute_app_check_for_updates() {
-  if (!is_tauri) {
+  if (!detect_platform().is_tauri) {
     toast.info("Updates are only available in the desktop app");
     return;
   }
@@ -167,8 +168,31 @@ async function execute_app_check_for_updates() {
   }
 }
 
+async function execute_app_confirm_quit(input: ActionRegistrationInput) {
+  if (!detect_platform().is_tauri || input.stores.ui.quit_confirm.is_quitting) {
+    return;
+  }
+
+  input.stores.ui.quit_confirm = {
+    open: true,
+    is_quitting: true,
+  };
+
+  try {
+    await input.services.session.save_latest_session();
+    await getCurrentWindow().destroy();
+  } catch (error) {
+    input.stores.ui.quit_confirm = {
+      open: true,
+      is_quitting: false,
+    };
+    log.error("Quit failed", { error: String(error) });
+    toast.error("Failed to quit Otterly");
+  }
+}
+
 export function register_app_actions(input: ActionRegistrationInput) {
-  const { registry, services } = input;
+  const { registry, services, stores } = input;
 
   registry.register({
     id: ACTION_IDS.app_mounted,
@@ -184,6 +208,12 @@ export function register_app_actions(input: ActionRegistrationInput) {
         root: root as HTMLDivElement,
         note: note as OpenNoteState,
       });
+      const active_tab = stores.tab.active_tab;
+      if (!active_tab) return;
+      if (active_tab.note_path !== (note as OpenNoteState).meta.path) return;
+      const snapshot = stores.tab.get_snapshot(active_tab.id);
+      services.editor.set_scroll_top(snapshot?.scroll_top ?? 0);
+      services.editor.restore_cursor(snapshot?.cursor ?? null);
     },
   });
 
@@ -199,5 +229,39 @@ export function register_app_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.app_check_for_updates,
     label: "Check for Updates",
     execute: async () => execute_app_check_for_updates(),
+  });
+
+  registry.register({
+    id: ACTION_IDS.app_request_quit,
+    label: "Request Quit",
+    execute: () => {
+      if (stores.ui.quit_confirm.is_quitting) {
+        return;
+      }
+      stores.ui.quit_confirm = {
+        open: true,
+        is_quitting: false,
+      };
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.app_confirm_quit,
+    label: "Confirm Quit",
+    execute: async () => execute_app_confirm_quit(input),
+  });
+
+  registry.register({
+    id: ACTION_IDS.app_cancel_quit,
+    label: "Cancel Quit",
+    execute: () => {
+      if (stores.ui.quit_confirm.is_quitting) {
+        return;
+      }
+      stores.ui.quit_confirm = {
+        open: false,
+        is_quitting: false,
+      };
+    },
   });
 }

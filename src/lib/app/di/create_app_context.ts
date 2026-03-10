@@ -12,6 +12,7 @@ import { SearchService } from "$lib/features/search";
 import { EditorService } from "$lib/features/editor";
 import { ClipboardService } from "$lib/features/clipboard";
 import { ShellService } from "$lib/features/shell";
+import { SessionService } from "$lib/features/session";
 import { TabService } from "$lib/features/tab";
 import { GitService } from "$lib/features/git";
 import { HotkeyService } from "$lib/features/hotkey";
@@ -120,11 +121,14 @@ export function create_app_context(input: {
     now_ms,
   );
 
-  const tab_service = new TabService(
-    input.ports.vault_settings,
+  const tab_service = new TabService(stores.tab);
+
+  const session_service = new SessionService(
+    input.ports.session,
     stores.vault,
     stores.tab,
-    stores.notes,
+    stores.editor,
+    editor_service,
     note_service,
   );
 
@@ -189,6 +193,7 @@ export function create_app_context(input: {
       editor: editor_service,
       clipboard: clipboard_service,
       shell: shell_service,
+      session: session_service,
       tab: tab_service,
       git: git_service,
       hotkey: hotkey_service,
@@ -212,6 +217,7 @@ export function create_app_context(input: {
     vault_service,
     settings_service,
     tab_service,
+    session_service,
     git_service,
     links_service,
     watcher_service,

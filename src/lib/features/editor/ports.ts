@@ -15,6 +15,7 @@ export type EditorSession = {
   set_markdown: (markdown: string) => void;
   get_markdown: () => string;
   insert_text_at_cursor: (text: string) => void;
+  set_selection: (anchor: number, head: number) => void;
   mark_clean: () => void;
   is_dirty: () => boolean;
   focus: () => void;

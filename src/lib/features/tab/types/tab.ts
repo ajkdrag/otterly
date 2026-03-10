@@ -23,14 +23,3 @@ export type ClosedTabEntry = {
   cursor: CursorInfo | null;
   draft_note: OpenNoteState | null;
 };
-
-export type PersistedTab = {
-  note_path: NotePath;
-  is_pinned: boolean;
-  cursor: CursorInfo | null;
-};
-
-export type PersistedTabState = {
-  tabs: PersistedTab[];
-  active_tab_path: NotePath | null;
-};

@@ -51,19 +51,34 @@ function create_vault_actions_harness() {
         status: "saved",
         saved_path: "docs/current.md",
       }),
+      open_note: vi.fn().mockResolvedValue({
+        status: "opened",
+        selected_folder_path: "docs",
+      }),
       write_note_content: vi.fn().mockResolvedValue(undefined),
       create_new_note: vi.fn(),
     },
     folder: {},
     settings: {},
     search: {},
-    editor: {},
+    editor: {
+      set_scroll_top: vi.fn(),
+      restore_cursor: vi.fn(),
+    },
     clipboard: {},
     shell: {},
+    session: {
+      load_latest_session: vi.fn().mockResolvedValue(null),
+      restore_latest_session: vi.fn().mockResolvedValue(undefined),
+      save_latest_session: vi.fn().mockResolvedValue(undefined),
+    },
     tab: {
-      load_tabs: vi.fn().mockResolvedValue(null),
-      restore_tabs: vi.fn().mockResolvedValue(undefined),
-      save_tabs: vi.fn().mockResolvedValue(undefined),
+      mark_conflict: vi.fn(),
+      sync_dirty_state: vi.fn(),
+      clear_conflict: vi.fn(),
+      has_conflict: vi.fn().mockReturnValue(false),
+      invalidate_cache: vi.fn(),
+      remove_tab: vi.fn(),
     },
   };
 
@@ -263,6 +278,61 @@ describe("register_vault_actions", () => {
     await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
 
     expect(execute_open_dashboard).not.toHaveBeenCalled();
+  });
+
+  it("hydrates the latest session after a successful vault open", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+
+    services.vault.change_vault_by_id = vi.fn().mockResolvedValue({
+      status: "opened",
+      editor_settings: {
+        ...stores.ui.editor_settings,
+        show_vault_dashboard_on_open: false,
+      },
+      opened_from_vault_switch: true,
+    });
+    services.session.load_latest_session.mockResolvedValue({
+      tabs: [
+        {
+          note_path: "docs/alpha.md",
+          title: "alpha",
+          is_pinned: false,
+          is_dirty: false,
+          scroll_top: 0,
+          cursor: null,
+          cached_note: null,
+        },
+      ],
+      active_tab_path: "docs/alpha.md",
+    });
+    services.session.restore_latest_session.mockImplementation(() => {
+      stores.tab.open_tab("docs/alpha.md" as never, "alpha");
+      return Promise.resolve(undefined);
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+
+    expect(services.session.load_latest_session).toHaveBeenCalledTimes(1);
+    expect(services.session.restore_latest_session).toHaveBeenCalledTimes(1);
+    expect(services.note.create_new_note).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a fresh untitled note when no session exists", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+
+    services.vault.change_vault_by_id = vi.fn().mockResolvedValue({
+      status: "opened",
+      editor_settings: {
+        ...stores.ui.editor_settings,
+        show_vault_dashboard_on_open: false,
+      },
+      opened_from_vault_switch: true,
+    });
+    services.session.load_latest_session.mockResolvedValue(null);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+
+    expect(services.note.create_new_note).toHaveBeenCalledTimes(1);
   });
 
   describe("vault_sync_index", () => {

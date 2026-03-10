@@ -1,6 +1,7 @@
 import type { EditorStore } from "$lib/features/editor";
 import type { EditorService } from "$lib/features/editor";
 import type { BufferRestorePolicy } from "$lib/features/editor";
+import type { TabStore } from "$lib/features/tab";
 
 export function resolve_editor_sync_open(input: {
   open_note_id: string;
@@ -26,6 +27,7 @@ export function resolve_editor_sync_restore_policy(input: {
 
 export function create_editor_sync_reactor(
   editor_store: EditorStore,
+  tab_store: TabStore,
   editor_service: EditorService,
 ): () => void {
   let last_note_id: string | null = null;
@@ -64,6 +66,10 @@ export function create_editor_sync_reactor(
         last_note_id: previous_note_id,
       });
       editor_service.open_buffer(open_note, restore_policy);
+      const snapshot = tab_store.active_tab
+        ? tab_store.get_snapshot(tab_store.active_tab.id)
+        : null;
+      editor_service.restore_cursor(snapshot?.cursor ?? null);
     });
   });
 }

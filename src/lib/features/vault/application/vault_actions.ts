@@ -1,5 +1,6 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
+import { open_active_tab_note } from "$lib/features/tab";
 import { is_unavailable_vault_error } from "$lib/features/vault/domain/vault_errors";
 import type { EditorSettings } from "$lib/shared/types/editor_settings";
 import type { VaultId } from "$lib/shared/types/ids";
@@ -22,20 +23,23 @@ async function apply_opened_vault(
   await input.registry.execute(ACTION_IDS.folder_refresh_tree);
   await input.registry.execute(ACTION_IDS.git_check_repo);
 
-  const persisted = await input.services.tab.load_tabs();
-  if (persisted && persisted.tabs.length > 0) {
-    await input.services.tab.restore_tabs(persisted);
+  const session = await input.services.session.load_latest_session();
+  if (session && session.tabs.length > 0) {
+    await input.services.session.restore_latest_session(session);
   }
 
-  if (input.stores.tab.tabs.length === 0) {
-    input.services.note.create_new_note([]);
-    const open_note = input.stores.editor.open_note;
-    if (open_note) {
-      input.stores.tab.open_tab(
-        open_note.meta.path,
-        open_note.meta.title || "Untitled",
-      );
-    }
+  if (input.stores.tab.tabs.length > 0) {
+    await open_active_tab_note(input);
+    return;
+  }
+
+  input.services.note.create_new_note([]);
+  const open_note = input.stores.editor.open_note;
+  if (open_note) {
+    input.stores.tab.open_tab(
+      open_note.meta.path,
+      open_note.meta.title || "Untitled",
+    );
   }
 }
 

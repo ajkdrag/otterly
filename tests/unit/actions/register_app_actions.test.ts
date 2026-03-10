@@ -27,9 +27,38 @@ vi.mock("svelte-sonner", () => ({
   },
 }));
 
+const destroy_window = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    destroy: destroy_window,
+  }),
+}));
+
 type HarnessOptions = {
   reset_app_state?: boolean;
 };
+
+function get_test_window(): Window & {
+  __TAURI__?: unknown;
+  __TAURI_INTERNALS__?: unknown;
+} {
+  const maybe_window = globalThis as typeof globalThis & {
+    window?: Window &
+      typeof globalThis & {
+        __TAURI__?: unknown;
+        __TAURI_INTERNALS__?: unknown;
+      };
+  };
+  if (!maybe_window.window) {
+    maybe_window.window = globalThis as unknown as Window &
+      typeof globalThis & {
+        __TAURI__?: unknown;
+        __TAURI_INTERNALS__?: unknown;
+      };
+  }
+  return maybe_window.window;
+}
 
 function create_app_note(path = "notes/a.md"): OpenNoteState {
   return {
@@ -84,6 +113,19 @@ function create_harness(options: HarnessOptions = {}) {
     editor: {
       mount: vi.fn().mockResolvedValue(undefined),
       unmount: vi.fn(),
+      set_scroll_top: vi.fn(),
+      restore_cursor: vi.fn(),
+    },
+    session: {
+      save_latest_session: vi.fn().mockResolvedValue(undefined),
+    },
+    tab: {
+      mark_conflict: vi.fn(),
+      sync_dirty_state: vi.fn(),
+      clear_conflict: vi.fn(),
+      has_conflict: vi.fn().mockReturnValue(false),
+      invalidate_cache: vi.fn(),
+      remove_tab: vi.fn(),
     },
   };
 
@@ -132,6 +174,9 @@ function create_harness(options: HarnessOptions = {}) {
 describe("register_app_actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const test_window = get_test_window();
+    delete test_window.__TAURI__;
+    delete test_window.__TAURI_INTERNALS__;
   });
 
   it("initializes app state and loads vault UI when vault exists", async () => {
@@ -224,5 +269,39 @@ describe("register_app_actions", () => {
     expect(toast.info).toHaveBeenCalledWith(
       "Updates are only available in the desktop app",
     );
+  });
+
+  it("opens quit confirmation when quit is requested", async () => {
+    const { registry, stores } = create_harness();
+
+    await registry.execute(ACTION_IDS.app_request_quit);
+
+    expect(stores.ui.quit_confirm).toEqual({
+      open: true,
+      is_quitting: false,
+    });
+  });
+
+  it("persists the session before destroying the window on confirmed quit", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.ui.quit_confirm.open = true;
+    get_test_window().__TAURI__ = {};
+
+    await registry.execute(ACTION_IDS.app_confirm_quit);
+
+    expect(services.session.save_latest_session).toHaveBeenCalledTimes(1);
+    expect(destroy_window).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the quit confirmation without quitting on cancel", async () => {
+    const { registry, stores } = create_harness();
+    stores.ui.quit_confirm.open = true;
+
+    await registry.execute(ACTION_IDS.app_cancel_quit);
+
+    expect(stores.ui.quit_confirm).toEqual({
+      open: false,
+      is_quitting: false,
+    });
   });
 });

@@ -90,6 +90,8 @@ pub fn run() {
             features::notes::service::get_folder_stats,
             features::settings::service::get_setting,
             features::settings::service::set_setting,
+            features::vault_session::service::load_latest_vault_session,
+            features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,
             features::vault_settings::service::set_vault_setting,
             features::git::service::git_has_repo,

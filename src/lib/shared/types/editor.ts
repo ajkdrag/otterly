@@ -11,6 +11,8 @@ export type CursorInfo = {
   column: number;
   total_lines: number;
   total_words: number;
+  anchor?: number;
+  head?: number;
 };
 
 export type PastedImagePayload = {

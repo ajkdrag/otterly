@@ -67,10 +67,18 @@ function create_omnibar_actions_harness() {
     editor: {},
     clipboard: {},
     shell: {},
+    session: {
+      load_latest_session: vi.fn().mockResolvedValue(null),
+      restore_latest_session: vi.fn().mockResolvedValue(undefined),
+      save_latest_session: vi.fn().mockResolvedValue(undefined),
+    },
     tab: {
-      load_tabs: vi.fn().mockResolvedValue(null),
-      restore_tabs: vi.fn().mockResolvedValue(undefined),
-      save_tabs: vi.fn().mockResolvedValue(undefined),
+      mark_conflict: vi.fn(),
+      sync_dirty_state: vi.fn(),
+      clear_conflict: vi.fn(),
+      has_conflict: vi.fn().mockReturnValue(false),
+      invalidate_cache: vi.fn(),
+      remove_tab: vi.fn(),
     },
   };
 

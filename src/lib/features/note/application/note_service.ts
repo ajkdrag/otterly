@@ -245,6 +245,23 @@ export class NoteService {
     return this.open_note(note_path, true);
   }
 
+  async note_exists(note_path: NotePath): Promise<boolean> {
+    const vault_id = this.get_active_vault_id();
+    if (!vault_id) {
+      return false;
+    }
+
+    try {
+      await this.notes_port.read_note(vault_id, note_path);
+      return true;
+    } catch (error) {
+      if (this.is_not_found_error(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async save_pasted_image(
     note_path: NotePath,
     image: PastedImagePayload,
