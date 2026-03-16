@@ -61,7 +61,6 @@
   });
 
   function update_filename(value: string) {
-    // Sanitize the filename (ensures .md extension, handles special chars)
     const sanitized = sanitize_note_name(value);
     const full_path = folder_path ? `${folder_path}/${sanitized}` : sanitized;
     on_update_path(full_path as NotePath);
