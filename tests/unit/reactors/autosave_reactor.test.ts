@@ -11,6 +11,9 @@ describe("autosave.reactor", () => {
         },
       } as never,
       {
+        is_open_note_dirty: vi.fn().mockReturnValue(false),
+      } as never,
+      {
         editor_settings: {
           autosave_enabled: true,
         },

@@ -21,7 +21,7 @@ export function resolve_conflict_toast_target(
   has_conflict: (note_path: NotePath) => boolean,
 ): ConflictToastTarget {
   if (!active_tab || !open_note) return null;
-  if (!open_note.is_dirty) return null;
+  if (!active_tab.is_dirty) return null;
   if (!paths_equal_ignore_case(active_tab.note_path, open_note.meta.path)) {
     return null;
   }

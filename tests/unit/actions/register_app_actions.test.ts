@@ -14,6 +14,7 @@ import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import type { OpenNoteState } from "$lib/shared/types/editor";
+import type { VaultSession } from "$lib/features/session";
 import { toast } from "svelte-sonner";
 
 vi.mock("svelte-sonner", () => ({
@@ -116,7 +117,16 @@ function create_harness(options: HarnessOptions = {}) {
       set_scroll_top: vi.fn(),
       restore_cursor: vi.fn(),
     },
+    note: {
+      create_new_note: vi.fn(),
+      open_note: vi.fn().mockResolvedValue({
+        status: "opened",
+        selected_folder_path: "notes",
+      }),
+    },
     session: {
+      load_latest_session: vi.fn().mockResolvedValue(null),
+      restore_latest_session: vi.fn().mockResolvedValue(undefined),
       save_latest_session: vi.fn().mockResolvedValue(undefined),
     },
     tab: {
@@ -208,6 +218,44 @@ describe("register_app_actions", () => {
       DEFAULT_HOTKEYS,
       [],
     );
+    expect(services.session.load_latest_session).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the latest session when mounting an existing vault", async () => {
+    const { registry, services, stores } = create_harness();
+    const session: VaultSession = {
+      tabs: [
+        {
+          note_path: as_note_path("notes/a.md"),
+          title: "a",
+          is_pinned: false,
+          is_dirty: false,
+          scroll_top: 12,
+          cursor: null,
+          cached_note: null,
+        },
+      ],
+      active_tab_path: as_note_path("notes/a.md"),
+    };
+
+    services.vault.initialize.mockResolvedValue({
+      status: "ready",
+      has_vault: true,
+      editor_settings: stores.ui.editor_settings,
+    });
+    services.session.load_latest_session.mockResolvedValue(session);
+    services.session.restore_latest_session.mockImplementation(() => {
+      stores.tab.open_tab(as_note_path("notes/a.md"), "a");
+      return Promise.resolve();
+    });
+
+    await registry.execute(ACTION_IDS.app_mounted);
+
+    expect(services.session.load_latest_session).toHaveBeenCalledTimes(1);
+    expect(services.session.restore_latest_session).toHaveBeenCalledWith(
+      session,
+    );
+    expect(services.note.create_new_note).not.toHaveBeenCalled();
   });
 
   it("sets startup error state when vault initialization fails", async () => {

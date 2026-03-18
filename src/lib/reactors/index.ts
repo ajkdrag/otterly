@@ -77,6 +77,7 @@ export function mount_reactors(context: ReactorContext): () => void {
     create_editor_width_reactor(context.ui_store),
     create_autosave_reactor(
       context.editor_store,
+      context.tab_store,
       context.ui_store,
       context.note_service,
       context.tab_service,
@@ -113,6 +114,7 @@ export function mount_reactors(context: ReactorContext): () => void {
     ),
     create_git_autocommit_reactor(
       context.editor_store,
+      context.tab_store,
       context.git_store,
       context.ui_store,
       context.git_service,
@@ -129,6 +131,7 @@ export function mount_reactors(context: ReactorContext): () => void {
     ),
     create_backlinks_sync_reactor(
       context.editor_store,
+      context.tab_store,
       context.ui_store,
       context.search_store,
       context.links_store,

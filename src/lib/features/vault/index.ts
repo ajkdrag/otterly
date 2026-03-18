@@ -1,4 +1,5 @@
 export { register_vault_actions } from "$lib/features/vault/application/vault_actions";
+export { apply_opened_vault_session } from "$lib/features/vault/application/vault_action_helpers";
 export { VaultService } from "$lib/features/vault/application/vault_service";
 export { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 export type { AppMountConfig } from "$lib/features/vault/application/vault_service";

@@ -1,11 +1,12 @@
 import type { EditorStore } from "$lib/features/editor";
 import type { UIStore } from "$lib/app";
 import type { NoteService } from "$lib/features/note";
-import type { TabService } from "$lib/features/tab";
+import type { TabService, TabStore } from "$lib/features/tab";
 import { is_draft_note_path } from "$lib/features/note";
 
 export function create_autosave_reactor(
   editor_store: EditorStore,
+  tab_store: TabStore,
   ui_store: UIStore,
   note_service: NoteService,
   tab_service: TabService,
@@ -17,7 +18,8 @@ export function create_autosave_reactor(
       }
 
       const open_note = editor_store.open_note;
-      if (!open_note?.is_dirty) return;
+      if (!tab_store.is_open_note_dirty(open_note)) return;
+      if (!open_note) return;
       if (is_draft_note_path(open_note.meta.path)) return;
 
       const note_snapshot = open_note;

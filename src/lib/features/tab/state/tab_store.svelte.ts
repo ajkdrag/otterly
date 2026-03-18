@@ -10,6 +10,7 @@ import {
   note_name_from_path,
   paths_equal_ignore_case,
 } from "$lib/shared/utils/path";
+import { is_draft_note_path } from "$lib/shared/utils/draft_note_path";
 
 const MAX_CLOSED_HISTORY = 10;
 
@@ -219,6 +220,43 @@ export class TabStore {
 
   has_conflict(note_path: NotePath): boolean {
     return this.conflicted_note_paths.has(conflict_path_key(note_path));
+  }
+
+  is_note_path_dirty(note_path: NotePath): boolean {
+    return this.find_tab_by_path(note_path)?.is_dirty ?? false;
+  }
+
+  is_open_note_dirty(open_note: OpenNoteState | null): boolean {
+    if (!open_note) {
+      return false;
+    }
+
+    return this.is_note_path_dirty(open_note.meta.path);
+  }
+
+  has_dirty_background_tabs(): boolean {
+    return this.tabs.some(
+      (tab) => tab.is_dirty && tab.id !== this.active_tab_id,
+    );
+  }
+
+  get_tabs_requiring_save(): Tab[] {
+    return this.tabs.filter(
+      (tab) => tab.is_dirty && !is_draft_note_path(tab.note_path),
+    );
+  }
+
+  has_tabs_requiring_save(): boolean {
+    return this.get_tabs_requiring_save().length > 0;
+  }
+
+  resolve_unsaved_tabs_label(): string | null {
+    const tabs = this.get_tabs_requiring_save();
+    if (tabs.length !== 1) {
+      return null;
+    }
+
+    return tabs[0]?.title ?? null;
   }
 
   set_snapshot(tab_id: TabId, snapshot: TabEditorSnapshot) {

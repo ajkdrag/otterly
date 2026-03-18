@@ -50,11 +50,15 @@ export function create_session_persist_reactor(
     }, SESSION_PERSIST_DELAY_MS);
   }
 
-  function flush_pending(): void {
+  function clear_pending_timer(): void {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
+  }
+
+  function flush_pending(): void {
+    clear_pending_timer();
 
     if (!active_vault_id) {
       return;
@@ -74,7 +78,7 @@ export function create_session_persist_reactor(
       const _active = tab_store.active_tab_id;
 
       if (vault_id !== active_vault_id) {
-        flush_pending();
+        clear_pending_timer();
         active_vault_id = vault_id;
         last_saved_serialized = null;
       }

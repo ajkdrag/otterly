@@ -3,6 +3,7 @@ import type { UIStore } from "$lib/app";
 import type { SearchStore } from "$lib/features/search";
 import type { LinksService } from "$lib/features/links";
 import type { LinksStore } from "$lib/features/links";
+import type { TabStore } from "$lib/features/tab";
 
 type BacklinksSyncState = {
   last_note_path: string | null;
@@ -98,6 +99,7 @@ export function resolve_backlinks_sync_decision(
 
 export function create_backlinks_sync_reactor(
   editor_store: EditorStore,
+  tab_store: TabStore,
   ui_store: UIStore,
   search_store: SearchStore,
   links_store: LinksStore,
@@ -121,7 +123,7 @@ export function create_backlinks_sync_reactor(
         open_note_path: editor_store.open_note?.meta.path ?? null,
         panel_open: ui_store.context_rail_open,
         index_status: search_store.index_progress.status,
-        is_dirty: editor_store.open_note?.is_dirty ?? false,
+        is_dirty: tab_store.is_open_note_dirty(editor_store.open_note),
         snapshot_note_path: links_store.active_note_path,
         global_status: links_store.global_status,
       });

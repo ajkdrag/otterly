@@ -219,6 +219,39 @@ describe("TabStore", () => {
     });
   });
 
+  describe("dirty helpers", () => {
+    it("is_note_path_dirty returns the tab dirty state", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_dirty("a.md", true);
+
+      expect(store.is_note_path_dirty(np("a.md"))).toBe(true);
+      expect(store.is_note_path_dirty(np("missing.md"))).toBe(false);
+    });
+
+    it("is_open_note_dirty resolves through the matching tab", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_dirty("a.md", true);
+
+      expect(store.is_open_note_dirty(mock_open_note("a.md"))).toBe(true);
+      expect(store.is_open_note_dirty(mock_open_note("b.md"))).toBe(false);
+      expect(store.is_open_note_dirty(null)).toBe(false);
+    });
+
+    it("has_dirty_background_tabs ignores the active tab", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.open_tab(np("b.md"), "b");
+      store.set_dirty("a.md", true);
+
+      expect(store.has_dirty_background_tabs()).toBe(true);
+
+      store.activate_tab("a.md");
+      expect(store.has_dirty_background_tabs()).toBe(false);
+    });
+  });
+
   describe("close_all_tabs", () => {
     it("removes all tabs and resets state", () => {
       const store = new TabStore();
@@ -268,6 +301,39 @@ describe("TabStore", () => {
 
       expect(dirty).toHaveLength(1);
       expect(dirty[0]?.id).toBe("a.md");
+    });
+
+    it("get_tabs_requiring_save excludes drafts", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.open_tab(np("draft:1:Untitled-1"), "Untitled-1");
+      store.set_dirty("a.md", true);
+      store.set_dirty("draft:1:Untitled-1", true);
+
+      const dirty = store.get_tabs_requiring_save();
+
+      expect(dirty).toHaveLength(1);
+      expect(dirty[0]?.id).toBe("a.md");
+    });
+
+    it("resolve_unsaved_tabs_label returns the only tab that requires save", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "Alpha");
+      store.open_tab(np("draft:1:Untitled-1"), "Untitled-1");
+      store.set_dirty("a.md", true);
+      store.set_dirty("draft:1:Untitled-1", true);
+
+      expect(store.resolve_unsaved_tabs_label()).toBe("Alpha");
+    });
+
+    it("resolve_unsaved_tabs_label falls back when multiple saved tabs are dirty", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "Alpha");
+      store.open_tab(np("b.md"), "Beta");
+      store.set_dirty("a.md", true);
+      store.set_dirty("b.md", true);
+
+      expect(store.resolve_unsaved_tabs_label()).toBeNull();
     });
   });
 

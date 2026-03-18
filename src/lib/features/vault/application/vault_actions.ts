@@ -1,47 +1,9 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
-import { open_active_tab_note } from "$lib/features/tab";
 import { is_unavailable_vault_error } from "$lib/features/vault/domain/vault_errors";
-import type { EditorSettings } from "$lib/shared/types/editor_settings";
 import type { VaultId } from "$lib/shared/types/ids";
 import { toast } from "svelte-sonner";
-
-async function apply_opened_vault(
-  input: ActionRegistrationInput,
-  editor_settings: EditorSettings,
-) {
-  input.stores.tab.reset();
-  input.stores.editor.clear_open_note();
-  input.stores.ui.reset_for_new_vault();
-  input.stores.ui.set_editor_settings(editor_settings);
-  input.stores.ui.change_vault = {
-    open: false,
-    confirm_discard_open: false,
-    is_loading: false,
-    error: null,
-  };
-  await input.registry.execute(ACTION_IDS.folder_refresh_tree);
-  await input.registry.execute(ACTION_IDS.git_check_repo);
-
-  const session = await input.services.session.load_latest_session();
-  if (session && session.tabs.length > 0) {
-    await input.services.session.restore_latest_session(session);
-  }
-
-  if (input.stores.tab.tabs.length > 0) {
-    await open_active_tab_note(input);
-    return;
-  }
-
-  input.services.note.create_new_note([]);
-  const open_note = input.stores.editor.open_note;
-  if (open_note) {
-    input.stores.tab.open_tab(
-      open_note.meta.path,
-      open_note.meta.title || "Untitled",
-    );
-  }
-}
+import { apply_opened_vault_session } from "./vault_action_helpers";
 
 export function register_vault_actions(input: ActionRegistrationInput) {
   const { registry, stores, services } = input;
@@ -49,8 +11,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
   let pending_discard_confirm_change: (() => Promise<void>) | null = null;
 
   const has_unsaved_editor_changes = (): boolean =>
-    stores.editor.open_note?.is_dirty === true ||
-    stores.tab.get_dirty_tabs().length > 0;
+    stores.tab.has_tabs_requiring_save();
 
   const clear_discard_confirm_state = () => {
     pending_discard_confirm_change = null;
@@ -58,21 +19,28 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       ...stores.ui.change_vault,
       confirm_discard_open: false,
       error: null,
+      unsaved_note_label: null,
     };
   };
 
   const run_with_unsaved_confirm = async (run_change: () => Promise<void>) => {
-    if (!has_unsaved_editor_changes()) {
+    const run_change_with_session_persist = async () => {
+      await services.session.save_latest_session();
       await run_change();
+    };
+
+    if (!has_unsaved_editor_changes()) {
+      await run_change_with_session_persist();
       return;
     }
 
-    pending_discard_confirm_change = run_change;
+    pending_discard_confirm_change = run_change_with_session_persist;
     stores.ui.change_vault = {
       ...stores.ui.change_vault,
       open: false,
       confirm_discard_open: true,
       error: null,
+      unsaved_note_label: stores.tab.resolve_unsaved_tabs_label(),
     };
   };
 
@@ -87,7 +55,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       return;
     }
     if (result.status === "opened") {
-      await apply_opened_vault(input, result.editor_settings);
+      await apply_opened_vault_session(input, result.editor_settings);
       if (result.editor_settings.show_vault_dashboard_on_open) {
         await registry.execute(ACTION_IDS.ui_open_vault_dashboard);
       }
@@ -101,6 +69,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
         ...stores.ui.change_vault,
         is_loading: false,
         error: null,
+        unsaved_note_label: null,
       };
       services.vault.reset_change_operation();
       return;
@@ -110,6 +79,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       ...stores.ui.change_vault,
       is_loading: false,
       error: result.error,
+      unsaved_note_label: null,
     };
 
     if (attempted_vault_id && is_unavailable_vault_error(result.error)) {
@@ -167,6 +137,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
           stores.ui.change_vault = {
             ...stores.ui.change_vault,
             is_loading: false,
+            unsaved_note_label: null,
           };
           services.vault.reset_change_operation();
           return;
@@ -177,6 +148,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
             ...stores.ui.change_vault,
             is_loading: false,
             error: path_result.error,
+            unsaved_note_label: null,
           };
           return;
         }
@@ -249,34 +221,44 @@ export function register_vault_actions(input: ActionRegistrationInput) {
         error: null,
       };
 
-      const active_save = await services.note.save_note(null, true);
-      if (active_save.status !== "saved") {
-        const error =
-          active_save.status === "failed"
-            ? active_save.error
-            : "Could not save current note before switching vault.";
-        stores.ui.change_vault = {
-          ...stores.ui.change_vault,
-          is_loading: false,
-          error,
-          confirm_discard_open: true,
-        };
-        return;
+      const tabs_requiring_save = stores.tab.get_tabs_requiring_save();
+      const active_tab_id = stores.tab.active_tab_id;
+      const active_tab_requires_save =
+        active_tab_id !== null &&
+        tabs_requiring_save.some((tab) => tab.id === active_tab_id);
+
+      if (active_tab_requires_save) {
+        const active_save = await services.note.save_note(null, true);
+        if (active_save.status !== "saved") {
+          const error =
+            active_save.status === "failed"
+              ? active_save.error
+              : "Could not save current note before switching vault.";
+          stores.ui.change_vault = {
+            ...stores.ui.change_vault,
+            is_loading: false,
+            error,
+            confirm_discard_open: true,
+          };
+          return;
+        }
       }
 
-      const remaining_dirty = stores.tab
-        .get_dirty_tabs()
-        .filter((t) => t.id !== stores.tab.active_tab_id);
+      const background_tabs_requiring_save = tabs_requiring_save.filter(
+        (tab) => tab.id !== active_tab_id,
+      );
 
       try {
-        for (const tab of remaining_dirty) {
+        for (const tab of background_tabs_requiring_save) {
           const cached = stores.tab.get_cached_note(tab.id);
-          if (cached) {
-            await services.note.write_note_content(
-              cached.meta.path,
-              cached.markdown,
-            );
+          if (!cached) {
+            throw new Error("missing cached note");
           }
+
+          await services.note.write_note_content(
+            cached.meta.path,
+            cached.markdown,
+          );
         }
       } catch {
         stores.ui.change_vault = {
@@ -316,6 +298,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
         open: true,
         is_loading: false,
         error: null,
+        unsaved_note_label: null,
       };
     },
   });

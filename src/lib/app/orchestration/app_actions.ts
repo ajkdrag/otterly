@@ -3,6 +3,7 @@ import type { ActionRegistrationInput } from "$lib/app/action_registry/action_re
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
+import { apply_opened_vault_session } from "$lib/features/vault";
 import { detect_platform } from "$lib/shared/utils/detect_platform";
 import { toast } from "svelte-sonner";
 import { create_logger } from "$lib/shared/utils/logger";
@@ -106,13 +107,10 @@ async function mount_ready_vault_state(
     return;
   }
 
-  input.stores.ui.reset_for_new_vault();
-  input.stores.ui.set_editor_settings(
+  await apply_opened_vault_session(
+    input,
     result.editor_settings ?? { ...DEFAULT_EDITOR_SETTINGS },
   );
-
-  await input.registry.execute(ACTION_IDS.folder_refresh_tree);
-  await input.registry.execute(ACTION_IDS.git_check_repo);
 
   if (input.stores.ui.editor_settings.show_vault_dashboard_on_open) {
     await input.registry.execute(ACTION_IDS.ui_open_vault_dashboard);

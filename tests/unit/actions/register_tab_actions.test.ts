@@ -176,6 +176,7 @@ describe("register_tab_actions", () => {
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.open_tab(np("b.md"), "b");
       stores.tab.activate_tab("a.md");
+      stores.tab.set_dirty("a.md", true);
 
       const dirty_note = { ...mock_open_note("a.md"), is_dirty: true };
       stores.editor.set_open_note(dirty_note);
@@ -190,6 +191,7 @@ describe("register_tab_actions", () => {
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.open_tab(np("b.md"), "b");
       stores.tab.activate_tab("a.md");
+      stores.tab.set_dirty("a.md", true);
 
       stores.editor.set_open_note({
         ...mock_open_note("a.md"),

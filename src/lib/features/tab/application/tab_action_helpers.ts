@@ -92,15 +92,14 @@ export async function capture_active_tab_snapshot(
   const open_note = stores.editor.open_note;
   if (open_note) {
     stores.tab.set_cached_note(active_id, open_note);
-    stores.tab.set_dirty(active_id, open_note.is_dirty);
-    if (open_note.is_dirty && stores.ui.editor_settings.autosave_enabled) {
+    const is_dirty = stores.tab.is_open_note_dirty(open_note);
+    if (is_dirty && stores.ui.editor_settings.autosave_enabled) {
       const result = await services.note.save_note(null, true);
       const saved_open_note = stores.editor.open_note;
       if (
         result.status === "saved" &&
         saved_open_note &&
-        saved_open_note.meta.path === result.saved_path &&
-        !saved_open_note.is_dirty
+        saved_open_note.meta.path === result.saved_path
       ) {
         stores.tab.reconcile_saved_note(saved_open_note);
       }

@@ -10,11 +10,35 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
-import { as_vault_id, as_vault_path } from "$lib/shared/types/ids";
+import {
+  as_markdown_text,
+  as_note_path,
+  as_vault_id,
+  as_vault_path,
+} from "$lib/shared/types/ids";
 import {
   create_open_note_state,
   create_test_note,
 } from "../helpers/test_fixtures";
+
+function create_draft_open_note(
+  path = "draft:1:Untitled-1",
+  title = "Untitled-1",
+) {
+  return {
+    meta: {
+      id: as_note_path(path),
+      path: as_note_path(path),
+      name: title,
+      title,
+      mtime_ms: 0,
+      size_bytes: 0,
+    },
+    markdown: as_markdown_text("draft"),
+    buffer_id: `untitled:${title}`,
+    is_dirty: true,
+  };
+}
 
 function create_vault_actions_harness() {
   const registry = new ActionRegistry();
@@ -117,8 +141,9 @@ describe("register_vault_actions", () => {
   it("prompts before switching when current note has unsaved changes", async () => {
     const { registry, stores, services } = create_vault_actions_harness();
     const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
     stores.editor.set_open_note(create_open_note_state(note));
-    stores.editor.set_dirty(note.id, true);
+    stores.tab.set_dirty(note.path, true);
 
     const target_vault_id = as_vault_id("vault-next");
     stores.ui.change_vault.open = true;
@@ -139,8 +164,9 @@ describe("register_vault_actions", () => {
   it("cancels pending vault switch when discard confirm is dismissed", async () => {
     const { registry, stores, services } = create_vault_actions_harness();
     const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
     stores.editor.set_open_note(create_open_note_state(note));
-    stores.editor.set_dirty(note.id, true);
+    stores.tab.set_dirty(note.path, true);
 
     stores.ui.change_vault.open = true;
     await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
@@ -157,8 +183,9 @@ describe("register_vault_actions", () => {
   it("saves before switching when save-and-switch is confirmed", async () => {
     const { registry, stores, services } = create_vault_actions_harness();
     const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
     stores.editor.set_open_note(create_open_note_state(note));
-    stores.editor.set_dirty(note.id, true);
+    stores.tab.set_dirty(note.path, true);
 
     const target_vault_id = as_vault_id("vault-next");
     await registry.execute(ACTION_IDS.vault_select, target_vault_id);
@@ -171,11 +198,88 @@ describe("register_vault_actions", () => {
     expect(stores.ui.change_vault.confirm_discard_open).toBe(false);
   });
 
+  it("persists the current session before switching vaults", async () => {
+    const { registry, services } = create_vault_actions_harness();
+    const target_vault_id = as_vault_id("vault-next");
+
+    services.session.save_latest_session.mockImplementation(() => {
+      expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+      return Promise.resolve();
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, target_vault_id);
+
+    expect(services.session.save_latest_session).toHaveBeenCalledTimes(1);
+    expect(services.vault.change_vault_by_id).toHaveBeenCalledWith(
+      target_vault_id,
+    );
+  });
+
+  it("does not prompt when only the editor buffer is marked dirty", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.editor.set_dirty(note.id, true);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(false);
+    expect(services.vault.change_vault_by_id).toHaveBeenCalledWith(
+      as_vault_id("vault-next"),
+    );
+  });
+
+  it("does not prompt when only a background draft tab is dirty", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    const draft_note = create_draft_open_note();
+
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.tab.open_tab(draft_note.meta.path, draft_note.meta.title);
+    stores.tab.set_dirty(draft_note.meta.path, true);
+    stores.tab.set_cached_note(draft_note.meta.path, draft_note);
+    stores.tab.activate_tab(note.path);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(false);
+    expect(stores.ui.change_vault.unsaved_note_label).toBeNull();
+    expect(services.vault.change_vault_by_id).toHaveBeenCalledWith(
+      as_vault_id("vault-next"),
+    );
+  });
+
+  it("labels the actual saved tab that blocks vault switch", async () => {
+    const { registry, stores } = create_vault_actions_harness();
+    const active_draft = create_draft_open_note();
+    const dirty_note = create_test_note("docs/dirty", "Dirty Note");
+
+    stores.tab.open_tab(active_draft.meta.path, active_draft.meta.title);
+    stores.editor.set_open_note(active_draft);
+    stores.tab.set_dirty(active_draft.meta.path, true);
+    stores.tab.set_cached_note(active_draft.meta.path, active_draft);
+    stores.tab.open_tab(dirty_note.path, dirty_note.title);
+    stores.tab.set_dirty(dirty_note.path, true);
+    stores.tab.set_cached_note(
+      dirty_note.path,
+      create_open_note_state(dirty_note),
+    );
+    stores.tab.activate_tab(active_draft.meta.path);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(true);
+    expect(stores.ui.change_vault.unsaved_note_label).toBe("Dirty Note");
+  });
+
   it("keeps confirm dialog open with error when save fails", async () => {
     const { registry, stores, services } = create_vault_actions_harness();
     const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
     stores.editor.set_open_note(create_open_note_state(note));
-    stores.editor.set_dirty(note.id, true);
+    stores.tab.set_dirty(note.path, true);
     services.note.save_note = vi.fn().mockResolvedValue({
       status: "failed",
       error: "disk full",
@@ -196,8 +300,8 @@ describe("register_vault_actions", () => {
     const dirty_note = create_test_note("docs/dirty", "Dirty");
 
     stores.editor.set_open_note(create_open_note_state(active_note));
-    stores.editor.set_dirty(active_note.id, true);
     stores.tab.open_tab(active_note.path, active_note.title);
+    stores.tab.set_dirty(active_note.path, true);
     const dirty_tab = stores.tab.open_tab(dirty_note.path, dirty_note.title);
     stores.tab.set_cached_note(
       dirty_tab.id,
@@ -218,6 +322,36 @@ describe("register_vault_actions", () => {
       "Could not save all open tabs before switching vault.",
     );
     expect(stores.ui.change_vault.is_loading).toBe(false);
+  });
+
+  it("saves background file-backed tabs without trying to save the active draft", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const active_draft = create_draft_open_note();
+    const dirty_note = create_test_note("docs/dirty", "Dirty");
+
+    stores.tab.open_tab(active_draft.meta.path, active_draft.meta.title);
+    stores.editor.set_open_note(active_draft);
+    stores.tab.set_dirty(active_draft.meta.path, true);
+    stores.tab.set_cached_note(active_draft.meta.path, active_draft);
+    stores.tab.open_tab(dirty_note.path, dirty_note.title);
+    stores.tab.set_dirty(dirty_note.path, true);
+    stores.tab.set_cached_note(
+      dirty_note.path,
+      create_open_note_state(dirty_note),
+    );
+    stores.tab.activate_tab(active_draft.meta.path);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.note.save_note).not.toHaveBeenCalled();
+    expect(services.note.write_note_content).toHaveBeenCalledWith(
+      dirty_note.path,
+      as_markdown_text("content"),
+    );
+    expect(services.vault.change_vault_by_id).toHaveBeenCalledWith(
+      as_vault_id("vault-next"),
+    );
   });
 
   it("marks selected vault unavailable when open fails with missing path", async () => {

@@ -24,13 +24,13 @@ function mock_open_note(path: string, is_dirty = false): OpenNoteState {
   };
 }
 
-function mock_tab(path: string): Tab {
+function mock_tab(path: string, is_dirty = true): Tab {
   return {
     id: path,
     note_path: as_note_path(path),
     title: path.replace(".md", ""),
     is_pinned: false,
-    is_dirty: true,
+    is_dirty,
   };
 }
 
@@ -52,7 +52,7 @@ describe("conflict_toast.reactor", () => {
     it("returns null for clean notes, mismatched tabs, or notes without conflict", () => {
       expect(
         resolve_conflict_toast_target(
-          mock_tab("a.md"),
+          mock_tab("a.md", false),
           mock_open_note("a.md", false),
           () => true,
         ),

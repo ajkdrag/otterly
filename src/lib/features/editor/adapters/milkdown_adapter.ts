@@ -10,6 +10,7 @@ import {
   EditorState,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
 } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
@@ -68,7 +69,11 @@ import {
   find_highlight_plugin,
   find_highlight_plugin_key,
 } from "./find_highlight_plugin";
-import { code_block_copy_plugin } from "./code_block_copy_plugin";
+import {
+  code_block_schema_with_visual_height,
+  code_block_visual_metadata_remark,
+} from "./code_block_markdown_plugin";
+import { code_block_ui_plugin } from "./code_block_ui_plugin";
 import { mark_escape_plugin } from "./mark_escape_plugin";
 import { leading_block_escape_plugin } from "./leading_block_escape_plugin";
 import { slash_command_plugin } from "./slash_command_plugin";
@@ -272,6 +277,7 @@ export function create_milkdown_editor_port(args?: {
           ctx.set(editorViewOptionsCtx, { editable: () => true });
         })
 
+        .use(code_block_visual_metadata_remark)
         .use(commonmark)
         .use(imageBlockComponent)
         .config((ctx) => {
@@ -389,13 +395,14 @@ export function create_milkdown_editor_port(args?: {
           }
         })
         .use(gfm)
+        .use(code_block_schema_with_visual_height)
         .use(non_inclusive_inline_code)
         .use(non_inclusive_link)
         .use(non_inclusive_strikethrough)
         .use(mark_escape_plugin)
         .use(leading_block_escape_plugin)
         .use(prism)
-        .use(code_block_copy_plugin)
+        .use(code_block_ui_plugin)
         .use(indent)
         .use(create_link_tooltip_plugin())
         .use(listItemBlockComponent)
@@ -626,11 +633,16 @@ export function create_milkdown_editor_port(args?: {
             const max_position = view.state.doc.content.size;
             const safe_anchor = Math.min(Math.max(anchor, 0), max_position);
             const safe_head = Math.min(Math.max(head, 0), max_position);
-            const selection = TextSelection.create(
-              view.state.doc,
-              safe_anchor,
-              safe_head,
-            );
+            let selection;
+            try {
+              selection = TextSelection.create(
+                view.state.doc,
+                safe_anchor,
+                safe_head,
+              );
+            } catch {
+              selection = Selection.near(view.state.doc.resolve(safe_head));
+            }
             view.dispatch(view.state.tr.setSelection(selection));
             view.focus();
           });

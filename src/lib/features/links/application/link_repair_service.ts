@@ -97,7 +97,7 @@ export class LinkRepairService {
       is_dirty: matched_open_note.is_dirty,
     });
 
-    if (matched_open_note.is_dirty) {
+    if (this.tab_store.is_open_note_dirty(matched_open_note)) {
       return;
     }
 
