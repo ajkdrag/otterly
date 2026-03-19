@@ -100,11 +100,10 @@ export function create_session_persist_reactor(
   return $effect.root(() => {
     $effect(() => {
       const vault_id = vault_store.vault?.id ?? null;
-      void editor_store.open_note;
-      void editor_store.cursor;
       void tab_store.tabs;
       void tab_store.active_tab_id;
       void tab_store.session_metadata_revision;
+      void editor_store.session_persist_revision;
 
       if (vault_id !== active_vault_id) {
         clear_pending_timer();

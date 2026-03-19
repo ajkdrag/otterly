@@ -1,15 +1,39 @@
-import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, parserCtx, rootCtx } from "@milkdown/kit/core";
-import { EditorState, Plugin, PluginKey, Selection, TextSelection } from "@milkdown/kit/prose/state";
+import {
+  defaultValueCtx,
+  Editor,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  parserCtx,
+  rootCtx,
+} from "@milkdown/kit/core";
+import {
+  EditorState,
+  Plugin,
+  PluginKey,
+  Selection,
+  TextSelection,
+} from "@milkdown/kit/prose/state";
 import { $prose, replaceAll } from "@milkdown/kit/utils";
-import type { CodeBlockHeights, CursorInfo, EditorBufferViewState } from "$lib/shared/types/editor";
+import type {
+  CodeBlockHeights,
+  CursorInfo,
+  EditorBufferViewState,
+} from "$lib/shared/types/editor";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Slice } from "@milkdown/kit/prose/model";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { create_link_tooltip_plugin } from "./link_tooltip_plugin";
-import { commonmark, inlineCodeSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
+import {
+  commonmark,
+  inlineCodeSchema,
+  linkSchema,
+} from "@milkdown/kit/preset/commonmark";
 import { gfm, strikethroughSchema } from "@milkdown/kit/preset/gfm";
 import { listItemBlockComponent } from "@milkdown/kit/component/list-item-block";
-import { imageBlockComponent, imageBlockConfig } from "@milkdown/kit/component/image-block";
+import {
+  imageBlockComponent,
+  imageBlockConfig,
+} from "@milkdown/kit/component/image-block";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
@@ -20,7 +44,11 @@ import type { BufferConfig, EditorPort } from "$lib/features/editor/ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
 import { as_asset_path } from "$lib/shared/types/ids";
 import { resolve_relative_asset_path } from "$lib/features/note";
-import { dirty_state_plugin, dirty_state_plugin_config_key, dirty_state_plugin_key } from "./dirty_state_plugin";
+import {
+  dirty_state_plugin,
+  dirty_state_plugin_config_key,
+  dirty_state_plugin_key,
+} from "./dirty_state_plugin";
 import { markdown_link_input_rule_plugin } from "./markdown_link_input_rule";
 import { image_input_rule_plugin } from "./image_input_rule_plugin";
 import { markdown_paste_plugin } from "./markdown_paste_plugin";
@@ -28,20 +56,26 @@ import { create_image_paste_plugin } from "./image_paste_plugin";
 import {
   create_wiki_link_click_plugin,
   create_wiki_link_converter_plugin,
-  wiki_link_plugin_key
+  wiki_link_plugin_key,
 } from "./wiki_link_plugin";
 import {
   set_wiki_suggestions,
   wiki_suggest_plugin,
   wiki_suggest_plugin_config_key,
-  type WikiSuggestPluginConfig
+  type WikiSuggestPluginConfig,
 } from "./wiki_suggest_plugin";
-import { create_editor_context_plugin, editor_context_plugin_key } from "./editor_context_plugin";
-import { find_highlight_plugin, find_highlight_plugin_key } from "./find_highlight_plugin";
+import {
+  create_editor_context_plugin,
+  editor_context_plugin_key,
+} from "./editor_context_plugin";
+import {
+  find_highlight_plugin,
+  find_highlight_plugin_key,
+} from "./find_highlight_plugin";
 import {
   create_code_block_ui_plugin,
   read_code_block_heights,
-  replace_code_block_heights
+  replace_code_block_heights,
 } from "./code_block_ui_plugin";
 import { mark_escape_plugin } from "./mark_escape_plugin";
 import { leading_block_escape_plugin } from "./leading_block_escape_plugin";

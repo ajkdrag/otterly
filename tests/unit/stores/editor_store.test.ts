@@ -96,4 +96,60 @@ describe("EditorStore", () => {
 
     expect(store.last_saved_at).toBeNull();
   });
+
+  describe("session_persist_revision", () => {
+    it("bumps when persisted editor state changes", () => {
+      const store = new EditorStore();
+      const note = create_test_note("docs/note", "note");
+      const open_note = create_open_note_state(note);
+      const previous_revision = store.session_persist_revision;
+
+      store.set_open_note(open_note);
+
+      expect(store.session_persist_revision).toBe(previous_revision + 1);
+    });
+
+    it("does not bump when markdown is unchanged", () => {
+      const store = new EditorStore();
+      const note = create_test_note("docs/note", "note");
+      const open_note = create_open_note_state(note, "# Same");
+
+      store.set_open_note(open_note);
+      const previous_revision = store.session_persist_revision;
+
+      store.set_markdown(note.id, as_markdown_text("# Same"));
+
+      expect(store.session_persist_revision).toBe(previous_revision);
+    });
+
+    it("does not bump when cursor is unchanged", () => {
+      const store = new EditorStore();
+      const note = create_test_note("docs/note", "note");
+      const cursor = {
+        line: 1,
+        column: 1,
+        total_lines: 1,
+        total_words: 1,
+        anchor: 1,
+        head: 1,
+      };
+
+      store.set_open_note(create_open_note_state(note));
+      store.set_cursor(note.id, cursor);
+      const previous_revision = store.session_persist_revision;
+
+      store.set_cursor(note.id, { ...cursor });
+
+      expect(store.session_persist_revision).toBe(previous_revision);
+    });
+
+    it("does not bump when reset is called on an empty store", () => {
+      const store = new EditorStore();
+      const previous_revision = store.session_persist_revision;
+
+      store.reset();
+
+      expect(store.session_persist_revision).toBe(previous_revision);
+    });
+  });
 });

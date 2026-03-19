@@ -1,7 +1,15 @@
 import type { NotePath } from "$lib/shared/types/ids";
-import type { ClosedTabEntry, Tab, TabEditorSnapshot, TabId } from "$lib/features/tab/types/tab";
+import type {
+  ClosedTabEntry,
+  Tab,
+  TabEditorSnapshot,
+  TabId,
+} from "$lib/features/tab/types/tab";
 import type { OpenNoteState } from "$lib/shared/types/editor";
-import { note_name_from_path, paths_equal_ignore_case } from "$lib/shared/utils/path";
+import {
+  note_name_from_path,
+  paths_equal_ignore_case,
+} from "$lib/shared/utils/path";
 import { is_draft_note_path } from "$lib/shared/utils/draft_note_path";
 
 const MAX_CLOSED_HISTORY = 10;
