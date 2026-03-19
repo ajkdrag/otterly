@@ -116,7 +116,11 @@ describe("TabStore", () => {
     it("cleans up editor snapshot on close", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
-      store.set_snapshot("a.md", { scroll_top: 100, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 100,
+        cursor: null,
+        code_block_heights: [],
+      });
 
       store.close_tab("a.md");
 
@@ -131,6 +135,76 @@ describe("TabStore", () => {
       store.close_tab("a.md");
 
       expect(store.get_cached_note("a.md")).toBeNull();
+    });
+
+    it("bumps session metadata revision when cached metadata is cleaned up", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_snapshot("a.md", {
+        scroll_top: 100,
+        cursor: null,
+        code_block_heights: [245],
+      });
+      const previous_revision = store.session_metadata_revision;
+
+      store.close_tab("a.md");
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+  });
+
+  describe("session_metadata_revision", () => {
+    it("bumps when a tab snapshot is updated", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const previous_revision = store.session_metadata_revision;
+
+      store.patch_snapshot("a.md", {
+        code_block_heights: [245],
+      });
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+
+    it("does not bump when the snapshot is unchanged", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_snapshot("a.md", {
+        scroll_top: 12,
+        cursor: null,
+        code_block_heights: [245],
+      });
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_snapshot("a.md", {
+        scroll_top: 12,
+        cursor: null,
+        code_block_heights: [245],
+      });
+
+      expect(store.session_metadata_revision).toBe(previous_revision);
+    });
+
+    it("bumps when cached note state changes", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_cached_note("a.md", mock_open_note("a.md"));
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+
+    it("does not bump when cached note state is unchanged", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const note = mock_open_note("a.md");
+      store.set_cached_note("a.md", note);
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_cached_note("a.md", note);
+
+      expect(store.session_metadata_revision).toBe(previous_revision);
     });
   });
 
@@ -257,7 +331,11 @@ describe("TabStore", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
       store.open_tab(np("b.md"), "b");
-      store.set_snapshot("a.md", { scroll_top: 50, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 50,
+        cursor: null,
+        code_block_heights: [],
+      });
 
       store.close_all_tabs();
 
@@ -500,12 +578,17 @@ describe("TabStore", () => {
     it("migrates editor snapshot to new path", () => {
       const store = new TabStore();
       store.open_tab(np("old.md"), "old");
-      store.set_snapshot("old.md", { scroll_top: 42, cursor: null });
+      store.set_snapshot("old.md", {
+        scroll_top: 42,
+        cursor: null,
+        code_block_heights: [180],
+      });
 
       store.update_tab_path(np("old.md"), np("new.md"));
 
       expect(store.get_snapshot("old.md")).toBeNull();
       expect(store.get_snapshot("new.md")?.scroll_top).toBe(42);
+      expect(store.get_snapshot("new.md")?.code_block_heights).toEqual([180]);
     });
 
     it("migrates note cache to new path", () => {
@@ -673,6 +756,7 @@ describe("TabStore", () => {
         title: "a",
         scroll_top: 10,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
       store.push_closed_history({
@@ -680,6 +764,7 @@ describe("TabStore", () => {
         title: "b",
         scroll_top: 20,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
 
@@ -703,6 +788,7 @@ describe("TabStore", () => {
           title: String(i),
           scroll_top: 0,
           cursor: null,
+          code_block_heights: [],
           draft_note: null,
         });
       }
@@ -885,12 +971,17 @@ describe("TabStore", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
       store.set_dirty("a.md", true);
-      store.set_snapshot("a.md", { scroll_top: 50, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 50,
+        cursor: null,
+        code_block_heights: [],
+      });
       store.push_closed_history({
         note_path: np("b.md"),
         title: "b",
         scroll_top: 0,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
 

@@ -112,9 +112,13 @@ function create_harness(options: HarnessOptions = {}) {
       }),
     },
     editor: {
+      is_mounted: vi.fn().mockReturnValue(false),
+      open_buffer: vi.fn(),
       mount: vi.fn().mockResolvedValue(undefined),
       unmount: vi.fn(),
       set_scroll_top: vi.fn(),
+      restore_view_state: vi.fn(),
+      set_code_block_heights: vi.fn(),
       restore_cursor: vi.fn(),
     },
     note: {
@@ -232,6 +236,7 @@ describe("register_app_actions", () => {
           is_dirty: false,
           scroll_top: 12,
           cursor: null,
+          code_block_heights: [],
           cached_note: null,
         },
       ],
@@ -307,6 +312,36 @@ describe("register_app_actions", () => {
     await registry.execute(ACTION_IDS.app_editor_unmount);
 
     expect(services.editor.unmount).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the active tab view state when the editor mounts", async () => {
+    const { registry, services, stores } = create_harness();
+    const note = create_app_note();
+    const root = {} as HTMLDivElement;
+    const cursor = {
+      line: 2,
+      column: 1,
+      total_lines: 4,
+      total_words: 1,
+      anchor: 8,
+      head: 8,
+    };
+
+    stores.tab.open_tab(note.meta.path, note.meta.title);
+    stores.editor.set_open_note(note);
+    stores.tab.set_snapshot(note.meta.path, {
+      scroll_top: 36,
+      cursor,
+      code_block_heights: [245],
+    });
+
+    await registry.execute(ACTION_IDS.app_editor_mount, root, note);
+
+    expect(services.editor.set_scroll_top).toHaveBeenCalledWith(36);
+    expect(services.editor.restore_view_state).toHaveBeenCalledWith({
+      cursor,
+      code_block_heights: [245],
+    });
   });
 
   it("shows desktop-only info toast when checking updates outside tauri", async () => {

@@ -4,7 +4,11 @@ import type { NoteService, NotesStore } from "$lib/features/note";
 import { is_draft_note_path } from "$lib/features/note";
 import type { SessionPort } from "$lib/features/session/ports";
 import type { VaultSession } from "$lib/features/session/types/session";
-import type { Tab, TabStore } from "$lib/features/tab";
+import {
+  sync_active_tab_editor_state,
+  type Tab,
+  type TabStore,
+} from "$lib/features/tab";
 import type { VaultStore } from "$lib/features/vault";
 import type { VaultId } from "$lib/shared/types/ids";
 import { note_name_from_path } from "$lib/shared/utils/path";
@@ -27,46 +31,21 @@ export class SessionService {
     return this.vault_store.vault?.id ?? null;
   }
 
-  private resolve_active_open_note(tab: Tab) {
-    const open_note = this.editor_store.open_note;
-    if (!open_note) {
-      return null;
-    }
-    if (this.tab_store.active_tab_id !== tab.id) {
-      return null;
-    }
-    if (open_note.meta.path !== tab.note_path) {
-      return null;
-    }
-    return open_note;
-  }
-
-  private resolve_session_snapshot(tab: Tab) {
-    if (this.resolve_active_open_note(tab)) {
-      return {
-        scroll_top: this.editor_service.get_scroll_top(),
-        cursor: this.editor_store.cursor,
-      };
-    }
-    return this.tab_store.get_snapshot(tab.id);
-  }
-
-  private resolve_session_cached_note(tab_id: string, tab: Tab) {
+  private resolve_session_cached_note(
+    tab_id: string,
+    tab: { is_dirty: boolean; note_path: string },
+  ) {
     if (!tab.is_dirty && !is_draft_note_path(tab.note_path)) {
       return null;
     }
 
-    return (
-      this.resolve_active_open_note(tab) ??
-      this.tab_store.get_cached_note(tab_id) ??
-      null
-    );
+    return this.tab_store.get_cached_note(tab_id) ?? null;
   }
 
   private build_session(): VaultSession {
     return {
       tabs: this.tab_store.tabs.map((tab) => {
-        const snapshot = this.resolve_session_snapshot(tab);
+        const snapshot = this.tab_store.get_snapshot(tab.id);
         const cached_note = this.resolve_session_cached_note(tab.id, tab);
 
         return {
@@ -76,6 +55,7 @@ export class SessionService {
           is_dirty: tab.is_dirty,
           scroll_top: snapshot?.scroll_top ?? 0,
           cursor: snapshot?.cursor ?? null,
+          code_block_heights: snapshot?.code_block_heights ?? [],
           cached_note,
         };
       }),
@@ -101,6 +81,12 @@ export class SessionService {
     if (flushed) {
       this.editor_store.set_markdown(flushed.note_id, flushed.markdown);
     }
+
+    sync_active_tab_editor_state(
+      this.tab_store,
+      this.editor_store,
+      this.editor_service,
+    );
 
     const session = this.build_session();
 
@@ -167,8 +153,11 @@ export class SessionService {
 
     for (const entry of restored_entries) {
       this.tab_store.set_snapshot(entry.note_path, {
-        scroll_top: typeof entry.scroll_top === "number" ? entry.scroll_top : 0,
+        scroll_top: entry.scroll_top,
         cursor: entry.cursor ?? null,
+        code_block_heights: Array.isArray(entry.code_block_heights)
+          ? entry.code_block_heights
+          : [],
       });
       if (entry.cached_note) {
         this.tab_store.set_cached_note(entry.note_path, entry.cached_note);

@@ -1,15 +1,39 @@
 import { $prose } from "@milkdown/kit/utils";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
-import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import {
+  EditorState,
+  Plugin,
+  PluginKey,
+  type Transaction,
+} from "@milkdown/kit/prose/state";
 import type {
   EditorView,
   NodeView,
   ViewMutationRecord,
 } from "@milkdown/kit/prose/view";
+import type { CodeBlockHeights } from "$lib/shared/types/editor";
 import { Check, Copy } from "lucide-static";
 
 const CODE_BLOCK_MIN_HEIGHT = 48;
+const CODE_BLOCK_MAX_HEIGHT = 4096;
 const CODE_BLOCK_MAX_VIEWPORT_RATIO = 0.8;
+const USER_SELECT_STYLE = "none";
+
+type CodeBlockUiState = {
+  positions: number[];
+  heights: CodeBlockHeights;
+};
+
+type CodeBlockUiMeta =
+  | {
+      kind: "set_height";
+      ordinal: number;
+      height: number | null;
+    }
+  | {
+      kind: "set_heights";
+      heights: CodeBlockHeights;
+    };
 
 function resize_icon(svg: string, size: number): string {
   return svg
@@ -20,21 +44,175 @@ function resize_icon(svg: string, size: number): string {
 const COPY_SVG = resize_icon(Copy, 14);
 const CHECK_SVG = resize_icon(Check, 14);
 
-const code_block_ui_key = new PluginKey("code-block-ui");
-const USER_SELECT_STYLE = "none";
+export const code_block_ui_key = new PluginKey<CodeBlockUiState>(
+  "code-block-ui",
+);
 
-function get_code_block_attr(
-  node: ProseNode,
-  key: "language" | "visual_height",
-): unknown {
-  return node.attrs[key];
+function normalize_code_block_height(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  const rounded = Math.round(value);
+  if (rounded < CODE_BLOCK_MIN_HEIGHT) {
+    return CODE_BLOCK_MIN_HEIGHT;
+  }
+  if (rounded > CODE_BLOCK_MAX_HEIGHT) {
+    return CODE_BLOCK_MAX_HEIGHT;
+  }
+  return rounded;
 }
 
-function read_code_block_height(node: ProseNode): number | null {
-  const value = get_code_block_attr(node, "visual_height");
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.round(value)
-    : null;
+function collect_code_block_positions(doc: ProseNode): number[] {
+  const positions: number[] = [];
+
+  doc.descendants((node, pos) => {
+    if (node.type.name === "code_block") {
+      positions.push(pos);
+    }
+  });
+
+  return positions;
+}
+
+function normalize_code_block_heights(
+  positions: number[],
+  heights: CodeBlockHeights,
+): CodeBlockHeights {
+  return positions.map((_, index) =>
+    normalize_code_block_height(heights[index] ?? null),
+  );
+}
+
+function create_code_block_ui_state(
+  doc: ProseNode,
+  heights: CodeBlockHeights,
+): CodeBlockUiState {
+  const positions = collect_code_block_positions(doc);
+
+  return {
+    positions,
+    heights: normalize_code_block_heights(positions, heights),
+  };
+}
+
+function remap_code_block_ui_state(
+  current: CodeBlockUiState,
+  tr: Transaction,
+  next_doc: ProseNode,
+): CodeBlockUiState {
+  const positions = collect_code_block_positions(next_doc);
+  const remapped_heights = positions.map(() => null) as CodeBlockHeights;
+  const next_index_by_position = new Map<number, number>();
+
+  positions.forEach((pos, index) => {
+    next_index_by_position.set(pos, index);
+  });
+
+  current.positions.forEach((pos, index) => {
+    const height = normalize_code_block_height(current.heights[index] ?? null);
+    if (height === null) {
+      return;
+    }
+
+    const mapped_pos = tr.mapping.map(pos, 1);
+    const next_index = next_index_by_position.get(mapped_pos);
+    if (next_index === undefined) {
+      return;
+    }
+
+    remapped_heights[next_index] = height;
+  });
+
+  return {
+    positions,
+    heights: remapped_heights,
+  };
+}
+
+function are_code_block_heights_equal(
+  left: CodeBlockHeights,
+  right: CodeBlockHeights,
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if ((left[index] ?? null) !== (right[index] ?? null)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function get_code_block_ui_state(state: EditorState): CodeBlockUiState {
+  return (
+    code_block_ui_key.getState(state) ?? {
+      positions: [],
+      heights: [],
+    }
+  );
+}
+
+function get_code_block_language(node: ProseNode): string {
+  return typeof node.attrs["language"] === "string"
+    ? node.attrs["language"]
+    : "";
+}
+
+function get_code_block_ordinal(
+  state: EditorState,
+  position: number,
+): number | null {
+  const plugin_state = get_code_block_ui_state(state);
+  const ordinal = plugin_state.positions.indexOf(position);
+  return ordinal >= 0 ? ordinal : null;
+}
+
+function read_code_block_height(
+  state: EditorState,
+  position: number,
+): number | null {
+  const ordinal = get_code_block_ordinal(state, position);
+  if (ordinal === null) {
+    return null;
+  }
+
+  return normalize_code_block_height(
+    get_code_block_ui_state(state).heights[ordinal] ?? null,
+  );
+}
+
+export function read_code_block_heights(state: EditorState): CodeBlockHeights {
+  return [...get_code_block_ui_state(state).heights];
+}
+
+function update_code_block_height(
+  view: EditorView,
+  ordinal: number,
+  height: number | null,
+): void {
+  view.dispatch(
+    view.state.tr.setMeta(code_block_ui_key, {
+      kind: "set_height",
+      ordinal,
+      height,
+    } satisfies CodeBlockUiMeta),
+  );
+}
+
+export function replace_code_block_heights(
+  view: EditorView,
+  heights: CodeBlockHeights,
+): void {
+  view.dispatch(
+    view.state.tr.setMeta(code_block_ui_key, {
+      kind: "set_heights",
+      heights,
+    } satisfies CodeBlockUiMeta),
+  );
 }
 
 export function clamp_code_block_height(
@@ -45,6 +223,7 @@ export function clamp_code_block_height(
     CODE_BLOCK_MIN_HEIGHT,
     Math.floor(viewport_height * CODE_BLOCK_MAX_VIEWPORT_RATIO),
   );
+
   return Math.min(
     Math.max(Math.round(height), CODE_BLOCK_MIN_HEIGHT),
     max_height,
@@ -62,8 +241,31 @@ function apply_code_block_height(
     return;
   }
 
-  wrapper.dataset["visualHeight"] = String(height);
-  pre.style.height = `${String(height)}px`;
+  const next_height = clamp_code_block_height(height, get_viewport_height());
+  wrapper.dataset["visualHeight"] = String(next_height);
+  pre.style.height = `${String(next_height)}px`;
+}
+
+function sync_rendered_code_block_heights(view: EditorView): void {
+  const plugin_state = get_code_block_ui_state(view.state);
+
+  plugin_state.positions.forEach((position, index) => {
+    const dom = view.nodeDOM(position);
+    if (!(dom instanceof HTMLElement)) {
+      return;
+    }
+
+    const pre = dom.querySelector("pre");
+    if (!(pre instanceof HTMLElement)) {
+      return;
+    }
+
+    apply_code_block_height(
+      dom,
+      pre,
+      normalize_code_block_height(plugin_state.heights[index] ?? null),
+    );
+  });
 }
 
 function create_copy_button(code_el: HTMLElement): HTMLButtonElement {
@@ -99,11 +301,8 @@ function create_copy_button(code_el: HTMLElement): HTMLButtonElement {
 }
 
 function set_code_language_class(code: HTMLElement, node: ProseNode): void {
-  const language = get_code_block_attr(node, "language");
-  code.className =
-    typeof language === "string" && language.length > 0
-      ? `language-${language}`
-      : "";
+  const language = get_code_block_language(node);
+  code.className = language.length > 0 ? `language-${language}` : "";
 }
 
 function get_viewport_height(): number {
@@ -113,23 +312,12 @@ function get_viewport_height(): number {
 function get_code_block_position(
   get_pos: boolean | (() => number | undefined),
 ): number | null {
-  if (typeof get_pos !== "function") return null;
+  if (typeof get_pos !== "function") {
+    return null;
+  }
 
   const position = get_pos();
   return typeof position === "number" ? position : null;
-}
-
-function commit_code_block_height(
-  view: EditorView,
-  get_pos: boolean | (() => number | undefined),
-  height: number,
-): void {
-  const position = get_code_block_position(get_pos);
-  if (position === null) return;
-
-  view.dispatch(
-    view.state.tr.setNodeAttribute(position, "visual_height", height),
-  );
 }
 
 export function create_code_block_ui_node_view(
@@ -164,7 +352,11 @@ export function create_code_block_ui_node_view(
 
   function sync_view_from_node(): void {
     set_code_language_class(code, current_node);
-    apply_code_block_height(wrapper, pre, read_code_block_height(current_node));
+
+    const position = get_code_block_position(get_pos);
+    const height =
+      position === null ? null : read_code_block_height(view.state, position);
+    apply_code_block_height(wrapper, pre, height);
   }
 
   function start_resize_ui_state(): void {
@@ -196,19 +388,34 @@ export function create_code_block_ui_node_view(
     document.removeEventListener("pointerup", handle_pointer_up);
     document.removeEventListener("pointercancel", handle_pointer_cancel);
 
-    if (height_to_commit === null) return;
+    if (height_to_commit === null) {
+      return;
+    }
 
-    const current_height = read_code_block_height(current_node);
+    const position = get_code_block_position(get_pos);
+    if (position === null) {
+      return;
+    }
+
+    const ordinal = get_code_block_ordinal(view.state, position);
+    if (ordinal === null) {
+      return;
+    }
+
+    const current_height = read_code_block_height(view.state, position);
     if (current_height === height_to_commit) {
       apply_code_block_height(wrapper, pre, current_height);
       return;
     }
 
-    commit_code_block_height(view, get_pos, height_to_commit);
+    update_code_block_height(view, ordinal, height_to_commit);
   }
 
   function handle_pointer_move(event: PointerEvent): void {
-    if (active_pointer_id !== event.pointerId) return;
+    if (active_pointer_id !== event.pointerId) {
+      return;
+    }
+
     event.preventDefault();
 
     const next_height = clamp_code_block_height(
@@ -228,7 +435,9 @@ export function create_code_block_ui_node_view(
   }
 
   resize_handle.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0) {
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
@@ -236,7 +445,10 @@ export function create_code_block_ui_node_view(
     active_pointer_id = event.pointerId;
     drag_start_y = event.clientY;
     drag_start_height = pre.getBoundingClientRect().height;
-    pending_height = read_code_block_height(current_node);
+
+    const position = get_code_block_position(get_pos);
+    pending_height =
+      position === null ? null : read_code_block_height(view.state, position);
     start_resize_ui_state();
 
     if (typeof resize_handle.setPointerCapture === "function") {
@@ -254,7 +466,10 @@ export function create_code_block_ui_node_view(
     dom: wrapper,
     contentDOM: code,
     update: (updated) => {
-      if (updated.type.name !== "code_block") return false;
+      if (updated.type.name !== "code_block") {
+        return false;
+      }
+
       current_node = updated;
       sync_view_from_node();
       return true;
@@ -263,7 +478,10 @@ export function create_code_block_ui_node_view(
       finish_resize(null);
     },
     ignoreMutation: (mutation: ViewMutationRecord) => {
-      if (mutation.type === "selection") return false;
+      if (mutation.type === "selection") {
+        return false;
+      }
+
       return !code.contains(mutation.target);
     },
     stopEvent: (event) =>
@@ -273,15 +491,97 @@ export function create_code_block_ui_node_view(
   };
 }
 
-export const code_block_ui_plugin = $prose(
-  () =>
-    new Plugin({
-      key: code_block_ui_key,
-      props: {
-        nodeViews: {
-          code_block: (node, view, get_pos) =>
-            create_code_block_ui_node_view(node, view, get_pos),
-        },
+type CodeBlockUiPluginArgs = {
+  get_initial_heights: () => CodeBlockHeights;
+  on_heights_change?: (heights: CodeBlockHeights) => void;
+};
+
+export function create_code_block_ui_prosemirror_plugin(
+  args: CodeBlockUiPluginArgs,
+) {
+  return new Plugin<CodeBlockUiState>({
+    key: code_block_ui_key,
+    state: {
+      init: (_, state) =>
+        create_code_block_ui_state(state.doc, args.get_initial_heights()),
+      apply: (tr, value, _, new_state) => {
+        const meta = tr.getMeta(code_block_ui_key) as
+          | CodeBlockUiMeta
+          | undefined;
+
+        let next_value = value;
+
+        if (tr.docChanged) {
+          next_value = remap_code_block_ui_state(value, tr, new_state.doc);
+        }
+
+        if (meta?.kind === "set_heights") {
+          next_value = create_code_block_ui_state(new_state.doc, meta.heights);
+        }
+
+        if (meta?.kind === "set_height") {
+          const heights = [...next_value.heights];
+          if (meta.ordinal >= 0 && meta.ordinal < heights.length) {
+            heights[meta.ordinal] = normalize_code_block_height(meta.height);
+            next_value = {
+              ...next_value,
+              heights,
+            };
+          }
+        }
+
+        if (
+          next_value.positions === value.positions &&
+          are_code_block_heights_equal(next_value.heights, value.heights)
+        ) {
+          return value;
+        }
+
+        return next_value;
       },
-    }),
-);
+    },
+    view: (view) => {
+      let previous_heights = read_code_block_heights(view.state);
+      let previous_positions = [
+        ...get_code_block_ui_state(view.state).positions,
+      ];
+      sync_rendered_code_block_heights(view);
+
+      return {
+        update: (updated_view) => {
+          const next_positions = get_code_block_ui_state(
+            updated_view.state,
+          ).positions;
+          const next_heights = read_code_block_heights(updated_view.state);
+          const positions_changed =
+            previous_positions.length !== next_positions.length ||
+            previous_positions.some(
+              (position, index) => position !== next_positions[index],
+            );
+
+          if (
+            !positions_changed &&
+            are_code_block_heights_equal(previous_heights, next_heights)
+          ) {
+            return;
+          }
+
+          previous_positions = [...next_positions];
+          previous_heights = next_heights;
+          sync_rendered_code_block_heights(updated_view);
+          args.on_heights_change?.(next_heights);
+        },
+      };
+    },
+    props: {
+      nodeViews: {
+        code_block: (node, view, get_pos) =>
+          create_code_block_ui_node_view(node, view, get_pos),
+      },
+    },
+  });
+}
+
+export function create_code_block_ui_plugin(args: CodeBlockUiPluginArgs) {
+  return $prose(() => create_code_block_ui_prosemirror_plugin(args));
+}

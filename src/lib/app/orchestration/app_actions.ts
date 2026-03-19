@@ -1,6 +1,7 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import type { OpenNoteState } from "$lib/shared/types/editor";
+import { to_editor_buffer_view_state } from "$lib/shared/types/editor";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import { apply_opened_vault_session } from "$lib/features/vault";
@@ -211,7 +212,7 @@ export function register_app_actions(input: ActionRegistrationInput) {
       if (active_tab.note_path !== (note as OpenNoteState).meta.path) return;
       const snapshot = stores.tab.get_snapshot(active_tab.id);
       services.editor.set_scroll_top(snapshot?.scroll_top ?? 0);
-      services.editor.restore_cursor(snapshot?.cursor ?? null);
+      services.editor.restore_view_state(to_editor_buffer_view_state(snapshot));
     },
   });
 

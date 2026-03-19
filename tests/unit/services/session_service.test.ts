@@ -27,6 +27,7 @@ function create_setup() {
   const editor_service = {
     flush: vi.fn().mockReturnValue(null),
     get_scroll_top: vi.fn().mockReturnValue(0),
+    get_code_block_heights: vi.fn().mockReturnValue([]),
   };
   const note_service = {
     note_exists: vi.fn().mockResolvedValue(true),
@@ -86,7 +87,11 @@ describe("SessionService", () => {
       tab_store.open_tab(alpha, "alpha");
       tab_store.open_tab(beta, "beta");
       tab_store.pin_tab(beta);
-      tab_store.set_snapshot(beta, { scroll_top: 120, cursor });
+      tab_store.set_snapshot(beta, {
+        scroll_top: 120,
+        cursor,
+        code_block_heights: [240],
+      });
 
       await service.save_latest_session();
 
@@ -101,6 +106,7 @@ describe("SessionService", () => {
               is_dirty: false,
               scroll_top: 120,
               cursor,
+              code_block_heights: [240],
               cached_note: null,
             },
             {
@@ -110,6 +116,7 @@ describe("SessionService", () => {
               is_dirty: false,
               scroll_top: 0,
               cursor: null,
+              code_block_heights: [],
               cached_note: null,
             },
           ],
@@ -140,6 +147,7 @@ describe("SessionService", () => {
       editor_store.set_open_note(open_note);
       editor_store.set_cursor(note.id, cursor);
       editor_service.get_scroll_top.mockReturnValue(88);
+      editor_service.get_code_block_heights.mockReturnValue([180, 320]);
       editor_service.flush.mockReturnValue({
         note_id: note.id,
         markdown: as_markdown_text("dirty draft"),
@@ -158,6 +166,7 @@ describe("SessionService", () => {
               is_dirty: true,
               scroll_top: 88,
               cursor,
+              code_block_heights: [180, 320],
               cached_note: {
                 ...open_note,
                 markdown: as_markdown_text("dirty draft"),
@@ -166,6 +175,36 @@ describe("SessionService", () => {
           ],
           active_tab_path: note.path,
         },
+      );
+    });
+
+    it("persists active code block heights from the live editor state", async () => {
+      const { service, session_port, tab_store, editor_store, editor_service } =
+        create_setup();
+      const note = create_test_note("docs/active", "Active");
+      const open_note = create_open_note_state(note, "```\\nalpha\\n```");
+
+      tab_store.open_tab(note.path, note.title);
+      tab_store.set_snapshot(note.path, {
+        scroll_top: 0,
+        cursor: null,
+        code_block_heights: [],
+      });
+      editor_store.set_open_note(open_note);
+      editor_service.get_code_block_heights.mockReturnValue([245]);
+
+      await service.save_latest_session();
+
+      expect(session_port.save_latest_session).toHaveBeenCalledWith(
+        as_vault_id("vault-a"),
+        expect.objectContaining({
+          tabs: [
+            expect.objectContaining({
+              note_path: note.path,
+              code_block_heights: [245],
+            }),
+          ],
+        }),
       );
     });
 
@@ -199,6 +238,7 @@ describe("SessionService", () => {
             expect.objectContaining({
               note_path: draft_path,
               is_dirty: true,
+              code_block_heights: [],
               cached_note: draft_note,
             }),
           ],
@@ -235,6 +275,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
+            code_block_heights: [],
             cached_note: null,
           },
           {
@@ -244,6 +285,7 @@ describe("SessionService", () => {
             is_dirty: true,
             scroll_top: 64,
             cursor,
+            code_block_heights: [220],
             cached_note: beta_cached,
           },
         ],
@@ -272,6 +314,7 @@ describe("SessionService", () => {
       expect(tab_store.get_snapshot(beta)).toEqual({
         scroll_top: 64,
         cursor,
+        code_block_heights: [220],
       });
       expect(tab_store.get_cached_note(beta)).toEqual(beta_cached);
     });
@@ -302,6 +345,7 @@ describe("SessionService", () => {
             is_dirty: true,
             scroll_top: 20,
             cursor: null,
+            code_block_heights: [300],
             cached_note: draft_note,
           },
         ],
@@ -310,6 +354,11 @@ describe("SessionService", () => {
 
       expect(note_service.note_exists).not.toHaveBeenCalled();
       expect(tab_store.tabs[0]?.id).toBe(draft_path);
+      expect(tab_store.get_snapshot(draft_path)).toEqual({
+        scroll_top: 20,
+        cursor: null,
+        code_block_heights: [300],
+      });
       expect(tab_store.get_cached_note(draft_path)).toEqual(draft_note);
     });
 
@@ -328,6 +377,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
+            code_block_heights: [],
             cached_note: null,
           },
           {
@@ -337,6 +387,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
+            code_block_heights: [],
             cached_note: null,
           },
           {
@@ -346,6 +397,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
+            code_block_heights: [],
             cached_note: null,
           },
         ],
@@ -372,6 +424,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
+            code_block_heights: [],
             cached_note: null,
           },
         ],

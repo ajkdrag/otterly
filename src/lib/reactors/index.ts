@@ -72,6 +72,7 @@ export function mount_reactors(context: ReactorContext): () => void {
     create_editor_sync_reactor(
       context.editor_store,
       context.tab_store,
+      context.vault_store,
       context.editor_service,
     ),
     create_editor_width_reactor(context.ui_store),

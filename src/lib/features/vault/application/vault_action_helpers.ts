@@ -1,7 +1,33 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import { open_active_tab_note } from "$lib/features/tab";
+import { to_editor_buffer_view_state } from "$lib/shared/types/editor";
 import type { EditorSettings } from "$lib/shared/types/editor_settings";
+
+function sync_mounted_editor_to_active_tab(
+  input: ActionRegistrationInput,
+): void {
+  if (!input.services.editor.is_mounted()) {
+    return;
+  }
+
+  const active_tab = input.stores.tab.active_tab;
+  const open_note = input.stores.editor.open_note;
+  if (!active_tab || !open_note) {
+    return;
+  }
+  if (active_tab.note_path !== open_note.meta.path) {
+    return;
+  }
+
+  const snapshot = input.stores.tab.get_snapshot(active_tab.id);
+  input.services.editor.open_buffer(
+    open_note,
+    "reuse_cache",
+    to_editor_buffer_view_state(snapshot),
+  );
+  input.services.editor.set_scroll_top(snapshot?.scroll_top ?? 0);
+}
 
 export async function apply_opened_vault_session(
   input: ActionRegistrationInput,
@@ -29,6 +55,7 @@ export async function apply_opened_vault_session(
 
   if (input.stores.tab.tabs.length > 0) {
     await open_active_tab_note(input);
+    sync_mounted_editor_to_active_tab(input);
     return;
   }
 

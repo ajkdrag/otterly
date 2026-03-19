@@ -15,6 +15,25 @@ export type CursorInfo = {
   head?: number;
 };
 
+export type CodeBlockHeights = Array<number | null>;
+
+export type EditorBufferViewState = {
+  cursor: CursorInfo | null;
+  code_block_heights: CodeBlockHeights;
+};
+
+export function to_editor_buffer_view_state(
+  snapshot:
+    | Pick<EditorBufferViewState, "cursor" | "code_block_heights">
+    | null
+    | undefined,
+): EditorBufferViewState {
+  return {
+    cursor: snapshot?.cursor ?? null,
+    code_block_heights: snapshot?.code_block_heights ?? [],
+  };
+}
+
 export type PastedImagePayload = {
   bytes: Uint8Array;
   mime_type: string;

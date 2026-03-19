@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { EditorPort, EditorSession } from "$lib/features/editor/ports";
 import { EditorService } from "$lib/features/editor/application/editor_service";
 import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
+import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import type { OpenNoteState } from "$lib/shared/types/editor";
@@ -33,6 +34,9 @@ function create_session_with_find(initial_markdown: string): EditorSession {
       current_markdown = markdown;
     }),
     get_markdown: vi.fn(() => current_markdown),
+    set_code_block_heights: vi.fn(),
+    get_code_block_heights: vi.fn(() => []),
+    restore_view_state: vi.fn(),
     insert_text_at_cursor: vi.fn(),
     set_selection: vi.fn(),
     mark_clean: vi.fn(),
@@ -49,6 +53,7 @@ describe("EditorService update_find_state", () => {
   it("forwards update_find_state to session when session exists", async () => {
     const session = create_session_with_find("# Test");
     const editor_store = new EditorStore();
+    const tab_store = new TabStore();
     const vault_store = new VaultStore();
     const op_store = new OpStore();
     vault_store.set_vault(create_test_vault());
@@ -61,6 +66,7 @@ describe("EditorService update_find_state", () => {
       editor_port,
       vault_store,
       editor_store,
+      tab_store,
       op_store,
       {
         on_internal_link_click: vi.fn(),
@@ -83,6 +89,7 @@ describe("EditorService update_find_state", () => {
 
   it("does not throw when no session exists", () => {
     const editor_store = new EditorStore();
+    const tab_store = new TabStore();
     const vault_store = new VaultStore();
     const op_store = new OpStore();
 
@@ -94,6 +101,7 @@ describe("EditorService update_find_state", () => {
       editor_port,
       vault_store,
       editor_store,
+      tab_store,
       op_store,
       {
         on_internal_link_click: vi.fn(),
@@ -110,6 +118,7 @@ describe("EditorService update_find_state", () => {
   it("clears find state with empty query", async () => {
     const session = create_session_with_find("# Test");
     const editor_store = new EditorStore();
+    const tab_store = new TabStore();
     const vault_store = new VaultStore();
     const op_store = new OpStore();
     vault_store.set_vault(create_test_vault());
@@ -122,6 +131,7 @@ describe("EditorService update_find_state", () => {
       editor_port,
       vault_store,
       editor_store,
+      tab_store,
       op_store,
       {
         on_internal_link_click: vi.fn(),
