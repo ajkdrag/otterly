@@ -241,10 +241,15 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       const tab = try_open_tab(input, entry.note_path, entry.title);
       if (!tab) return;
 
-      if (entry.cursor || entry.scroll_top > 0) {
+      if (
+        entry.cursor ||
+        entry.scroll_top > 0 ||
+        entry.code_block_heights.length > 0
+      ) {
         stores.tab.set_snapshot(tab.id, {
           scroll_top: entry.scroll_top,
           cursor: entry.cursor,
+          code_block_heights: entry.code_block_heights,
         });
       }
 

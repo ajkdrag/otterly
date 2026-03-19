@@ -1,8 +1,11 @@
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import type { Vault } from "$lib/shared/types/vault";
-import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
+import { as_markdown_text } from "$lib/shared/types/ids";
+import {
+  create_draft_note_path,
+  is_draft_note_path,
+} from "$lib/shared/utils/draft_note_path";
 
-const DRAFT_PREFIX = "draft:";
 const UNTITLED_PATTERN = /^Untitled(?:-(\d+))?$/;
 
 function next_untitled_title(open_titles: string[]): string {
@@ -22,20 +25,12 @@ function next_untitled_title(open_titles: string[]): string {
   return `Untitled-${String(max + 1)}`;
 }
 
-function create_draft_path(now_ms: number, title: string) {
-  return as_note_path(`${DRAFT_PREFIX}${String(now_ms)}:${title}`);
-}
-
-export function is_draft_note_path(path: string): boolean {
-  return path.startsWith(DRAFT_PREFIX);
-}
-
 export function create_untitled_open_note(args: {
   open_titles: string[];
   now_ms: number;
 }): OpenNoteState {
   const title = next_untitled_title(args.open_titles);
-  const draft_path = create_draft_path(args.now_ms, title);
+  const draft_path = create_draft_note_path(args.now_ms, title);
 
   return {
     meta: {
@@ -65,3 +60,5 @@ export function ensure_open_note(args: {
     now_ms: args.now_ms,
   });
 }
+
+export { is_draft_note_path };

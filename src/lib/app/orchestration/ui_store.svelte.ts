@@ -196,11 +196,13 @@ export class UIStore {
     confirm_discard_open: boolean;
     is_loading: boolean;
     error: string | null;
+    unsaved_note_label: string | null;
   }>({
     open: false,
     confirm_discard_open: false,
     is_loading: false,
     error: null,
+    unsaved_note_label: null,
   });
 
   delete_note_dialog = $state<{ open: boolean; note: NoteMeta | null }>({

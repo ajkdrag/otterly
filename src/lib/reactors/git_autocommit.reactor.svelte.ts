@@ -3,12 +3,14 @@ import type { GitStore } from "$lib/features/git";
 import type { UIStore } from "$lib/app";
 import type { GitService } from "$lib/features/git";
 import { is_draft_note_path } from "$lib/features/note";
+import type { TabStore } from "$lib/features/tab";
 
 const AUTOCOMMIT_DELAY_MS = 30_000;
 const RETRY_DELAY_WHILE_COMMITTING_MS = 1_000;
 
 export function create_git_autocommit_reactor(
   editor_store: EditorStore,
+  tab_store: TabStore,
   git_store: GitStore,
   ui_store: UIStore,
   git_service: GitService,
@@ -61,7 +63,7 @@ export function create_git_autocommit_reactor(
       const path = open_note.meta.path;
       if (is_draft_note_path(path)) return;
 
-      if (open_note.is_dirty) {
+      if (tab_store.is_open_note_dirty(open_note)) {
         dirty_paths.add(path);
         return;
       }

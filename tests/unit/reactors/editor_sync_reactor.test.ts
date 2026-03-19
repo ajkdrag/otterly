@@ -26,8 +26,10 @@ describe("editor_sync.reactor", () => {
     const note = open_note("notes/a.md");
     expect(
       resolve_editor_sync_open({
+        open_vault_id: "vault-a",
         open_note_id: note.meta.id,
         open_note_buffer_id: note.buffer_id,
+        last_vault_id: "vault-a",
         last_note_id: "notes/b.md",
         last_buffer_id: "notes/b.md",
       }),
@@ -38,8 +40,10 @@ describe("editor_sync.reactor", () => {
     const note = open_note("notes/a.md:reload:1");
     expect(
       resolve_editor_sync_open({
+        open_vault_id: "vault-a",
         open_note_id: note.meta.id,
         open_note_buffer_id: note.buffer_id,
+        last_vault_id: "vault-a",
         last_note_id: "notes/a.md",
         last_buffer_id: "notes/a.md",
       }),
@@ -50,18 +54,47 @@ describe("editor_sync.reactor", () => {
     const note = open_note("notes/a.md");
     expect(
       resolve_editor_sync_open({
+        open_vault_id: "vault-a",
         open_note_id: note.meta.id,
         open_note_buffer_id: note.buffer_id,
+        last_vault_id: "vault-a",
         last_note_id: "notes/a.md",
         last_buffer_id: "notes/a.md",
       }),
     ).toBe(false);
   });
 
+  it("opens buffer when vault identity changes for the same note", () => {
+    const note = open_note("notes/a.md");
+    expect(
+      resolve_editor_sync_open({
+        open_vault_id: "vault-b",
+        open_note_id: note.meta.id,
+        open_note_buffer_id: note.buffer_id,
+        last_vault_id: "vault-a",
+        last_note_id: "notes/a.md",
+        last_buffer_id: "notes/a.md",
+      }),
+    ).toBe(true);
+  });
+
   it("uses cache restore policy when switching note identity", () => {
     expect(
       resolve_editor_sync_restore_policy({
+        open_vault_id: "vault-a",
         open_note_id: "notes/b.md",
+        last_vault_id: "vault-a",
+        last_note_id: "notes/a.md",
+      }),
+    ).toBe("reuse_cache");
+  });
+
+  it("uses cache restore policy when switching vaults", () => {
+    expect(
+      resolve_editor_sync_restore_policy({
+        open_vault_id: "vault-b",
+        open_note_id: "notes/a.md",
+        last_vault_id: "vault-a",
         last_note_id: "notes/a.md",
       }),
     ).toBe("reuse_cache");
@@ -70,7 +103,9 @@ describe("editor_sync.reactor", () => {
   it("uses fresh restore policy for same-note buffer resets", () => {
     expect(
       resolve_editor_sync_restore_policy({
+        open_vault_id: "vault-a",
         open_note_id: "notes/a.md",
+        last_vault_id: "vault-a",
         last_note_id: "notes/a.md",
       }),
     ).toBe("fresh");

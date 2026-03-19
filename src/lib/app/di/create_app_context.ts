@@ -43,6 +43,7 @@ export function create_app_context(input: {
     input.ports.editor,
     stores.vault,
     stores.editor,
+    stores.tab,
     stores.op,
     {
       on_internal_link_click: (raw_path, base_note_path) =>

@@ -505,6 +505,7 @@
   position: relative;
   margin-top: calc(var(--editor-spacing) * 0.75);
   margin-bottom: calc(var(--editor-spacing) * 1.25);
+  padding-bottom: 0.625rem;
 }
 
 .ProseMirror pre {
@@ -521,6 +522,10 @@
   border: 1px solid var(--editor-code-border);
   font-weight: 400;
   letter-spacing: -0.01em;
+}
+
+.code-block-wrapper[data-visual-height] pre {
+  max-height: none;
 }
 
 .ProseMirror pre code {
@@ -572,6 +577,38 @@
 .code-block-wrapper .code-block-copy svg {
   width: 0.875rem;
   height: 0.875rem;
+}
+
+.code-block-wrapper .code-block-resize-handle {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 10rem;
+  height: 0.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--border);
+  opacity: 0;
+  cursor: row-resize;
+  touch-action: none;
+  transition:
+    opacity var(--duration-normal) var(--ease-default),
+    background var(--duration-fast) var(--ease-default);
+}
+
+.code-block-wrapper:hover .code-block-resize-handle,
+.code-block-wrapper .code-block-resize-handle:focus-visible {
+  opacity: 1;
+}
+
+.code-block-wrapper[data-resizing] .code-block-resize-handle {
+  opacity: 1;
+}
+
+.code-block-wrapper .code-block-resize-handle:hover {
+  background: var(--border-strong);
 }
 
 /* ============================================

@@ -94,7 +94,10 @@ function create_tab_actions_harness() {
     editor: {
       flush: vi.fn().mockReturnValue(null),
       get_scroll_top: vi.fn().mockReturnValue(0),
+      get_code_block_heights: vi.fn().mockReturnValue([]),
       set_scroll_top: vi.fn(),
+      restore_view_state: vi.fn(),
+      set_code_block_heights: vi.fn(),
       close_buffer: vi.fn(),
     },
     clipboard: {
@@ -176,6 +179,7 @@ describe("register_tab_actions", () => {
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.open_tab(np("b.md"), "b");
       stores.tab.activate_tab("a.md");
+      stores.tab.set_dirty("a.md", true);
 
       const dirty_note = { ...mock_open_note("a.md"), is_dirty: true };
       stores.editor.set_open_note(dirty_note);
@@ -190,6 +194,7 @@ describe("register_tab_actions", () => {
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.open_tab(np("b.md"), "b");
       stores.tab.activate_tab("a.md");
+      stores.tab.set_dirty("a.md", true);
 
       stores.editor.set_open_note({
         ...mock_open_note("a.md"),
@@ -418,6 +423,7 @@ describe("register_tab_actions", () => {
         title: "closed",
         scroll_top: 50,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
 
@@ -458,6 +464,7 @@ describe("register_tab_actions", () => {
         title: "Untitled-1",
         scroll_top: 0,
         cursor: null,
+        code_block_heights: [],
         draft_note: untitled_note,
       });
 

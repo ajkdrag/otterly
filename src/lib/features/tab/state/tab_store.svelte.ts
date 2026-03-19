@@ -1,20 +1,109 @@
 import type { NotePath } from "$lib/shared/types/ids";
 import type {
-  Tab,
-  TabId,
-  TabEditorSnapshot,
   ClosedTabEntry,
+  Tab,
+  TabEditorSnapshot,
+  TabId,
 } from "$lib/features/tab/types/tab";
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import {
   note_name_from_path,
   paths_equal_ignore_case,
 } from "$lib/shared/utils/path";
+import { is_draft_note_path } from "$lib/shared/utils/draft_note_path";
 
 const MAX_CLOSED_HISTORY = 10;
 
+function create_empty_editor_snapshot(): TabEditorSnapshot {
+  return {
+    scroll_top: 0,
+    cursor: null,
+    code_block_heights: [],
+  };
+}
+
 function conflict_path_key(note_path: NotePath): string {
   return note_path.toLowerCase();
+}
+
+function are_code_block_heights_equal(
+  left: TabEditorSnapshot["code_block_heights"],
+  right: TabEditorSnapshot["code_block_heights"],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if ((left[index] ?? null) !== (right[index] ?? null)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function are_cursors_equal(
+  left: TabEditorSnapshot["cursor"],
+  right: TabEditorSnapshot["cursor"],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.line === right.line &&
+    left.column === right.column &&
+    left.total_lines === right.total_lines &&
+    left.total_words === right.total_words &&
+    left.anchor === right.anchor &&
+    left.head === right.head
+  );
+}
+
+function are_editor_snapshots_equal(
+  left: TabEditorSnapshot | null,
+  right: TabEditorSnapshot,
+): boolean {
+  if (!left) {
+    return false;
+  }
+
+  return (
+    left.scroll_top === right.scroll_top &&
+    are_cursors_equal(left.cursor, right.cursor) &&
+    are_code_block_heights_equal(
+      left.code_block_heights,
+      right.code_block_heights,
+    )
+  );
+}
+
+function are_open_note_states_equal(
+  left: OpenNoteState | null,
+  right: OpenNoteState,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left) {
+    return false;
+  }
+
+  return (
+    left.buffer_id === right.buffer_id &&
+    left.is_dirty === right.is_dirty &&
+    left.markdown === right.markdown &&
+    left.meta.id === right.meta.id &&
+    left.meta.path === right.meta.path &&
+    left.meta.name === right.meta.name &&
+    left.meta.title === right.meta.title &&
+    left.meta.mtime_ms === right.meta.mtime_ms &&
+    left.meta.size_bytes === right.meta.size_bytes
+  );
 }
 
 export class TabStore {
@@ -25,6 +114,11 @@ export class TabStore {
   note_cache = $state<Map<TabId, OpenNoteState>>(new Map());
   conflicted_note_paths = $state<Map<string, NotePath>>(new Map());
   mru_order = $state<TabId[]>([]);
+  session_metadata_revision = $state(0);
+
+  private bump_session_metadata_revision() {
+    this.session_metadata_revision += 1;
+  }
 
   get active_tab(): Tab | null {
     if (!this.active_tab_id) return null;
@@ -112,6 +206,7 @@ export class TabStore {
     this.note_cache = new Map(
       [...this.note_cache].filter(([id]) => id !== tab_id),
     );
+    this.bump_session_metadata_revision();
 
     this.mru_order = this.mru_order.filter((id) => id !== tab_id);
 
@@ -151,6 +246,7 @@ export class TabStore {
     this.note_cache = new Map(
       [...this.note_cache].filter(([id]) => !removed_ids.has(id)),
     );
+    this.bump_session_metadata_revision();
     this.mru_order = this.mru_order.filter((id) => !removed_ids.has(id));
     this.remove_conflicts(removed_tabs.map((tab) => tab.note_path));
     this.tabs = kept;
@@ -171,6 +267,7 @@ export class TabStore {
     this.note_cache = new Map(
       [...this.note_cache].filter(([id]) => !removed_ids.has(id)),
     );
+    this.bump_session_metadata_revision();
     this.mru_order = this.mru_order.filter((id) => !removed_ids.has(id));
     this.remove_conflicts(removed_tabs.map((tab) => tab.note_path));
     this.tabs = kept;
@@ -185,6 +282,7 @@ export class TabStore {
     this.active_tab_id = null;
     this.editor_snapshots = new Map();
     this.note_cache = new Map();
+    this.bump_session_metadata_revision();
     this.conflicted_note_paths = new Map();
     this.mru_order = [];
   }
@@ -221,10 +319,62 @@ export class TabStore {
     return this.conflicted_note_paths.has(conflict_path_key(note_path));
   }
 
+  is_note_path_dirty(note_path: NotePath): boolean {
+    return this.find_tab_by_path(note_path)?.is_dirty ?? false;
+  }
+
+  is_open_note_dirty(open_note: OpenNoteState | null): boolean {
+    if (!open_note) {
+      return false;
+    }
+
+    return this.is_note_path_dirty(open_note.meta.path);
+  }
+
+  has_dirty_background_tabs(): boolean {
+    return this.tabs.some(
+      (tab) => tab.is_dirty && tab.id !== this.active_tab_id,
+    );
+  }
+
+  get_tabs_requiring_save(): Tab[] {
+    return this.tabs.filter(
+      (tab) => tab.is_dirty && !is_draft_note_path(tab.note_path),
+    );
+  }
+
+  has_tabs_requiring_save(): boolean {
+    return this.get_tabs_requiring_save().length > 0;
+  }
+
+  resolve_unsaved_tabs_label(): string | null {
+    const tabs = this.get_tabs_requiring_save();
+    if (tabs.length !== 1) {
+      return null;
+    }
+
+    return tabs[0]?.title ?? null;
+  }
+
   set_snapshot(tab_id: TabId, snapshot: TabEditorSnapshot) {
+    if (are_editor_snapshots_equal(this.get_snapshot(tab_id), snapshot)) {
+      return;
+    }
+
     const next = new Map(this.editor_snapshots);
     next.set(tab_id, snapshot);
     this.editor_snapshots = next;
+    this.bump_session_metadata_revision();
+  }
+
+  patch_snapshot(tab_id: TabId, patch: Partial<TabEditorSnapshot>) {
+    const current = this.get_snapshot(tab_id) ?? create_empty_editor_snapshot();
+    this.set_snapshot(tab_id, {
+      ...current,
+      ...patch,
+      code_block_heights:
+        patch.code_block_heights ?? current.code_block_heights,
+    });
   }
 
   get_snapshot(tab_id: TabId): TabEditorSnapshot | null {
@@ -232,9 +382,14 @@ export class TabStore {
   }
 
   set_cached_note(tab_id: TabId, note: OpenNoteState) {
+    if (are_open_note_states_equal(this.get_cached_note(tab_id), note)) {
+      return;
+    }
+
     const next = new Map(this.note_cache);
     next.set(tab_id, note);
     this.note_cache = next;
+    this.bump_session_metadata_revision();
   }
 
   reconcile_saved_note(note: OpenNoteState) {
@@ -252,8 +407,10 @@ export class TabStore {
 
   clear_cached_note(tab_id: TabId) {
     if (!this.note_cache.has(tab_id)) return;
-    const next = new Map([...this.note_cache].filter(([id]) => id !== tab_id));
-    this.note_cache = next;
+    this.note_cache = new Map(
+      [...this.note_cache].filter(([id]) => id !== tab_id),
+    );
+    this.bump_session_metadata_revision();
   }
 
   invalidate_cache_by_path(note_path: NotePath) {
@@ -265,6 +422,7 @@ export class TabStore {
     this.note_cache = new Map(
       [...this.note_cache].filter(([id]) => !ids_to_clear.has(id)),
     );
+    this.bump_session_metadata_revision();
   }
 
   pin_tab(tab_id: TabId) {
@@ -386,6 +544,7 @@ export class TabStore {
         }
       }
       this.note_cache = next_cache;
+      this.bump_session_metadata_revision();
 
       this.mru_order = this.mru_order.map((id) => {
         const rename = snapshot_renames.find(([old_id]) => old_id === id);
@@ -487,6 +646,7 @@ export class TabStore {
     this.closed_tab_history = [];
     this.editor_snapshots = new Map();
     this.note_cache = new Map();
+    this.bump_session_metadata_revision();
     this.conflicted_note_paths = new Map();
     this.mru_order = [];
   }

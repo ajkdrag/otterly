@@ -123,7 +123,7 @@ export function create_watcher_reactor(
         event,
         vault_store.vault?.id ?? null,
         editor_store.open_note?.meta.path ?? null,
-        editor_store.open_note?.is_dirty ?? false,
+        tab_store.is_open_note_dirty(editor_store.open_note),
         find_background_tab,
       );
 

@@ -11,6 +11,7 @@ import {
 } from "$lib/features/editor/application/editor_service";
 import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
+import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import type { OpenNoteState, CursorInfo } from "$lib/shared/types/editor";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
@@ -41,6 +42,9 @@ function create_session(initial_markdown: string): EditorSession {
       current_markdown = markdown;
     }),
     get_markdown: vi.fn(() => current_markdown),
+    set_code_block_heights: vi.fn(),
+    get_code_block_heights: vi.fn(() => []),
+    restore_view_state: vi.fn(),
     insert_text_at_cursor: vi.fn(),
     set_selection: vi.fn(),
     mark_clean: vi.fn(),
@@ -70,6 +74,7 @@ function create_setup(
   const editor_store = new EditorStore();
   const vault_store = new VaultStore();
   const op_store = new OpStore();
+  const tab_store = new TabStore();
   vault_store.set_vault(create_test_vault());
 
   const session_configs: EditorSessionConfig[] = [];
@@ -92,6 +97,7 @@ function create_setup(
     editor_port,
     vault_store,
     editor_store,
+    tab_store,
     op_store,
     callbacks,
   );
@@ -99,6 +105,7 @@ function create_setup(
   return {
     service,
     editor_store,
+    tab_store,
     op_store,
     callbacks,
     start_session: start_session_mock,
@@ -141,6 +148,9 @@ describe("EditorService", () => {
     expect(typeof mount_config.events.on_markdown_change).toBe("function");
     expect(typeof mount_config.events.on_dirty_state_change).toBe("function");
     expect(typeof mount_config.events.on_cursor_change).toBe("function");
+    expect(typeof mount_config.events.on_code_block_heights_change).toBe(
+      "function",
+    );
     expect(typeof mount_config.events.on_internal_link_click).toBe("function");
     expect(typeof mount_config.events.on_image_paste_requested).toBe(
       "function",
@@ -155,7 +165,36 @@ describe("EditorService", () => {
       vault_id: create_test_vault().id,
       initial_markdown: "# Beta",
       restore_policy: "reuse_cache",
+      view_state: null,
     });
+  });
+
+  it("stores active tab code block heights in the tab snapshot", async () => {
+    const session = create_session("# Alpha");
+    const { service, editor_store, session_configs, tab_store } = create_setup(
+      () => Promise.resolve(session),
+    );
+    const root = {} as HTMLDivElement;
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+
+    tab_store.open_tab(note.meta.path, note.meta.title);
+    tab_store.patch_snapshot(note.meta.path, { scroll_top: 10 });
+    const previous_revision = tab_store.session_metadata_revision;
+    editor_store.set_open_note(note);
+    await service.mount({ root, note });
+
+    const events = session_config_at(session_configs, 0).events;
+    events.on_code_block_heights_change?.([180, null, 320]);
+
+    expect(tab_store.get_snapshot(note.meta.path)?.code_block_heights).toEqual([
+      180,
+      null,
+      320,
+    ]);
+    expect(tab_store.get_snapshot(note.meta.path)?.scroll_top).toBe(10);
+    expect(tab_store.session_metadata_revision).toBeGreaterThan(
+      previous_revision,
+    );
   });
 
   it("forwards explicit fresh restore policy to session buffer open", async () => {
@@ -181,6 +220,7 @@ describe("EditorService", () => {
       vault_id: create_test_vault().id,
       initial_markdown: "# Beta",
       restore_policy: "fresh",
+      view_state: null,
     });
   });
 

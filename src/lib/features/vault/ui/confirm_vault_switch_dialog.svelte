@@ -23,7 +23,7 @@
   }: Props = $props();
 
   const note_display = $derived(
-    unsaved_note_label ? `"${unsaved_note_label}"` : "the current note",
+    unsaved_note_label ? `"${unsaved_note_label}"` : "one or more open notes",
   );
 </script>
 

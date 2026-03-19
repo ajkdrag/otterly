@@ -122,6 +122,8 @@ describe("LinkRepairService", () => {
     const tab_store = new TabStore();
     const notes_port = create_mock_notes_port();
     const index_port = create_mock_index_port();
+    const source_tab = tab_store.open_tab(SOURCE_NOTE.path, SOURCE_NOTE.title);
+    tab_store.set_dirty(source_tab.id, true);
 
     editor_store.set_open_note({
       meta: SOURCE_NOTE,

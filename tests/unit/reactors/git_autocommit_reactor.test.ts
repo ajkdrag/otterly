@@ -10,6 +10,9 @@ describe("git_autocommit.reactor", () => {
           meta: { path: "notes/test.md" },
         },
       } as never,
+      {
+        is_open_note_dirty: vi.fn().mockReturnValue(false),
+      } as never,
       { enabled: false, sync_status: "idle" } as never,
       {
         editor_settings: { git_autocommit_enabled: true },
@@ -30,6 +33,9 @@ describe("git_autocommit.reactor", () => {
           meta: { path: "notes/test.md" },
         },
       } as never,
+      {
+        is_open_note_dirty: vi.fn().mockReturnValue(false),
+      } as never,
       { enabled: false, sync_status: "idle" } as never,
       {
         editor_settings: { git_autocommit_enabled: true },
@@ -49,6 +55,9 @@ describe("git_autocommit.reactor", () => {
           is_dirty: false,
           meta: { path: "notes/test.md" },
         },
+      } as never,
+      {
+        is_open_note_dirty: vi.fn().mockReturnValue(false),
       } as never,
       { enabled: true, sync_status: "idle" } as never,
       {

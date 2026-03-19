@@ -4,6 +4,8 @@ import type {
   EditorSession,
 } from "$lib/features/editor/ports";
 import type {
+  CodeBlockHeights,
+  EditorBufferViewState,
   OpenNoteState,
   CursorInfo,
   PastedImagePayload,
@@ -14,6 +16,7 @@ import type { EditorStore } from "$lib/features/editor/state/editor_store.svelte
 import type { VaultStore } from "$lib/features/vault";
 import type { OpStore } from "$lib/app";
 import type { SearchService } from "$lib/features/search";
+import type { TabStore } from "$lib/features/tab";
 import { is_draft_note_path } from "$lib/features/note";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
@@ -52,6 +55,7 @@ export class EditorService {
     private readonly editor_port: EditorPort,
     private readonly vault_store: VaultStore,
     private readonly editor_store: EditorStore,
+    private readonly tab_store: TabStore,
     private readonly op_store: OpStore,
     private readonly callbacks: EditorServiceCallbacks,
     private readonly search_service?: SearchService,
@@ -89,6 +93,7 @@ export class EditorService {
   open_buffer(
     note: OpenNoteState,
     restore_policy: BufferRestorePolicy = "reuse_cache",
+    view_state: EditorBufferViewState | null = null,
   ): void {
     this.active_note = note;
 
@@ -99,6 +104,7 @@ export class EditorService {
       vault_id: this.vault_store.vault?.id ?? null,
       initial_markdown: note.markdown,
       restore_policy,
+      view_state,
     });
     this.focus();
   }
@@ -161,6 +167,14 @@ export class EditorService {
     requestAnimationFrame(() => {
       this.session?.set_selection(cursor.anchor ?? head, head);
     });
+  }
+
+  get_code_block_heights(): CodeBlockHeights {
+    return this.session?.get_code_block_heights() ?? [];
+  }
+
+  restore_view_state(view_state: EditorBufferViewState | null) {
+    this.session?.restore_view_state(view_state);
   }
 
   focus() {
@@ -275,6 +289,16 @@ export class EditorService {
       on_cursor_change: (cursor: CursorInfo) => {
         this.with_active_note_id(generation, (id) => {
           this.editor_store.set_cursor(id, cursor);
+        });
+      },
+      on_code_block_heights_change: (heights: CodeBlockHeights) => {
+        if (!this.is_generation_current(generation)) return;
+        const active_tab = this.tab_store.active_tab;
+        const active_note_path = this.get_active_note_path();
+        if (!active_tab || !active_note_path) return;
+        if (active_tab.note_path !== active_note_path) return;
+        this.tab_store.patch_snapshot(active_tab.id, {
+          code_block_heights: heights,
         });
       },
       on_internal_link_click: (raw_path: string, base_note_path: string) => {

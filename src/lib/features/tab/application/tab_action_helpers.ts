@@ -4,6 +4,7 @@ import { is_draft_note_path } from "$lib/features/note";
 import type { NotePath } from "$lib/shared/types/ids";
 import { parent_folder_path } from "$lib/shared/utils/path";
 import { toast } from "svelte-sonner";
+import { sync_active_tab_editor_state } from "$lib/features/tab";
 
 type BatchCloseMode = "all" | "other" | "right";
 type SaveDirtyTabResult = "saved" | "needs_path" | "failed";
@@ -35,6 +36,7 @@ function push_closed_tab_history(
     title: tab.title,
     scroll_top: snapshot?.scroll_top ?? 0,
     cursor: snapshot?.cursor ?? null,
+    code_block_heights: snapshot?.code_block_heights ?? [],
     draft_note: resolve_closed_tab_draft(stores, tab.id),
   });
 }
@@ -83,24 +85,18 @@ export async function capture_active_tab_snapshot(
     stores.editor.set_markdown(flushed.note_id, flushed.markdown);
   }
 
-  const cursor = stores.editor.cursor;
-  stores.tab.set_snapshot(active_id, {
-    scroll_top: services.editor.get_scroll_top(),
-    cursor,
-  });
+  sync_active_tab_editor_state(stores.tab, stores.editor, services.editor);
 
-  const open_note = stores.editor.open_note;
+  const open_note = stores.tab.get_cached_note(active_id);
   if (open_note) {
-    stores.tab.set_cached_note(active_id, open_note);
-    stores.tab.set_dirty(active_id, open_note.is_dirty);
-    if (open_note.is_dirty && stores.ui.editor_settings.autosave_enabled) {
+    const is_dirty = stores.tab.is_open_note_dirty(open_note);
+    if (is_dirty && stores.ui.editor_settings.autosave_enabled) {
       const result = await services.note.save_note(null, true);
       const saved_open_note = stores.editor.open_note;
       if (
         result.status === "saved" &&
         saved_open_note &&
-        saved_open_note.meta.path === result.saved_path &&
-        !saved_open_note.is_dirty
+        saved_open_note.meta.path === result.saved_path
       ) {
         stores.tab.reconcile_saved_note(saved_open_note);
       }

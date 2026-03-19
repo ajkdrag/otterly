@@ -116,7 +116,11 @@ describe("TabStore", () => {
     it("cleans up editor snapshot on close", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
-      store.set_snapshot("a.md", { scroll_top: 100, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 100,
+        cursor: null,
+        code_block_heights: [],
+      });
 
       store.close_tab("a.md");
 
@@ -131,6 +135,76 @@ describe("TabStore", () => {
       store.close_tab("a.md");
 
       expect(store.get_cached_note("a.md")).toBeNull();
+    });
+
+    it("bumps session metadata revision when cached metadata is cleaned up", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_snapshot("a.md", {
+        scroll_top: 100,
+        cursor: null,
+        code_block_heights: [245],
+      });
+      const previous_revision = store.session_metadata_revision;
+
+      store.close_tab("a.md");
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+  });
+
+  describe("session_metadata_revision", () => {
+    it("bumps when a tab snapshot is updated", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const previous_revision = store.session_metadata_revision;
+
+      store.patch_snapshot("a.md", {
+        code_block_heights: [245],
+      });
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+
+    it("does not bump when the snapshot is unchanged", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_snapshot("a.md", {
+        scroll_top: 12,
+        cursor: null,
+        code_block_heights: [245],
+      });
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_snapshot("a.md", {
+        scroll_top: 12,
+        cursor: null,
+        code_block_heights: [245],
+      });
+
+      expect(store.session_metadata_revision).toBe(previous_revision);
+    });
+
+    it("bumps when cached note state changes", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_cached_note("a.md", mock_open_note("a.md"));
+
+      expect(store.session_metadata_revision).toBe(previous_revision + 1);
+    });
+
+    it("does not bump when cached note state is unchanged", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      const note = mock_open_note("a.md");
+      store.set_cached_note("a.md", note);
+      const previous_revision = store.session_metadata_revision;
+
+      store.set_cached_note("a.md", note);
+
+      expect(store.session_metadata_revision).toBe(previous_revision);
     });
   });
 
@@ -219,12 +293,49 @@ describe("TabStore", () => {
     });
   });
 
+  describe("dirty helpers", () => {
+    it("is_note_path_dirty returns the tab dirty state", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_dirty("a.md", true);
+
+      expect(store.is_note_path_dirty(np("a.md"))).toBe(true);
+      expect(store.is_note_path_dirty(np("missing.md"))).toBe(false);
+    });
+
+    it("is_open_note_dirty resolves through the matching tab", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.set_dirty("a.md", true);
+
+      expect(store.is_open_note_dirty(mock_open_note("a.md"))).toBe(true);
+      expect(store.is_open_note_dirty(mock_open_note("b.md"))).toBe(false);
+      expect(store.is_open_note_dirty(null)).toBe(false);
+    });
+
+    it("has_dirty_background_tabs ignores the active tab", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.open_tab(np("b.md"), "b");
+      store.set_dirty("a.md", true);
+
+      expect(store.has_dirty_background_tabs()).toBe(true);
+
+      store.activate_tab("a.md");
+      expect(store.has_dirty_background_tabs()).toBe(false);
+    });
+  });
+
   describe("close_all_tabs", () => {
     it("removes all tabs and resets state", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
       store.open_tab(np("b.md"), "b");
-      store.set_snapshot("a.md", { scroll_top: 50, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 50,
+        cursor: null,
+        code_block_heights: [],
+      });
 
       store.close_all_tabs();
 
@@ -268,6 +379,39 @@ describe("TabStore", () => {
 
       expect(dirty).toHaveLength(1);
       expect(dirty[0]?.id).toBe("a.md");
+    });
+
+    it("get_tabs_requiring_save excludes drafts", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "a");
+      store.open_tab(np("draft:1:Untitled-1"), "Untitled-1");
+      store.set_dirty("a.md", true);
+      store.set_dirty("draft:1:Untitled-1", true);
+
+      const dirty = store.get_tabs_requiring_save();
+
+      expect(dirty).toHaveLength(1);
+      expect(dirty[0]?.id).toBe("a.md");
+    });
+
+    it("resolve_unsaved_tabs_label returns the only tab that requires save", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "Alpha");
+      store.open_tab(np("draft:1:Untitled-1"), "Untitled-1");
+      store.set_dirty("a.md", true);
+      store.set_dirty("draft:1:Untitled-1", true);
+
+      expect(store.resolve_unsaved_tabs_label()).toBe("Alpha");
+    });
+
+    it("resolve_unsaved_tabs_label falls back when multiple saved tabs are dirty", () => {
+      const store = new TabStore();
+      store.open_tab(np("a.md"), "Alpha");
+      store.open_tab(np("b.md"), "Beta");
+      store.set_dirty("a.md", true);
+      store.set_dirty("b.md", true);
+
+      expect(store.resolve_unsaved_tabs_label()).toBeNull();
     });
   });
 
@@ -434,12 +578,17 @@ describe("TabStore", () => {
     it("migrates editor snapshot to new path", () => {
       const store = new TabStore();
       store.open_tab(np("old.md"), "old");
-      store.set_snapshot("old.md", { scroll_top: 42, cursor: null });
+      store.set_snapshot("old.md", {
+        scroll_top: 42,
+        cursor: null,
+        code_block_heights: [180],
+      });
 
       store.update_tab_path(np("old.md"), np("new.md"));
 
       expect(store.get_snapshot("old.md")).toBeNull();
       expect(store.get_snapshot("new.md")?.scroll_top).toBe(42);
+      expect(store.get_snapshot("new.md")?.code_block_heights).toEqual([180]);
     });
 
     it("migrates note cache to new path", () => {
@@ -607,6 +756,7 @@ describe("TabStore", () => {
         title: "a",
         scroll_top: 10,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
       store.push_closed_history({
@@ -614,6 +764,7 @@ describe("TabStore", () => {
         title: "b",
         scroll_top: 20,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
 
@@ -637,6 +788,7 @@ describe("TabStore", () => {
           title: String(i),
           scroll_top: 0,
           cursor: null,
+          code_block_heights: [],
           draft_note: null,
         });
       }
@@ -819,12 +971,17 @@ describe("TabStore", () => {
       const store = new TabStore();
       store.open_tab(np("a.md"), "a");
       store.set_dirty("a.md", true);
-      store.set_snapshot("a.md", { scroll_top: 50, cursor: null });
+      store.set_snapshot("a.md", {
+        scroll_top: 50,
+        cursor: null,
+        code_block_heights: [],
+      });
       store.push_closed_history({
         note_path: np("b.md"),
         title: "b",
         scroll_top: 0,
         cursor: null,
+        code_block_heights: [],
         draft_note: null,
       });
 

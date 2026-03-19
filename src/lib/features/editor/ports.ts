@@ -1,11 +1,17 @@
 import type { VaultId } from "$lib/shared/types/ids";
-import type { CursorInfo, PastedImagePayload } from "$lib/shared/types/editor";
+import type {
+  CodeBlockHeights,
+  CursorInfo,
+  EditorBufferViewState,
+  PastedImagePayload,
+} from "$lib/shared/types/editor";
 
 export type BufferConfig = {
   note_path: string;
   vault_id: VaultId | null;
   initial_markdown: string;
   restore_policy: BufferRestorePolicy;
+  view_state?: EditorBufferViewState | null;
 };
 
 export type BufferRestorePolicy = "reuse_cache" | "fresh";
@@ -14,6 +20,9 @@ export type EditorSession = {
   destroy: () => void;
   set_markdown: (markdown: string) => void;
   get_markdown: () => string;
+  set_code_block_heights: (heights: CodeBlockHeights) => void;
+  get_code_block_heights: () => CodeBlockHeights;
+  restore_view_state: (view_state: EditorBufferViewState | null) => void;
   insert_text_at_cursor: (text: string) => void;
   set_selection: (anchor: number, head: number) => void;
   mark_clean: () => void;
@@ -37,6 +46,7 @@ export type EditorEventHandlers = {
   on_markdown_change: (markdown: string) => void;
   on_dirty_state_change: (is_dirty: boolean) => void;
   on_cursor_change?: (info: CursorInfo) => void;
+  on_code_block_heights_change?: (heights: CodeBlockHeights) => void;
   on_internal_link_click?: (raw_path: string, base_note_path: string) => void;
   on_external_link_click?: (url: string) => void;
   on_image_paste_requested?: (payload: PastedImagePayload) => void;

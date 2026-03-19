@@ -175,11 +175,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
   function apply_saved_note(saved_path: NotePath, close_dialog: boolean) {
     update_active_tab_path(saved_path);
     const open_note = stores.editor.open_note;
-    if (
-      open_note &&
-      open_note.meta.path === saved_path &&
-      !open_note.is_dirty
-    ) {
+    if (open_note && open_note.meta.path === saved_path) {
       stores.tab.reconcile_saved_note(open_note);
     }
     clear_parent_folder_filetree(saved_path);

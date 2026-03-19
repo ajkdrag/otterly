@@ -1,4 +1,8 @@
-import type { OpenNoteState, CursorInfo } from "$lib/shared/types/editor";
+import type {
+  CodeBlockHeights,
+  OpenNoteState,
+  CursorInfo,
+} from "$lib/shared/types/editor";
 import type { NotePath } from "$lib/shared/types/ids";
 
 export type SessionEntry = {
@@ -8,6 +12,7 @@ export type SessionEntry = {
   is_dirty: boolean;
   scroll_top: number;
   cursor: CursorInfo | null;
+  code_block_heights: CodeBlockHeights;
   cached_note: OpenNoteState | null;
 };
 
