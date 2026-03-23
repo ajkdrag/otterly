@@ -1,3 +1,7 @@
+@import "@milkdown/kit/prose/view/style/prosemirror.css";
+@import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
+@import "prosemirror-virtual-cursor/style/virtual-cursor.css";
+
 /* ============================================
    EDITOR DESIGN TOKENS
    ============================================ */
@@ -235,13 +239,28 @@
 .ProseMirror code {
   background: var(--editor-code-inline-bg);
   color: var(--editor-code-inline-text);
-  padding: 0.15rem 0.45rem;
-  border-radius: calc(var(--radius) * 0.4);
-  font-size: 0.88em;
   font-family: var(--font-mono);
-  border: 1px solid var(--editor-code-inline-border);
-  font-weight: 450;
-  letter-spacing: -0.01em;
+  padding: 0 2px;
+  border-radius: 4px;
+  font-size: 87.5%;
+  display: inline-block;
+  line-height: 1.4286;
+}
+
+.crepe-drop-cursor {
+  background-color: color-mix(in srgb, var(--border-strong), transparent 50%);
+  opacity: 0.5;
+  transition: all 0.2s;
+  pointer-events: none;
+}
+
+.ProseMirror-gapcursor::after {
+  box-sizing: border-box;
+  border-top: 1px solid var(--editor-text);
+}
+
+.ProseMirror-focused {
+  --prosemirror-virtual-cursor-color: var(--border-strong);
 }
 
 .ProseMirror mark {
