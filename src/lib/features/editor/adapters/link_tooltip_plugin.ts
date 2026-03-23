@@ -6,11 +6,11 @@ import type {
   Node as ProseNode,
 } from "@milkdown/kit/prose/model";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { linkSchema } from "@milkdown/kit/preset/commonmark";
 import { TooltipProvider } from "@milkdown/kit/plugin/tooltip";
 import { posToDOMRect } from "@milkdown/kit/prose";
 import { Check, Link, Pencil, Trash2 } from "lucide-static";
 import { build_link_edit_transaction } from "./link_edit_transaction";
+import { non_inclusive_link_schema } from "./non_inclusive_link_schema";
 
 export const link_tooltip_plugin_key = new PluginKey("custom-link-tooltip");
 
@@ -186,7 +186,7 @@ function build_edit_dom(callbacks: {
 
 export function create_link_tooltip_plugin() {
   return $prose((ctx) => {
-    const link_type = linkSchema.type(ctx);
+    const link_type = non_inclusive_link_schema.type(ctx);
     return new Plugin({
       key: link_tooltip_plugin_key,
       view(editor_view) {

@@ -82,6 +82,7 @@ import { slash_command_plugin } from "./slash_command_plugin";
 import { error_message } from "$lib/shared/utils/error_message";
 import { count_words } from "$lib/shared/utils/count_words";
 import { create_logger } from "$lib/shared/utils/logger";
+import { non_inclusive_link_schema } from "./non_inclusive_link_schema";
 
 const log = create_logger("milkdown_adapter");
 
@@ -335,6 +336,7 @@ export function create_milkdown_editor_port(args?: {
         })
 
         .use(commonmark)
+        .use(non_inclusive_link_schema)
         .use(imageBlockComponent)
         .config((ctx) => {
           if (resolve_asset_url_for_vault) {
