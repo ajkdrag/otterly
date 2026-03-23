@@ -23,7 +23,7 @@ import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Slice } from "@milkdown/kit/prose/model";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { create_link_tooltip_plugin } from "./link_tooltip_plugin";
-import { commonmark, linkSchema } from "@milkdown/kit/preset/commonmark";
+import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { listItemBlockComponent } from "@milkdown/kit/component/list-item-block";
 import {
@@ -40,7 +40,6 @@ import {
 import { prism } from "@milkdown/plugin-prism";
 import { indent } from "@milkdown/plugin-indent";
 import { ImageOff, LoaderCircle } from "lucide-static";
-import { createVirtualCursor } from "prosemirror-virtual-cursor";
 import type { BufferConfig, EditorPort } from "$lib/features/editor/ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
 import { as_asset_path } from "$lib/shared/types/ids";
@@ -86,11 +85,6 @@ import { create_logger } from "$lib/shared/utils/logger";
 
 const log = create_logger("milkdown_adapter");
 
-const non_inclusive_link = linkSchema.extendSchema((prev) => (ctx) => ({
-  ...prev(ctx),
-  inclusive: false,
-}));
-const virtual_cursor_plugin = $prose(() => createVirtualCursor());
 const cursor_plugins = cursor_plugin as unknown as Parameters<Editor["use"]>[0];
 const drop_cursor_config = dropCursorConfig as unknown as {
   key: Parameters<Parameters<Editor["config"]>[0]>[0]["update"] extends (
@@ -464,10 +458,8 @@ export function create_milkdown_editor_port(args?: {
           }));
         })
         .use(gfm)
-        .use(non_inclusive_link)
         .use(leading_block_escape_plugin)
         .use(cursor_plugins)
-        .use(virtual_cursor_plugin)
         .use(prism)
         .use(
           create_code_block_ui_plugin({
