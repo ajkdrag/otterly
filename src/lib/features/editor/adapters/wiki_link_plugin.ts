@@ -5,10 +5,10 @@ import type {
   Node as ProseNode,
   Mark,
 } from "@milkdown/kit/prose/model";
+import { linkSchema } from "@milkdown/kit/preset/commonmark";
 import { format_wiki_display } from "$lib/features/editor/domain/wiki_link";
 import { dirty_state_plugin_key } from "./dirty_state_plugin";
 import { editor_context_plugin_key } from "./editor_context_plugin";
-import { non_inclusive_link_schema } from "./non_inclusive_link_schema";
 
 const ZERO_WIDTH_SPACE = "\u200B";
 const WIKI_LINK_REGEX = /\[\[([^\]\n]+?)(?:\|([^\]\n]+?))?\]\]/;
@@ -344,7 +344,7 @@ export function create_wiki_link_click_prose_plugin(input: {
 
 export const create_wiki_link_converter_plugin = () =>
   $prose((ctx) => {
-    const link_type = non_inclusive_link_schema.type(ctx);
+    const link_type = linkSchema.type(ctx);
     return create_wiki_link_converter_prose_plugin({
       link_type,
     });
