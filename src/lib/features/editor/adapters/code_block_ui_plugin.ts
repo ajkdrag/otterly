@@ -531,6 +531,11 @@ export function create_code_block_ui_node_view(
   wrapper.appendChild(body);
   wrapper.appendChild(resize_handle);
 
+  function consume_resize_mouse_event(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function sync_view_from_node(): void {
     set_code_language_class(code, current_node);
     lang_picker.sync(get_code_block_language(current_node));
@@ -616,6 +621,9 @@ export function create_code_block_ui_node_view(
     finish_resize(event.pointerId);
   }
 
+  resize_handle.addEventListener("mousedown", consume_resize_mouse_event);
+  resize_handle.addEventListener("click", consume_resize_mouse_event);
+
   resize_handle.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) {
       return;
@@ -627,6 +635,7 @@ export function create_code_block_ui_node_view(
     active_pointer_id = event.pointerId;
     drag_start_y = event.clientY;
     drag_start_height = pre.getBoundingClientRect().height;
+    resize_handle.blur();
 
     const position = get_code_block_position(get_pos);
     pending_height =
@@ -658,17 +667,18 @@ export function create_code_block_ui_node_view(
     },
     destroy: () => {
       finish_resize(null);
+      resize_handle.removeEventListener(
+        "mousedown",
+        consume_resize_mouse_event,
+      );
+      resize_handle.removeEventListener("click", consume_resize_mouse_event);
     },
     ignoreMutation: (mutation: ViewMutationRecord) => {
       if (mutation.type === "selection") {
         return false;
       }
 
-      const target = mutation.target;
-      if (code.contains(target)) return false;
-      if (target === pre || target === body) return false;
-
-      return true;
+      return !code.contains(mutation.target);
     },
     stopEvent: (event) =>
       event.target instanceof Element &&

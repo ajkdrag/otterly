@@ -166,6 +166,36 @@ describe("code_block_ui_plugin", () => {
     expect(read_code_block_heights(get_state())).toEqual([520]);
   });
 
+  it("prevents mouse fallback events on the resize handle", () => {
+    const schema = create_schema();
+    const state = create_editor_state(schema, [320]);
+    const { view } = create_editor_view(state);
+    const node = state.doc.firstChild;
+    if (!node) throw new Error("Expected code block node");
+
+    const node_view = create_code_block_ui_node_view(node, view, () => 0);
+    const dom = node_view.dom as HTMLElement;
+    const handle = dom.querySelector(".code-block-resize-handle");
+    if (!(handle instanceof HTMLElement)) {
+      throw new Error("Expected resize handle");
+    }
+
+    const mouse_down = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+    });
+    handle.dispatchEvent(mouse_down);
+
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    handle.dispatchEvent(click);
+
+    expect(mouse_down.defaultPrevented).toBe(true);
+    expect(click.defaultPrevented).toBe(true);
+  });
+
   it("replaces stored heights without changing the document", () => {
     const schema = create_schema();
     const state = create_editor_state(schema, [null]);
