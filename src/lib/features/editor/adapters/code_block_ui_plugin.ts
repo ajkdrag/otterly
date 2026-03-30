@@ -13,11 +13,31 @@ import type {
 } from "@milkdown/kit/prose/view";
 import type { CodeBlockHeights } from "$lib/shared/types/editor";
 import { Check, Copy } from "lucide-static";
+import { refractor } from "refractor";
 
 const CODE_BLOCK_MIN_HEIGHT = 48;
 const CODE_BLOCK_MAX_HEIGHT = 4096;
 const CODE_BLOCK_MAX_VIEWPORT_RATIO = 0.8;
 const USER_SELECT_STYLE = "none";
+
+function build_language_list(): string[] {
+  const grammars = refractor.languages;
+  const seen_grammars = new Set<object>();
+  const result: string[] = [];
+
+  for (const id of Object.keys(grammars)) {
+    const grammar = grammars[id];
+    if (typeof grammar !== "object" || grammar === null) continue;
+    if (seen_grammars.has(grammar)) continue;
+    seen_grammars.add(grammar);
+    result.push(id);
+  }
+
+  result.sort((a, b) => a.localeCompare(b));
+  return result;
+}
+
+const LANGUAGES = build_language_list();
 
 type CodeBlockUiState = {
   positions: number[];
@@ -268,6 +288,158 @@ function sync_rendered_code_block_heights(view: EditorView): void {
   });
 }
 
+function get_language_label(id: string): string {
+  return id.length > 0 ? id : "plain";
+}
+
+function create_language_picker(
+  initial_language: string,
+  on_change: (language: string) => void,
+): { el: HTMLElement; sync: (language: string) => void } {
+  const wrapper = document.createElement("div");
+  wrapper.className = "code-block-lang-picker";
+  wrapper.contentEditable = "false";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "code-block-lang-picker__trigger";
+  button.textContent = get_language_label(initial_language);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "code-block-lang-picker__dropdown";
+  dropdown.setAttribute("role", "listbox");
+
+  let is_open = false;
+  let selected = initial_language;
+
+  function clear_selected_class(): void {
+    dropdown
+      .querySelectorAll(".code-block-lang-picker__item--selected")
+      .forEach((el) => {
+        el.classList.remove("code-block-lang-picker__item--selected");
+      });
+  }
+
+  function close_dropdown(): void {
+    is_open = false;
+    dropdown.classList.remove("code-block-lang-picker__dropdown--open");
+  }
+
+  function open_dropdown(): void {
+    is_open = true;
+    dropdown.classList.add("code-block-lang-picker__dropdown--open");
+
+    const selected_item = dropdown.querySelector(`[data-lang="${selected}"]`);
+    if (selected_item instanceof HTMLElement) {
+      selected_item.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function handle_outside_click(event: MouseEvent): void {
+    if (!wrapper.contains(event.target as Node)) {
+      close_dropdown();
+      document.removeEventListener("mousedown", handle_outside_click, true);
+    }
+  }
+
+  button.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (is_open) {
+      close_dropdown();
+      document.removeEventListener("mousedown", handle_outside_click, true);
+    } else {
+      open_dropdown();
+      document.addEventListener("mousedown", handle_outside_click, true);
+    }
+  });
+
+  // "plain" entry for clearing language
+  const plain_item = document.createElement("button");
+  plain_item.type = "button";
+  plain_item.className = "code-block-lang-picker__item";
+  plain_item.setAttribute("role", "option");
+  plain_item.setAttribute("data-lang", "");
+  plain_item.textContent = "plain";
+  if (selected === "") {
+    plain_item.classList.add("code-block-lang-picker__item--selected");
+  }
+  plain_item.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  plain_item.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    selected = "";
+    button.textContent = "plain";
+    clear_selected_class();
+    plain_item.classList.add("code-block-lang-picker__item--selected");
+    close_dropdown();
+    document.removeEventListener("mousedown", handle_outside_click, true);
+    on_change("");
+  });
+  dropdown.appendChild(plain_item);
+
+  for (const lang of LANGUAGES) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "code-block-lang-picker__item";
+    item.setAttribute("role", "option");
+    item.setAttribute("data-lang", lang);
+    item.textContent = lang;
+
+    if (lang === selected) {
+      item.classList.add("code-block-lang-picker__item--selected");
+    }
+
+    item.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    item.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      selected = lang;
+      button.textContent = lang;
+
+      clear_selected_class();
+      item.classList.add("code-block-lang-picker__item--selected");
+
+      close_dropdown();
+      document.removeEventListener("mousedown", handle_outside_click, true);
+      on_change(lang);
+    });
+
+    dropdown.appendChild(item);
+  }
+
+  wrapper.appendChild(button);
+  wrapper.appendChild(dropdown);
+
+  function sync(language: string): void {
+    if (selected === language) return;
+    selected = language;
+    button.textContent = get_language_label(language);
+
+    clear_selected_class();
+    const match = dropdown.querySelector(`[data-lang="${language}"]`);
+    if (match instanceof HTMLElement) {
+      match.classList.add("code-block-lang-picker__item--selected");
+    }
+  }
+
+  return { el: wrapper, sync };
+}
+
 function create_copy_button(code_el: HTMLElement): HTMLButtonElement {
   const button = document.createElement("button");
   button.className = "code-block-copy";
@@ -335,6 +507,10 @@ export function create_code_block_ui_node_view(
   const wrapper = document.createElement("div");
   wrapper.className = "code-block-wrapper";
 
+  const header = document.createElement("div");
+  header.className = "code-block-header";
+  header.contentEditable = "false";
+
   const pre = document.createElement("pre");
   const code = document.createElement("code");
   const copy_button = create_copy_button(code);
@@ -345,13 +521,32 @@ export function create_code_block_ui_node_view(
   resize_handle.contentEditable = "false";
   resize_handle.setAttribute("aria-label", "Resize code block");
 
+  const lang_picker = create_language_picker(
+    get_code_block_language(node),
+    (language) => {
+      const position = get_code_block_position(get_pos);
+      if (position === null) return;
+      view.dispatch(
+        view.state.tr.setNodeAttribute(position, "language", language),
+      );
+    },
+  );
+
+  header.appendChild(lang_picker.el);
+  header.appendChild(copy_button);
+
+  const body = document.createElement("div");
+  body.className = "code-block-body";
+
   pre.appendChild(code);
-  wrapper.appendChild(pre);
-  wrapper.appendChild(copy_button);
+  body.appendChild(header);
+  body.appendChild(pre);
+  wrapper.appendChild(body);
   wrapper.appendChild(resize_handle);
 
   function sync_view_from_node(): void {
     set_code_language_class(code, current_node);
+    lang_picker.sync(get_code_block_language(current_node));
 
     const position = get_code_block_position(get_pos);
     const height =
@@ -482,11 +677,15 @@ export function create_code_block_ui_node_view(
         return false;
       }
 
-      return !code.contains(mutation.target);
+      const target = mutation.target;
+      if (code.contains(target)) return false;
+      if (target === pre || target === body) return false;
+
+      return true;
     },
     stopEvent: (event) =>
       event.target instanceof Element &&
-      event.target.closest(".code-block-copy, .code-block-resize-handle") !==
+      event.target.closest(".code-block-header, .code-block-resize-handle") !==
         null,
   };
 }

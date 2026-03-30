@@ -44,6 +44,7 @@
     "isomorphic-git": "^1.37.1",
     "lucide-static": "^0.563.0",
     "prismjs": "^1.30.0",
+    "refractor": "^5.0.0",
     "svelte-themes": "^2.0.10"
   },
   "devDependencies": {

@@ -224,16 +224,16 @@ describe("code_block_ui_plugin", () => {
 
     const node_view = create_code_block_ui_node_view(node, view, () => 0);
     const dom = node_view.dom as HTMLElement;
-    const pre = dom.querySelector("pre");
+    const header = dom.querySelector(".code-block-header");
     const code = dom.querySelector("code");
-    if (!(pre instanceof HTMLElement) || !(code instanceof HTMLElement)) {
+    if (!(header instanceof HTMLElement) || !(code instanceof HTMLElement)) {
       throw new Error("Expected code block UI elements");
     }
 
     expect(
       node_view.ignoreMutation?.({
         type: "attributes",
-        target: pre,
+        target: header,
       } as unknown as MutationRecord),
     ).toBe(true);
     expect(
