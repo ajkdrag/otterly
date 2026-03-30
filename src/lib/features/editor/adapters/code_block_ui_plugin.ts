@@ -312,6 +312,11 @@ function create_language_picker(
   let is_open = false;
   let selected = initial_language;
 
+  function consume_mouse_event(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function clear_selected_class(): void {
     dropdown
       .querySelectorAll(".code-block-lang-picker__item--selected")
@@ -320,47 +325,59 @@ function create_language_picker(
       });
   }
 
-  function close_dropdown(): void {
-    is_open = false;
-    dropdown.classList.remove("code-block-lang-picker__dropdown--open");
-  }
+  function sync_selected_language(language: string): void {
+    selected = language;
+    button.textContent = get_language_label(language);
 
-  function open_dropdown(): void {
-    is_open = true;
-    dropdown.classList.add("code-block-lang-picker__dropdown--open");
-
-    const selected_item = dropdown.querySelector(`[data-lang="${selected}"]`);
-    if (selected_item instanceof HTMLElement) {
-      selected_item.scrollIntoView({ block: "nearest" });
+    clear_selected_class();
+    const match = dropdown.querySelector(`[data-lang="${language}"]`);
+    if (match instanceof HTMLElement) {
+      match.classList.add("code-block-lang-picker__item--selected");
     }
   }
 
   function handle_outside_click(event: MouseEvent): void {
     if (!wrapper.contains(event.target as Node)) {
-      close_dropdown();
-      document.removeEventListener("mousedown", handle_outside_click, true);
+      set_dropdown_open(false);
     }
   }
 
-  button.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
+  function set_dropdown_open(next_is_open: boolean): void {
+    if (is_open === next_is_open) {
+      return;
+    }
 
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+    is_open = next_is_open;
+    dropdown.classList.toggle(
+      "code-block-lang-picker__dropdown--open",
+      is_open,
+    );
 
     if (is_open) {
-      close_dropdown();
-      document.removeEventListener("mousedown", handle_outside_click, true);
-    } else {
-      open_dropdown();
       document.addEventListener("mousedown", handle_outside_click, true);
+      const selected_item = dropdown.querySelector(`[data-lang="${selected}"]`);
+      if (selected_item instanceof HTMLElement) {
+        selected_item.scrollIntoView({ block: "nearest" });
+      }
+      return;
     }
+
+    document.removeEventListener("mousedown", handle_outside_click, true);
+  }
+
+  function select_language(language: string): void {
+    sync_selected_language(language);
+    set_dropdown_open(false);
+    on_change(language);
+  }
+
+  button.addEventListener("mousedown", consume_mouse_event);
+
+  button.addEventListener("click", (event) => {
+    consume_mouse_event(event);
+    set_dropdown_open(!is_open);
   });
 
-  // "plain" entry for clearing language
   const plain_item = document.createElement("button");
   plain_item.type = "button";
   plain_item.className = "code-block-lang-picker__item";
@@ -370,20 +387,10 @@ function create_language_picker(
   if (selected === "") {
     plain_item.classList.add("code-block-lang-picker__item--selected");
   }
-  plain_item.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
+  plain_item.addEventListener("mousedown", consume_mouse_event);
   plain_item.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    selected = "";
-    button.textContent = "plain";
-    clear_selected_class();
-    plain_item.classList.add("code-block-lang-picker__item--selected");
-    close_dropdown();
-    document.removeEventListener("mousedown", handle_outside_click, true);
-    on_change("");
+    consume_mouse_event(event);
+    select_language("");
   });
   dropdown.appendChild(plain_item);
 
@@ -399,24 +406,11 @@ function create_language_picker(
       item.classList.add("code-block-lang-picker__item--selected");
     }
 
-    item.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
+    item.addEventListener("mousedown", consume_mouse_event);
 
     item.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      selected = lang;
-      button.textContent = lang;
-
-      clear_selected_class();
-      item.classList.add("code-block-lang-picker__item--selected");
-
-      close_dropdown();
-      document.removeEventListener("mousedown", handle_outside_click, true);
-      on_change(lang);
+      consume_mouse_event(event);
+      select_language(lang);
     });
 
     dropdown.appendChild(item);
@@ -427,14 +421,7 @@ function create_language_picker(
 
   function sync(language: string): void {
     if (selected === language) return;
-    selected = language;
-    button.textContent = get_language_label(language);
-
-    clear_selected_class();
-    const match = dropdown.querySelector(`[data-lang="${language}"]`);
-    if (match instanceof HTMLElement) {
-      match.classList.add("code-block-lang-picker__item--selected");
-    }
+    sync_selected_language(language);
   }
 
   return { el: wrapper, sync };
