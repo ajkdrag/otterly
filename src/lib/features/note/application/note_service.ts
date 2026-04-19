@@ -404,6 +404,11 @@ export class NoteService {
       );
       await this.index_port.rename_note_path(vault_id, note.id, new_path);
 
+      if (this.editor_store.open_note?.meta.id === note.id) {
+        this.editor_service.rename_buffer(note.path, new_path);
+        this.editor_store.update_open_note_path(new_path);
+      }
+
       const path_map = new Map([[note.id as string, new_path as string]]);
       await this.run_link_repair(vault_id, path_map);
 
@@ -415,10 +420,6 @@ export class NoteService {
         this.notes_store.rename_recent_note(note.id, updated_note);
       } else {
         this.notes_store.remove_recent_note(note.id);
-      }
-
-      if (this.editor_store.open_note?.meta.id === note.id) {
-        this.editor_store.update_open_note_path(new_path);
       }
 
       this.succeed_operation("note.rename");
