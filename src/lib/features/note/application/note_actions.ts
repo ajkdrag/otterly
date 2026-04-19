@@ -14,6 +14,7 @@ import {
   close_rename_dialog,
   close_save_dialog,
   filename_from_path,
+  get_asset_write_options,
   parse_note_open_input,
   save_and_insert_image,
 } from "$lib/features/note/application/note_action_helpers";
@@ -413,6 +414,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
           payload.note_id,
           payload.note_path,
           payload.image,
+          get_asset_write_options(stores.ui.editor_settings),
         );
       },
     });
@@ -433,8 +435,10 @@ export function register_note_actions(input: ActionRegistrationInput) {
         }
 
         const estimated_size_bytes = payload.image.bytes.byteLength;
-        const target_folder =
-          stores.ui.editor_settings.attachment_folder || ".assets";
+        const settings = stores.ui.editor_settings;
+        const target_folder = settings.store_attachments_with_note
+          ? "(same folder as note)"
+          : settings.attachment_folder || ".assets";
 
         stores.ui.image_paste_dialog = {
           open: true,
@@ -476,9 +480,10 @@ export function register_note_actions(input: ActionRegistrationInput) {
           return;
         }
 
-        const attachment_folder =
-          stores.ui.editor_settings.attachment_folder || ".assets";
         const custom_filename = dialog.filename.trim();
+        const write_options = get_asset_write_options(
+          stores.ui.editor_settings,
+        );
 
         await save_and_insert_image(
           input,
@@ -487,7 +492,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
           dialog.image,
           {
             ...(custom_filename ? { custom_filename } : {}),
-            attachment_folder,
+            ...write_options,
           },
         );
 

@@ -8,6 +8,7 @@ export type SettingsCategory =
 
 export type EditorSettings = {
   attachment_folder: string;
+  store_attachments_with_note: boolean;
   show_hidden_files: boolean;
   autosave_enabled: boolean;
   autosave_delay_ms: number;
@@ -19,6 +20,7 @@ export type EditorSettings = {
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   attachment_folder: ".assets",
+  store_attachments_with_note: false,
   show_hidden_files: false,
   autosave_enabled: true,
   autosave_delay_ms: 2000,

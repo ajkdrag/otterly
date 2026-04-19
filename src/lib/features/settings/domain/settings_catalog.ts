@@ -10,6 +10,23 @@ export type SettingDefinition = {
 
 export const SETTINGS_REGISTRY: SettingDefinition[] = [
   {
+    key: "store_attachments_with_note",
+    label: "Store New Attachments Next to Note",
+    description:
+      "Save new pasted and dropped attachments in the same folder as the note instead of the configured attachment folder",
+    category: "Files",
+    keywords: [
+      "attachments",
+      "assets",
+      "images",
+      "same folder",
+      "note folder",
+      "paste",
+      "drop",
+      "co-located",
+    ],
+  },
+  {
     key: "attachment_folder",
     label: "Attachment Folder",
     description: "Folder name for storing pasted images and attachments",
