@@ -5,6 +5,7 @@ import {
   type NotePath,
 } from "$lib/shared/types/ids";
 import type { PastedImagePayload } from "$lib/shared/types/editor";
+import type { EditorSettings } from "$lib/shared/types/editor_settings";
 import { sanitize_note_name } from "$lib/features/note/domain/sanitize_note_name";
 import { to_markdown_asset_target } from "$lib/features/note/domain/asset_markdown_path";
 
@@ -96,12 +97,26 @@ export function parse_note_open_input(input: unknown): {
   };
 }
 
+export function get_asset_write_options(settings: EditorSettings): {
+  store_with_note?: boolean;
+  attachment_folder?: string;
+} {
+  if (settings.store_attachments_with_note) {
+    return { store_with_note: true };
+  }
+  return { attachment_folder: settings.attachment_folder || ".assets" };
+}
+
 export async function save_and_insert_image(
   input: ActionRegistrationInput,
   note_id: NoteId,
   note_path: NotePath,
   image: PastedImagePayload,
-  options?: { custom_filename?: string; attachment_folder?: string },
+  options?: {
+    custom_filename?: string;
+    attachment_folder?: string;
+    store_with_note?: boolean;
+  },
 ): Promise<void> {
   const { stores, services } = input;
 

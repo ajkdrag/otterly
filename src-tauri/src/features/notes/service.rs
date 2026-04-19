@@ -106,7 +106,10 @@ pub(crate) fn safe_vault_abs(vault_root: &Path, note_rel: &str) -> Result<PathBu
     resolve_under_vault_root(vault_root, &rel)
 }
 
-pub(crate) fn safe_vault_abs_for_write(vault_root: &Path, note_rel: &str) -> Result<PathBuf, String> {
+pub(crate) fn safe_vault_abs_for_write(
+    vault_root: &Path,
+    note_rel: &str,
+) -> Result<PathBuf, String> {
     let rel = parse_safe_relative_path(note_rel)?;
     let base = canonical_vault_root(vault_root)?;
     reject_symlink_components(&base, &rel)?;
@@ -281,12 +284,20 @@ pub fn read_note(app: AppHandle, vault_id: String, note_id: String) -> Result<No
 }
 
 #[tauri::command]
-pub fn read_note_meta(app: AppHandle, vault_id: String, note_id: String) -> Result<NoteMeta, String> {
-    log::debug!("Reading note meta vault_id={} note_id={}", vault_id, note_id);
+pub fn read_note_meta(
+    app: AppHandle,
+    vault_id: String,
+    note_id: String,
+) -> Result<NoteMeta, String> {
+    log::debug!(
+        "Reading note meta vault_id={} note_id={}",
+        vault_id,
+        note_id
+    );
     let root = storage::vault_path(&app, &vault_id)?;
     // safe_vault_abs will fail if the file doesn't exist or escapes the vault
     let _abs = safe_vault_abs(&root, &note_id)?;
-    
+
     build_note_meta(&root, &note_id)
 }
 
@@ -388,6 +399,8 @@ pub struct WriteImageAssetArgs {
     pub custom_filename: Option<String>,
     #[serde(default)]
     pub attachment_folder: Option<String>,
+    #[serde(default)]
+    pub store_with_note: Option<bool>,
 }
 
 fn image_extension(mime_type: &str, file_name: Option<&str>) -> String {
@@ -448,14 +461,6 @@ pub fn write_image_asset(args: WriteImageAssetArgs, app: AppHandle) -> Result<St
         .and_then(|stem| stem.to_str())
         .unwrap_or("image");
 
-    let attachment_folder = args.attachment_folder.as_deref().unwrap_or(".assets");
-    if attachment_folder.contains('/')
-        || attachment_folder.contains('\\')
-        || attachment_folder.starts_with("..")
-    {
-        return Err("invalid attachment folder name".to_string());
-    }
-
     let filename = if let Some(custom_filename) = args.custom_filename {
         let sanitized = custom_filename.replace('/', "").replace('\\', "");
         let sanitized = sanitized.trim_start_matches('.');
@@ -488,7 +493,19 @@ pub fn write_image_asset(args: WriteImageAssetArgs, app: AppHandle) -> Result<St
         )
     };
 
-    let rel_path = PathBuf::from(attachment_folder).join(filename);
+    let rel_path = if args.store_with_note.unwrap_or(false) {
+        let note_parent = note_rel.parent().unwrap_or(Path::new(""));
+        note_parent.join(&filename)
+    } else {
+        let attachment_folder = args.attachment_folder.as_deref().unwrap_or(".assets");
+        if attachment_folder.contains('/')
+            || attachment_folder.contains('\\')
+            || attachment_folder.starts_with("..")
+        {
+            return Err("invalid attachment folder name".to_string());
+        }
+        PathBuf::from(attachment_folder).join(&filename)
+    };
     let rel = storage::normalize_relative_path(&rel_path);
     let abs = safe_vault_abs_for_write(&root, &rel)?;
 
@@ -886,7 +903,11 @@ fn remove_existing_move_target(
     Ok(())
 }
 
-fn move_failure(path: &str, new_path: impl Into<String>, error: impl Into<String>) -> MoveItemResult {
+fn move_failure(
+    path: &str,
+    new_path: impl Into<String>,
+    error: impl Into<String>,
+) -> MoveItemResult {
     MoveItemResult {
         path: path.to_string(),
         new_path: new_path.into(),
@@ -904,7 +925,11 @@ fn move_success(path: String, new_path: String) -> MoveItemResult {
     }
 }
 
-fn collect_nested_move_sources(items: &[MoveItem], folder_path: &str, invalid_sources: &mut Vec<String>) {
+fn collect_nested_move_sources(
+    items: &[MoveItem],
+    folder_path: &str,
+    invalid_sources: &mut Vec<String>,
+) {
     for other in items {
         if other.path == folder_path {
             continue;
@@ -975,7 +1000,11 @@ fn collect_pending_moves(
         }
 
         if !item.is_folder && !source_meta.is_file() {
-            results.push(move_failure(&item.path, item.path.clone(), "source is not a file"));
+            results.push(move_failure(
+                &item.path,
+                item.path.clone(),
+                "source is not a file",
+            ));
             continue;
         }
 

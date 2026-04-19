@@ -286,7 +286,11 @@ export class NoteService {
   async save_pasted_image(
     note_path: NotePath,
     image: PastedImagePayload,
-    options?: { custom_filename?: string; attachment_folder?: string },
+    options?: {
+      custom_filename?: string;
+      attachment_folder?: string;
+      store_with_note?: boolean;
+    },
   ): Promise<
     | { status: "saved"; asset_path: AssetPath }
     | { status: "skipped" }
@@ -307,7 +311,9 @@ export class NoteService {
       if (options?.custom_filename) {
         input.custom_filename = options.custom_filename;
       }
-      if (options?.attachment_folder) {
+      if (options?.store_with_note) {
+        input.store_with_note = true;
+      } else if (options?.attachment_folder) {
         input.attachment_folder = options.attachment_folder;
       }
       const asset_path = await this.assets_port.write_image_asset(
@@ -398,6 +404,11 @@ export class NoteService {
       );
       await this.index_port.rename_note_path(vault_id, note.id, new_path);
 
+      if (this.editor_store.open_note?.meta.id === note.id) {
+        this.editor_service.rename_buffer(note.path, new_path);
+        this.editor_store.update_open_note_path(new_path);
+      }
+
       const path_map = new Map([[note.id as string, new_path as string]]);
       await this.run_link_repair(vault_id, path_map);
 
@@ -409,10 +420,6 @@ export class NoteService {
         this.notes_store.rename_recent_note(note.id, updated_note);
       } else {
         this.notes_store.remove_recent_note(note.id);
-      }
-
-      if (this.editor_store.open_note?.meta.id === note.id) {
-        this.editor_store.update_open_note_path(new_path);
       }
 
       this.succeed_operation("note.rename");

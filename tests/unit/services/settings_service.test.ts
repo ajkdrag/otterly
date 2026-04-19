@@ -139,4 +139,38 @@ describe("SettingsService", () => {
       DEFAULT_EDITOR_SETTINGS.autosave_enabled,
     );
   });
+
+  it("persists store_attachments_with_note as vault-scoped, not global", async () => {
+    const { service, vault_settings_port, settings_port } = make_service({});
+
+    const settings = {
+      ...DEFAULT_EDITOR_SETTINGS,
+      store_attachments_with_note: true,
+    };
+
+    const result = await service.save_settings(settings);
+
+    expect(result.status).toBe("success");
+
+    const saved_vault = vault_settings_port.set_vault_setting.mock
+      .calls[0]?.[2] as Record<string, unknown>;
+    expect(saved_vault).toHaveProperty("store_attachments_with_note", true);
+
+    const global_keys = settings_port.set_setting.mock.calls.map(
+      (c: unknown[]) => c[0],
+    );
+    expect(global_keys).not.toContain("store_attachments_with_note");
+  });
+
+  it("loads store_attachments_with_note from vault settings", async () => {
+    const { service } = make_service({
+      vault_get: { store_attachments_with_note: true },
+    });
+
+    const result = await service.load_settings({ ...DEFAULT_EDITOR_SETTINGS });
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.settings.store_attachments_with_note).toBe(true);
+  });
 });

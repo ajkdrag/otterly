@@ -25,20 +25,28 @@ export function create_test_assets_adapter(): AssetsPort {
 
       const note_path = String(input.note_path);
       const parts = note_path.split("/").filter(Boolean);
-      const attachment_folder = input.attachment_folder || ".assets";
 
       let filename: string;
       if (input.custom_filename) {
         filename = input.custom_filename;
       } else {
-        const note_name = (parts.pop() ?? "note.md").replace(/\.md$/i, "");
+        const note_name = (parts.at(-1) ?? "note.md").replace(/\.md$/i, "");
         filename = `${note_name}-${String(write_count)}.png`;
       }
 
-      const prefix = parts.length > 0 ? `${parts.join("/")}/` : "";
-      const asset_path = as_asset_path(
-        `${prefix}${attachment_folder}/${filename}`,
-      );
+      const note_dir_parts = parts.slice(0, -1);
+      const dir_prefix =
+        note_dir_parts.length > 0 ? `${note_dir_parts.join("/")}/` : "";
+
+      let asset_path: ReturnType<typeof as_asset_path>;
+      if (input.store_with_note) {
+        asset_path = as_asset_path(`${dir_prefix}${filename}`);
+      } else {
+        const attachment_folder = input.attachment_folder || ".assets";
+        asset_path = as_asset_path(
+          `${dir_prefix}${attachment_folder}/${filename}`,
+        );
+      }
       const cache_key = `${vault_id}:${asset_path}`;
       blob_url_cache.set(
         cache_key,

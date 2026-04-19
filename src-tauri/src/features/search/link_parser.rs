@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeCode, NodeLink, NodeValue, NodeWikiLink, Sourcepos};
-use comrak::{Arena, Options, parse_document};
+use comrak::{parse_document, Arena, Options};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
@@ -120,6 +120,40 @@ fn parse_internal_markdown_target(raw_href: &str) -> Option<String> {
         return None;
     }
     Some(href.to_string())
+}
+
+fn parse_asset_href(raw_href: &str) -> Option<String> {
+    let trimmed = raw_href.trim();
+    if trimmed.is_empty() || is_external_url(trimmed) {
+        return None;
+    }
+
+    let mut href = decode_percent_sequences(trimmed);
+    if let Some(hash) = href.find('#') {
+        href.truncate(hash);
+    }
+    if let Some(query) = href.find('?') {
+        href.truncate(query);
+    }
+
+    let href = href.trim().to_string();
+    if href.is_empty() {
+        return None;
+    }
+    Some(href)
+}
+
+fn resolve_asset_target(source_path: &str, raw_href: &str) -> Option<String> {
+    let cleaned = raw_href.trim_start_matches('/');
+    if cleaned.is_empty() {
+        return None;
+    }
+    if is_note_relative_target(cleaned) {
+        let base_dir = source_dir_from_path(source_path);
+        resolve_relative_path(base_dir, cleaned)
+    } else {
+        Some(cleaned.to_string())
+    }
 }
 
 fn markdown_destination_needs_angle_brackets(value: &str) -> bool {
@@ -305,7 +339,10 @@ pub(crate) fn internal_link_targets(markdown: &str, source_path: &str) -> Vec<St
     out
 }
 
-pub(crate) fn extract_local_links_snapshot(markdown: &str, source_path: &str) -> LocalLinksSnapshot {
+pub(crate) fn extract_local_links_snapshot(
+    markdown: &str,
+    source_path: &str,
+) -> LocalLinksSnapshot {
     let parsed = parse_all_links(markdown, source_path);
     let mut combined = parsed.markdown_targets;
     combined.extend(parsed.wiki_targets);
@@ -344,7 +381,10 @@ fn sourcepos_to_byte_range(line_starts: &[usize], pos: Sourcepos) -> Option<(usi
     }
     let start_offset = *line_starts.get(pos.start.line - 1)?;
     let end_offset = *line_starts.get(pos.end.line - 1)?;
-    Some((start_offset + pos.start.column - 1, end_offset + pos.end.column))
+    Some((
+        start_offset + pos.start.column - 1,
+        end_offset + pos.end.column,
+    ))
 }
 
 pub(crate) fn compute_relative_path(from_dir: &str, to_path: &str) -> String {
@@ -419,8 +459,15 @@ pub(crate) fn format_markdown_link_href(source_path: &str, resolved_note_path: &
 }
 
 enum CollectedLink {
-    Markdown { url: String, sourcepos: Sourcepos },
-    Wiki { url: String, sourcepos: Sourcepos },
+    Markdown {
+        url: String,
+        sourcepos: Sourcepos,
+        is_image: bool,
+    },
+    Wiki {
+        url: String,
+        sourcepos: Sourcepos,
+    },
 }
 
 pub(crate) fn rewrite_links(
@@ -445,6 +492,14 @@ pub(crate) fn rewrite_links(
                     Some(CollectedLink::Markdown {
                         url: link.url.clone(),
                         sourcepos: sp,
+                        is_image: false,
+                    })
+                }
+                NodeValue::Image(link) if !is_external_url(&link.url) => {
+                    Some(CollectedLink::Markdown {
+                        url: link.url.clone(),
+                        sourcepos: sp,
+                        is_image: true,
                     })
                 }
                 NodeValue::WikiLink(link) => Some(CollectedLink::Wiki {
@@ -462,16 +517,34 @@ pub(crate) fn rewrite_links(
 
         match collected {
             CollectedLink::Wiki { .. } if is_embedded_wikilink(node) => continue,
-            CollectedLink::Markdown { url, sourcepos } => {
-                let parsed = match parse_internal_markdown_target(&url) {
-                    Some(p) => p,
-                    None => continue,
+            CollectedLink::Markdown {
+                url,
+                sourcepos,
+                is_image,
+            } => {
+                let (_parsed, resolved, is_relative_flag) = if is_image {
+                    let parsed = match parse_asset_href(&url) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    let resolved = match resolve_asset_target(old_source_path, &parsed) {
+                        Some(r) => r,
+                        None => continue,
+                    };
+                    (parsed, resolved, true)
+                } else {
+                    let parsed = match parse_internal_markdown_target(&url) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    let resolved = match resolve_wiki_target(old_source_path, &parsed) {
+                        Some(r) => r,
+                        None => continue,
+                    };
+                    let is_rel = is_note_relative_target(&parsed);
+                    (parsed, resolved, is_rel)
                 };
-                let is_relative = is_note_relative_target(&parsed);
-                let resolved = match resolve_wiki_target(old_source_path, &parsed) {
-                    Some(r) => r,
-                    None => continue,
-                };
+                let is_relative = is_relative_flag;
 
                 let new_target = if let Some(mapped) = target_map.get(&resolved) {
                     mapped.clone()
@@ -488,37 +561,41 @@ pub(crate) fn rewrite_links(
                 } else {
                     new_target.clone()
                 };
-                let (byte_start, byte_end) =
-                    match sourcepos_to_byte_range(&line_starts, sourcepos) {
-                        Some(range) => range,
-                        None => continue,
-                    };
+                let (byte_start, byte_end) = match sourcepos_to_byte_range(&line_starts, sourcepos)
+                {
+                    Some(range) => range,
+                    None => continue,
+                };
                 if byte_end > markdown.len() {
                     continue;
                 }
                 let span = &markdown[byte_start..byte_end];
-                if !span.starts_with('[') || !span.ends_with(')') {
+                let expected_prefix = if is_image { "![" } else { "[" };
+                if !span.starts_with(expected_prefix) || !span.ends_with(')') {
                     continue;
                 }
                 let split = match span.rfind("](") {
                     Some(pos) => pos,
                     None => continue,
                 };
-                let label = &span[1..split];
+                let label = &span[expected_prefix.len()..split];
                 let raw_destination = &span[split + 2..span.len() - 1];
                 let trimmed_destination = raw_destination.trim();
                 let had_angle_wrapping = trimmed_destination.starts_with('<')
                     && trimmed_destination.ends_with('>')
                     && trimmed_destination.len() >= 2;
 
-                let replacement_destination = if had_angle_wrapping
-                    || markdown_destination_needs_angle_brackets(&new_href)
-                {
-                    format!("<{new_href}>")
+                let replacement_destination =
+                    if had_angle_wrapping || markdown_destination_needs_angle_brackets(&new_href) {
+                        format!("<{new_href}>")
+                    } else {
+                        new_href.clone()
+                    };
+                let replacement = if is_image {
+                    format!("![{label}]({replacement_destination})")
                 } else {
-                    new_href.clone()
+                    format!("[{label}]({replacement_destination})")
                 };
-                let replacement = format!("[{label}]({replacement_destination})");
                 if replacement != span {
                     replacements.push((byte_start, byte_end, replacement));
                 }
@@ -543,11 +620,11 @@ pub(crate) fn rewrite_links(
                 };
 
                 let new_wiki = format_wiki_target(new_source_path, &new_target, is_relative);
-                let (byte_start, byte_end) =
-                    match sourcepos_to_byte_range(&line_starts, sourcepos) {
-                        Some(range) => range,
-                        None => continue,
-                    };
+                let (byte_start, byte_end) = match sourcepos_to_byte_range(&line_starts, sourcepos)
+                {
+                    Some(range) => range,
+                    None => continue,
+                };
                 if byte_end > markdown.len() {
                     continue;
                 }
@@ -585,5 +662,115 @@ pub(crate) fn rewrite_links(
     RewriteResult {
         markdown: result,
         changed: true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rewrite(markdown: &str, old: &str, new: &str) -> RewriteResult {
+        rewrite_links(markdown, old, new, &HashMap::new())
+    }
+
+    fn rewrite_with_map(
+        markdown: &str,
+        old: &str,
+        new: &str,
+        map: &[(&str, &str)],
+    ) -> RewriteResult {
+        let target_map: HashMap<String, String> = map
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        rewrite_links(markdown, old, new, &target_map)
+    }
+
+    // --- image link rewrite on note move ---
+
+    #[test]
+    fn image_link_is_rewritten_when_note_moves() {
+        // Note moves from docs/note.md to note.md
+        // Image was at .assets/img.png (vault root), previously linked as ../.assets/img.png
+        // After move to root, the correct relative link is .assets/img.png
+        let md = "![alt](../.assets/img.png)";
+        let result = rewrite(md, "docs/note.md", "note.md");
+        assert!(result.changed, "expected image link to be rewritten");
+        assert_eq!(result.markdown, "![alt](.assets/img.png)");
+    }
+
+    #[test]
+    fn image_link_is_rewritten_when_note_moves_deeper() {
+        // Note moves from note.md (root) to docs/note.md
+        // Image was at .assets/img.png, previously linked as .assets/img.png
+        // After move into docs/, correct relative link is ../.assets/img.png
+        let md = "![alt](.assets/img.png)";
+        let result = rewrite(md, "note.md", "docs/note.md");
+        assert!(result.changed, "expected image link to be rewritten");
+        assert_eq!(result.markdown, "![alt](../.assets/img.png)");
+    }
+
+    #[test]
+    fn image_link_unchanged_when_note_does_not_move() {
+        let md = "![alt](.assets/img.png)";
+        let result = rewrite(md, "note.md", "note.md");
+        assert!(!result.changed);
+        assert_eq!(result.markdown, md);
+    }
+
+    #[test]
+    fn image_alt_text_preserved_on_rewrite() {
+        let md = "![my screenshot](../.assets/screenshot.png)";
+        let result = rewrite(md, "docs/note.md", "note.md");
+        assert!(result.changed);
+        assert_eq!(result.markdown, "![my screenshot](.assets/screenshot.png)");
+    }
+
+    #[test]
+    fn image_link_with_scale_alt_preserved() {
+        // Alt text is a float (resize scale factor)
+        let md = "![1.06](../.assets/img.png)";
+        let result = rewrite(md, "docs/note.md", "note.md");
+        assert!(result.changed);
+        assert_eq!(result.markdown, "![1.06](.assets/img.png)");
+    }
+
+    #[test]
+    fn image_and_text_link_both_rewritten_together() {
+        let md = "See [link](../other.md) and ![img](../img.png)";
+        let map = &[("other.md", "other.md")];
+        let result = rewrite_with_map(md, "docs/note.md", "note.md", map);
+        assert!(result.changed);
+        assert!(result.markdown.contains("![img](img.png)"));
+    }
+
+    #[test]
+    fn external_image_url_not_rewritten() {
+        let md = "![logo](https://example.com/logo.png)";
+        let result = rewrite(md, "docs/note.md", "note.md");
+        assert!(!result.changed);
+        assert_eq!(result.markdown, md);
+    }
+
+    #[test]
+    fn co_located_image_link_with_explicit_prefix_rewritten_when_note_moves() {
+        // Note moves from docs/note.md to archive/note.md
+        // Image was co-located: docs/img.png, linked with explicit ./ prefix
+        // After move, link must traverse correctly to docs/img.png
+        let md = "![alt](./img.png)";
+        let result = rewrite(md, "docs/note.md", "archive/note.md");
+        assert!(result.changed);
+        assert_eq!(result.markdown, "![alt](../docs/img.png)");
+    }
+
+    #[test]
+    fn bare_image_link_treated_as_vault_root_relative_when_note_moves() {
+        // Bare image link (no ./ prefix) is treated as vault-root-relative
+        // Note moves from docs/note.md to archive/note.md
+        // img.png resolves to vault-root img.png, rewritten as ../img.png from archive/
+        let md = "![alt](img.png)";
+        let result = rewrite(md, "docs/note.md", "archive/note.md");
+        assert!(result.changed);
+        assert_eq!(result.markdown, "![alt](../img.png)");
     }
 }

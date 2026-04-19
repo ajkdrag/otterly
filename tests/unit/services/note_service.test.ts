@@ -1332,3 +1332,79 @@ describe("NoteService rename case-insensitive handling", () => {
     expect(result.status).toBe("conflict");
   });
 });
+
+describe("NoteService.save_pasted_image", () => {
+  function make_service() {
+    const vault_store = new VaultStore();
+    vault_store.set_vault(create_test_vault());
+    const notes_store = new NotesStore();
+    const editor_store = new EditorStore();
+    const op_store = new OpStore();
+    const notes_port = create_mock_notes_port();
+    const index_port = create_mock_index_port();
+    const write_image_asset = vi
+      .fn()
+      .mockResolvedValue(as_asset_path("result.png"));
+    const assets_port = {
+      resolve_asset_url: vi.fn(),
+      write_image_asset,
+    } as unknown as AssetsPort;
+    const editor_service = {
+      flush: vi.fn().mockReturnValue(null),
+      mark_clean: vi.fn(),
+      rename_buffer: vi.fn(),
+    } as unknown as EditorService;
+    const service = new NoteService(
+      notes_port,
+      index_port,
+      assets_port,
+      vault_store,
+      notes_store,
+      editor_store,
+      op_store,
+      editor_service,
+      () => 1,
+    );
+    return { service, write_image_asset };
+  }
+
+  const note_path = as_note_path("docs/note.md");
+  const image = {
+    bytes: new Uint8Array([1, 2, 3]),
+    mime_type: "image/png",
+    file_name: "screenshot.png",
+  };
+
+  it("passes attachment_folder when store_with_note is not set", async () => {
+    const { service, write_image_asset } = make_service();
+
+    await service.save_pasted_image(note_path, image, {
+      attachment_folder: "my-assets",
+    });
+
+    expect(write_image_asset).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ attachment_folder: "my-assets" }),
+    );
+    expect(write_image_asset).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ store_with_note: true }),
+    );
+  });
+
+  it("passes store_with_note and omits attachment_folder when store_with_note is true", async () => {
+    const { service, write_image_asset } = make_service();
+
+    await service.save_pasted_image(note_path, image, {
+      store_with_note: true,
+      attachment_folder: "ignored-folder",
+    });
+
+    const call_arg = write_image_asset.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(call_arg.store_with_note).toBe(true);
+    expect(call_arg.attachment_folder).toBeUndefined();
+  });
+});

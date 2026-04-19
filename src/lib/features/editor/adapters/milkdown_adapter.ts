@@ -310,6 +310,8 @@ export function create_milkdown_editor_port(args?: {
       let current_code_block_heights: CodeBlockHeights = [];
       let rendered_note_path = note_path;
       let rendered_vault_id = vault_id;
+      const resolved_url_cache = new Map<string, string>();
+      const pending_resolutions = new Set<string>();
 
       type BufferEntry = {
         state: EditorState;
@@ -340,8 +342,6 @@ export function create_milkdown_editor_port(args?: {
         .config((ctx) => {
           if (resolve_asset_url_for_vault) {
             const resolve = resolve_asset_url_for_vault;
-            const resolved_url_cache = new Map<string, string>();
-            const pending_resolutions = new Set<string>();
             const update_image_height = (
               img: HTMLImageElement,
               ratio: number,
@@ -791,6 +791,8 @@ export function create_milkdown_editor_port(args?: {
           );
           if (!is_same_buffer) {
             save_current_buffer();
+            resolved_url_cache.clear();
+            pending_resolutions.clear();
           }
 
           current_vault_id = next_config.vault_id;

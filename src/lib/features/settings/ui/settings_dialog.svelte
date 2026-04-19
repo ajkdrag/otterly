@@ -280,7 +280,29 @@
 
           <div class="SettingsDialog__section-content">
             <div class="SettingsDialog__row">
-              <span class="SettingsDialog__label">Attachment Folder</span>
+              <div class="SettingsDialog__label-group">
+                <span class="SettingsDialog__label"
+                  >Store New Attachments Next to Note</span
+                >
+                <span class="SettingsDialog__description"
+                  >Save new pasted and dropped attachments in the same folder as
+                  the note</span
+                >
+              </div>
+              <Switch.Root
+                checked={editor_settings.store_attachments_with_note}
+                onCheckedChange={(v: boolean) => {
+                  update("store_attachments_with_note", v);
+                }}
+              />
+            </div>
+            <div class="SettingsDialog__row">
+              <div class="SettingsDialog__label-group">
+                <span class="SettingsDialog__label">Attachment Folder</span>
+                <span class="SettingsDialog__description"
+                  >Used only when storing attachments next to the note is off</span
+                >
+              </div>
               <Input
                 type="text"
                 value={editor_settings.attachment_folder}
@@ -292,6 +314,7 @@
                 }}
                 class="w-48"
                 placeholder=".assets"
+                disabled={editor_settings.store_attachments_with_note}
               />
             </div>
             <div class="SettingsDialog__row">

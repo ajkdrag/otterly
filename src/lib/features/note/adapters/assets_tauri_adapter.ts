@@ -16,6 +16,7 @@ function build_write_image_asset_args(
     bytes: Array.from(input.image.bytes),
     custom_filename: input.custom_filename,
     attachment_folder: input.attachment_folder,
+    store_with_note: input.store_with_note,
   };
 }
 
