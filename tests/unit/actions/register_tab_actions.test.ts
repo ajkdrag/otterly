@@ -891,4 +891,68 @@ describe("register_tab_actions", () => {
       expect(stores.ui.filetree.expanded_paths.size).toBe(0);
     });
   });
+
+  describe("filetree scope", () => {
+    it("scopes explorer to a folder", async () => {
+      const { registry, stores } = create_tab_actions_harness();
+
+      await registry.execute(ACTION_IDS.filetree_scope_to_folder, "docs/specs");
+
+      expect(stores.ui.filetree_scoped_root_path).toBe("docs/specs");
+      expect(stores.ui.sidebar_view).toBe("explorer");
+    });
+
+    it("clears explorer scope", async () => {
+      const { registry, stores } = create_tab_actions_harness();
+      stores.ui.set_filetree_scoped_root_path("docs");
+
+      await registry.execute(ACTION_IDS.filetree_clear_scope);
+
+      expect(stores.ui.filetree_scoped_root_path).toBeNull();
+    });
+
+    it("remaps scope after folder rename", async () => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      stores.ui.rename_folder_dialog = {
+        open: true,
+        folder_path: "docs",
+        new_name: "guides",
+      };
+      stores.ui.set_filetree_scoped_root_path("docs/specs");
+      (services.folder as Record<string, unknown>).rename_folder = vi
+        .fn()
+        .mockResolvedValue({ status: "success" });
+      (services.folder as Record<string, unknown>).apply_folder_rename =
+        vi.fn();
+      (services.folder as Record<string, unknown>).rename_folder_index = vi
+        .fn()
+        .mockResolvedValue(undefined);
+
+      await registry.execute(ACTION_IDS.folder_confirm_rename);
+
+      expect(stores.ui.filetree_scoped_root_path).toBe("guides/specs");
+    });
+
+    it("clears scope when scoped folder is deleted", async () => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      stores.ui.delete_folder_dialog = {
+        open: true,
+        folder_path: "docs",
+        affected_note_count: 0,
+        affected_folder_count: 0,
+        status: "confirming",
+      };
+      stores.ui.set_filetree_scoped_root_path("docs/specs");
+      (services.folder as Record<string, unknown>).delete_folder = vi
+        .fn()
+        .mockResolvedValue({ status: "success" });
+      (services.folder as Record<string, unknown>).remove_notes_by_prefix = vi
+        .fn()
+        .mockResolvedValue(undefined);
+
+      await registry.execute(ACTION_IDS.folder_confirm_delete);
+
+      expect(stores.ui.filetree_scoped_root_path).toBeNull();
+    });
+  });
 });

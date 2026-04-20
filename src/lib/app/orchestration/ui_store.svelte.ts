@@ -285,6 +285,7 @@ export class UIStore {
     error_messages: SvelteMap<string, string>;
     pagination: SvelteMap<string, FolderPaginationState>;
   }>(initial_filetree());
+  filetree_scoped_root_path = $state<string | null>(null);
 
   image_paste_dialog = $state<{
     open: boolean;
@@ -422,6 +423,16 @@ export class UIStore {
     this.filetree_revealed_note_path = path;
   }
 
+  set_filetree_scoped_root_path(path: string | null) {
+    const normalized = path?.trim() ?? null;
+    this.filetree_scoped_root_path =
+      normalized && normalized.length > 0 ? normalized : null;
+  }
+
+  clear_filetree_scope() {
+    this.filetree_scoped_root_path = null;
+  }
+
   toggle_context_rail() {
     this.context_rail_open = !this.context_rail_open;
   }
@@ -466,6 +477,7 @@ export class UIStore {
     this.omnibar = { ...INITIAL_OMNIBAR };
     this.find_in_file = { ...INITIAL_FIND_IN_FILE };
     this.filetree = initial_filetree();
+    this.filetree_scoped_root_path = null;
     this.selected_items = new SvelteSet<string>();
     this.selection_anchor = null;
     this.image_paste_dialog = { ...INITIAL_IMAGE_PASTE_DIALOG };

@@ -16,6 +16,8 @@
     Star,
     StarOff,
     Copy,
+    Search,
+    X,
   } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
 
@@ -56,6 +58,9 @@
     on_request_create_note?: (() => void) | undefined;
     on_request_create_folder?: ((folder_path: string) => void) | undefined;
     on_toggle_star?: ((path: string) => void) | undefined;
+    scoped_root_path?: string | null;
+    on_scope_to_folder?: ((folder_path: string) => void) | undefined;
+    on_clear_scope?: (() => void) | undefined;
     selection_count?: number;
     all_selected_starred?: boolean;
     on_retry_load: (path: string) => void;
@@ -87,6 +92,9 @@
     on_request_create_note,
     on_request_create_folder,
     on_toggle_star,
+    scoped_root_path = null,
+    on_scope_to_folder,
+    on_clear_scope,
     selection_count = 1,
     all_selected_starred = false,
     on_retry_load,
@@ -163,6 +171,8 @@
       on_select_folder(node.path);
     }
   }
+
+  const can_scope = $derived(!!on_scope_to_folder || !!on_clear_scope);
 </script>
 
 {#snippet row_content()}
@@ -310,6 +320,28 @@
               <span>Star</span>
             {/if}
           </ContextMenu.Item>
+          {#if can_scope}
+            <ContextMenu.Separator />
+            {#if scoped_root_path === node.path}
+              <ContextMenu.Item onSelect={() => on_clear_scope?.()}>
+                <X class="mr-2 h-4 w-4" />
+                <span>Clear Scope</span>
+              </ContextMenu.Item>
+            {:else}
+              <ContextMenu.Item
+                onSelect={() => on_scope_to_folder?.(node.path)}
+              >
+                <Search class="mr-2 h-4 w-4" />
+                <span>Scope to this</span>
+              </ContextMenu.Item>
+              {#if scoped_root_path}
+                <ContextMenu.Item onSelect={() => on_clear_scope?.()}>
+                  <X class="mr-2 h-4 w-4" />
+                  <span>Clear Scope</span>
+                </ContextMenu.Item>
+              {/if}
+            {/if}
+          {/if}
           {#if on_request_rename_folder || on_request_delete_folder}
             <ContextMenu.Separator />
             {#if on_request_rename_folder}
