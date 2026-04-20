@@ -2,10 +2,12 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import {
+  clear_filetree_scope_if_removed,
   clear_folder_filetree_state,
   load_folder,
   remove_expanded_paths,
   remap_expanded_paths,
+  remap_path,
   remap_ui_paths_after_move,
   set_pagination,
   transform_filetree_paths,
@@ -255,6 +257,7 @@ export function register_folder_actions(input: ActionRegistrationInput) {
 
     close_delete_dialog(input);
     const parent_path = parent_folder_path(folder_path);
+    clear_filetree_scope_if_removed(input, folder_path);
     remove_expanded_paths(input, folder_path);
     clear_folder_filetree_state(input, parent_path);
 
@@ -306,6 +309,13 @@ export function register_folder_actions(input: ActionRegistrationInput) {
       stores.vault.bump_generation();
       services.folder.apply_folder_rename(folder_path, new_path);
       remap_expanded_paths(input, folder_path, new_path);
+      if (stores.ui.filetree_scoped_root_path) {
+        stores.ui.filetree_scoped_root_path = remap_path(
+          stores.ui.filetree_scoped_root_path,
+          folder_path,
+          new_path,
+        );
+      }
 
       clear_folder_filetree_state(input, folder_path);
       clear_folder_filetree_state(input, new_path);
@@ -405,6 +415,27 @@ export function register_folder_actions(input: ActionRegistrationInput) {
       label: "Clear File Tree Selection",
       execute: () => {
         stores.ui.clear_selected_items();
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.filetree_scope_to_folder,
+      label: "Scope File Tree To Folder",
+      execute: (folder_path: unknown) => {
+        const path = String(folder_path).trim();
+        if (!path) {
+          return;
+        }
+        stores.ui.set_filetree_scoped_root_path(path);
+        stores.ui.set_sidebar_view("explorer");
+      },
+    });
+
+    registry.register({
+      id: ACTION_IDS.filetree_clear_scope,
+      label: "Clear File Tree Scope",
+      execute: () => {
+        stores.ui.clear_filetree_scope();
       },
     });
   }

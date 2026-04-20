@@ -13,7 +13,7 @@
   import { ContextRail } from "$lib/features/links";
   import { SvelteSet } from "svelte/reactivity";
   import { build_filetree, sort_tree } from "$lib/features/folder";
-  import { flatten_filetree } from "$lib/features/folder";
+  import { flatten_filetree, scope_flat_tree } from "$lib/features/folder";
   import { as_note_path } from "$lib/shared/types/ids";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
@@ -77,6 +77,18 @@
       pagination: stores.ui.filetree.pagination,
     }),
   );
+
+  const scoped_flat_nodes = $derived.by(() =>
+    scope_flat_tree(flat_nodes, stores.ui.filetree_scoped_root_path),
+  );
+
+  const scoped_root_folder_name = $derived.by(() => {
+    const scoped_root_path = stores.ui.filetree_scoped_root_path;
+    if (!scoped_root_path) {
+      return null;
+    }
+    return scoped_root_path.split("/").at(-1) ?? scoped_root_path;
+  });
 
   const starred_nodes = $derived.by(() => {
     const starred_paths = stores.notes.starred_paths;
@@ -440,6 +452,29 @@
                       {/each}
                     </div>
                   </div>
+                  {#if stores.ui.sidebar_view === "explorer" && stores.ui.filetree_scoped_root_path && scoped_root_folder_name}
+                    <div
+                      class="SidebarScope"
+                      title={stores.ui.filetree_scoped_root_path}
+                    >
+                      <span class="SidebarScope__label">Scoped to:</span>
+                      <span class="SidebarScope__value"
+                        >{scoped_root_folder_name}</span
+                      >
+                      <button
+                        type="button"
+                        class="SidebarScope__clear"
+                        onclick={() => {
+                          void action_registry.execute(
+                            ACTION_IDS.filetree_clear_scope,
+                          );
+                        }}
+                        aria-label="Clear file tree scope"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  {/if}
                 </Sidebar.Header>
 
                 <Sidebar.Content class="overflow-hidden">
@@ -555,7 +590,7 @@
                   >
                     <Sidebar.GroupContent class="h-full">
                       <VirtualFileTree
-                        nodes={flat_nodes}
+                        nodes={scoped_flat_nodes}
                         selected_path={stores.ui.selected_folder_path}
                         revealed_note_path={stores.ui
                           .filetree_revealed_note_path}
@@ -609,6 +644,16 @@
                           void action_registry.execute(
                             ACTION_IDS.folder_request_create,
                             folder_path,
+                          )}
+                        scoped_root_path={stores.ui.filetree_scoped_root_path}
+                        on_scope_to_folder={(folder_path: string) =>
+                          void action_registry.execute(
+                            ACTION_IDS.filetree_scope_to_folder,
+                            folder_path,
+                          )}
+                        on_clear_scope={() =>
+                          void action_registry.execute(
+                            ACTION_IDS.filetree_clear_scope,
                           )}
                         on_toggle_star={toggle_star_for_selection}
                         on_retry_load={(path: string) =>
@@ -753,6 +798,39 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
+  }
+
+  .SidebarScope {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-block-end: 1px solid var(--border);
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
+  .SidebarScope__label {
+    flex-shrink: 0;
+  }
+
+  .SidebarScope__value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .SidebarScope__clear {
+    margin-inline-start: auto;
+    color: var(--muted-foreground);
+    transition: color var(--duration-fast) var(--ease-default);
+  }
+
+  .SidebarScope__clear:hover {
+    color: var(--foreground);
   }
 
   :global(.SidebarHeaderButton) {
