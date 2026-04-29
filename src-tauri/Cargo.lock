@@ -696,8 +696,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fac4744fb15ae8337dc853fee7fb3f4e48c0fbaa23d0afe49c447b4fab126118"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link 0.2.1",
 ]
 
@@ -2377,10 +2379,11 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leapgrownotes"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "blake3",
+ "chrono",
  "comrak",
  "filetime",
  "git2",

@@ -6,6 +6,7 @@
   import PlusIcon from "@lucide/svelte/icons/plus";
   import { HotkeyKey } from "$lib/features/hotkey";
   import { Button } from "$lib/components/ui/button";
+  import StatsDashboard from "$lib/features/stats/ui/stats_dashboard.svelte";
 
   const { stores, action_registry } = use_app_context();
 
@@ -32,31 +33,7 @@
   {#if open_note}
     <div use:mount_editor={open_note} class="NoteEditor__content"></div>
   {:else}
-    <div class="NoteEditor__empty">
-      <div class="NoteEditor__empty-content">
-        <div class="NoteEditor__empty-icon">
-          <FileTextIcon />
-        </div>
-        <p class="NoteEditor__empty-title">No note open</p>
-        <p class="NoteEditor__empty-hint">
-          Select a note from the sidebar or create a new one
-        </p>
-        <div class="NoteEditor__empty-actions">
-          <Button
-            variant="default"
-            size="sm"
-            onclick={() => void action_registry.execute(ACTION_IDS.note_create)}
-          >
-            <PlusIcon />
-            New Note
-          </Button>
-          {#if create_note_hotkey}
-            <span class="NoteEditor__empty-shortcut-label">or press</span>
-            <HotkeyKey hotkey={create_note_hotkey} />
-          {/if}
-        </div>
-      </div>
-    </div>
+    <StatsDashboard />
   {/if}
 </div>
 
