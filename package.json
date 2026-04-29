@@ -2,14 +2,15 @@
   "name": "leapgrownotes",
   "private": true,
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packageManager": "pnpm@10.27.0",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "version:bump": "node scripts/bump_version.mjs",
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "node scripts/bump_version.mjs && vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "pnpm lint:layering && oxlint . --type-aware",
