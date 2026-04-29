@@ -31,6 +31,7 @@
   let stats = $state<StatsHistory | null>(null);
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
+  let last_updated = $state<string | null>(null);
 
   async function load_stats() {
     const vault = stores.vault.vault;
@@ -41,6 +42,7 @@
       stats = await invoke("stats_get_history", {
         args: { vault_id: vault.id, limit: 30 },
       });
+      last_updated = new Date().toLocaleString();
     } catch (e) {
       error_msg = String(e);
     } finally {
@@ -138,7 +140,17 @@
     <div class="StatsDash__status">Open a vault to see statistics</div>
   {:else}
     <div class="StatsDash__content">
-      <h2 class="StatsDash__title">📊 Usage Statistics</h2>
+      <div class="StatsDash__header">
+        <h2 class="StatsDash__title">📊 Usage Statistics</h2>
+        <div class="StatsDash__header-actions">
+          <button class="StatsDash__refresh-btn" onclick={load_stats} disabled={loading}>
+            {loading ? "⏳" : "🔄"} Refresh
+          </button>
+          {#if last_updated}
+            <span class="StatsDash__updated-at">Last updated: {last_updated}</span>
+          {/if}
+        </div>
+      </div>
 
       <section class="StatsDash__section">
         <h3 class="StatsDash__section-title">Overview</h3>
@@ -298,10 +310,49 @@
     gap: var(--space-5);
   }
 
+  .StatsDash__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
   .StatsDash__title {
     font-size: var(--text-xl);
     font-weight: 700;
     margin: 0;
+  }
+
+  .StatsDash__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .StatsDash__refresh-btn {
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--foreground);
+    padding: 2px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .StatsDash__refresh-btn:hover {
+    background: var(--accent);
+  }
+
+  .StatsDash__refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .StatsDash__updated-at {
+    font-size: 10px;
+    color: var(--muted-foreground);
   }
 
   .StatsDash__section {
