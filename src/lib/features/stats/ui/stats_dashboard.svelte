@@ -40,10 +40,21 @@
     top_global_keywords: KeywordEntry[];
   }
 
+  interface VaultScanResult {
+    folder_count: number;
+    file_count: number;
+    total_size_bytes: number;
+    md_count: number;
+    code_count: number;
+    txt_count: number;
+    other_count: number;
+  }
+
   const { stores } = use_app_context();
 
   let stats = $state<StatsHistory | null>(null);
   let nlp_stats = $state<NlpAggregateStats | null>(null);
+  let vault_scan = $state<VaultScanResult | null>(null);
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
   let last_updated = $state<string | null>(null);
@@ -54,16 +65,20 @@
     loading = true;
     error_msg = null;
     try {
-      const [stats_result, nlp_result] = await Promise.all([
+      const [stats_result, nlp_result, scan_result] = await Promise.all([
         invoke<StatsHistory>("stats_get_history", {
           args: { vault_id: vault.id, limit: 30 },
         }),
         invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
           args: { vault_id: vault.id },
         }),
+        invoke<VaultScanResult>("stats_scan_vault", {
+          args: { vault_id: vault.id },
+        }),
       ]);
       stats = stats_result;
       nlp_stats = nlp_result;
+      vault_scan = scan_result;
       last_updated = new Date().toLocaleString();
     } catch (e) {
       error_msg = String(e);
@@ -142,6 +157,13 @@
     });
   }
 
+  function format_size(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
   function y_axis_ticks(data: number[], h: number): { y: number; label: string }[] {
     const max_val = Math.max(...data, 1);
     const ih = h - PAD.top - PAD.bottom;
@@ -174,8 +196,46 @@
         </div>
       </div>
 
+      {#if vault_scan}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">📁 Vault Contents</h3>
+          <div class="StatsDash__overview-grid">
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.folder_count}</span>
+              <span class="StatsDash__card-label">Folders</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.file_count}</span>
+              <span class="StatsDash__card-label">Files</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{format_size(vault_scan.total_size_bytes)}</span>
+              <span class="StatsDash__card-label">Total Size</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.md_count}</span>
+              <span class="StatsDash__card-label">Markdown</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.code_count}</span>
+              <span class="StatsDash__card-label">Code</span>
+            </div>
+          </div>
+          <div class="StatsDash__metrics">
+            <div class="StatsDash__metric-row">
+              <span>Text files (.txt)</span>
+              <span class="StatsDash__metric-value">{vault_scan.txt_count}</span>
+            </div>
+            <div class="StatsDash__metric-row">
+              <span>Other files</span>
+              <span class="StatsDash__metric-value">{vault_scan.other_count}</span>
+            </div>
+          </div>
+        </section>
+      {/if}
+
       <section class="StatsDash__section">
-        <h3 class="StatsDash__section-title">Overview</h3>
+        <h3 class="StatsDash__section-title">📊 Session Overview</h3>
         <div class="StatsDash__overview-grid">
           <div class="StatsDash__card">
             <span class="StatsDash__card-value">{stats.overview.total_sessions}</span>
@@ -188,14 +248,6 @@
           <div class="StatsDash__card">
             <span class="StatsDash__card-value">{stats.overview.total_files_read}</span>
             <span class="StatsDash__card-label">Files Read</span>
-          </div>
-          <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_folders}</span>
-            <span class="StatsDash__card-label">Folders</span>
-          </div>
-          <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_files}</span>
-            <span class="StatsDash__card-label">Total Files</span>
           </div>
         </div>
       </section>

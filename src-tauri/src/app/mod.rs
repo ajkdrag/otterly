@@ -103,6 +103,7 @@ pub fn run() {
             features::stats::commands::stats_file_opened,
             features::stats::commands::stats_file_read_complete,
             features::stats::commands::stats_get_history,
+            features::stats::commands::stats_scan_vault,
             features::git::service::git_has_repo,
             features::git::service::git_init_repo,
             features::git::service::git_status,

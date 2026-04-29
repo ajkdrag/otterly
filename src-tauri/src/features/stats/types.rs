@@ -22,6 +22,17 @@ pub struct VaultOverview {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultScanResult {
+    pub folder_count: i64,
+    pub file_count: i64,
+    pub total_size_bytes: u64,
+    pub md_count: i64,
+    pub code_count: i64,
+    pub txt_count: i64,
+    pub other_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatsHistory {
     pub sessions: Vec<SessionStats>,
     pub overview: VaultOverview,
