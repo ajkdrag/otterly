@@ -1,6 +1,6 @@
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
 
-export function otterly_asset_url(
+export function leapgrownotes_asset_url(
   vault_id: VaultId,
   asset_path: AssetPath,
 ): string {
@@ -8,5 +8,5 @@ export function otterly_asset_url(
     .split("/")
     .map((seg) => encodeURIComponent(seg))
     .join("/");
-  return `otterly-asset://vault/${vault_id}/${encoded}`;
+  return `leapgrownotes-asset://vault/${vault_id}/${encoded}`;
 }

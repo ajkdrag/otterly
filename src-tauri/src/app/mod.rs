@@ -6,7 +6,7 @@ include!(concat!(env!("OUT_DIR"), "/icon_stamp.rs"));
 
 pub fn run() {
     let _ = ICON_STAMP;
-    log::info!("Otterly starting");
+    log::info!("LeapGrowNotes starting");
 
     let log_level = if cfg!(debug_assertions) {
         log::LevelFilter::Debug
@@ -20,7 +20,7 @@ pub fn run() {
         tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
     ]);
 
-    if std::env::var("OTTERLY_LOG_FORMAT").as_deref() == Ok("json") {
+    if std::env::var("LEAPGROWNOTES_LOG_FORMAT").as_deref() == Ok("json") {
         log_builder = log_builder.format(|callback, message, record| {
             callback.finish(format_args!(
                 r#"{{"level":"{}","target":"{}","message":"{}"}}"#,
@@ -106,7 +106,7 @@ pub fn run() {
             features::git::service::git_restore_file,
             features::git::service::git_create_tag
         ])
-        .register_uri_scheme_protocol("otterly-asset", |ctx, req| {
+        .register_uri_scheme_protocol("leapgrownotes-asset", |ctx, req| {
             shared::storage::handle_asset_request(ctx.app_handle(), req)
         })
         .run(tauri::generate_context!())

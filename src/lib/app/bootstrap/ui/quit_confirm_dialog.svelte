@@ -20,7 +20,7 @@
 >
   <Dialog.Content class="max-w-md">
     <Dialog.Header>
-      <Dialog.Title>Quit Otterly?</Dialog.Title>
+      <Dialog.Title>Quit LeapGrowNotes?</Dialog.Title>
       <Dialog.Description>
         Your current workspace session will be restored the next time you open
         this vault.

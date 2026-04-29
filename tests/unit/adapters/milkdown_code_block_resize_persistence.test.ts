@@ -47,7 +47,7 @@ dada
     let first_pre = code_blocks[0]?.querySelector("pre");
     let second_pre = code_blocks[1]?.querySelector("pre");
 
-    expect(session.get_markdown()).not.toContain("otterly:code-block");
+    expect(session.get_markdown()).not.toContain("leapgrownotes:code-block");
     expect((first_pre as HTMLElement).style.height).toBe("245px");
     expect((second_pre as HTMLElement).style.height).toBe("381px");
 

@@ -3,7 +3,7 @@ import type { TabStore } from "$lib/features/tab";
 import type { Vault } from "$lib/shared/types/vault";
 import type { Tab } from "$lib/features/tab";
 
-const APP_NAME = "otterly";
+const APP_NAME = "LeapGrowNotes";
 
 export function resolve_window_title(
   vault: Vault | null,

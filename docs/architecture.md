@@ -1,8 +1,8 @@
 # Architecture
 
-## What is Otterly?
+## What is LeapGrowNotes?
 
-Otterly is a desktop note-taking app built with **Tauri** (Rust backend) and **SvelteKit** (TypeScript frontend, Svelte 5). Notes are stored as local Markdown files organized into vaults. The app provides rich editing (ProseMirror), full-text search (SQLite FTS), wiki-style linking, tabs, git versioning, and theming. All state management lives on the frontend; the Rust backend is a thin IPC layer exposing native capabilities.
+LeapGrowNotes is a desktop note-taking app built with **Tauri** (Rust backend) and **SvelteKit** (TypeScript frontend, Svelte 5). Notes are stored as local Markdown files organized into vaults. The app provides rich editing (ProseMirror), full-text search (SQLite FTS), wiki-style linking, tabs, git versioning, and theming. All state management lives on the frontend; the Rust backend is a thin IPC layer exposing native capabilities.
 
 ## How is it built?
 

@@ -19,7 +19,7 @@ const BOLD_WEIGHT_MAP: Record<string, string> = {
   "color-accent": "600",
 };
 
-const THEME_CACHE_KEY = "otterly_active_theme_cache";
+const THEME_CACHE_KEY = "leapgrownotes_active_theme_cache";
 
 function apply_optional(
   entries: [string, string][],

@@ -14,7 +14,7 @@ static TEST_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 fn mk_temp_dir() -> PathBuf {
     let counter = TEST_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!(
-        "otterly-notes-test-{}-{}",
+        "leapgrownotes-notes-test-{}-{}",
         storage::now_ms(),
         counter
     ));

@@ -1,5 +1,5 @@
 [package]
-name = "otterly"
+name = "leapgrownotes"
 version = "0.3.0"
 description = "Local-first markdown vault"
 authors = ["altamkhan"]
@@ -7,11 +7,11 @@ edition = "2021"
 autotests = false
 
 [lib]
-name = "otterly_lib"
+name = "leapgrownotes_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "otterly"
+name = "leapgrownotes"
 path = "src/main.rs"
 
 [build-dependencies]

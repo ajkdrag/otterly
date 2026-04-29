@@ -2376,6 +2376,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "leapgrownotes"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "comrak",
+ "filetime",
+ "git2",
+ "log",
+ "mime_guess",
+ "notify",
+ "openssl",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-log",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+ "tempfile",
+ "tokio",
+ "walkdir",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3104,34 +3132,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "otterly"
-version = "0.2.2"
-dependencies = [
- "anyhow",
- "blake3",
- "comrak",
- "filetime",
- "git2",
- "log",
- "mime_guess",
- "notify",
- "openssl",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-log",
- "tauri-plugin-opener",
- "tauri-plugin-updater",
- "tauri-plugin-window-state",
- "tempfile",
- "tokio",
- "walkdir",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 # UI Design System
 
-This document defines the design system, conventions, and standards for otterly's user interface. Follow these guidelines when adding or updating UI components.
+This document defines the design system, conventions, and standards for LeapGrowNotes's user interface. Follow these guidelines when adding or updating UI components.
 
 ---
 

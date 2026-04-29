@@ -1,6 +1,6 @@
 import type { AssetsPort } from "$lib/features/note/ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
-import { otterly_asset_url } from "$lib/features/note/domain/asset_url";
+import { leapgrownotes_asset_url } from "$lib/features/note/domain/asset_url";
 import { tauri_invoke } from "$lib/shared/adapters/tauri_invoke";
 import { as_asset_path } from "$lib/shared/types/ids";
 
@@ -23,7 +23,7 @@ function build_write_image_asset_args(
 export function create_assets_tauri_adapter(): AssetsPort {
   return {
     resolve_asset_url(vault_id: VaultId, asset_path: AssetPath) {
-      return otterly_asset_url(vault_id, asset_path);
+      return leapgrownotes_asset_url(vault_id, asset_path);
     },
     async write_image_asset(vault_id, input) {
       const asset_path = await tauri_invoke<string>("write_image_asset", {
