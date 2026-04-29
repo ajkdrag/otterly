@@ -97,6 +97,7 @@ pub fn run() {
             features::vault_settings::service::get_vault_setting,
             features::vault_settings::service::set_vault_setting,
             features::nlp::commands::nlp_analyze_note,
+            features::nlp::commands::nlp_get_aggregate_stats,
             features::stats::commands::stats_start_session,
             features::stats::commands::stats_end_session,
             features::stats::commands::stats_file_opened,

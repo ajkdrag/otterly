@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use super::{analysis, cache, types::NlpAnalysis};
+use super::{analysis, cache, stats, types::NlpAnalysis};
 use crate::shared::storage::vault_path;
 
 #[derive(serde::Deserialize)]
@@ -36,4 +36,18 @@ pub fn nlp_analyze_note(app: AppHandle, args: AnalyzeNoteArgs) -> Result<NlpAnal
     }
 
     Ok(result)
+}
+
+#[derive(serde::Deserialize)]
+pub struct NlpStatsArgs {
+    pub vault_id: String,
+}
+
+#[tauri::command]
+pub fn nlp_get_aggregate_stats(
+    app: AppHandle,
+    args: NlpStatsArgs,
+) -> Result<stats::NlpAggregateStats, String> {
+    let vault_root = vault_path(&app, &args.vault_id)?;
+    stats::get_nlp_aggregate(&vault_root)
 }

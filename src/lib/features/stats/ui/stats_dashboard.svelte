@@ -26,9 +26,24 @@
     overview: VaultOverview;
   }
 
+  interface KeywordEntry {
+    word: string;
+    count: number;
+  }
+
+  interface NlpAggregateStats {
+    total_files_analyzed: number;
+    total_word_count: number;
+    total_char_count: number;
+    total_unique_keywords: number;
+    avg_vocabulary_richness: number;
+    top_global_keywords: KeywordEntry[];
+  }
+
   const { stores } = use_app_context();
 
   let stats = $state<StatsHistory | null>(null);
+  let nlp_stats = $state<NlpAggregateStats | null>(null);
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
   let last_updated = $state<string | null>(null);
@@ -39,9 +54,16 @@
     loading = true;
     error_msg = null;
     try {
-      stats = await invoke("stats_get_history", {
-        args: { vault_id: vault.id, limit: 30 },
-      });
+      const [stats_result, nlp_result] = await Promise.all([
+        invoke<StatsHistory>("stats_get_history", {
+          args: { vault_id: vault.id, limit: 30 },
+        }),
+        invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
+          args: { vault_id: vault.id },
+        }),
+      ]);
+      stats = stats_result;
+      nlp_stats = nlp_result;
       last_updated = new Date().toLocaleString();
     } catch (e) {
       error_msg = String(e);
@@ -177,6 +199,42 @@
           </div>
         </div>
       </section>
+
+      {#if nlp_stats && nlp_stats.total_files_analyzed > 0}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">🧠 NLP Knowledge Base</h3>
+          <div class="StatsDash__overview-grid">
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{nlp_stats.total_files_analyzed}</span>
+              <span class="StatsDash__card-label">Analyzed</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{nlp_stats.total_word_count.toLocaleString()}</span>
+              <span class="StatsDash__card-label">Total Words</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{nlp_stats.total_char_count.toLocaleString()}</span>
+              <span class="StatsDash__card-label">Total Chars</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{nlp_stats.total_unique_keywords}</span>
+              <span class="StatsDash__card-label">Keywords</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{(nlp_stats.avg_vocabulary_richness * 100).toFixed(1)}%</span>
+              <span class="StatsDash__card-label">Avg Richness</span>
+            </div>
+          </div>
+          {#if nlp_stats.top_global_keywords.length > 0}
+            <div class="StatsDash__keywords">
+              <span class="StatsDash__keywords-label">Top Keywords:</span>
+              {#each nlp_stats.top_global_keywords.slice(0, 10) as kw}
+                <span class="StatsDash__keyword-tag">{kw.word} ({kw.count})</span>
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/if}
 
       {#if stats.sessions.length > 1}
         {@const reversed = [...stats.sessions].reverse()}
@@ -466,5 +524,27 @@
 
   .StatsDash__table tr:hover td {
     background: var(--muted);
+  }
+
+  .StatsDash__keywords {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .StatsDash__keywords-label {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-weight: 600;
+  }
+
+  .StatsDash__keyword-tag {
+    font-size: 11px;
+    padding: 1px 8px;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--foreground);
   }
 </style>
