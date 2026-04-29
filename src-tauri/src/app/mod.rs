@@ -96,6 +96,7 @@ pub fn run() {
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,
             features::vault_settings::service::set_vault_setting,
+            features::nlp::commands::nlp_analyze_note,
             features::git::service::git_has_repo,
             features::git::service::git_init_repo,
             features::git::service::git_status,

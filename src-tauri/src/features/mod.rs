@@ -1,4 +1,5 @@
 pub mod git;
+pub mod nlp;
 pub mod notes;
 pub mod search;
 pub mod settings;
