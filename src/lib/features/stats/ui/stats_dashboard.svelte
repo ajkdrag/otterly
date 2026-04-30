@@ -173,6 +173,15 @@
     }
   }
 
+  function format_datetime(iso: string): string {
+    try {
+      const d = new Date(iso);
+      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+    } catch {
+      return iso.slice(0, 16);
+    }
+  }
+
   function format_duration(seconds: number | null): string {
     if (!seconds) return "-";
     if (seconds < 60) return `${seconds}s`;
@@ -524,25 +533,27 @@
 
       {#if stats.sessions.length > 0}
         <section class="StatsDash__section">
-          <h3 class="StatsDash__section-title">📋 Recent Sessions</h3>
+          <h3 class="StatsDash__section-title">📋 Recent Sessions ({stats.sessions.length})</h3>
           <div class="StatsDash__table-wrap">
             <table class="StatsDash__table">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Started</th>
                   <th>Duration</th>
                   <th>Opened</th>
                   <th>Read</th>
+                  <th>Folders</th>
                   <th>Files</th>
                 </tr>
               </thead>
               <tbody>
-                {#each stats.sessions.slice(0, 10) as session}
+                {#each stats.sessions.slice(0, 15) as session}
                   <tr>
-                    <td>{format_date(session.started_at)}</td>
+                    <td>{format_datetime(session.started_at)}</td>
                     <td>{format_duration(session.duration_seconds)}</td>
                     <td>{session.files_opened}</td>
                     <td>{session.files_read_complete}</td>
+                    <td>{session.folders_count}</td>
                     <td>{session.files_count}</td>
                   </tr>
                 {/each}
