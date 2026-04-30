@@ -9,6 +9,7 @@ pub struct StartSessionArgs {
     pub session_id: String,
     pub folders_count: i64,
     pub files_count: i64,
+    pub ip_address: Option<String>,
 }
 
 #[tauri::command]
@@ -16,7 +17,7 @@ pub fn stats_start_session(app: AppHandle, args: StartSessionArgs) -> Result<(),
     let vault_root = vault_path(&app, &args.vault_id)?;
     let conn = db::open_stats_db(&vault_root)?;
     let now = chrono::Utc::now().to_rfc3339();
-    db::create_session(&conn, &args.session_id, &now, args.folders_count, args.files_count)?;
+    db::create_session(&conn, &args.session_id, &now, args.folders_count, args.files_count, args.ip_address.as_deref())?;
     log::info!("Stats session started: {}", args.session_id);
     Ok(())
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { tracked_invoke } from "$lib/features/nlp_kernal";
@@ -13,6 +13,7 @@
     files_count: number;
     files_opened: number;
     files_read_complete: number;
+    ip_address: string | null;
   }
 
   interface VaultOverview {
@@ -26,6 +27,13 @@
   interface StatsHistory {
     sessions: SessionStats[];
     overview: VaultOverview;
+  }
+
+  interface PointsTransaction {
+    action_type: string;
+    points: number;
+    description: string;
+    created_at: string;
   }
 
   interface KeywordEntry {
@@ -68,6 +76,7 @@
   let nlp_stats = $state<NlpAggregateStats | null>(null);
   let vault_scan = $state<VaultScanResult | null>(null);
   let points = $state<PointsAccount | null>(null);
+  let points_transactions = $state<PointsTransaction[]>([]);
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
   let last_updated = $state<string | null>(null);
@@ -75,8 +84,36 @@
   const session_id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const session_start_time = Date.now();
   let session_started = false;
+
+  onDestroy(() => {
+    const vault = stores.vault.vault;
+    if (session_started && vault) {
+      invoke("stats_end_session", {
+        args: { vault_id: vault.id, session_id },
+      }).catch(() => {});
+    }
+  });
   let current_files_opened = $state(0);
   let current_files_set = new Set<string>();
+
+  async function get_local_ip(): Promise<string | null> {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      return await new Promise((resolve) => {
+        const timeout = setTimeout(() => { pc.close(); resolve(null); }, 1000);
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) return;
+          const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (m) { clearTimeout(timeout); pc.close(); resolve(m[1]); }
+        };
+      });
+    } catch {
+      return null;
+    }
+  }
 
   async function start_session_if_needed(
     vault_id: string,
@@ -84,6 +121,7 @@
   ) {
     if (session_started) return;
     session_started = true;
+    const ip_address = await get_local_ip();
     try {
       await invoke("stats_start_session", {
         args: {
@@ -91,6 +129,7 @@
           session_id,
           folders_count: scan.folder_count,
           files_count: scan.file_count,
+          ip_address,
         },
       });
     } catch {
@@ -122,10 +161,16 @@
       stats = stats_result;
       nlp_stats = nlp_result;
 
-      const pts = await invoke<PointsAccount>("points_get_account", {
-        args: { vault_id: vault.id },
-      });
+      const [pts, txns] = await Promise.all([
+        invoke<PointsAccount>("points_get_account", {
+          args: { vault_id: vault.id },
+        }),
+        invoke<PointsTransaction[]>("points_get_transactions", {
+          args: { vault_id: vault.id, limit: 500 },
+        }),
+      ]);
       points = pts;
+      points_transactions = txns;
 
       await invoke("points_award", {
         args: { vault_id: vault.id, action: "app_open" },
@@ -176,6 +221,14 @@
     } catch {
       return iso.slice(5, 10);
     }
+  }
+
+  function session_points_earned(session: SessionStats): number {
+    const start = session.started_at;
+    const end = session.ended_at ?? new Date().toISOString();
+    return points_transactions
+      .filter((tx) => tx.created_at >= start && tx.created_at <= end)
+      .reduce((sum, tx) => sum + tx.points, 0);
   }
 
   function format_datetime(iso: string): string {
@@ -651,7 +704,7 @@
       {#if stats.sessions.length > 0}
         <section class="StatsDash__section">
           <h3 class="StatsDash__section-title">
-            📋 Recent Sessions ({stats.sessions.length})
+            📋 Recent Sessions (showing {Math.min(10, stats.sessions.length)} of {stats.sessions.length})
           </h3>
           <div class="StatsDash__table-wrap">
             <table class="StatsDash__table">
@@ -659,21 +712,26 @@
                 <tr>
                   <th>Started</th>
                   <th>Duration</th>
-                  <th>Opened</th>
-                  <th>Read</th>
+                  <th>IP</th>
                   <th>Folders</th>
                   <th>Files</th>
+                  <th>Opened</th>
+                  <th>Read</th>
+                  <th>Points</th>
                 </tr>
               </thead>
               <tbody>
-                {#each stats.sessions.slice(0, 15) as session}
+                {#each stats.sessions.slice(0, 10) as session}
+                  {@const earned = session_points_earned(session)}
                   <tr>
                     <td>{format_datetime(session.started_at)}</td>
                     <td>{format_duration(session.duration_seconds)}</td>
-                    <td>{session.files_opened}</td>
-                    <td>{session.files_read_complete}</td>
+                    <td class="StatsDash__td-ip">{session.ip_address ?? "-"}</td>
                     <td>{session.folders_count}</td>
                     <td>{session.files_count}</td>
+                    <td>{session.files_opened}</td>
+                    <td>{session.files_read_complete}</td>
+                    <td class="StatsDash__td-points">{earned > 0 ? `+${earned}` : "-"}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -986,5 +1044,21 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     color: var(--foreground);
+  }
+
+  .StatsDash__metric-value {
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  .StatsDash__td-ip {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__td-points {
+    font-weight: 600;
+    color: var(--interactive);
   }
 </style>

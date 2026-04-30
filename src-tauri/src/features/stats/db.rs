@@ -30,7 +30,8 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             folders_count INTEGER NOT NULL DEFAULT 0,
             files_count INTEGER NOT NULL DEFAULT 0,
             files_opened INTEGER NOT NULL DEFAULT 0,
-            files_read_complete INTEGER NOT NULL DEFAULT 0
+            files_read_complete INTEGER NOT NULL DEFAULT 0,
+            ip_address TEXT
         );
         CREATE TABLE IF NOT EXISTS file_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,12 +52,15 @@ pub fn create_session(
     started_at: &str,
     folders_count: i64,
     files_count: i64,
+    ip_address: Option<&str>,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO sessions (session_id, started_at, folders_count, files_count) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![session_id, started_at, folders_count, files_count],
+        "INSERT OR REPLACE INTO sessions (session_id, started_at, folders_count, files_count, ip_address) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![session_id, started_at, folders_count, files_count, ip_address],
     )
     .map_err(|e| e.to_string())?;
+    // Migration: add ip_address column if it doesn't exist yet
+    let _ = conn.execute_batch("ALTER TABLE sessions ADD COLUMN ip_address TEXT");
     Ok(())
 }
 
@@ -108,9 +112,10 @@ pub fn record_file_read_complete(
 }
 
 pub fn get_stats_history(conn: &Connection, limit: i64) -> Result<StatsHistory, String> {
+    let _ = conn.execute_batch("ALTER TABLE sessions ADD COLUMN ip_address TEXT");
     let mut stmt = conn
         .prepare(
-            "SELECT session_id, started_at, ended_at, duration_seconds, folders_count, files_count, files_opened, files_read_complete
+            "SELECT session_id, started_at, ended_at, duration_seconds, folders_count, files_count, files_opened, files_read_complete, ip_address
              FROM sessions ORDER BY started_at DESC LIMIT ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -126,6 +131,7 @@ pub fn get_stats_history(conn: &Connection, limit: i64) -> Result<StatsHistory, 
                 files_count: row.get(5)?,
                 files_opened: row.get(6)?,
                 files_read_complete: row.get(7)?,
+                ip_address: row.get(8).ok().flatten(),
             })
         })
         .map_err(|e| e.to_string())?

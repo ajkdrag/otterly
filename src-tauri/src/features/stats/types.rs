@@ -10,6 +10,7 @@ pub struct SessionStats {
     pub files_count: i64,
     pub files_opened: i64,
     pub files_read_complete: i64,
+    pub ip_address: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
