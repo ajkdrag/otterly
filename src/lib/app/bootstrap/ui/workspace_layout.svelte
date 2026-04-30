@@ -26,6 +26,7 @@
     Star,
   } from "@lucide/svelte";
   import StatsOverlay from "$lib/features/stats/ui/stats_overlay.svelte";
+  import { ModulesPanel } from "$lib/features/nlp_kernal";
 
   const { stores, action_registry } = use_app_context();
 
@@ -395,6 +396,16 @@
             "dashboard",
           );
         }}
+        on_open_modules={() => {
+          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "modules") {
+            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
+            return;
+          }
+          void action_registry.execute(
+            ACTION_IDS.ui_set_sidebar_view,
+            "modules",
+          );
+        }}
         on_open_stats={() => {
           stats_overlay_open = !stats_overlay_open;
         }}
@@ -421,6 +432,8 @@
                       <span class="SidebarHeader__title">Starred</span>
                     {:else if stores.ui.sidebar_view === "dashboard"}
                       <span class="SidebarHeader__title">Dashboard</span>
+                    {:else if stores.ui.sidebar_view === "modules"}
+                      <span class="SidebarHeader__title">System Modules</span>
                     {:else}
                       <button
                         type="button"
@@ -565,6 +578,14 @@
                             <mod.default />
                           {/await}
                         {/if}
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
+                  {#if stores.ui.sidebar_view === "modules"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        <ModulesPanel />
                       </Sidebar.GroupContent>
                     </Sidebar.Group>
                   {/if}
