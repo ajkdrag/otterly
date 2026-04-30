@@ -18,7 +18,11 @@
     if (!el || !stores.editor.open_note) return;
     const at_bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
     const note_path = stores.editor.open_note.meta.path;
-    if (at_bottom && el.scrollHeight > el.clientHeight + 200 && confetti_fired_for !== note_path) {
+    if (
+      at_bottom &&
+      el.scrollHeight > el.clientHeight + 200 &&
+      confetti_fired_for !== note_path
+    ) {
       confetti_fired_for = note_path;
       confetti({
         particleCount: 100,

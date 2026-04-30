@@ -162,8 +162,12 @@
   $effect(() => {
     const vault = stores.vault.vault;
     if (vault) {
-      invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
-        .then((r) => { pts_badge = r; })
+      invoke<PointsBadge>("points_get_account", {
+        args: { vault_id: vault.id },
+      })
+        .then((r) => {
+          pts_badge = r;
+        })
         .catch(() => {});
     }
   });
@@ -173,18 +177,42 @@
     const vault = stores.vault.vault;
     if (tab && vault && !awarded_files.has(tab.note_path)) {
       awarded_files.add(tab.note_path);
-      invoke<{ level_up: boolean; new_level: number; new_title: string }>("points_award", {
-        args: { vault_id: vault.id, action: "file_open", file_path: tab.note_path },
-      })
+      invoke<{ level_up: boolean; new_level: number; new_title: string }>(
+        "points_award",
+        {
+          args: {
+            vault_id: vault.id,
+            action: "file_open",
+            file_path: tab.note_path,
+          },
+        },
+      )
         .then((result) => {
-          invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
-            .then((r) => { pts_badge = r; })
+          invoke<PointsBadge>("points_get_account", {
+            args: { vault_id: vault.id },
+          })
+            .then((r) => {
+              pts_badge = r;
+            })
             .catch(() => {});
           if (result?.level_up) {
-            const intensity = result.new_level >= 17 ? 200 : result.new_level >= 10 ? 150 : 100;
-            confetti({ particleCount: intensity, spread: 80, origin: { y: 0.3 } });
+            const intensity =
+              result.new_level >= 17 ? 200 : result.new_level >= 10 ? 150 : 100;
+            confetti({
+              particleCount: intensity,
+              spread: 80,
+              origin: { y: 0.3 },
+            });
             if (result.new_level >= 10) {
-              setTimeout(() => confetti({ particleCount: intensity, spread: 100, origin: { y: 0.5 } }), 500);
+              setTimeout(
+                () =>
+                  confetti({
+                    particleCount: intensity,
+                    spread: 100,
+                    origin: { y: 0.5 },
+                  }),
+                500,
+              );
             }
           }
         })

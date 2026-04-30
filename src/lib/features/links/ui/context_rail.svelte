@@ -1,6 +1,6 @@
 <script lang="ts">
   import LinksPanel from "$lib/features/links/ui/links_panel.svelte";
-  import NlpPanel from "$lib/features/nlp/ui/nlp_panel.svelte";
+  import { NlpPanel } from "$lib/features/nlp_kernal";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
 
   const { stores } = use_app_context();

@@ -27,10 +27,7 @@ writeFileSync(tauri_conf_path, JSON.stringify(tauri_conf, null, 2) + "\n");
 
 const cargo_path = resolve(root, "src-tauri/Cargo.toml");
 let cargo = readFileSync(cargo_path, "utf-8");
-cargo = cargo.replace(
-  /^version = ".*"/m,
-  `version = "${new_version}"`,
-);
+cargo = cargo.replace(/^version = ".*"/m, `version = "${new_version}"`);
 writeFileSync(cargo_path, cargo);
 
 console.log(`Version bumped: ${old_version} → ${new_version}`);

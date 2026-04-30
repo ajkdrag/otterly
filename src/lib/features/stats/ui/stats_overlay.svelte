@@ -81,7 +81,9 @@
     border-radius: var(--radius-sm);
     color: var(--muted-foreground);
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
 
   .StatsOverlay__close:hover {

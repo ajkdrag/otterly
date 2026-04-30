@@ -11,14 +11,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg",
-      "nsis",
-      "msi",
-      "appimage",
-      "deb"
-    ],
+    "targets": ["app", "dmg", "nsis", "msi", "appimage", "deb"],
     "createUpdaterArtifacts": true,
     "windows": {
       "signCommand": "pwsh -NoProfile -ExecutionPolicy Bypass -File ../scripts/sign_windows.ps1 %1"

@@ -40,7 +40,9 @@ describe("window_title.reactor", () => {
     });
 
     it("returns app name when no vault is open even with active tab", () => {
-      expect(resolve_window_title(null, mock_tab("notes"))).toBe("LeapGrowNotes");
+      expect(resolve_window_title(null, mock_tab("notes"))).toBe(
+        "LeapGrowNotes",
+      );
       expect(resolve_window_title(null, mock_tab("notes"), "0.1.0")).toBe(
         "LeapGrowNotes v0.1.0",
       );

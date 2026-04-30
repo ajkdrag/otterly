@@ -26,14 +26,14 @@ LeapGrowNotes 是一个本地优先的个人知识库应用，支持 Markdown、
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | SvelteKit + Svelte 5 + TypeScript |
-| 编辑器 | Milkdown (ProseMirror) + CodeMirror 6 |
-| 桌面打包 | Tauri 2 |
-| 后端 | Rust |
-| 数据库 | SQLite + FTS5 |
-| Git | git2 (Rust) + isomorphic-git (JS) |
+| 层级     | 技术                                  |
+| -------- | ------------------------------------- |
+| 前端     | SvelteKit + Svelte 5 + TypeScript     |
+| 编辑器   | Milkdown (ProseMirror) + CodeMirror 6 |
+| 桌面打包 | Tauri 2                               |
+| 后端     | Rust                                  |
+| 数据库   | SQLite + FTS5                         |
+| Git      | git2 (Rust) + isomorphic-git (JS)     |
 
 ## 开发
 

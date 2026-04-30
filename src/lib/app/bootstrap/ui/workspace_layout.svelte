@@ -558,7 +558,8 @@
                   {#if stores.ui.sidebar_view === "stats"}
                     <Sidebar.Group class="h-full">
                       <Sidebar.GroupContent class="h-full">
-                        {@const StatsDashboard = stores.ui.sidebar_view === "stats"}
+                        {@const StatsDashboard =
+                          stores.ui.sidebar_view === "stats"}
                         {#if StatsDashboard}
                           {#await import("$lib/features/stats/ui/stats_dashboard.svelte") then mod}
                             <mod.default />

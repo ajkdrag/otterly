@@ -39,7 +39,9 @@ export function create_window_title_reactor(
   let version: string | undefined;
   get_app_version().then((v) => {
     version = v;
-    set_title(resolve_window_title(vault_store.vault, tab_store.active_tab, version));
+    set_title(
+      resolve_window_title(vault_store.vault, tab_store.active_tab, version),
+    );
   });
 
   return $effect.root(() => {

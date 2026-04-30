@@ -76,7 +76,10 @@
   let current_files_opened = $state(0);
   let current_files_set = new Set<string>();
 
-  async function start_session_if_needed(vault_id: string, scan: VaultScanResult) {
+  async function start_session_if_needed(
+    vault_id: string,
+    scan: VaultScanResult,
+  ) {
     if (session_started) return;
     session_started = true;
     try {
@@ -195,11 +198,7 @@
   const CHART_H = 140;
   const PAD = { top: 10, right: 10, bottom: 25, left: 35 };
 
-  function make_line_path(
-    data: number[],
-    w: number,
-    h: number,
-  ): string {
+  function make_line_path(data: number[], w: number, h: number): string {
     if (data.length === 0) return "";
     const max_val = Math.max(...data, 1);
     const iw = w - PAD.left - PAD.right;
@@ -240,23 +239,39 @@
   function format_size(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
   const pie_data = $derived.by(() => {
     if (!vault_scan) return [];
     return [
-      { label: "Markdown", count: vault_scan.md_count, color: "var(--interactive)" },
+      {
+        label: "Markdown",
+        count: vault_scan.md_count,
+        color: "var(--interactive)",
+      },
       { label: "Code", count: vault_scan.code_count, color: "#22c55e" },
       { label: "Text", count: vault_scan.txt_count, color: "#f59e0b" },
-      { label: "Other", count: vault_scan.other_count, color: "var(--muted-foreground)" },
-    ].filter(d => d.count > 0);
+      {
+        label: "Other",
+        count: vault_scan.other_count,
+        color: "var(--muted-foreground)",
+      },
+    ].filter((d) => d.count > 0);
   });
   const pie_total = $derived(pie_data.reduce((s, d) => s + d.count, 0));
 
-  function pie_slice_path(i: number, cx: number, cy: number, r: number): string {
-    const start_angle = pie_data.slice(0, i).reduce((s, d) => s + (d.count / pie_total) * 360, 0);
+  function pie_slice_path(
+    i: number,
+    cx: number,
+    cy: number,
+    r: number,
+  ): string {
+    const start_angle = pie_data
+      .slice(0, i)
+      .reduce((s, d) => s + (d.count / pie_total) * 360, 0);
     const sweep = (pie_data[i]!.count / pie_total) * 360;
     if (sweep >= 359.9) return "";
     const start_rad = ((start_angle - 90) * Math.PI) / 180;
@@ -269,7 +284,10 @@
     return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
   }
 
-  function y_axis_ticks(data: number[], h: number): { y: number; label: string }[] {
+  function y_axis_ticks(
+    data: number[],
+    h: number,
+  ): { y: number; label: string }[] {
     const max_val = Math.max(...data, 1);
     const ih = h - PAD.top - PAD.bottom;
     const ticks = [0, Math.round(max_val / 2), max_val];
@@ -292,11 +310,17 @@
       <div class="StatsDash__header">
         <h2 class="StatsDash__title">📊 Usage Statistics</h2>
         <div class="StatsDash__header-actions">
-          <button class="StatsDash__refresh-btn" onclick={load_stats} disabled={loading}>
+          <button
+            class="StatsDash__refresh-btn"
+            onclick={load_stats}
+            disabled={loading}
+          >
             {loading ? "⏳" : "🔄"} Refresh
           </button>
           {#if last_updated}
-            <span class="StatsDash__updated-at">Last updated: {last_updated}</span>
+            <span class="StatsDash__updated-at"
+              >Last updated: {last_updated}</span
+            >
           {/if}
         </div>
       </div>
@@ -308,15 +332,25 @@
             <div class="StatsDash__growth-header">
               <span class="StatsDash__growth-icon">{points.level_icon}</span>
               <div class="StatsDash__growth-info">
-                <span class="StatsDash__growth-title">Lv.{points.level} {points.level_title}</span>
-                <span class="StatsDash__growth-points">{points.total_points.toLocaleString()} pts | 🔥 {points.streak_days} days</span>
+                <span class="StatsDash__growth-title"
+                  >Lv.{points.level} {points.level_title}</span
+                >
+                <span class="StatsDash__growth-points"
+                  >{points.total_points.toLocaleString()} pts | 🔥 {points.streak_days}
+                  days</span
+                >
               </div>
             </div>
             <div class="StatsDash__growth-bar-wrap">
               <div class="StatsDash__growth-bar">
-                <div class="StatsDash__growth-fill" style="width: {points.progress_percent}%"></div>
+                <div
+                  class="StatsDash__growth-fill"
+                  style="width: {points.progress_percent}%"
+                ></div>
               </div>
-              <span class="StatsDash__growth-next">{points.total_points} / {points.next_level_points}</span>
+              <span class="StatsDash__growth-next"
+                >{points.total_points} / {points.next_level_points}</span
+              >
             </div>
           </div>
         </section>
@@ -327,7 +361,9 @@
           <h3 class="StatsDash__section-title">📁 Vault Contents</h3>
           <div class="StatsDash__overview-grid">
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{vault_scan.folder_count}</span>
+              <span class="StatsDash__card-value"
+                >{vault_scan.folder_count}</span
+              >
               <span class="StatsDash__card-label">Folders</span>
             </div>
             <div class="StatsDash__card">
@@ -335,7 +371,9 @@
               <span class="StatsDash__card-label">Files</span>
             </div>
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{format_size(vault_scan.total_size_bytes)}</span>
+              <span class="StatsDash__card-value"
+                >{format_size(vault_scan.total_size_bytes)}</span
+              >
               <span class="StatsDash__card-label">Total Size</span>
             </div>
             <div class="StatsDash__card">
@@ -354,14 +392,20 @@
                   {#if (slice.count / pie_total) * 360 >= 359.9}
                     <circle cx={50} cy={50} r={40} fill={slice.color} />
                   {:else}
-                    <path d={pie_slice_path(i, 50, 50, 40)} fill={slice.color} />
+                    <path
+                      d={pie_slice_path(i, 50, 50, 40)}
+                      fill={slice.color}
+                    />
                   {/if}
                 {/each}
               </svg>
               <div class="StatsDash__pie-legend">
                 {#each pie_data as slice}
                   <div class="StatsDash__pie-legend-item">
-                    <span class="StatsDash__pie-dot" style="background:{slice.color}"></span>
+                    <span
+                      class="StatsDash__pie-dot"
+                      style="background:{slice.color}"
+                    ></span>
                     <span>{slice.label}</span>
                     <span class="StatsDash__metric-value">{slice.count}</span>
                   </div>
@@ -376,7 +420,9 @@
         <h3 class="StatsDash__section-title">⚡ Current Session</h3>
         <div class="StatsDash__overview-grid">
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{current_session_duration()}</span>
+            <span class="StatsDash__card-value"
+              >{current_session_duration()}</span
+            >
             <span class="StatsDash__card-label">Duration</span>
           </div>
           <div class="StatsDash__card">
@@ -384,15 +430,23 @@
             <span class="StatsDash__card-label">Files Opened</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{vault_scan?.folder_count ?? 0}</span>
+            <span class="StatsDash__card-value"
+              >{vault_scan?.folder_count ?? 0}</span
+            >
             <span class="StatsDash__card-label">Folders</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{vault_scan?.file_count ?? 0}</span>
+            <span class="StatsDash__card-value"
+              >{vault_scan?.file_count ?? 0}</span
+            >
             <span class="StatsDash__card-label">Files</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{vault_scan ? format_size(vault_scan.total_size_bytes) : "-"}</span>
+            <span class="StatsDash__card-value"
+              >{vault_scan
+                ? format_size(vault_scan.total_size_bytes)
+                : "-"}</span
+            >
             <span class="StatsDash__card-label">Vault Size</span>
           </div>
         </div>
@@ -402,23 +456,33 @@
         <h3 class="StatsDash__section-title">📊 All Sessions (Cumulative)</h3>
         <div class="StatsDash__overview-grid">
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_sessions}</span>
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_sessions}</span
+            >
             <span class="StatsDash__card-label">Total Sessions</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_files_opened}</span>
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files_opened}</span
+            >
             <span class="StatsDash__card-label">Files Opened</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_files_read}</span>
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files_read}</span
+            >
             <span class="StatsDash__card-label">Files Read</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_folders}</span>
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_folders}</span
+            >
             <span class="StatsDash__card-label">Max Folders</span>
           </div>
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value">{stats.overview.total_files}</span>
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files}</span
+            >
             <span class="StatsDash__card-label">Max Files</span>
           </div>
         </div>
@@ -429,23 +493,33 @@
           <h3 class="StatsDash__section-title">🧠 NLP Knowledge Base</h3>
           <div class="StatsDash__overview-grid">
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{nlp_stats.total_files_analyzed}</span>
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_files_analyzed}</span
+              >
               <span class="StatsDash__card-label">Analyzed</span>
             </div>
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{nlp_stats.total_word_count.toLocaleString()}</span>
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_word_count.toLocaleString()}</span
+              >
               <span class="StatsDash__card-label">Total Words</span>
             </div>
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{nlp_stats.total_char_count.toLocaleString()}</span>
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_char_count.toLocaleString()}</span
+              >
               <span class="StatsDash__card-label">Total Chars</span>
             </div>
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{nlp_stats.total_unique_keywords}</span>
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_unique_keywords}</span
+              >
               <span class="StatsDash__card-label">Keywords</span>
             </div>
             <div class="StatsDash__card">
-              <span class="StatsDash__card-value">{(nlp_stats.avg_vocabulary_richness * 100).toFixed(1)}%</span>
+              <span class="StatsDash__card-value"
+                >{(nlp_stats.avg_vocabulary_richness * 100).toFixed(1)}%</span
+              >
               <span class="StatsDash__card-label">Avg Richness</span>
             </div>
           </div>
@@ -453,7 +527,9 @@
             <div class="StatsDash__keywords">
               <span class="StatsDash__keywords-label">Top Keywords:</span>
               {#each nlp_stats.top_global_keywords.slice(0, 10) as kw}
-                <span class="StatsDash__keyword-tag">{kw.word} ({kw.count})</span>
+                <span class="StatsDash__keyword-tag"
+                  >{kw.word} ({kw.count})</span
+                >
               {/each}
             </div>
           {/if}
@@ -477,19 +553,43 @@
                 y2={tick.y}
                 class="StatsDash__grid-line"
               />
-              <text x={PAD.left - 4} y={tick.y + 3} class="StatsDash__axis-label" text-anchor="end">
+              <text
+                x={PAD.left - 4}
+                y={tick.y + 3}
+                class="StatsDash__axis-label"
+                text-anchor="end"
+              >
                 {tick.label}
               </text>
             {/each}
-            <path d={make_line_path(opened_data, CHART_W, CHART_H)} class="StatsDash__line StatsDash__line--primary" />
-            <path d={make_line_path(read_data, CHART_W, CHART_H)} class="StatsDash__line StatsDash__line--secondary" />
+            <path
+              d={make_line_path(opened_data, CHART_W, CHART_H)}
+              class="StatsDash__line StatsDash__line--primary"
+            />
+            <path
+              d={make_line_path(read_data, CHART_W, CHART_H)}
+              class="StatsDash__line StatsDash__line--secondary"
+            />
             {#each labels as label, i}
               {#if i % Math.max(1, Math.floor(labels.length / 6)) === 0}
-                {@const x = PAD.left + (i / Math.max(1, labels.length - 1)) * (CHART_W - PAD.left - PAD.right)}
-                <text x={x} y={CHART_H - 4} class="StatsDash__axis-label" text-anchor="middle">{label}</text>
+                {@const x =
+                  PAD.left +
+                  (i / Math.max(1, labels.length - 1)) *
+                    (CHART_W - PAD.left - PAD.right)}
+                <text
+                  {x}
+                  y={CHART_H - 4}
+                  class="StatsDash__axis-label"
+                  text-anchor="middle">{label}</text
+                >
               {/if}
             {/each}
-            <text x={CHART_W - 8} y={16} class="StatsDash__legend" text-anchor="end">
+            <text
+              x={CHART_W - 8}
+              y={16}
+              class="StatsDash__legend"
+              text-anchor="end"
+            >
               <tspan fill="var(--interactive)">● Opened</tspan>
               <tspan dx="8" fill="var(--accent-foreground)">● Read</tspan>
             </text>
@@ -497,7 +597,9 @@
         </section>
 
         <section class="StatsDash__section">
-          <h3 class="StatsDash__section-title">📊 Files Opened per Session (Bar Chart)</h3>
+          <h3 class="StatsDash__section-title">
+            📊 Files Opened per Session (Bar Chart)
+          </h3>
           <svg viewBox="0 0 {CHART_W} {CHART_H}" class="StatsDash__chart">
             {#each y_axis_ticks(opened_data, CHART_H) as tick}
               <line
@@ -507,7 +609,12 @@
                 y2={tick.y}
                 class="StatsDash__grid-line"
               />
-              <text x={PAD.left - 4} y={tick.y + 3} class="StatsDash__axis-label" text-anchor="end">
+              <text
+                x={PAD.left - 4}
+                y={tick.y + 3}
+                class="StatsDash__axis-label"
+                text-anchor="end"
+              >
                 {tick.label}
               </text>
             {/each}
@@ -523,8 +630,16 @@
             {/each}
             {#each labels as label, i}
               {#if i % Math.max(1, Math.floor(labels.length / 6)) === 0}
-                {@const x = PAD.left + (i / Math.max(1, labels.length - 1)) * (CHART_W - PAD.left - PAD.right)}
-                <text x={x} y={CHART_H - 4} class="StatsDash__axis-label" text-anchor="middle">{label}</text>
+                {@const x =
+                  PAD.left +
+                  (i / Math.max(1, labels.length - 1)) *
+                    (CHART_W - PAD.left - PAD.right)}
+                <text
+                  {x}
+                  y={CHART_H - 4}
+                  class="StatsDash__axis-label"
+                  text-anchor="middle">{label}</text
+                >
               {/if}
             {/each}
           </svg>
@@ -533,7 +648,9 @@
 
       {#if stats.sessions.length > 0}
         <section class="StatsDash__section">
-          <h3 class="StatsDash__section-title">📋 Recent Sessions ({stats.sessions.length})</h3>
+          <h3 class="StatsDash__section-title">
+            📋 Recent Sessions ({stats.sessions.length})
+          </h3>
           <div class="StatsDash__table-wrap">
             <table class="StatsDash__table">
               <thead>

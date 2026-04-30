@@ -38,6 +38,7 @@ tokio = { version = "1.43.0", features = ["fs", "rt-multi-thread", "sync"] }
 openssl = { version = "0.10", features = ["vendored"] }
 git2 = "0.19"
 walkdir = "2.5.0"
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
 
 [dev-dependencies]
 tempfile = "3"
