@@ -20,6 +20,8 @@ import type { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import type { SearchStore } from "$lib/features/search";
 import type { TabStore } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
+import type { UserStore } from "$lib/features/user";
+import type { UserService } from "$lib/features/user";
 
 export type ActionRegistrationInput = {
   registry: ActionRegistry;
@@ -32,6 +34,7 @@ export type ActionRegistrationInput = {
     search: SearchStore;
     tab: TabStore;
     git: GitStore;
+    user: UserStore;
   };
   services: {
     vault: VaultService;
@@ -47,6 +50,7 @@ export type ActionRegistrationInput = {
     git: GitService;
     hotkey: HotkeyService;
     theme: ThemeService;
+    user: UserService;
   };
   default_mount_config: AppMountConfig;
 };

@@ -14,6 +14,7 @@ import { register_tab_actions } from "$lib/features/tab";
 import { register_git_actions } from "$lib/features/git";
 import { register_hotkey_actions } from "$lib/features/hotkey";
 import { register_theme_actions } from "$lib/features/theme";
+import { register_user_actions } from "$lib/features/user/application/user_actions";
 
 export function register_actions(input: ActionRegistrationInput) {
   register_app_actions(input);
@@ -29,4 +30,5 @@ export function register_actions(input: ActionRegistrationInput) {
   register_hotkey_actions(input);
   register_help_actions(input);
   register_theme_actions(input);
+  register_user_actions(input);
 }

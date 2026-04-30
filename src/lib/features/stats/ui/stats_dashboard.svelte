@@ -103,11 +103,18 @@
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       return await new Promise((resolve) => {
-        const timeout = setTimeout(() => { pc.close(); resolve(null); }, 1000);
+        const timeout = setTimeout(() => {
+          pc.close();
+          resolve(null);
+        }, 1000);
         pc.onicecandidate = (e) => {
           if (!e.candidate) return;
           const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
-          if (m) { clearTimeout(timeout); pc.close(); resolve(m[1]); }
+          if (m) {
+            clearTimeout(timeout);
+            pc.close();
+            resolve(m[1]);
+          }
         };
       });
     } catch {
@@ -704,7 +711,8 @@
       {#if stats.sessions.length > 0}
         <section class="StatsDash__section">
           <h3 class="StatsDash__section-title">
-            📋 Recent Sessions (showing {Math.min(10, stats.sessions.length)} of {stats.sessions.length})
+            📋 Recent Sessions (showing {Math.min(10, stats.sessions.length)} of {stats
+              .sessions.length})
           </h3>
           <div class="StatsDash__table-wrap">
             <table class="StatsDash__table">
@@ -726,12 +734,15 @@
                   <tr>
                     <td>{format_datetime(session.started_at)}</td>
                     <td>{format_duration(session.duration_seconds)}</td>
-                    <td class="StatsDash__td-ip">{session.ip_address ?? "-"}</td>
+                    <td class="StatsDash__td-ip">{session.ip_address ?? "-"}</td
+                    >
                     <td>{session.folders_count}</td>
                     <td>{session.files_count}</td>
                     <td>{session.files_opened}</td>
                     <td>{session.files_read_complete}</td>
-                    <td class="StatsDash__td-points">{earned > 0 ? `+${earned}` : "-"}</td>
+                    <td class="StatsDash__td-points"
+                      >{earned > 0 ? `+${earned}` : "-"}</td
+                    >
                   </tr>
                 {/each}
               </tbody>

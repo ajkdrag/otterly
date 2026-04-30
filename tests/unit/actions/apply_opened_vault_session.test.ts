@@ -9,6 +9,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { UserStore } from "$lib/features/user";
 import { apply_opened_vault_session } from "$lib/features/vault";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import type { VaultSession } from "$lib/features/session";
@@ -42,6 +43,7 @@ describe("apply_opened_vault_session", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
+      user: new UserStore(),
     };
     const open_note = create_open_note("docs/a.md");
     const cursor = {

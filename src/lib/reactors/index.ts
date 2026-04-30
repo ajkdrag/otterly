@@ -37,6 +37,9 @@ import type { SearchStore } from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
+import type { UserStore } from "$lib/features/user";
+import type { UserService } from "$lib/features/user";
+import { create_user_folder_persist_reactor } from "$lib/reactors/user_folder_persist.reactor.svelte";
 
 export type ReactorContext = {
   editor_store: EditorStore;
@@ -48,6 +51,7 @@ export type ReactorContext = {
   tab_store: TabStore;
   git_store: GitStore;
   links_store: LinksStore;
+  user_store: UserStore;
   editor_service: EditorService;
   note_service: NoteService;
   vault_service: VaultService;
@@ -57,6 +61,7 @@ export type ReactorContext = {
   git_service: GitService;
   links_service: LinksService;
   watcher_service: WatcherService;
+  user_service: UserService;
   action_registry: ActionRegistry;
 };
 
@@ -151,6 +156,11 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.note_service,
       context.watcher_service,
       context.action_registry,
+    ),
+    create_user_folder_persist_reactor(
+      context.ui_store,
+      context.user_store,
+      context.user_service,
     ),
   ];
 

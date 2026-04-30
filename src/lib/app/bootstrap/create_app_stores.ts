@@ -7,6 +7,7 @@ import { SearchStore } from "$lib/features/search";
 import { TabStore } from "$lib/features/tab";
 import { GitStore } from "$lib/features/git";
 import { LinksStore } from "$lib/features/links";
+import { UserStore } from "$lib/features/user";
 
 export type AppStores = {
   vault: VaultStore;
@@ -18,6 +19,7 @@ export type AppStores = {
   tab: TabStore;
   git: GitStore;
   links: LinksStore;
+  user: UserStore;
 };
 
 export function create_app_stores(): AppStores {
@@ -31,5 +33,6 @@ export function create_app_stores(): AppStores {
     tab: new TabStore(),
     git: new GitStore(),
     links: new LinksStore(),
+    user: new UserStore(),
   };
 }

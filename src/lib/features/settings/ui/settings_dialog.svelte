@@ -12,8 +12,11 @@
   import GitBranchIcon from "@lucide/svelte/icons/git-branch";
   import SlidersIcon from "@lucide/svelte/icons/sliders-horizontal";
   import KeyboardIcon from "@lucide/svelte/icons/keyboard";
+  import UserIcon from "@lucide/svelte/icons/user";
   import { HotkeysPanel } from "$lib/features/hotkey";
   import ThemeSettings from "$lib/features/settings/ui/theme_settings.svelte";
+  import { UserProfilePanel } from "$lib/features/user";
+  import type { UserProfile, UserPreferences } from "$lib/features/user";
   import type {
     EditorSettings,
     SettingsCategory,
@@ -73,7 +76,22 @@
     on_theme_rename,
     on_theme_delete,
     on_theme_update,
-  }: Props = $props();
+    user_profile = null,
+    user_all_profiles = [],
+    on_user_update_name = () => {},
+    on_user_update_avatar = () => {},
+    on_user_update_preferences = () => {},
+    on_user_switch = () => {},
+    on_user_create = () => {},
+  }: Props & {
+    user_profile?: UserProfile | null;
+    user_all_profiles?: UserProfile[];
+    on_user_update_name?: (name: string) => void;
+    on_user_update_avatar?: (emoji: string) => void;
+    on_user_update_preferences?: (prefs: Partial<UserPreferences>) => void;
+    on_user_switch?: (user_id: string) => void;
+    on_user_create?: (name: string, emoji: string) => void;
+  } = $props();
 
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
     value: String(i + 1),
@@ -104,6 +122,7 @@
     { id: "git", label: "Git", icon: GitBranchIcon },
     { id: "misc", label: "Misc", icon: SlidersIcon },
     { id: "hotkeys", label: "Hotkeys", icon: KeyboardIcon },
+    { id: "profile", label: "Profile", icon: UserIcon },
   ];
 
   let dialog_element = $state<HTMLElement | null>(null);
@@ -437,6 +456,18 @@
             on_clear={on_hotkey_clear}
             on_reset_single={on_hotkey_reset_single}
             on_reset_all={on_hotkey_reset_all}
+          />
+        {:else if active_category === "profile"}
+          <h2 class="SettingsDialog__content-header">User Profile</h2>
+
+          <UserProfilePanel
+            profile={user_profile}
+            all_profiles={user_all_profiles}
+            on_update_display_name={on_user_update_name}
+            on_update_avatar={on_user_update_avatar}
+            on_update_preferences={on_user_update_preferences}
+            on_switch_user={on_user_switch}
+            on_create_user={on_user_create}
           />
         {/if}
       </div>

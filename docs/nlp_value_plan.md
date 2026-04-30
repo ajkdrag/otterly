@@ -10,33 +10,33 @@
 
 ## 子包价值矩阵
 
-| 子包 | 原始领域 | 笔记应用价值 | 决策 |
-|---|---|---|---|
-| `bow/` (TF-IDF) | 通用 | ⭐⭐⭐⭐⭐ 相似笔记推荐 | ✅ Phase A 接入 |
-| 顶层 `tokenize/keywords/sentiment/entities` | 通用 | ⭐⭐⭐ 已接入 | ✅ 保持 |
-| `ner.extractors.MLExtractor`（StructBERT 中文） | 通用 | ⭐⭐⭐ 中文 NER | ✅ 已接入，加缓存 |
-| `ner.extractors.llm_extractor` | LLM 通用 | ⭐⭐⭐⭐ 准确度高 | ✅ Phase C 接入 |
-| `ner/graph` `linker` `reasoning` `indexer` | hotel 域（schema 写死） | ⭐⭐ 通用部分有用 | ⚠️ 改造：丢 hotel schema，复用算法 |
-| `ner.extractors.relation_extractor` | hotel 关系模板 | ⭐ 模板写死了 | ❌ `_legacy/` |
-| `classifier/` | hotel C01–C08 | ⭐ 标签固定 | ❌ `_legacy/` |
-| `sentiment.analyzer` 高级版（LLM/BERT） | 通用 | ⭐ 笔记不是情绪日记 | ❌ `_legacy/` |
-| `augmentation/` `annotation/` | 训练流程 | ⭐ 桌面应用不训练 | ❌ `_legacy/` |
-| `email_parser/` `thread_builder/` | 邮件域 | ⭐ 笔记≠邮件 | ❌ `_legacy/`（除非检测到 `.eml`） |
-| `self_learning/` | 训练管线 | ⭐ 不训练 | ❌ `_legacy/` |
-| `production/` | 服务化 | ⭐ 桌面无服务 | ❌ `_legacy/` |
-| `vllm_manager/` | 本地 LLM 服务 | ⭐⭐⭐ 用于 RAG | ⚠️ Phase C 仅在 RAG 中使用 |
+| 子包                                            | 原始领域                | 笔记应用价值            | 决策                               |
+| ----------------------------------------------- | ----------------------- | ----------------------- | ---------------------------------- |
+| `bow/` (TF-IDF)                                 | 通用                    | ⭐⭐⭐⭐⭐ 相似笔记推荐 | ✅ Phase A 接入                    |
+| 顶层 `tokenize/keywords/sentiment/entities`     | 通用                    | ⭐⭐⭐ 已接入           | ✅ 保持                            |
+| `ner.extractors.MLExtractor`（StructBERT 中文） | 通用                    | ⭐⭐⭐ 中文 NER         | ✅ 已接入，加缓存                  |
+| `ner.extractors.llm_extractor`                  | LLM 通用                | ⭐⭐⭐⭐ 准确度高       | ✅ Phase C 接入                    |
+| `ner/graph` `linker` `reasoning` `indexer`      | hotel 域（schema 写死） | ⭐⭐ 通用部分有用       | ⚠️ 改造：丢 hotel schema，复用算法 |
+| `ner.extractors.relation_extractor`             | hotel 关系模板          | ⭐ 模板写死了           | ❌ `_legacy/`                      |
+| `classifier/`                                   | hotel C01–C08           | ⭐ 标签固定             | ❌ `_legacy/`                      |
+| `sentiment.analyzer` 高级版（LLM/BERT）         | 通用                    | ⭐ 笔记不是情绪日记     | ❌ `_legacy/`                      |
+| `augmentation/` `annotation/`                   | 训练流程                | ⭐ 桌面应用不训练       | ❌ `_legacy/`                      |
+| `email_parser/` `thread_builder/`               | 邮件域                  | ⭐ 笔记≠邮件            | ❌ `_legacy/`（除非检测到 `.eml`） |
+| `self_learning/`                                | 训练管线                | ⭐ 不训练               | ❌ `_legacy/`                      |
+| `production/`                                   | 服务化                  | ⭐ 桌面无服务           | ❌ `_legacy/`                      |
+| `vllm_manager/`                                 | 本地 LLM 服务           | ⭐⭐⭐ 用于 RAG         | ⚠️ Phase C 仅在 RAG 中使用         |
 
 ---
 
 ## 笔记应用真正需要、但现有 nlp_kernal 没有的能力
 
-| 缺失能力 | 价值 | 实现方案 |
-|---|---|---|
+| 缺失能力              | 价值       | 实现方案                                                                         |
+| --------------------- | ---------- | -------------------------------------------------------------------------------- |
 | 语义搜索（embedding） | ⭐⭐⭐⭐⭐ | 新增 `nlp_kernal.embedding`，用 sentence-transformers + BGE-small（中文，~90MB） |
-| RAG 问答 | ⭐⭐⭐⭐⭐ | embedding 检索 + 本地 LLM 生成 |
-| 自动摘要 | ⭐⭐⭐⭐ | 短文本 textrank（无依赖），长文本走 LLM |
-| 自动标签建议 | ⭐⭐⭐⭐ | TF-IDF + 已有标签语料 |
-| 反链知识图谱可视化 | ⭐⭐⭐⭐ | 复用现有 `links/` 数据，新建 SVG 力导向图 |
+| RAG 问答              | ⭐⭐⭐⭐⭐ | embedding 检索 + 本地 LLM 生成                                                   |
+| 自动摘要              | ⭐⭐⭐⭐   | 短文本 textrank（无依赖），长文本走 LLM                                          |
+| 自动标签建议          | ⭐⭐⭐⭐   | TF-IDF + 已有标签语料                                                            |
+| 反链知识图谱可视化    | ⭐⭐⭐⭐   | 复用现有 `links/` 数据，新建 SVG 力导向图                                        |
 
 ---
 
@@ -44,11 +44,11 @@
 
 不引入新依赖，把已有桥接用到位。
 
-| # | 子包 / 能力 | Python 函数 | Tauri 命令 | UI |
-|---|---|---|---|---|
-| A1 | `bow/` 相似笔记 | `bow_index_vault(root)`, `bow_similar(path, top_k)` | `nlp_bow_index`, `nlp_bow_similar` | NlpPanel 加 "🔗 Similar Notes"；vault 打开时后台建索引 |
-| A2 | MLExtractor 缓存 | 在 `extract_entities_ml` 包装层加 `content_hash` 缓存（落 `nlp_db.db` 的 `nlp_analysis.ml_entities_json` 列） | 复用 `nlp_py_entities_ml` | 透明加速 |
-| A3 | 反链图谱（不依赖 hotel ner） | 前端：用 `links` 表 + bow 相似度 | 复用现有 `index_note_links_snapshot` + `nlp_bow_similar` | 新增 NlpPanel "🕸 Note Graph" mini-section |
+| #   | 子包 / 能力                  | Python 函数                                                                                                   | Tauri 命令                                               | UI                                                     |
+| --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| A1  | `bow/` 相似笔记              | `bow_index_vault(root)`, `bow_similar(path, top_k)`                                                           | `nlp_bow_index`, `nlp_bow_similar`                       | NlpPanel 加 "🔗 Similar Notes"；vault 打开时后台建索引 |
+| A2  | MLExtractor 缓存             | 在 `extract_entities_ml` 包装层加 `content_hash` 缓存（落 `nlp_db.db` 的 `nlp_analysis.ml_entities_json` 列） | 复用 `nlp_py_entities_ml`                                | 透明加速                                               |
+| A3  | 反链图谱（不依赖 hotel ner） | 前端：用 `links` 表 + bow 相似度                                                                              | 复用现有 `index_note_links_snapshot` + `nlp_bow_similar` | 新增 NlpPanel "🕸 Note Graph" mini-section             |
 
 **新表**：`bow_vectors(note_path PRIMARY KEY, vector BLOB, mtime INTEGER, doc_freq_revision INTEGER)`，schema 演进用现有 `migrate_from_legacy` 模式。
 
@@ -60,13 +60,14 @@
 
 引入 `sentence-transformers` + BGE-small-zh 模型（首次运行下载，~90MB）。新增 3 个 Python 模块。
 
-| # | 新模块 | 暴露函数 | Tauri 命令 | UI |
-|---|---|---|---|---|
-| B1 | `nlp_kernal/embedding/` | `embed_text(text)`, `embed_index_vault(root)`, `semantic_search(query, top_k)` | `nlp_emb_index`, `nlp_emb_search` | 命令面板加 "Semantic Search"；现有搜索框增加"语义"模式切换 |
-| B2 | `nlp_kernal/summarize/` | `summarize_text(text, max_len, method)` method ∈ `{textrank, llm}` | `nlp_summarize` | NlpPanel 加 "📝 Summary" |
-| B3 | `nlp_kernal/tag_suggest/` | `suggest_tags(text, vault_corpus, top_k)` | `nlp_suggest_tags` | 编辑器顶部加"建议标签"栏，点击插入到 frontmatter |
+| #   | 新模块                    | 暴露函数                                                                       | Tauri 命令                        | UI                                                         |
+| --- | ------------------------- | ------------------------------------------------------------------------------ | --------------------------------- | ---------------------------------------------------------- |
+| B1  | `nlp_kernal/embedding/`   | `embed_text(text)`, `embed_index_vault(root)`, `semantic_search(query, top_k)` | `nlp_emb_index`, `nlp_emb_search` | 命令面板加 "Semantic Search"；现有搜索框增加"语义"模式切换 |
+| B2  | `nlp_kernal/summarize/`   | `summarize_text(text, max_len, method)` method ∈ `{textrank, llm}`             | `nlp_summarize`                   | NlpPanel 加 "📝 Summary"                                   |
+| B3  | `nlp_kernal/tag_suggest/` | `suggest_tags(text, vault_corpus, top_k)`                                      | `nlp_suggest_tags`                | 编辑器顶部加"建议标签"栏，点击插入到 frontmatter           |
 
 **新表**：
+
 - `embedding_vectors(note_path PRIMARY KEY, vector BLOB, model TEXT, mtime INTEGER)`
 - 标签语料从 vault 中现有 `[[wiki-link]]` 和 frontmatter `tags:` 字段聚合，无需独立表
 
@@ -78,13 +79,14 @@
 
 依赖本地 LLM（`vllm_manager` 或 llama.cpp）。模型大小数 GB，作为高级特性。
 
-| # | 能力 | 暴露函数 | Tauri 命令 | UI |
-|---|---|---|---|---|
-| C1 | RAG 问答 | `rag_query(question, vault_root)` 内部调用 `semantic_search` + LLM | `nlp_rag_query` + `rag_token` 流式事件 | 新增"问我的笔记"对话框（`Cmd+K Q`） |
-| C2 | LLM NER | `nlp_kernal.extract_entities_llm(text)` → `ner.extractors.llm_extractor` | `nlp_py_entities_llm` | NlpPanel Entities section 加 "Source: rule/ml/llm" 切换 |
-| C3 | LLM 摘要 | 复用 B2 的 `method="llm"` | 复用 `nlp_summarize` | 同上 |
+| #   | 能力     | 暴露函数                                                                 | Tauri 命令                             | UI                                                      |
+| --- | -------- | ------------------------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------- |
+| C1  | RAG 问答 | `rag_query(question, vault_root)` 内部调用 `semantic_search` + LLM       | `nlp_rag_query` + `rag_token` 流式事件 | 新增"问我的笔记"对话框（`Cmd+K Q`）                     |
+| C2  | LLM NER  | `nlp_kernal.extract_entities_llm(text)` → `ner.extractors.llm_extractor` | `nlp_py_entities_llm`                  | NlpPanel Entities section 加 "Source: rule/ml/llm" 切换 |
+| C3  | LLM 摘要 | 复用 B2 的 `method="llm"`                                                | 复用 `nlp_summarize`                   | 同上                                                    |
 
 **LLM 来源**：
+
 - 优先用 `vllm_manager` 启动本地 vLLM 服务（如果可用）
 - 否则提示用户配置 OpenAI 兼容 API endpoint（设置面板）
 
@@ -161,6 +163,7 @@ If you want to repurpose any of them for a future feature, see the original v2.1
 ### E1 — 重写 `docs/nlptrack.md`
 
 去掉"覆盖率"概念，改为"**价值矩阵 + 接入状态**"两张表：
+
 1. 主能力：每个命令对应的笔记应用使用场景
 2. 遗留：列出 `_legacy/` 子包，说明为何不接入
 
@@ -176,14 +179,14 @@ If you want to repurpose any of them for a future feature, see the original v2.1
 
 ## 修订后的目标对比
 
-| 指标 | 旧"覆盖率"计划 | 新"价值"计划 | 理由 |
-|---|---|---|---|
-| 子包接入数 | 12/12 (100%) | 5 主用 + 3 新增 | 不相关的不接入 |
-| 新增 Python 模块 | 0 | 3 (`embedding`, `summarize`, `tag_suggest`) | 笔记应用真正需要 |
-| 隔离遗留代码 | 否 | `_legacy/` | 避免误导用户和开发者 |
-| Tauri 命令数 | 30+ | ~16（精挑） | 价值密度优先 |
-| 新建 UI 面板 | 2 | 0（增强现有 NlpPanel + 命令面板入口） | 不为新建而新建 |
-| 新增模型/依赖 | 0 | sentence-transformers + BGE-small (~90MB) | Phase B 必需，可关闭 |
+| 指标             | 旧"覆盖率"计划 | 新"价值"计划                                | 理由                 |
+| ---------------- | -------------- | ------------------------------------------- | -------------------- |
+| 子包接入数       | 12/12 (100%)   | 5 主用 + 3 新增                             | 不相关的不接入       |
+| 新增 Python 模块 | 0              | 3 (`embedding`, `summarize`, `tag_suggest`) | 笔记应用真正需要     |
+| 隔离遗留代码     | 否             | `_legacy/`                                  | 避免误导用户和开发者 |
+| Tauri 命令数     | 30+            | ~16（精挑）                                 | 价值密度优先         |
+| 新建 UI 面板     | 2              | 0（增强现有 NlpPanel + 命令面板入口）       | 不为新建而新建       |
+| 新增模型/依赖    | 0              | sentence-transformers + BGE-small (~90MB)   | Phase B 必需，可关闭 |
 
 ---
 
@@ -202,12 +205,12 @@ Day 7-8   ── Phase C 可选（RAG / LLM NER）
 
 ## 风险与决策
 
-| 风险 / 决策点 | 处理 |
-|---|---|
-| sentence-transformers 引入 PyTorch 依赖（~500MB） | 用 `onnxruntime` + ONNX 版 BGE 模型，仅需 ~150MB；模型 lazy 下载 |
-| 移动 `_legacy/` 改了 import 路径 | 在 `nlp_kernal/__init__.py` 加 `sys.modules` 别名兼容旧路径，避免破坏现有未发现的引用 |
-| `vllm_manager` 启动重 | Phase C 不强制，提供 OpenAI-compatible API endpoint 作为替代 |
-| 删除 `nlp_py_classify` 命令是破坏性改动 | 项目"0 用户"，按 AGENTS.md 允许的清洁重构 |
+| 风险 / 决策点                                     | 处理                                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| sentence-transformers 引入 PyTorch 依赖（~500MB） | 用 `onnxruntime` + ONNX 版 BGE 模型，仅需 ~150MB；模型 lazy 下载                      |
+| 移动 `_legacy/` 改了 import 路径                  | 在 `nlp_kernal/__init__.py` 加 `sys.modules` 别名兼容旧路径，避免破坏现有未发现的引用 |
+| `vllm_manager` 启动重                             | Phase C 不强制，提供 OpenAI-compatible API endpoint 作为替代                          |
+| 删除 `nlp_py_classify` 命令是破坏性改动           | 项目"0 用户"，按 AGENTS.md 允许的清洁重构                                             |
 
 ---
 

@@ -35,6 +35,7 @@
   import type { VaultId } from "$lib/shared/types/ids";
   import type { HotkeyBinding } from "$lib/features/hotkey";
   import type { Theme } from "$lib/shared/types/theme";
+  import type { UserPreferences } from "$lib/features/user";
 
   type Props = {
     hide_choose_vault_button?: boolean;
@@ -310,6 +311,18 @@
     void action_registry.execute(ACTION_IDS.theme_delete, id)}
   on_theme_update={(theme: Theme) =>
     void action_registry.execute(ACTION_IDS.theme_update, theme)}
+  user_profile={stores.user.active_profile}
+  user_all_profiles={stores.user.all_profiles}
+  on_user_update_name={(name: string) =>
+    void action_registry.execute(ACTION_IDS.user_update_name, name)}
+  on_user_update_avatar={(emoji: string) =>
+    void action_registry.execute(ACTION_IDS.user_update_avatar, emoji)}
+  on_user_update_preferences={(prefs: Partial<UserPreferences>) =>
+    void action_registry.execute(ACTION_IDS.user_update_preferences, prefs)}
+  on_user_switch={(user_id: string) =>
+    void action_registry.execute(ACTION_IDS.user_switch, user_id)}
+  on_user_create={(name: string, emoji: string) =>
+    void action_registry.execute(ACTION_IDS.user_create, { name, emoji })}
 />
 
 <CreateFolderDialog
