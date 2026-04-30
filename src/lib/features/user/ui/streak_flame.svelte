@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import AnimatedTime from "$lib/components/ui/animated-time/animated_time.svelte";
 
   type Props = {
     streak_days: number;
@@ -67,7 +68,9 @@
     <span class="StreakFlame__days">{streak_days}</span>
     <span class="StreakFlame__label">天</span>
     {#if show_time && elapsed_seconds > 0}
-      <span class="StreakFlame__time">{format_elapsed(elapsed_seconds)}</span>
+      <span class="StreakFlame__time">
+        <AnimatedTime total_seconds={elapsed_seconds} format="ms" />
+      </span>
     {/if}
   </span>
 </span>

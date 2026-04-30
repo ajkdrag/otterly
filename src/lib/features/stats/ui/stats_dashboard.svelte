@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { untrack, onDestroy } from "svelte";
+  import { untrack, onDestroy, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { tracked_invoke } from "$lib/features/nlp_kernal";
+  import AnimatedTime from "$lib/components/ui/animated-time/animated_time.svelte";
 
   interface SessionStats {
     session_id: string;
@@ -84,6 +85,18 @@
   const session_id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const session_start_time = Date.now();
   let session_started = false;
+  let session_elapsed_seconds = $state(0);
+  let session_timer_id: ReturnType<typeof setInterval> | null = null;
+
+  // Start a 1-second tick for the animated duration display
+  onMount(() => {
+    session_timer_id = setInterval(() => {
+      session_elapsed_seconds = Math.floor((Date.now() - session_start_time) / 1000);
+    }, 1000);
+    return () => {
+      if (session_timer_id) clearInterval(session_timer_id);
+    };
+  });
 
   onDestroy(() => {
     const vault = stores.vault.vault;
@@ -113,7 +126,7 @@
           if (m) {
             clearTimeout(timeout);
             pc.close();
-            resolve(m[1]);
+            resolve(m[1] ?? null);
           }
         };
       });
@@ -419,7 +432,7 @@
                   >Lv.{points.level} {points.level_title}</span
                 >
                 <span class="StatsDash__growth-points"
-                  >{points.total_points.toLocaleString()} pts | 🔥 {points.streak_days}
+                  >{points.total_points.toLocaleString()} pts | <span class="StatsDash__flame">🔥</span> {points.streak_days}
                   days</span
                 >
               </div>
@@ -503,9 +516,9 @@
         <h3 class="StatsDash__section-title">⚡ Current Session</h3>
         <div class="StatsDash__overview-grid">
           <div class="StatsDash__card">
-            <span class="StatsDash__card-value"
-              >{current_session_duration()}</span
-            >
+            <span class="StatsDash__card-value">
+              <AnimatedTime total_seconds={session_elapsed_seconds} />
+            </span>
             <span class="StatsDash__card-label">Duration</span>
           </div>
           <div class="StatsDash__card">
@@ -1092,5 +1105,26 @@
   .StatsDash__td-points {
     font-weight: 600;
     color: var(--interactive);
+  }
+
+  .StatsDash__flame {
+    display: inline-block;
+    animation: statsdash-flame-dance 1s ease-in-out infinite;
+  }
+
+  @keyframes statsdash-flame-dance {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    25% {
+      transform: translateY(-1px) scale(1.05) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-2px) scale(1.1);
+    }
+    75% {
+      transform: translateY(-1px) scale(1.05) rotate(3deg);
+    }
   }
 </style>

@@ -455,7 +455,7 @@
           <span class="TabBar__points-text">{pts_badge.level_title}</span>
           <span class="TabBar__points-num">{pts_badge.total_points} pts</span>
           {#if pts_badge.streak_days > 0}
-            <span class="TabBar__points-streak">🔥{pts_badge.streak_days}</span>
+            <span class="TabBar__points-streak"><span class="TabBar__flame">🔥</span>{pts_badge.streak_days}</span>
           {/if}
         </span>
       {/if}
@@ -726,6 +726,27 @@
 
   .TabBar__points-streak {
     font-size: 10px;
+  }
+
+  .TabBar__flame {
+    display: inline-block;
+    animation: tabbar-flame-dance 1s ease-in-out infinite;
+  }
+
+  @keyframes tabbar-flame-dance {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    25% {
+      transform: translateY(-1px) scale(1.05) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-2px) scale(1.1);
+    }
+    75% {
+      transform: translateY(-1px) scale(1.05) rotate(3deg);
+    }
   }
 
   :global(.TabBar__action-icon) {
