@@ -9,6 +9,7 @@
     PanelRight,
   } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import confetti from "canvas-confetti";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { Tab, TabId } from "$lib/features/tab/types/tab";
@@ -172,13 +173,20 @@
     const vault = stores.vault.vault;
     if (tab && vault && !awarded_files.has(tab.note_path)) {
       awarded_files.add(tab.note_path);
-      invoke("points_award", {
+      invoke<{ level_up: boolean; new_level: number; new_title: string }>("points_award", {
         args: { vault_id: vault.id, action: "file_open", file_path: tab.note_path },
       })
-        .then(() => {
+        .then((result) => {
           invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
             .then((r) => { pts_badge = r; })
             .catch(() => {});
+          if (result?.level_up) {
+            const intensity = result.new_level >= 17 ? 200 : result.new_level >= 10 ? 150 : 100;
+            confetti({ particleCount: intensity, spread: 80, origin: { y: 0.3 } });
+            if (result.new_level >= 10) {
+              setTimeout(() => confetti({ particleCount: intensity, spread: 100, origin: { y: 0.5 } }), 500);
+            }
+          }
         })
         .catch(() => {});
     }
