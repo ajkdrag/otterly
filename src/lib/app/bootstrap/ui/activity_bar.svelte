@@ -5,9 +5,10 @@
     Settings,
     Star,
     CircleHelp,
+    BarChart3,
   } from "@lucide/svelte";
 
-  type SidebarView = "explorer" | "dashboard" | "starred";
+  type SidebarView = "explorer" | "dashboard" | "starred" | "stats";
 
   type Props = {
     sidebar_open: boolean;
@@ -15,6 +16,7 @@
     on_open_explorer: () => void;
     on_open_dashboard: () => void;
     on_open_starred: () => void;
+    on_open_stats: () => void;
     on_open_help: () => void;
     on_open_settings: () => void;
   };
@@ -25,6 +27,7 @@
     on_open_explorer,
     on_open_dashboard,
     on_open_starred,
+    on_open_stats,
     on_open_help,
     on_open_settings,
   }: Props = $props();
@@ -66,6 +69,18 @@
       aria-label="Starred"
     >
       <Star class="ActivityBar__icon" />
+    </button>
+
+    <button
+      type="button"
+      class="ActivityBar__button"
+      class:ActivityBar__button--active={sidebar_open &&
+        active_view === "stats"}
+      onclick={on_open_stats}
+      aria-pressed={sidebar_open && active_view === "stats"}
+      aria-label="Statistics"
+    >
+      <BarChart3 class="ActivityBar__icon" />
     </button>
   </div>
 

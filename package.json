@@ -2,7 +2,7 @@
   "name": "leapgrownotes",
   "private": true,
   "type": "module",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "packageManager": "pnpm@10.27.0",
   "engines": {
     "node": ">=20"
@@ -39,6 +39,7 @@
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2.5.3",
     "@tauri-apps/plugin-updater": "^2.10.0",
+    "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
     "formsnap": "^2.0.1",
@@ -56,6 +57,7 @@
     "@sveltejs/vite-plugin-svelte": "^4.0.4",
     "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/cli": "^2.10.0",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.19.7",
     "bits-ui": "^2.15.4",
     "jsdom": "^28.1.0",

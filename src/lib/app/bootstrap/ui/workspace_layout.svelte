@@ -393,6 +393,16 @@
             "dashboard",
           );
         }}
+        on_open_stats={() => {
+          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "stats") {
+            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
+            return;
+          }
+          void action_registry.execute(
+            ACTION_IDS.ui_set_sidebar_view,
+            "stats",
+          );
+        }}
         on_open_help={() => void action_registry.execute(ACTION_IDS.help_open)}
         on_open_settings={() =>
           void action_registry.execute(ACTION_IDS.settings_open)}
@@ -546,6 +556,19 @@
                               },
                             )}
                         />
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
+                  {#if stores.ui.sidebar_view === "stats"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        {@const StatsDashboard = stores.ui.sidebar_view === "stats"}
+                        {#if StatsDashboard}
+                          {#await import("$lib/features/stats/ui/stats_dashboard.svelte") then mod}
+                            <mod.default />
+                          {/await}
+                        {/if}
                       </Sidebar.GroupContent>
                     </Sidebar.Group>
                   {/if}
