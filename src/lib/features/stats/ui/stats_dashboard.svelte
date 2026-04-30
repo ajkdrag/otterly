@@ -214,6 +214,31 @@
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
+  const pie_data = $derived.by(() => {
+    if (!vault_scan) return [];
+    return [
+      { label: "Markdown", count: vault_scan.md_count, color: "var(--interactive)" },
+      { label: "Code", count: vault_scan.code_count, color: "#22c55e" },
+      { label: "Text", count: vault_scan.txt_count, color: "#f59e0b" },
+      { label: "Other", count: vault_scan.other_count, color: "var(--muted-foreground)" },
+    ].filter(d => d.count > 0);
+  });
+  const pie_total = $derived(pie_data.reduce((s, d) => s + d.count, 0));
+
+  function pie_slice_path(i: number, cx: number, cy: number, r: number): string {
+    const start_angle = pie_data.slice(0, i).reduce((s, d) => s + (d.count / pie_total) * 360, 0);
+    const sweep = (pie_data[i]!.count / pie_total) * 360;
+    if (sweep >= 359.9) return "";
+    const start_rad = ((start_angle - 90) * Math.PI) / 180;
+    const end_rad = ((start_angle + sweep - 90) * Math.PI) / 180;
+    const large = sweep > 180 ? 1 : 0;
+    const x1 = cx + r * Math.cos(start_rad);
+    const y1 = cy + r * Math.sin(start_rad);
+    const x2 = cx + r * Math.cos(end_rad);
+    const y2 = cy + r * Math.sin(end_rad);
+    return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
+  }
+
   function y_axis_ticks(data: number[], h: number): { y: number; label: string }[] {
     const max_val = Math.max(...data, 1);
     const ih = h - PAD.top - PAD.bottom;
@@ -271,45 +296,28 @@
               <span class="StatsDash__card-label">Code</span>
             </div>
           </div>
-          {@const pie_data = [
-            { label: "Markdown", count: vault_scan.md_count, color: "var(--interactive)" },
-            { label: "Code", count: vault_scan.code_count, color: "#22c55e" },
-            { label: "Text", count: vault_scan.txt_count, color: "#f59e0b" },
-            { label: "Other", count: vault_scan.other_count, color: "var(--muted-foreground)" },
-          ].filter(d => d.count > 0)}
-          {@const pie_total = pie_data.reduce((s, d) => s + d.count, 0)}
-          <div class="StatsDash__pie-section">
-            <svg viewBox="0 0 100 100" class="StatsDash__pie">
-              {@const r = 40}
-              {@const cx = 50}
-              {@const cy = 50}
-              {#each pie_data as slice, i}
-                {@const start_angle = pie_data.slice(0, i).reduce((s, d) => s + (d.count / pie_total) * 360, 0)}
-                {@const sweep = (slice.count / pie_total) * 360}
-                {@const start_rad = ((start_angle - 90) * Math.PI) / 180}
-                {@const end_rad = ((start_angle + sweep - 90) * Math.PI) / 180}
-                {@const large = sweep > 180 ? 1 : 0}
-                {@const x1 = cx + r * Math.cos(start_rad)}
-                {@const y1 = cy + r * Math.sin(start_rad)}
-                {@const x2 = cx + r * Math.cos(end_rad)}
-                {@const y2 = cy + r * Math.sin(end_rad)}
-                {#if sweep >= 359.9}
-                  <circle {cx} {cy} {r} fill={slice.color} />
-                {:else}
-                  <path d="M{cx},{cy} L{x1},{y1} A{r},{r} 0 {large} 1 {x2},{y2} Z" fill={slice.color} />
-                {/if}
-              {/each}
-            </svg>
-            <div class="StatsDash__pie-legend">
-              {#each pie_data as slice}
-                <div class="StatsDash__pie-legend-item">
-                  <span class="StatsDash__pie-dot" style="background:{slice.color}"></span>
-                  <span>{slice.label}</span>
-                  <span class="StatsDash__metric-value">{slice.count}</span>
-                </div>
-              {/each}
+          {#if pie_data.length > 0}
+            <div class="StatsDash__pie-section">
+              <svg viewBox="0 0 100 100" class="StatsDash__pie">
+                {#each pie_data as slice, i}
+                  {#if (slice.count / pie_total) * 360 >= 359.9}
+                    <circle cx={50} cy={50} r={40} fill={slice.color} />
+                  {:else}
+                    <path d={pie_slice_path(i, 50, 50, 40)} fill={slice.color} />
+                  {/if}
+                {/each}
+              </svg>
+              <div class="StatsDash__pie-legend">
+                {#each pie_data as slice}
+                  <div class="StatsDash__pie-legend-item">
+                    <span class="StatsDash__pie-dot" style="background:{slice.color}"></span>
+                    <span>{slice.label}</span>
+                    <span class="StatsDash__metric-value">{slice.count}</span>
+                  </div>
+                {/each}
+              </div>
             </div>
-          </div>
+          {/if}
         </section>
       {/if}
 
