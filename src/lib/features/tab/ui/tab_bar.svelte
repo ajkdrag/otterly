@@ -8,10 +8,20 @@
     ChevronRight,
     PanelRight,
   } from "@lucide/svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { Tab, TabId } from "$lib/features/tab/types/tab";
   import type { NoteMeta } from "$lib/shared/types/note";
+
+  interface PointsBadge {
+    level_icon: string;
+    level_title: string;
+    total_points: number;
+    streak_days: number;
+  }
+
+  let pts_badge = $state<PointsBadge | null>(null);
 
   const { stores, action_registry } = use_app_context();
 
@@ -145,6 +155,15 @@
       void action_registry.execute(ACTION_IDS.tab_close, tab_id);
     }
   }
+
+  $effect(() => {
+    const vault = stores.vault.vault;
+    if (vault) {
+      invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
+        .then((r) => { pts_badge = r; })
+        .catch(() => {});
+    }
+  });
 </script>
 
 {#if tabs.length > 0}
@@ -375,6 +394,16 @@
     {/if}
 
     <div class="TabBar__actions">
+      {#if pts_badge}
+        <span class="TabBar__points-badge">
+          <span>{pts_badge.level_icon}</span>
+          <span class="TabBar__points-text">{pts_badge.level_title}</span>
+          <span class="TabBar__points-num">{pts_badge.total_points} pts</span>
+          {#if pts_badge.streak_days > 0}
+            <span class="TabBar__points-streak">🔥{pts_badge.streak_days}</span>
+          {/if}
+        </span>
+      {/if}
       <button
         type="button"
         class="TabBar__action-btn"
@@ -618,6 +647,30 @@
   .TabBar__action-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
+  }
+
+  .TabBar__points-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 var(--space-2);
+    font-size: 11px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .TabBar__points-text {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .TabBar__points-num {
+    color: var(--interactive);
+    font-weight: 600;
+  }
+
+  .TabBar__points-streak {
+    font-size: 10px;
   }
 
   :global(.TabBar__action-icon) {
