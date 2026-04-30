@@ -156,11 +156,30 @@
     }
   }
 
+  let awarded_files = new Set<string>();
+
   $effect(() => {
     const vault = stores.vault.vault;
     if (vault) {
       invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
         .then((r) => { pts_badge = r; })
+        .catch(() => {});
+    }
+  });
+
+  $effect(() => {
+    const tab = stores.tab.active_tab;
+    const vault = stores.vault.vault;
+    if (tab && vault && !awarded_files.has(tab.note_path)) {
+      awarded_files.add(tab.note_path);
+      invoke("points_award", {
+        args: { vault_id: vault.id, action: "file_open", file_path: tab.note_path },
+      })
+        .then(() => {
+          invoke<PointsBadge>("points_get_account", { args: { vault_id: vault.id } })
+            .then((r) => { pts_badge = r; })
+            .catch(() => {});
+        })
         .catch(() => {});
     }
   });
