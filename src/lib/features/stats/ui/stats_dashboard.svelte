@@ -60,7 +60,10 @@
   let last_updated = $state<string | null>(null);
 
   const session_id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const session_start_time = Date.now();
   let session_started = false;
+  let current_files_opened = $state(0);
+  let current_files_set = new Set<string>();
 
   async function start_session_if_needed(vault_id: string, scan: VaultScanResult) {
     if (session_started) return;
@@ -120,11 +123,25 @@
     const tab = stores.tab.active_tab;
     const vault = stores.vault.vault;
     if (tab && vault && session_started) {
+      const path = tab.note_path;
+      if (!current_files_set.has(path)) {
+        current_files_set.add(path);
+        current_files_opened = current_files_set.size;
+      }
       invoke("stats_file_opened", {
-        args: { vault_id: vault.id, session_id, file_path: tab.note_path },
+        args: { vault_id: vault.id, session_id, file_path: path },
       }).catch(() => {});
     }
   });
+
+  function current_session_duration(): string {
+    const secs = Math.floor((Date.now() - session_start_time) / 1000);
+    if (secs < 60) return `${secs}s`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${m}m`;
+  }
 
   function format_date(iso: string): string {
     try {
@@ -268,11 +285,37 @@
       {/if}
 
       <section class="StatsDash__section">
-        <h3 class="StatsDash__section-title">📊 Session Overview</h3>
+        <h3 class="StatsDash__section-title">⚡ Current Session</h3>
+        <div class="StatsDash__overview-grid">
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{current_session_duration()}</span>
+            <span class="StatsDash__card-label">Duration</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{current_files_opened}</span>
+            <span class="StatsDash__card-label">Files Opened</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{vault_scan?.folder_count ?? 0}</span>
+            <span class="StatsDash__card-label">Folders</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{vault_scan?.file_count ?? 0}</span>
+            <span class="StatsDash__card-label">Files</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{vault_scan ? format_size(vault_scan.total_size_bytes) : "-"}</span>
+            <span class="StatsDash__card-label">Vault Size</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="StatsDash__section">
+        <h3 class="StatsDash__section-title">📊 All Sessions (Cumulative)</h3>
         <div class="StatsDash__overview-grid">
           <div class="StatsDash__card">
             <span class="StatsDash__card-value">{stats.overview.total_sessions}</span>
-            <span class="StatsDash__card-label">Sessions</span>
+            <span class="StatsDash__card-label">Total Sessions</span>
           </div>
           <div class="StatsDash__card">
             <span class="StatsDash__card-value">{stats.overview.total_files_opened}</span>
@@ -281,6 +324,14 @@
           <div class="StatsDash__card">
             <span class="StatsDash__card-value">{stats.overview.total_files_read}</span>
             <span class="StatsDash__card-label">Files Read</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{stats.overview.total_folders}</span>
+            <span class="StatsDash__card-label">Max Folders</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{stats.overview.total_files}</span>
+            <span class="StatsDash__card-label">Max Files</span>
           </div>
         </div>
       </section>
