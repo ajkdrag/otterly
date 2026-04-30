@@ -59,26 +59,49 @@
   let error_msg = $state<string | null>(null);
   let last_updated = $state<string | null>(null);
 
+  const session_id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  let session_started = false;
+
+  async function start_session_if_needed(vault_id: string, scan: VaultScanResult) {
+    if (session_started) return;
+    session_started = true;
+    try {
+      await invoke("stats_start_session", {
+        args: {
+          vault_id,
+          session_id,
+          folders_count: scan.folder_count,
+          files_count: scan.file_count,
+        },
+      });
+    } catch {
+      // session tracking is best-effort
+    }
+  }
+
   async function load_stats() {
     const vault = stores.vault.vault;
     if (!vault) return;
     loading = true;
     error_msg = null;
     try {
-      const [stats_result, nlp_result, scan_result] = await Promise.all([
+      const scan_result = await invoke<VaultScanResult>("stats_scan_vault", {
+        args: { vault_id: vault.id },
+      });
+      vault_scan = scan_result;
+
+      await start_session_if_needed(vault.id, scan_result);
+
+      const [stats_result, nlp_result] = await Promise.all([
         invoke<StatsHistory>("stats_get_history", {
           args: { vault_id: vault.id, limit: 30 },
         }),
         invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
           args: { vault_id: vault.id },
         }),
-        invoke<VaultScanResult>("stats_scan_vault", {
-          args: { vault_id: vault.id },
-        }),
       ]);
       stats = stats_result;
       nlp_stats = nlp_result;
-      vault_scan = scan_result;
       last_updated = new Date().toLocaleString();
     } catch (e) {
       error_msg = String(e);
@@ -90,6 +113,16 @@
   $effect(() => {
     if (stores.vault.vault) {
       load_stats();
+    }
+  });
+
+  $effect(() => {
+    const tab = stores.tab.active_tab;
+    const vault = stores.vault.vault;
+    if (tab && vault && session_started) {
+      invoke("stats_file_opened", {
+        args: { vault_id: vault.id, session_id, file_path: tab.note_path },
+      }).catch(() => {});
     }
   });
 
