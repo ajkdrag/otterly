@@ -25,9 +25,11 @@
     FoldVertical,
     Star,
   } from "@lucide/svelte";
+  import StatsOverlay from "$lib/features/stats/ui/stats_overlay.svelte";
 
   const { stores, action_registry } = use_app_context();
 
+  let stats_overlay_open = $state(false);
   let starred_expanded_node_ids = $state(new SvelteSet<string>());
 
   function starred_node_id(root_path: string, relative_path: string): string {
@@ -394,14 +396,7 @@
           );
         }}
         on_open_stats={() => {
-          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "stats") {
-            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
-            return;
-          }
-          void action_registry.execute(
-            ACTION_IDS.ui_set_sidebar_view,
-            "stats",
-          );
+          stats_overlay_open = !stats_overlay_open;
         }}
         on_open_help={() => void action_registry.execute(ACTION_IDS.help_open)}
         on_open_settings={() =>
@@ -784,6 +779,11 @@
     {word_count}
     {line_count}
     on_close={() => (details_dialog_open = false)}
+  />
+
+  <StatsOverlay
+    open={stats_overlay_open}
+    on_close={() => (stats_overlay_open = false)}
   />
 {/if}
 
