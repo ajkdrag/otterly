@@ -52,9 +52,20 @@
 
   const { stores } = use_app_context();
 
+  interface PointsAccount {
+    total_points: number;
+    level: number;
+    level_title: string;
+    level_icon: string;
+    streak_days: number;
+    next_level_points: number;
+    progress_percent: number;
+  }
+
   let stats = $state<StatsHistory | null>(null);
   let nlp_stats = $state<NlpAggregateStats | null>(null);
   let vault_scan = $state<VaultScanResult | null>(null);
+  let points = $state<PointsAccount | null>(null);
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
   let last_updated = $state<string | null>(null);
@@ -105,6 +116,16 @@
       ]);
       stats = stats_result;
       nlp_stats = nlp_result;
+
+      const pts = await invoke<PointsAccount>("points_get_account", {
+        args: { vault_id: vault.id },
+      });
+      points = pts;
+
+      await invoke("points_award", {
+        args: { vault_id: vault.id, action: "app_open" },
+      }).catch(() => {});
+
       last_updated = new Date().toLocaleString();
     } catch (e) {
       error_msg = String(e);
@@ -270,6 +291,27 @@
           {/if}
         </div>
       </div>
+
+      {#if points}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">🏆 Knowledge Growth</h3>
+          <div class="StatsDash__growth">
+            <div class="StatsDash__growth-header">
+              <span class="StatsDash__growth-icon">{points.level_icon}</span>
+              <div class="StatsDash__growth-info">
+                <span class="StatsDash__growth-title">Lv.{points.level} {points.level_title}</span>
+                <span class="StatsDash__growth-points">{points.total_points.toLocaleString()} pts | 🔥 {points.streak_days} days</span>
+              </div>
+            </div>
+            <div class="StatsDash__growth-bar-wrap">
+              <div class="StatsDash__growth-bar">
+                <div class="StatsDash__growth-fill" style="width: {points.progress_percent}%"></div>
+              </div>
+              <span class="StatsDash__growth-next">{points.total_points} / {points.next_level_points}</span>
+            </div>
+          </div>
+        </section>
+      {/if}
 
       {#if vault_scan}
         <section class="StatsDash__section">
@@ -743,6 +785,68 @@
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
+  }
+
+  .StatsDash__growth {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+  }
+
+  .StatsDash__growth-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .StatsDash__growth-icon {
+    font-size: 32px;
+    line-height: 1;
+  }
+
+  .StatsDash__growth-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .StatsDash__growth-title {
+    font-size: var(--text-base);
+    font-weight: 700;
+  }
+
+  .StatsDash__growth-points {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__growth-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .StatsDash__growth-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .StatsDash__growth-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--interactive), #22c55e);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  .StatsDash__growth-next {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
   }
 
   .StatsDash__keyword-tag {
