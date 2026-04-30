@@ -11,6 +11,7 @@ export type Badge = {
 export type UserProfile = {
   id: UserId;
   display_name: string;
+  password_hash: string;
   avatar_emoji: string;
   level: number;
   level_title: string;
@@ -45,6 +46,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
 
 export const DEFAULT_USER_PROFILE: Omit<UserProfile, "id"> = {
   display_name: "User",
+  password_hash: "",
   avatar_emoji: "👤",
   level: 0,
   level_title: "知识新生儿",

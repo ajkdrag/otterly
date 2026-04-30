@@ -167,6 +167,9 @@ export const ACTION_IDS = {
   user_update_preferences: "user.update_preferences",
   user_switch: "user.switch",
   user_create: "user.create",
+  user_delete: "user.delete",
+  user_change_password: "user.change_password",
+  user_verify_password: "user.verify_password",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

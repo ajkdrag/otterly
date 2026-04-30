@@ -179,6 +179,27 @@
       points = pts;
       points_transactions = txns;
 
+      // Sync points data to user profile store
+      if (pts && stores.user.active_profile) {
+        const profile = stores.user.active_profile;
+        if (
+          profile.level !== pts.level ||
+          profile.total_points !== pts.total_points ||
+          profile.streak_days !== pts.streak_days ||
+          profile.level_title !== pts.level_title ||
+          profile.level_icon !== pts.level_icon
+        ) {
+          stores.user.set_active_profile({
+            ...profile,
+            level: pts.level,
+            level_title: pts.level_title,
+            level_icon: pts.level_icon,
+            total_points: pts.total_points,
+            streak_days: pts.streak_days,
+          });
+        }
+      }
+
       await invoke("points_award", {
         args: { vault_id: vault.id, action: "app_open" },
       }).catch(() => {});

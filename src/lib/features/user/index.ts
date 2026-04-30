@@ -15,4 +15,13 @@ export {
   MAX_RECENT_FOLDERS,
   as_user_id,
 } from "$lib/features/user/types/user_profile";
+export type { GrowthLevel } from "$lib/features/user/types/growth_levels";
+export {
+  GROWTH_LEVELS,
+  get_level_progress,
+} from "$lib/features/user/types/growth_levels";
+export {
+  hash_password,
+  verify_password,
+} from "$lib/features/user/utils/password";
 export { default as UserProfilePanel } from "$lib/features/user/ui/user_profile_panel.svelte";

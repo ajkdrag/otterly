@@ -12,6 +12,7 @@ import {
   MAX_RECENT_FOLDERS,
   as_user_id,
 } from "$lib/features/user/types/user_profile";
+import { hash_password, verify_password } from "$lib/features/user/utils/password";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -181,14 +182,17 @@ export class UserService {
   async create_user(
     display_name: string,
     avatar_emoji: string,
+    password?: string,
   ): Promise<UserLoadResult> {
     this.op_store.start("user.create", this.now_ms());
 
     try {
+      const password_hash = password ? await hash_password(password) : "";
       const profile: UserProfile = {
         ...DEFAULT_USER_PROFILE,
         id: as_user_id(generate_user_id()),
         display_name,
+        password_hash,
         avatar_emoji,
         created_at: new Date().toISOString(),
         last_active_at: new Date().toISOString(),
@@ -202,6 +206,42 @@ export class UserService {
       this.op_store.fail("user.create", msg);
       return { status: "failed", error: msg };
     }
+  }
+
+  async change_password(
+    profile: UserProfile,
+    current_password: string,
+    new_password: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    // Verify current password if one is set
+    if (profile.password_hash) {
+      const valid = await verify_password(current_password, profile.password_hash);
+      if (!valid) {
+        return { success: false, error: "当前密码不正确" };
+      }
+    }
+
+    const new_hash = new_password ? await hash_password(new_password) : "";
+    const updated = { ...profile, password_hash: new_hash };
+    await this.save_profile(updated);
+    return { success: true };
+  }
+
+  async verify_user_password(
+    user_id: UserId,
+    password: string,
+  ): Promise<boolean> {
+    try {
+      const profile = await this.user_port.load_user_profile(user_id);
+      if (!profile) return false;
+      return verify_password(password, profile.password_hash);
+    } catch {
+      return false;
+    }
+  }
+
+  has_password(profile: UserProfile): boolean {
+    return !!profile.password_hash;
   }
 
   async delete_user(user_id: UserId): Promise<void> {

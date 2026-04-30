@@ -15,9 +15,10 @@ export function create_user_folder_persist_reactor(
   return $effect.root(() => {
     $effect(() => {
       const folder_path = ui_store.selected_folder_path;
-      const profile = user_store.active_profile;
 
-      if (!folder_path || !profile || folder_path === last_folder) {
+      // Only read folder_path reactively, avoid tracking active_profile
+      // to prevent re-triggering when profile is updated
+      if (!folder_path || folder_path === last_folder) {
         return;
       }
 

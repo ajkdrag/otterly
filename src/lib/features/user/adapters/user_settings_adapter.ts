@@ -60,7 +60,7 @@ async function load_all_profiles(
 ): Promise<UserProfile[]> {
   const stored = await settings_port.get_setting<unknown>(USERS_KEY);
   if (!stored || !Array.isArray(stored)) return [];
-  return stored.filter(is_user_profile);
+  return stored.filter(is_user_profile).map(migrate_profile);
 }
 
 function is_user_profile(entry: unknown): entry is UserProfile {
@@ -70,4 +70,12 @@ function is_user_profile(entry: unknown): entry is UserProfile {
     typeof candidate.id === "string" &&
     typeof candidate.display_name === "string"
   );
+}
+
+/** Ensure old profiles without password_hash field are compatible */
+function migrate_profile(profile: UserProfile): UserProfile {
+  return {
+    ...profile,
+    password_hash: profile.password_hash ?? "",
+  };
 }

@@ -321,8 +321,28 @@
     void action_registry.execute(ACTION_IDS.user_update_preferences, prefs)}
   on_user_switch={(user_id: string) =>
     void action_registry.execute(ACTION_IDS.user_switch, user_id)}
-  on_user_create={(name: string, emoji: string) =>
-    void action_registry.execute(ACTION_IDS.user_create, { name, emoji })}
+  on_user_create={(name: string, emoji: string, password?: string) =>
+    void action_registry.execute(ACTION_IDS.user_create, { name, emoji, password })}
+  on_user_delete={(user_id: string) =>
+    void action_registry.execute(ACTION_IDS.user_delete, user_id)}
+  on_user_change_password={(current_password: string, new_password: string) => {
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      void action_registry.execute(ACTION_IDS.user_change_password, {
+        current_password,
+        new_password,
+        resolve,
+      });
+    });
+  }}
+  on_user_verify_password={(user_id: string, password: string) => {
+    return new Promise<boolean>((resolve) => {
+      void action_registry.execute(ACTION_IDS.user_verify_password, {
+        user_id,
+        password,
+        resolve,
+      });
+    });
+  }}
 />
 
 <CreateFolderDialog

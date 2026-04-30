@@ -71,16 +71,76 @@ export function register_user_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.user_create,
     label: "Create User",
     execute: async (payload: unknown) => {
-      const data = payload as { name: string; emoji: string } | undefined;
+      const data = payload as
+        | { name: string; emoji: string; password?: string }
+        | undefined;
       if (!data || typeof data.name !== "string") return;
       const result = await services.user.create_user(
         data.name,
         data.emoji ?? "👤",
+        data.password,
       );
       if (result.status === "created") {
         const all = await services.user.list_users();
         stores.user.set_all_profiles(all);
       }
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.user_change_password,
+    label: "Change User Password",
+    execute: async (payload: unknown) => {
+      const data = payload as
+        | { current_password: string; new_password: string; resolve?: (result: { success: boolean; error?: string }) => void }
+        | undefined;
+      if (!data) return;
+      const profile = stores.user.active_profile;
+      if (!profile) return;
+      const result = await services.user.change_password(
+        profile,
+        data.current_password,
+        data.new_password,
+      );
+      if (result.success) {
+        const updated_result = await services.user.load_or_create_active_user();
+        if (
+          updated_result.status === "success" ||
+          updated_result.status === "created"
+        ) {
+          stores.user.set_active_profile(updated_result.profile);
+        }
+      }
+      if (data.resolve) data.resolve(result);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.user_verify_password,
+    label: "Verify User Password",
+    execute: async (payload: unknown) => {
+      const data = payload as
+        | { user_id: string; password: string; resolve?: (valid: boolean) => void }
+        | undefined;
+      if (!data) return;
+      const valid = await services.user.verify_user_password(
+        as_user_id(data.user_id),
+        data.password,
+      );
+      if (data.resolve) data.resolve(valid);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.user_delete,
+    label: "Delete User",
+    execute: async (user_id: unknown) => {
+      if (typeof user_id !== "string") return;
+      const current = stores.user.active_profile;
+      if (current && current.id === user_id) return; // cannot delete active user
+      await services.user.delete_user(as_user_id(user_id));
+      const all = await services.user.list_users();
+      stores.user.set_all_profiles(all);
     },
   });
 }

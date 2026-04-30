@@ -83,6 +83,9 @@
     on_user_update_preferences = () => {},
     on_user_switch = () => {},
     on_user_create = () => {},
+    on_user_delete = () => {},
+    on_user_change_password = async () => ({ success: false, error: "不可用" }),
+    on_user_verify_password = async () => true,
   }: Props & {
     user_profile?: UserProfile | null;
     user_all_profiles?: UserProfile[];
@@ -90,7 +93,10 @@
     on_user_update_avatar?: (emoji: string) => void;
     on_user_update_preferences?: (prefs: Partial<UserPreferences>) => void;
     on_user_switch?: (user_id: string) => void;
-    on_user_create?: (name: string, emoji: string) => void;
+    on_user_create?: (name: string, emoji: string, password?: string) => void;
+    on_user_delete?: (user_id: string) => void;
+    on_user_change_password?: (current_password: string, new_password: string) => Promise<{ success: boolean; error?: string }>;
+    on_user_verify_password?: (user_id: string, password: string) => Promise<boolean>;
   } = $props();
 
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
@@ -468,6 +474,9 @@
             on_update_preferences={on_user_update_preferences}
             on_switch_user={on_user_switch}
             on_create_user={on_user_create}
+            on_delete_user={on_user_delete}
+            on_change_password={on_user_change_password}
+            on_verify_password={on_user_verify_password}
           />
         {/if}
       </div>

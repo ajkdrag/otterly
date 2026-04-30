@@ -134,6 +134,10 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
   }
 
   await mount_ready_vault_state(input, bootstrap_data.vault_initialize_result);
+
+  // Load user profile on startup
+  await input.registry.execute(ACTION_IDS.user_load);
+
   set_startup_idle(input);
 }
 

@@ -363,6 +363,12 @@
       <ActivityBar
         sidebar_open={stores.ui.sidebar_open}
         active_view={stores.ui.sidebar_view}
+        user_avatar_emoji={stores.user.avatar_emoji}
+        user_level={stores.user.level}
+        user_level_icon={stores.user.level_icon}
+        on_open_profile={() => {
+          void action_registry.execute(ACTION_IDS.settings_open, "profile");
+        }}
         on_open_explorer={() => {
           if (stores.ui.sidebar_open && stores.ui.sidebar_view === "explorer") {
             void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);

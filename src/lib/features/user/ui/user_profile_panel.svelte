@@ -3,6 +3,8 @@
   import * as Select from "$lib/components/ui/select/index.js";
   import { Input } from "$lib/components/ui/input";
   import { Button } from "$lib/components/ui/button";
+  import { get_level_progress } from "$lib/features/user/types/growth_levels";
+  import StreakFlame from "$lib/features/user/ui/streak_flame.svelte";
   import type {
     UserProfile,
     UserPreferences,
@@ -16,7 +18,10 @@
     on_update_avatar: (emoji: string) => void;
     on_update_preferences: (prefs: Partial<UserPreferences>) => void;
     on_switch_user: (user_id: string) => void;
-    on_create_user: (name: string, emoji: string) => void;
+    on_create_user: (name: string, emoji: string, password?: string) => void;
+    on_delete_user?: (user_id: string) => void;
+    on_change_password?: (current_password: string, new_password: string) => Promise<{ success: boolean; error?: string }>;
+    on_verify_password?: (user_id: string, password: string) => Promise<boolean>;
   };
 
   let {
@@ -27,6 +32,9 @@
     on_update_preferences,
     on_switch_user,
     on_create_user,
+    on_delete_user = () => {},
+    on_change_password = async () => ({ success: false, error: "不可用" }),
+    on_verify_password = async () => true,
   }: Props = $props();
 
   let editing_name = $state(false);
@@ -34,32 +42,29 @@
   let show_create_form = $state(false);
   let new_user_name = $state("");
   let new_user_emoji = $state("👤");
+  let new_user_password = $state("");
+  let confirm_delete_id = $state<string | null>(null);
+
+  // Password change state
+  let show_password_form = $state(false);
+  let current_password = $state("");
+  let new_password = $state("");
+  let confirm_password = $state("");
+  let password_error = $state<string | null>(null);
+  let password_success = $state(false);
+  let is_changing_password = $state(false);
+
+  // Switch user password state
+  let switch_target_id = $state<string | null>(null);
+  let switch_password = $state("");
+  let switch_error = $state<string | null>(null);
+  let is_verifying = $state(false);
 
   const avatar_options = [
-    "👤",
-    "👨",
-    "👩",
-    "🧑",
-    "👦",
-    "👧",
-    "🧒",
-    "👨‍💻",
-    "👩‍💻",
-    "🧑‍💻",
-    "👨‍🎓",
-    "👩‍🎓",
-    "🧑‍🎓",
-    "👨‍🏫",
-    "👩‍🏫",
-    "🦊",
-    "🐱",
-    "🐶",
-    "🐼",
-    "🦉",
-    "🌟",
-    "🌈",
-    "🎯",
-    "🚀",
+    "👤", "👨", "👩", "🧑", "👦", "👧", "🧒",
+    "👨‍💻", "👩‍💻", "🧑‍💻", "👨‍🎓", "👩‍🎓", "🧑‍🎓",
+    "👨‍🏫", "👩‍🏫", "🦊", "🐱", "🐶", "🐼", "🦉",
+    "🌟", "🌈", "🎯", "🚀",
   ];
 
   const sidebar_view_options = [
@@ -75,6 +80,13 @@
     { value: "vault_picker", label: "选择仓库" },
     { value: "empty", label: "空白页面" },
   ];
+
+  const level_progress = $derived.by(() => {
+    if (!profile) return null;
+    return get_level_progress(profile.level, profile.total_points);
+  });
+
+  const has_password = $derived(!!profile?.password_hash);
 
   function start_editing_name(): void {
     if (!profile) return;
@@ -95,11 +107,102 @@
 
   function handle_create_user(): void {
     if (new_user_name.trim()) {
-      on_create_user(new_user_name.trim(), new_user_emoji);
+      on_create_user(new_user_name.trim(), new_user_emoji, new_user_password || undefined);
       new_user_name = "";
       new_user_emoji = "👤";
+      new_user_password = "";
       show_create_form = false;
     }
+  }
+
+  function handle_delete_user(user_id: string): void {
+    on_delete_user(user_id);
+    confirm_delete_id = null;
+  }
+
+  async function handle_change_password(): Promise<void> {
+    password_error = null;
+    password_success = false;
+
+    if (new_password !== confirm_password) {
+      password_error = "两次输入的新密码不一致";
+      return;
+    }
+
+    if (new_password && new_password.length < 4) {
+      password_error = "密码长度至少4位";
+      return;
+    }
+
+    is_changing_password = true;
+    try {
+      const result = await on_change_password(current_password, new_password);
+      if (result.success) {
+        password_success = true;
+        current_password = "";
+        new_password = "";
+        confirm_password = "";
+        setTimeout(() => {
+          show_password_form = false;
+          password_success = false;
+        }, 1500);
+      } else {
+        password_error = result.error ?? "修改密码失败";
+      }
+    } finally {
+      is_changing_password = false;
+    }
+  }
+
+  function cancel_password_change(): void {
+    show_password_form = false;
+    current_password = "";
+    new_password = "";
+    confirm_password = "";
+    password_error = null;
+    password_success = false;
+  }
+
+  async function handle_switch_with_password(user_id: string): Promise<void> {
+    // Find the target user to check if they have a password
+    const target = all_profiles.find((u) => u.id === user_id);
+    if (!target) return;
+
+    if (!target.password_hash) {
+      // No password set, switch directly
+      on_switch_user(user_id);
+      return;
+    }
+
+    // Show password prompt
+    switch_target_id = user_id;
+    switch_password = "";
+    switch_error = null;
+  }
+
+  async function confirm_switch_with_password(): Promise<void> {
+    if (!switch_target_id) return;
+    is_verifying = true;
+    switch_error = null;
+
+    try {
+      const valid = await on_verify_password(switch_target_id, switch_password);
+      if (valid) {
+        on_switch_user(switch_target_id);
+        switch_target_id = null;
+        switch_password = "";
+      } else {
+        switch_error = "密码不正确";
+      }
+    } finally {
+      is_verifying = false;
+    }
+  }
+
+  function cancel_switch(): void {
+    switch_target_id = null;
+    switch_password = "";
+    switch_error = null;
   }
 
   function format_date(iso: string): string {
@@ -128,8 +231,7 @@
             <button
               type="button"
               class="UserProfile__avatar-option"
-              class:UserProfile__avatar-option--active={profile.avatar_emoji ===
-                emoji}
+              class:UserProfile__avatar-option--active={profile.avatar_emoji === emoji}
               onclick={() => on_update_avatar(emoji)}
             >
               {emoji}
@@ -154,11 +256,8 @@
               class="w-40"
               placeholder="用户名"
             />
-            <Button variant="outline" size="sm" onclick={save_name}>保存</Button
-            >
-            <Button variant="ghost" size="sm" onclick={cancel_edit_name}
-              >取消</Button
-            >
+            <Button variant="outline" size="sm" onclick={save_name}>保存</Button>
+            <Button variant="ghost" size="sm" onclick={cancel_edit_name}>取消</Button>
           </div>
         {:else}
           <button
@@ -170,52 +269,146 @@
             {profile.display_name}
           </button>
         {/if}
-        <span class="UserProfile__join-date"
-          >加入于 {format_date(profile.created_at)}</span
-        >
+        <span class="UserProfile__join-date">加入于 {format_date(profile.created_at)}</span>
+        <span class="UserProfile__password-status">
+          {has_password ? "🔒 已设置密码" : "🔓 未设置密码"}
+        </span>
       </div>
     </div>
 
-    <!-- Level & Points -->
+    <!-- Password Management -->
+    <div class="UserProfile__section">
+      <h3 class="UserProfile__section-title">密码管理</h3>
+      {#if show_password_form}
+        <div class="UserProfile__password-form">
+          {#if has_password}
+            <div class="UserProfile__field">
+              <label class="UserProfile__field-label">当前密码</label>
+              <Input
+                type="password"
+                value={current_password}
+                oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                  current_password = e.currentTarget.value;
+                }}
+                placeholder="输入当前密码"
+                class="w-full"
+              />
+            </div>
+          {/if}
+          <div class="UserProfile__field">
+            <label class="UserProfile__field-label">
+              {has_password ? "新密码" : "设置密码"}
+            </label>
+            <Input
+              type="password"
+              value={new_password}
+              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                new_password = e.currentTarget.value;
+              }}
+              placeholder={has_password ? "输入新密码" : "设置密码（留空则不设密码）"}
+              class="w-full"
+            />
+          </div>
+          <div class="UserProfile__field">
+            <label class="UserProfile__field-label">确认密码</label>
+            <Input
+              type="password"
+              value={confirm_password}
+              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                confirm_password = e.currentTarget.value;
+              }}
+              onkeydown={(e: KeyboardEvent) => {
+                if (e.key === "Enter") void handle_change_password();
+              }}
+              placeholder="再次输入密码"
+              class="w-full"
+            />
+          </div>
+          {#if password_error}
+            <p class="UserProfile__error-text">{password_error}</p>
+          {/if}
+          {#if password_success}
+            <p class="UserProfile__success-text">✅ 密码修改成功！</p>
+          {/if}
+          <div class="UserProfile__password-actions">
+            <Button variant="outline" size="sm" onclick={cancel_password_change}>取消</Button>
+            <Button
+              size="sm"
+              onclick={() => void handle_change_password()}
+              disabled={is_changing_password || (!new_password && !has_password)}
+            >
+              {is_changing_password ? "保存中..." : has_password ? "修改密码" : "设置密码"}
+            </Button>
+          </div>
+        </div>
+      {:else}
+        <Button
+          variant="outline"
+          class="w-full"
+          onclick={() => (show_password_form = true)}
+        >
+          {has_password ? "🔑 修改密码" : "🔐 设置密码"}
+        </Button>
+      {/if}
+    </div>
+
+    <!-- Level & Points with Progress -->
     <div class="UserProfile__section">
       <h3 class="UserProfile__section-title">等级信息</h3>
       <div class="UserProfile__level-card">
         <div class="UserProfile__level-header">
           <span class="UserProfile__level-icon">{profile.level_icon}</span>
           <div class="UserProfile__level-info">
-            <span class="UserProfile__level-label"
-              >Lv.{profile.level} {profile.level_title}</span
-            >
-            <span class="UserProfile__level-points"
-              >{profile.total_points.toLocaleString()} 积分</span
-            >
+            <span class="UserProfile__level-label">Lv.{profile.level} {profile.level_title}</span>
+            <span class="UserProfile__level-points">{profile.total_points.toLocaleString()} 积分</span>
           </div>
         </div>
         <div class="UserProfile__streak">
-          <span class="UserProfile__streak-icon">🔥</span>
-          <span class="UserProfile__streak-text"
-            >连续 {profile.streak_days} 天</span
-          >
+          <StreakFlame streak_days={profile.streak_days} size="md" show_time={true} />
         </div>
       </div>
+
+      {#if level_progress}
+        <div class="UserProfile__progress-section">
+          <div class="UserProfile__progress-header">
+            {#if level_progress.next_level}
+              <span class="UserProfile__progress-label">
+                下一等级：{level_progress.next_level.icon} Lv.{level_progress.next_level.level} {level_progress.next_level.title}
+              </span>
+              <span class="UserProfile__progress-value">
+                {profile.total_points.toLocaleString()} / {level_progress.next_level_points.toLocaleString()}
+              </span>
+            {:else}
+              <span class="UserProfile__progress-label">已达到最高等级 👑</span>
+              <span class="UserProfile__progress-value">MAX</span>
+            {/if}
+          </div>
+          <div class="UserProfile__progress-bar">
+            <div
+              class="UserProfile__progress-fill"
+              style="width: {level_progress.progress_percent}%"
+            ></div>
+          </div>
+          <span class="UserProfile__progress-percent">{level_progress.progress_percent}%</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Badges -->
     <div class="UserProfile__section">
-      <h3 class="UserProfile__section-title">
-        成就徽章 ({profile.badges.length})
-      </h3>
+      <h3 class="UserProfile__section-title">成就徽章 ({profile.badges.length})</h3>
       {#if profile.badges.length > 0}
         <div class="UserProfile__badges">
           {#each profile.badges as badge (badge.id)}
             <div class="UserProfile__badge" title={badge.description}>
               <span class="UserProfile__badge-icon">{badge.icon}</span>
               <span class="UserProfile__badge-name">{badge.name}</span>
+              <span class="UserProfile__badge-date">{format_date(badge.unlocked_at)}</span>
             </div>
           {/each}
         </div>
       {:else}
-        <p class="UserProfile__empty-text">还没有获得徽章，继续努力！</p>
+        <p class="UserProfile__empty-text">还没有获得徽章，继续努力！🌟</p>
       {/if}
     </div>
 
@@ -227,9 +420,7 @@
           {#each profile.recent_folders as folder (folder)}
             <div class="UserProfile__folder-item" title={folder}>
               <span class="UserProfile__folder-icon">📁</span>
-              <span class="UserProfile__folder-path"
-                >{folder.split("/").at(-1) ?? folder}</span
-              >
+              <span class="UserProfile__folder-path">{folder.split("/").at(-1) ?? folder}</span>
             </div>
           {/each}
         </div>
@@ -241,7 +432,6 @@
     <!-- Preferences -->
     <div class="UserProfile__section">
       <h3 class="UserProfile__section-title">个性化设置</h3>
-
       <div class="UserProfile__pref-rows">
         <div class="UserProfile__pref-row">
           <div class="UserProfile__pref-label-group">
@@ -254,17 +444,12 @@
             onValueChange={(v: string | undefined) => {
               if (v)
                 on_update_preferences({
-                  default_sidebar_view:
-                    v as UserPreferences["default_sidebar_view"],
+                  default_sidebar_view: v as UserPreferences["default_sidebar_view"],
                 });
             }}
           >
             <Select.Trigger class="w-32">
-              <span data-slot="select-value"
-                >{sidebar_view_options.find(
-                  (o) => o.value === profile.preferences.default_sidebar_view,
-                )?.label ?? profile.preferences.default_sidebar_view}</span
-              >
+              <span data-slot="select-value">{sidebar_view_options.find((o) => o.value === profile.preferences.default_sidebar_view)?.label ?? profile.preferences.default_sidebar_view}</span>
             </Select.Trigger>
             <Select.Content>
               {#each sidebar_view_options as opt (opt.value)}
@@ -290,11 +475,7 @@
             }}
           >
             <Select.Trigger class="w-36">
-              <span data-slot="select-value"
-                >{startup_options.find(
-                  (o) => o.value === profile.preferences.startup_action,
-                )?.label ?? profile.preferences.startup_action}</span
-              >
+              <span data-slot="select-value">{startup_options.find((o) => o.value === profile.preferences.startup_action)?.label ?? profile.preferences.startup_action}</span>
             </Select.Trigger>
             <Select.Content>
               {#each startup_options as opt (opt.value)}
@@ -325,24 +506,76 @@
         <h3 class="UserProfile__section-title">切换用户</h3>
         <div class="UserProfile__user-list">
           {#each all_profiles as user (user.id)}
-            <button
-              type="button"
+            <div
               class="UserProfile__user-item"
               class:UserProfile__user-item--active={user.id === profile.id}
-              onclick={() => {
-                if (user.id !== profile.id) on_switch_user(user.id);
-              }}
-              disabled={user.id === profile.id}
             >
-              <span class="UserProfile__user-avatar">{user.avatar_emoji}</span>
-              <span class="UserProfile__user-name">{user.display_name}</span>
-              <span class="UserProfile__user-level"
-                >{user.level_icon} Lv.{user.level}</span
+              <button
+                type="button"
+                class="UserProfile__user-item-main"
+                onclick={() => {
+                  if (user.id !== profile.id) handle_switch_with_password(user.id);
+                }}
+                disabled={user.id === profile.id}
               >
-              {#if user.id === profile.id}
-                <span class="UserProfile__user-current">当前</span>
+                <span class="UserProfile__user-avatar">{user.avatar_emoji}</span>
+                <span class="UserProfile__user-name">{user.display_name}</span>
+                <span class="UserProfile__user-level">{user.level_icon} Lv.{user.level}</span>
+                {#if user.password_hash}
+                  <span class="UserProfile__user-lock">🔒</span>
+                {/if}
+                {#if user.id === profile.id}
+                  <span class="UserProfile__user-current">当前</span>
+                {/if}
+              </button>
+              {#if user.id !== profile.id}
+                {#if confirm_delete_id === user.id}
+                  <div class="UserProfile__user-delete-confirm">
+                    <span class="UserProfile__user-delete-text">确定删除？</span>
+                    <Button variant="destructive" size="sm" onclick={() => handle_delete_user(user.id)}>确定</Button>
+                    <Button variant="ghost" size="sm" onclick={() => (confirm_delete_id = null)}>取消</Button>
+                  </div>
+                {:else}
+                  <button
+                    type="button"
+                    class="UserProfile__user-delete-btn"
+                    onclick={() => (confirm_delete_id = user.id)}
+                    title="删除此用户"
+                  >
+                    ✕
+                  </button>
+                {/if}
               {/if}
-            </button>
+            </div>
+
+            <!-- Password prompt for switching -->
+            {#if switch_target_id === user.id}
+              <div class="UserProfile__switch-password">
+                <span class="UserProfile__switch-label">请输入 {user.display_name} 的密码：</span>
+                <div class="UserProfile__switch-input-row">
+                  <Input
+                    type="password"
+                    value={switch_password}
+                    oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                      switch_password = e.currentTarget.value;
+                    }}
+                    onkeydown={(e: KeyboardEvent) => {
+                      if (e.key === "Enter") void confirm_switch_with_password();
+                      if (e.key === "Escape") cancel_switch();
+                    }}
+                    placeholder="输入密码"
+                    class="w-full"
+                  />
+                  <Button size="sm" onclick={() => void confirm_switch_with_password()} disabled={is_verifying || !switch_password}>
+                    {is_verifying ? "验证中..." : "确认"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onclick={cancel_switch}>取消</Button>
+                </div>
+                {#if switch_error}
+                  <p class="UserProfile__error-text">{switch_error}</p>
+                {/if}
+              </div>
+            {/if}
           {/each}
         </div>
       </div>
@@ -363,13 +596,21 @@
               placeholder="输入用户名"
               class="w-full"
             />
+            <Input
+              type="password"
+              value={new_user_password}
+              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                new_user_password = e.currentTarget.value;
+              }}
+              placeholder="设置密码（可选）"
+              class="w-full"
+            />
             <div class="UserProfile__create-emoji-picker">
               {#each avatar_options.slice(0, 12) as emoji (emoji)}
                 <button
                   type="button"
                   class="UserProfile__avatar-option"
-                  class:UserProfile__avatar-option--active={new_user_emoji ===
-                    emoji}
+                  class:UserProfile__avatar-option--active={new_user_emoji === emoji}
                   onclick={() => (new_user_emoji = emoji)}
                 >
                   {emoji}
@@ -377,25 +618,13 @@
               {/each}
             </div>
             <div class="UserProfile__create-actions">
-              <Button
-                variant="outline"
-                size="sm"
-                onclick={() => (show_create_form = false)}>取消</Button
-              >
-              <Button
-                size="sm"
-                onclick={handle_create_user}
-                disabled={!new_user_name.trim()}>创建</Button
-              >
+              <Button variant="outline" size="sm" onclick={() => (show_create_form = false)}>取消</Button>
+              <Button size="sm" onclick={handle_create_user} disabled={!new_user_name.trim()}>创建</Button>
             </div>
           </div>
         </div>
       {:else}
-        <Button
-          variant="outline"
-          class="w-full"
-          onclick={() => (show_create_form = true)}
-        >
+        <Button variant="outline" class="w-full" onclick={() => (show_create_form = true)}>
           ＋ 添加新用户
         </Button>
       {/if}
@@ -503,6 +732,11 @@
     color: var(--muted-foreground);
   }
 
+  .UserProfile__password-status {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
   .UserProfile__section {
     display: flex;
     flex-direction: column;
@@ -513,6 +747,71 @@
     font-size: var(--text-sm);
     font-weight: 600;
     color: var(--foreground);
+  }
+
+  /* Password form */
+  .UserProfile__password-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .UserProfile__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .UserProfile__field-label {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  .UserProfile__password-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .UserProfile__error-text {
+    font-size: var(--text-xs);
+    color: var(--destructive);
+    font-weight: 500;
+  }
+
+  .UserProfile__success-text {
+    font-size: var(--text-xs);
+    color: var(--interactive);
+    font-weight: 500;
+  }
+
+  /* Switch password */
+  .UserProfile__switch-password {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-1);
+    border-radius: var(--radius-md);
+    background-color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .UserProfile__switch-label {
+    font-size: var(--text-xs);
+    color: var(--foreground);
+    font-weight: 500;
+  }
+
+  .UserProfile__switch-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .UserProfile__level-card {
@@ -569,6 +868,53 @@
     font-weight: 500;
   }
 
+  .UserProfile__progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1-5);
+  }
+
+  .UserProfile__progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .UserProfile__progress-label {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-weight: 500;
+  }
+
+  .UserProfile__progress-value {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .UserProfile__progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background-color: var(--muted);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .UserProfile__progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--interactive) 0%, var(--interactive-hover) 100%);
+    transition: width var(--duration-normal) var(--ease-default);
+    min-width: 2px;
+  }
+
+  .UserProfile__progress-percent {
+    font-size: var(--text-xs);
+    color: var(--interactive);
+    font-weight: 600;
+    text-align: right;
+  }
+
   .UserProfile__badges {
     display: flex;
     flex-wrap: wrap;
@@ -594,6 +940,12 @@
     font-size: var(--text-xs);
     color: var(--foreground);
     font-weight: 500;
+  }
+
+  .UserProfile__badge-date {
+    font-size: 0.625rem;
+    color: var(--muted-foreground);
+    margin-inline-start: var(--space-1);
   }
 
   .UserProfile__empty-text {
@@ -675,30 +1027,39 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2);
+    padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-md);
     background: transparent;
     border: 1px solid var(--border);
-    cursor: pointer;
     transition: background-color var(--duration-fast) var(--ease-default);
   }
 
-  .UserProfile__user-item:hover:not(:disabled) {
+  .UserProfile__user-item:hover {
     background-color: var(--muted);
   }
 
   .UserProfile__user-item--active {
     background-color: var(--interactive-bg);
     border-color: var(--interactive);
-    cursor: default;
   }
 
-  .UserProfile__user-item:disabled {
+  .UserProfile__user-item-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    padding: var(--space-1) 0;
+  }
+
+  .UserProfile__user-item-main:disabled {
     cursor: default;
   }
 
   .UserProfile__user-avatar {
     font-size: 1.25rem;
+    flex-shrink: 0;
   }
 
   .UserProfile__user-name {
@@ -706,17 +1067,68 @@
     font-weight: 500;
     color: var(--foreground);
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .UserProfile__user-level {
     font-size: var(--text-xs);
     color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+
+  .UserProfile__user-lock {
+    font-size: var(--text-xs);
+    flex-shrink: 0;
   }
 
   .UserProfile__user-current {
     font-size: var(--text-xs);
     color: var(--interactive);
     font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .UserProfile__user-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-sm);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transition:
+      opacity var(--duration-fast) var(--ease-default),
+      color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default);
+  }
+
+  .UserProfile__user-item:hover .UserProfile__user-delete-btn {
+    opacity: 1;
+  }
+
+  .UserProfile__user-delete-btn:hover {
+    color: var(--destructive);
+    background-color: var(--destructive-foreground);
+  }
+
+  .UserProfile__user-delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-shrink: 0;
+  }
+
+  .UserProfile__user-delete-text {
+    font-size: var(--text-xs);
+    color: var(--destructive);
+    font-weight: 500;
   }
 
   .UserProfile__create-form {
