@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
+  import { tracked_invoke } from "$lib/features/nlp_kernal";
 
   interface SessionStats {
     session_id: string;
@@ -113,7 +115,7 @@
         invoke<StatsHistory>("stats_get_history", {
           args: { vault_id: vault.id, limit: 30 },
         }),
-        invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
+        tracked_invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
           args: { vault_id: vault.id },
         }),
       ]);
@@ -139,7 +141,7 @@
 
   $effect(() => {
     if (stores.vault.vault) {
-      load_stats();
+      untrack(() => load_stats());
     }
   });
 

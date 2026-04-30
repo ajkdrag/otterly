@@ -18,5 +18,5 @@ devlog/
 opencode.json
 .eslintcache
 .idea/
-nlp_kernal/
+/nlp_kernal/
 include/

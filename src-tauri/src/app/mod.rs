@@ -103,6 +103,8 @@ pub fn run() {
             features::nlp_kernal::commands::nlp_py_keywords,
             features::nlp_kernal::commands::nlp_py_sentiment,
             features::nlp_kernal::commands::nlp_py_entities,
+            features::nlp_kernal::commands::nlp_py_entities_ml,
+            features::nlp_kernal::commands::nlp_py_classify,
             features::stats::commands::stats_start_session,
             features::stats::commands::stats_end_session,
             features::stats::commands::stats_file_opened,
