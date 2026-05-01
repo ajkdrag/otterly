@@ -105,6 +105,7 @@ pub fn run() {
             features::nlp_kernal::commands::nlp_py_entities,
             features::nlp_kernal::commands::nlp_py_entities_ml,
             features::nlp_kernal::commands::nlp_py_classify,
+            features::nlp_kernal::commands::nlp_bpe_analyze,
             features::stats::commands::stats_start_session,
             features::stats::commands::stats_end_session,
             features::stats::commands::stats_file_opened,

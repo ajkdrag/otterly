@@ -14,7 +14,8 @@ type NlpCommandId =
   | "nlp_py_sentiment"
   | "nlp_py_entities"
   | "nlp_py_entities_ml"
-  | "nlp_py_classify";
+  | "nlp_py_classify"
+  | "nlp_bpe_analyze";
 
 const NLP_COMMAND_LABELS: Record<NlpCommandId, string> = {
   nlp_analyze_note: "Note Analysis (Rust)",
@@ -26,6 +27,7 @@ const NLP_COMMAND_LABELS: Record<NlpCommandId, string> = {
   nlp_py_entities: "Entity Extraction (Python)",
   nlp_py_entities_ml: "NER ML (Python/ModelScope)",
   nlp_py_classify: "Text Classification (Python)",
+  nlp_bpe_analyze: "BPE Analysis (Rust)",
 };
 
 const ALL_COMMANDS: NlpCommandId[] = [
@@ -38,6 +40,7 @@ const ALL_COMMANDS: NlpCommandId[] = [
   "nlp_py_entities",
   "nlp_py_entities_ml",
   "nlp_py_classify",
+  "nlp_bpe_analyze",
 ];
 
 class NlpInvocationTracker {

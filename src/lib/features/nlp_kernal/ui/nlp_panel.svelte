@@ -69,6 +69,31 @@
     is_confident: boolean;
   }
 
+  interface BpeMergeInfo {
+    pair: string;
+    merged: string;
+    frequency: number;
+    rank: number;
+  }
+
+  interface BpeTokenFreq {
+    token: string;
+    count: number;
+  }
+
+  interface BpeAnalysis {
+    token_count: number;
+    vocab_size: number;
+    num_merges: number;
+    compression_ratio: number;
+    avg_token_length: number;
+    top_merges: BpeMergeInfo[];
+    top_tokens: BpeTokenFreq[];
+    sample_tokens: string[];
+    original_byte_length: number;
+    original_char_length: number;
+  }
+
   const { stores } = use_app_context();
 
   let analysis = $state<NlpAnalysis | null>(null);
@@ -85,6 +110,10 @@
   let py_capabilities = $state<PyCapabilities | null>(null);
   let py_loading = $state(false);
   let py_error = $state<string | null>(null);
+
+  let bpe_analysis = $state<BpeAnalysis | null>(null);
+  let bpe_loading = $state(false);
+  let bpe_error = $state<string | null>(null);
 
   async function run_analysis() {
     const vault = stores.vault.vault;
@@ -106,6 +135,8 @@
     py_entities_ml = null;
     py_classify = null;
     py_error = null;
+    bpe_analysis = null;
+    bpe_error = null;
 
     try {
       const result: NlpAnalysis = await tracked_invoke("nlp_analyze_note", {
@@ -121,6 +152,29 @@
     }
 
     run_python_analysis();
+    run_bpe_analysis();
+  }
+
+  async function run_bpe_analysis() {
+    const open_note = stores.editor.open_note;
+    if (!open_note?.markdown) return;
+
+    const text = open_note.markdown as string;
+    if (text.trim().length === 0) return;
+
+    bpe_loading = true;
+    bpe_error = null;
+
+    try {
+      bpe_analysis = await tracked_invoke<BpeAnalysis>("nlp_bpe_analyze", {
+        args: { text, max_merges: 100 },
+      });
+    } catch (e) {
+      bpe_error = String(e);
+      bpe_analysis = null;
+    } finally {
+      bpe_loading = false;
+    }
   }
 
   async function run_python_analysis() {
@@ -596,6 +650,122 @@
         </section>
       {/if}
 
+      <!-- BPE Token Analysis Section -->
+      {#if bpe_loading}
+        <div class="NlpPanel__py-status">Loading BPE Analysis...</div>
+      {:else if bpe_error}
+        <div class="NlpPanel__py-status NlpPanel__py-status--error">{bpe_error}</div>
+      {:else if bpe_analysis}
+        <section class="NlpPanel__section NlpPanel__bpe-section">
+          <h3 class="NlpPanel__section-title">🧩 BPE Token 分析 (Byte Pair Encoding)</h3>
+
+          <div class="NlpPanel__bpe-overview">
+            <div class="NlpPanel__grid">
+              <div class="NlpPanel__stat">
+                <span class="NlpPanel__stat-value">{bpe_analysis.token_count.toLocaleString()}</span>
+                <span class="NlpPanel__stat-label">BPE Tokens</span>
+              </div>
+              <div class="NlpPanel__stat">
+                <span class="NlpPanel__stat-value">{bpe_analysis.vocab_size.toLocaleString()}</span>
+                <span class="NlpPanel__stat-label">词表大小</span>
+              </div>
+              <div class="NlpPanel__stat">
+                <span class="NlpPanel__stat-value">{bpe_analysis.num_merges}</span>
+                <span class="NlpPanel__stat-label">合并次数</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="NlpPanel__bpe-details">
+            <h4 class="NlpPanel__bpe-subtitle">📐 算法指标</h4>
+            <div class="NlpPanel__metrics">
+              <div class="NlpPanel__metric-row">
+                <span>压缩比 (chars/tokens)</span>
+                <span class="NlpPanel__metric-value">{bpe_analysis.compression_ratio.toFixed(2)}x</span>
+              </div>
+              <div class="NlpPanel__metric-row">
+                <span>平均 Token 长度</span>
+                <span class="NlpPanel__metric-value">{bpe_analysis.avg_token_length.toFixed(2)} chars</span>
+              </div>
+              <div class="NlpPanel__metric-row">
+                <span>原始字符数</span>
+                <span class="NlpPanel__metric-value">{bpe_analysis.original_char_length.toLocaleString()}</span>
+              </div>
+              <div class="NlpPanel__metric-row">
+                <span>原始字节数</span>
+                <span class="NlpPanel__metric-value">{format_bytes(bpe_analysis.original_byte_length)}</span>
+              </div>
+            </div>
+          </div>
+
+          {#if bpe_analysis.top_merges.length > 0}
+            <div class="NlpPanel__bpe-details">
+              <h4 class="NlpPanel__bpe-subtitle">🔀 Top 合并规则 ({bpe_analysis.top_merges.length})</h4>
+              <div class="NlpPanel__bpe-merges">
+                {#each bpe_analysis.top_merges as merge}
+                  <div class="NlpPanel__bpe-merge-row">
+                    <span class="NlpPanel__bpe-merge-rank">#{merge.rank}</span>
+                    <span class="NlpPanel__bpe-merge-pair">{merge.pair}</span>
+                    <span class="NlpPanel__bpe-merge-arrow">→</span>
+                    <span class="NlpPanel__bpe-merge-result">{merge.merged}</span>
+                    <span class="NlpPanel__bpe-merge-freq">×{merge.frequency}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if bpe_analysis.top_tokens.length > 0}
+            <div class="NlpPanel__bpe-details">
+              <h4 class="NlpPanel__bpe-subtitle">📊 高频 Token (Top {bpe_analysis.top_tokens.length})</h4>
+              <div class="NlpPanel__keywords">
+                {#each bpe_analysis.top_tokens as tok}
+                  <div class="NlpPanel__keyword-row">
+                    <span class="NlpPanel__keyword-word">{tok.token}</span>
+                    <div class="NlpPanel__keyword-bar">
+                      <div
+                        class="NlpPanel__keyword-fill NlpPanel__keyword-fill--bpe"
+                        style="width: {(tok.count / (bpe_analysis.top_tokens[0]?.count ?? 1)) * 100}%"
+                      ></div>
+                    </div>
+                    <span class="NlpPanel__keyword-count">{tok.count}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if bpe_analysis.sample_tokens.length > 0}
+            <div class="NlpPanel__bpe-details">
+              <h4 class="NlpPanel__bpe-subtitle">🔤 BPE Token 序列 (前 {Math.min(bpe_analysis.sample_tokens.length, 200)} 个)</h4>
+              <div class="NlpPanel__tokens">
+                {#each bpe_analysis.sample_tokens as token}
+                  {#if token.trim()}
+                    <span class="NlpPanel__token NlpPanel__token--bpe">{token}</span>
+                  {/if}
+                {/each}
+                {#if bpe_analysis.token_count > 200}
+                  <span class="NlpPanel__token NlpPanel__token--more"
+                    >+{bpe_analysis.token_count - 200} more</span
+                  >
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <div class="NlpPanel__bpe-info">
+            <h4 class="NlpPanel__bpe-subtitle">ℹ️ 关于 BPE 算法</h4>
+            <div class="NlpPanel__bpe-info-text">
+              <p><strong>Byte Pair Encoding (BPE)</strong> 是现代大语言模型（如 GPT、LLaMA）使用的核心分词算法。</p>
+              <p>🔹 <strong>原理</strong>：从字符级开始，迭代合并出现频率最高的相邻字符对，逐步构建子词词表。</p>
+              <p>🔹 <strong>优势</strong>：有效处理未登录词(OOV)，在词汇覆盖率和词表大小间取得平衡。</p>
+              <p>🔹 <strong>压缩比</strong>：值越大表示每个 token 平均覆盖越多字符，编码越高效。</p>
+              <p>🔹 <strong>合并规则</strong>：展示了 BPE 学习到的最重要的子词模式，反映文本的结构特征。</p>
+            </div>
+          </div>
+        </section>
+      {/if}
+
       {#if py_loading}
         <div class="NlpPanel__py-status">Loading Python NLP...</div>
       {/if}
@@ -963,5 +1133,113 @@
 
   .NlpPanel__py-status--error {
     color: var(--destructive);
+  }
+
+  /* BPE Section Styles */
+  .NlpPanel__bpe-section {
+    border-top: 2px solid #f59e0b;
+    padding-top: var(--space-3);
+    margin-top: var(--space-2);
+  }
+
+  .NlpPanel__bpe-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .NlpPanel__bpe-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--foreground);
+    margin: var(--space-1) 0 0 0;
+  }
+
+  .NlpPanel__bpe-merges {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .NlpPanel__bpe-merge-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    padding: 2px var(--space-1);
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid #f59e0b;
+  }
+
+  .NlpPanel__bpe-merge-rank {
+    font-weight: 700;
+    color: #f59e0b;
+    width: 24px;
+    flex-shrink: 0;
+  }
+
+  .NlpPanel__bpe-merge-pair {
+    color: var(--muted-foreground);
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  .NlpPanel__bpe-merge-arrow {
+    color: #f59e0b;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .NlpPanel__bpe-merge-result {
+    font-weight: 600;
+    color: var(--foreground);
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  .NlpPanel__bpe-merge-freq {
+    margin-left: auto;
+    color: var(--muted-foreground);
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .NlpPanel__keyword-fill--bpe {
+    background: #f59e0b;
+    opacity: 0.7;
+  }
+
+  .NlpPanel__token--bpe {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .NlpPanel__bpe-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .NlpPanel__bpe-info-text {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    line-height: 1.6;
+    padding: var(--space-2);
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid #f59e0b;
+  }
+
+  .NlpPanel__bpe-info-text p {
+    margin: 0 0 4px 0;
+  }
+
+  .NlpPanel__bpe-info-text p:last-child {
+    margin-bottom: 0;
+  }
+
+  .NlpPanel__bpe-info-text strong {
+    color: var(--foreground);
   }
 </style>

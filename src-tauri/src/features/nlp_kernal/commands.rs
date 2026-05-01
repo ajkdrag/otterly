@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use super::{analysis, cache, python_bridge, stats, types::NlpAnalysis};
+use super::{analysis, bpe, cache, python_bridge, stats, types::NlpAnalysis};
 use crate::shared::storage::vault_path;
 
 #[derive(serde::Deserialize)]
@@ -96,4 +96,16 @@ pub fn nlp_py_entities_ml(args: PyNlpTextArgs) -> Result<Vec<python_bridge::PyEn
 #[tauri::command]
 pub fn nlp_py_classify(args: PyNlpTextArgs) -> Result<python_bridge::PyClassifyResult, String> {
     python_bridge::py_classify_text(&args.text)
+}
+
+#[derive(serde::Deserialize)]
+pub struct BpeAnalyzeArgs {
+    pub text: String,
+    pub max_merges: Option<usize>,
+}
+
+#[tauri::command]
+pub fn nlp_bpe_analyze(args: BpeAnalyzeArgs) -> Result<bpe::BpeAnalysis, String> {
+    let max_merges = args.max_merges.unwrap_or(100);
+    Ok(bpe::analyze_bpe(&args.text, max_merges))
 }
