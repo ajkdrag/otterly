@@ -153,7 +153,9 @@ pub fn open_search_db(vault_root: &Path) -> Result<Connection, String> {
     let conn = Connection::open(&path).map_err(|e| e.to_string())?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))
         .map_err(|e| e.to_string())?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "synchronous", "NORMAL")
         .map_err(|e| e.to_string())?;
     init_schema(&conn)?;
     Ok(conn)
