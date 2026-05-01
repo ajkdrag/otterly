@@ -1,52 +1,62 @@
-# 📋 Changelog
+# Changelog
 
-所有版本的更新记录。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
+所有重要变更记录在此文件中。
+
+---
+
+## [2.0.1] - 2026-05-01
+
+### 文档整理与 NER ML 修复
+
+- **fix**: 修复 NER ML 模块不可用问题（安装 modelscope + addict + datasets + torch 依赖）
+- **chore**: 统一 `design/` 目录所有文件名为大写格式
+- **chore**: 将散落在各目录的 .md 设计文档统一移入 `design/` 目录并按编号规则命名
+  - `update/UPDATE_SYSTEM_DESIGN.md` → `design/12_UPDATE_SYSTEM_DESIGN.md`
+  - `nlp_kernal/KCS_BluePrint.md` → `design/13_KCS_BLUEPRINT.md`
+  - `nlp_kernal/NLP_FUNCTION_LIST.md` → `design/14_NLP_FUNCTION_LIST.md`
+  - `nlp_kernal/deep_ner_blueprint.md` → `design/15_DEEP_NER_BLUEPRINT.md`
+  - `nlp_kernal/ner/design_ner.md` → `design/16_NER_DESIGN.md`
+  - `nlp_kernal/ner/intent.md` → `design/17_NER_INTENT.md`
+  - `nlp_kernal/ner/knowledge_base.md` → `design/18_NER_KNOWLEDGE_BASE.md`
+  - `nlp_kernal/thread_builder/thread.md` → `design/19_THREAD_BUILDER.md`
+  - `nlp_kernal/thread_builder/RULES.md` → `design/20_THREAD_RULES.md`
+- **docs**: 重写 README.md 反映 v2.0 完整功能状态（知识管理/游戏化/宠物/NLP/用户系统）
+- **docs**: 更新 CHANGELOG.md 反映最新版本变更
+
+---
+
+## [2.0.0] - 2026-05-01
+
+### 电子宠物系统 + NLP 增强
+
+- **feat**: 完整电子宠物系统（选蛋/孵化/喂食/互动/进化/积分联动）
+  - 5种宠物（墨灵/卷卷/码仔/思思/芽芽）+ 4阶段进化 + 50级等级
+  - 喂食系统（5种知识食物）+ 互动系统（摸头/玩耍/对话）+ 心情系统
+  - 宠物悬浮组件 + 详情面板 + 选蛋 UI
+  - pet_sync reactor 积分联动（积分 → 宠物经验值）
+  - 10个 Tauri 命令 + 33个单元测试
+- **feat**: NLP 分析面板增强（词频/关键词/词汇丰富度/聚合统计）
+- **feat**: BPE Token 分析（Token 可视化 + 压缩比 + 统计面板）
+- **feat**: Python NLP 桥接（jieba 中文分词 + 情感分析 + 规则NER + ML NER + 文本分类）
+- **feat**: NLP 模块面板（Rust/Python 模块状态 + 调用追踪）
+- **feat**: Profile 成就徽章展示优化（已点亮 + 未来 3 个一排）
+- **feat**: 点击任意徽章图标打开 `docs/badges.md` 说明文档
+- **feat**: 登录页保留最近 5 个成功登录账号，快速选择
+- **docs**: 20 份设计文档（蓝图/架构/积分/等级/徽章/宠物/NLP/LLM 等）
 
 ---
 
 ## [1.0.0] - 2026-05-01
 
-### 🎉 大版本里程碑
+### 用户系统 + 积分 + 统计
 
-- **feat**: 新增自动更新模块（UpdateStore/UpdateService/UpdateDialog）
-- **feat**: Help 菜单新增「检查更新」功能，支持应用内检查新版本
-- **docs**: `update/UPDATE_SYSTEM_DESIGN.md` 完整更新系统设计规划
-
----
-
-## [0.4.0] - 2026-05-01
-
-### ✨ 新功能
-
-- **feat**: 登录页 slogan 改为「24小时激烈陪伴成长型知识笔记」
-- **feat**: App 右上角 TabBar 显示 slogan「24小时陪伴成长型知识笔记」
-- **feat**: NLP 面板新增 BPE Token 分析（纯 Rust 实现）
-  - 显示 Token 总数、词表大小、合并次数、压缩比
-  - Top 合并规则可视化
-  - 高频 Token 分布图
-  - BPE 算法原理说明
-- **feat**: Profile 成就徽章展示优化（已点亮 + 未来 3 个一排）
-- **feat**: 点击任意徽章图标打开 `docs/badges.md` 说明文档
-- **feat**: 登录页保留最近 5 个成功登录账号，快速选择
-- **feat**: 用户名不区分大小写（提示 + 比对逻辑）
-- **feat**: Usage Statistics 连续天数改为 dd天:hh时:mm分:ss秒 实时计时格式
-- **feat**: 秒数翻动动画效果
-
-### 📝 文档
-
-- **docs**: `docs/badges.md` — 成就徽章系统完整说明
-- **docs**: `pets/PET_SYSTEM_DESIGN.md` — 电子宠物产品设计规划（13 章）
-
-### 🔧 修复
-
-- **fix**: 移除 upstream (otterly) 远程仓库
-- **fix**: DMG 安装包 Python.framework 签名冲突修复（install_name_tool + codesign）
-- **fix**: Svelte 5 `@const` 位置限制错误修复（改用 `$derived`）
-- **fix**: 登录逻辑用户名比对统一使用 `toUpperCase()`
-
-### 🏗️ 基础设施
-
-- **chore**: Rust 后端新增 `bpe.rs` BPE 分析模块
+- **feat**: 多用户登录/注册/游客系统
+- **feat**: 积分系统（SQLite + Rust engine + 前端集成）
+- **feat**: 成长等级体系（30级，知识新生儿→院士）
+- **feat**: 统计仪表盘（会话跟踪 + SVG 图表 + NLP 数据）
+- **feat**: 升级动画（confetti 烟花 + 飘动积分）
+- **feat**: 自动更新模块（版本检查 + 更新提示）
+- **feat**: Git Autocommit（reactor 模式监听文件变更自动提交）
 - **chore**: 新增 `nlp_bpe_analyze` Tauri 命令
 - **chore**: tauri.conf.json 添加 Python.framework 打包配置
 
