@@ -23,6 +23,34 @@
   let error = $state<string | null>(null);
   let is_loading = $state(false);
 
+  const RECENT_LOGINS_KEY = "leapgrownotes_recent_logins";
+  const MAX_RECENT_LOGINS = 5;
+
+  let recent_logins = $state<string[]>(load_recent_logins());
+
+  function load_recent_logins(): string[] {
+    try {
+      const raw = localStorage.getItem(RECENT_LOGINS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  }
+
+  function save_recent_login(name: string): void {
+    const normalized = name.toLowerCase();
+    let list = recent_logins.filter((n) => n.toLowerCase() !== normalized);
+    list.unshift(name);
+    if (list.length > MAX_RECENT_LOGINS) list = list.slice(0, MAX_RECENT_LOGINS);
+    recent_logins = list;
+    try {
+      localStorage.setItem(RECENT_LOGINS_KEY, JSON.stringify(list));
+    } catch {}
+  }
+
+  function select_recent(name: string): void {
+    username = name;
+  }
+
   async function handle_login(): Promise<void> {
     if (!username.trim() || !password) {
       error = "请输入用户名和密码";
@@ -35,6 +63,8 @@
       const result = await on_login_credentials(username.trim(), password);
       if (result.status === "failed") {
         error = result.error ?? "登录失败";
+      } else {
+        save_recent_login(username.trim());
       }
     } finally {
       is_loading = false;
@@ -109,7 +139,10 @@
 
     <div class="LoginScreen__form">
       <div class="LoginScreen__field">
-        <label class="LoginScreen__label" for="login-username">用户名</label>
+        <div class="LoginScreen__label-row">
+          <label class="LoginScreen__label" for="login-username">用户名</label>
+          <span class="LoginScreen__hint">不区分大小写</span>
+        </div>
         <Input
           id="login-username"
           type="text"
@@ -126,6 +159,23 @@
           placeholder="输入用户名"
           class="w-full"
         />
+        {#if mode === "login" && recent_logins.length > 0}
+          <div class="LoginScreen__recent">
+            <span class="LoginScreen__recent-label">最近登录：</span>
+            <div class="LoginScreen__recent-list">
+              {#each recent_logins as name (name)}
+                <button
+                  type="button"
+                  class="LoginScreen__recent-item"
+                  class:LoginScreen__recent-item--active={username.toLowerCase() === name.toLowerCase()}
+                  onclick={() => select_recent(name)}
+                >
+                  {name}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
 
       <div class="LoginScreen__field">
@@ -336,5 +386,57 @@
     color: var(--muted-foreground);
     text-align: center;
     line-height: 1.5;
+  }
+
+  .LoginScreen__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .LoginScreen__hint {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .LoginScreen__recent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+  }
+
+  .LoginScreen__recent-label {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
+  .LoginScreen__recent-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .LoginScreen__recent-item {
+    font-size: var(--text-xs);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--foreground);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-default);
+  }
+
+  .LoginScreen__recent-item:hover {
+    background: var(--background);
+    border-color: var(--foreground);
+  }
+
+  .LoginScreen__recent-item--active {
+    background: var(--interactive);
+    color: white;
+    border-color: var(--interactive);
   }
 </style>

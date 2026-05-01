@@ -122,7 +122,7 @@ export class UserService {
       const target = all_profiles.find(
         (p) =>
           p.auth_identity?.kind === "registered" &&
-          p.auth_identity.username === username,
+          p.auth_identity.username.toUpperCase() === username.toUpperCase(),
       );
 
       if (!target) {
@@ -169,7 +169,7 @@ export class UserService {
       const exists = all_profiles.some(
         (p) =>
           p.auth_identity?.kind === "registered" &&
-          p.auth_identity.username === username,
+          p.auth_identity.username.toUpperCase() === username.toUpperCase(),
       );
 
       if (exists) {
@@ -224,7 +224,7 @@ export class UserService {
         (p) =>
           p.id !== profile.id &&
           p.auth_identity?.kind === "registered" &&
-          p.auth_identity.username === username,
+          p.auth_identity.username.toUpperCase() === username.toUpperCase(),
       );
 
       if (exists) {

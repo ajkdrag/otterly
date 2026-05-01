@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack, onDestroy, onMount } from "svelte";
+  import { untrack, onDestroy, onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { tracked_invoke } from "$lib/features/nlp_kernal";
@@ -86,16 +86,32 @@
   const session_start_time = Date.now();
   let session_started = false;
   let session_elapsed_seconds = $state(0);
+  let streak_elapsed_seconds = $state(0);
   let session_timer_id: ReturnType<typeof setInterval> | null = null;
 
-  // Start a 1-second tick for the animated duration display
+  // Start a 1-second tick for the animated duration display and streak timer
   onMount(() => {
     session_timer_id = setInterval(() => {
       session_elapsed_seconds = Math.floor((Date.now() - session_start_time) / 1000);
+      streak_elapsed_seconds += 1;
     }, 1000);
     return () => {
       if (session_timer_id) clearInterval(session_timer_id);
     };
+  });
+
+  function format_streak_timer(days: number, extra_seconds: number): { dd: string; hh: string; mm: string; ss: string } {
+    const total_seconds = days * 86400 + extra_seconds;
+    const dd = String(Math.floor(total_seconds / 86400)).padStart(2, "0");
+    const hh = String(Math.floor((total_seconds % 86400) / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((total_seconds % 3600) / 60)).padStart(2, "0");
+    const ss = String(total_seconds % 60).padStart(2, "0");
+    return { dd, hh, mm, ss };
+  }
+
+  const streak_display = $derived.by(() => {
+    const days = points?.streak_days ?? 0;
+    return format_streak_timer(days, streak_elapsed_seconds);
   });
 
   onDestroy(() => {
@@ -431,10 +447,19 @@
                 <span class="StatsDash__growth-title"
                   >Lv.{points.level} {points.level_title}</span
                 >
-                <span class="StatsDash__growth-points"
-                  >{points.total_points.toLocaleString()} pts | <span class="StatsDash__flame">🔥</span> {points.streak_days}
-                  days</span
-                >
+                <span class="StatsDash__growth-points">
+                  {points.total_points.toLocaleString()} pts |
+                  <span class="StatsDash__flame">🔥</span>
+                  <span class="StatsDash__streak-timer">
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.dd}</span><span class="StatsDash__streak-label">天</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.hh}</span><span class="StatsDash__streak-label">时</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.mm}</span><span class="StatsDash__streak-label">分</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num StatsDash__streak-num--tick">{streak_display.ss}</span><span class="StatsDash__streak-label">秒</span></span>
+                  </span>
+                </span>
               </div>
             </div>
             <div class="StatsDash__growth-bar-wrap">
@@ -1125,6 +1150,72 @@
     }
     75% {
       transform: translateY(-1px) scale(1.05) rotate(3deg);
+    }
+  }
+
+  /* Streak timer styles */
+  .StatsDash__streak-timer {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    margin-left: 2px;
+    font-family: var(--font-mono, ui-monospace, monospace);
+  }
+
+  .StatsDash__streak-unit {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+  }
+
+  .StatsDash__streak-num {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--foreground);
+    min-width: 1.4em;
+    text-align: center;
+    background: var(--background);
+    border-radius: 3px;
+    padding: 0 2px;
+    border: 1px solid var(--border);
+  }
+
+  .StatsDash__streak-num--tick {
+    animation: statsdash-tick 1s ease-in-out infinite;
+    color: var(--interactive);
+  }
+
+  .StatsDash__streak-label {
+    font-size: 9px;
+    color: var(--muted-foreground);
+    font-weight: 400;
+    font-family: inherit;
+  }
+
+  .StatsDash__streak-sep {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    font-weight: 700;
+    margin: 0 1px;
+  }
+
+  @keyframes statsdash-tick {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    15% {
+      transform: translateY(-2px);
+      opacity: 0.6;
+    }
+    30% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
     }
   }
 </style>
