@@ -107,6 +107,26 @@ export const PERSONALITY_INFO: Record<
   resilient: { emoji: "💪", label: "坚韧" },
 };
 
+// ── 八字信息 (来自后端) ───────────────────────────────────
+
+export interface BaziInfo {
+  year_pillar: string;
+  month_pillar: string;
+  day_pillar: string;
+  hour_pillar: string;
+  bazi_full: string;
+  wu_xing: string;
+  wu_xing_emoji: string;
+  sheng_xiao: string;
+  sheng_xiao_emoji: string;
+  ba_gua: string;
+  ba_gua_symbol: string;
+  ba_gua_nature: string;
+  ba_gua_trait: string;
+  shi_chen: string;
+  fortune_summary: string;
+}
+
 // ── 宠物状态 (来自后端) ───────────────────────────────────
 
 export interface PetState {
@@ -134,7 +154,11 @@ export interface PetState {
   skills: string[];
   accessories: string[];
   skin_variant: string;
+  gender: string;
+  gender_emoji: string;
+  gender_label: string;
   born_at: number;
+  bazi: BaziInfo | null;
   last_fed_at: number | null;
   last_interaction_at: number | null;
 }

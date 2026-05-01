@@ -1,5 +1,5 @@
 use rusqlite::Connection;
-use super::{db, types::*};
+use super::{bazi, db, types::*};
 
 /// 创建新宠物 (孵化)
 pub fn create_pet(
@@ -7,6 +7,7 @@ pub fn create_pet(
     owner_id: &str,
     species_str: &str,
     name: &str,
+    gender_override: Option<&str>,
 ) -> Result<PetState, String> {
     // 检查是否已有宠物
     if let Some(_) = db::get_pet_by_owner(conn, owner_id)? {
@@ -20,6 +21,13 @@ pub fn create_pet(
     // 随机分配 1~2 个性格特征
     let personalities = random_personalities();
     let personality_json = serde_json::to_string(&personalities).unwrap_or("[]".to_string());
+
+    // 确定性别：优先使用用户指定的，否则根据出生时间随机
+    let gender = match gender_override {
+        Some("male") => "male".to_string(),
+        Some("female") => "female".to_string(),
+        _ => bazi::determine_gender(now).to_string(),
+    };
 
     let pet = Pet {
         id: id.clone(),
@@ -39,6 +47,7 @@ pub fn create_pet(
         skills: "[]".to_string(),
         accessories: "[]".to_string(),
         skin_variant: "default".to_string(),
+        gender,
         born_at: now,
         last_fed_at: Some(now),
         last_interaction_at: Some(now),
@@ -347,6 +356,9 @@ fn pet_to_state(pet: &Pet) -> PetState {
     let skills: Vec<String> = serde_json::from_str(&pet.skills).unwrap_or_default();
     let accessories: Vec<String> = serde_json::from_str(&pet.accessories).unwrap_or_default();
 
+    // 计算八字信息
+    let bazi_info = bazi::calculate_bazi(pet.born_at);
+
     PetState {
         id: pet.id.clone(),
         owner_id: pet.owner_id.clone(),
@@ -372,7 +384,11 @@ fn pet_to_state(pet: &Pet) -> PetState {
         skills,
         accessories,
         skin_variant: pet.skin_variant.clone(),
+        gender: pet.gender.clone(),
+        gender_emoji: bazi::gender_emoji(&pet.gender).to_string(),
+        gender_label: bazi::gender_label(&pet.gender).to_string(),
         born_at: pet.born_at,
+        bazi: Some(bazi_info),
         last_fed_at: pet.last_fed_at,
         last_interaction_at: pet.last_interaction_at,
     }

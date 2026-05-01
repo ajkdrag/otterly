@@ -1,6 +1,6 @@
 <script lang="ts">
   import LinksPanel from "$lib/features/links/ui/links_panel.svelte";
-  import { NlpPanel } from "$lib/features/nlp_kernal";
+  import { NlpPanel, NluPanel } from "$lib/features/nlp_kernal";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
 
   const { stores } = use_app_context();
@@ -8,6 +8,7 @@
   const tabs = [
     { id: "links" as const, label: "Links" },
     { id: "nlp" as const, label: "NLP" },
+    { id: "nlu" as const, label: "NLU" },
   ];
 </script>
 
@@ -29,6 +30,8 @@
       <LinksPanel />
     {:else if stores.ui.context_rail_tab === "nlp"}
       <NlpPanel />
+    {:else if stores.ui.context_rail_tab === "nlu"}
+      <NluPanel />
     {/if}
   </div>
 </div>

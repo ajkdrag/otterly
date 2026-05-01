@@ -16,6 +16,7 @@
 
   let selected_species = $state<PetSpecies | null>(null);
   let pet_name = $state("");
+  let selected_gender = $state<"male" | "female" | "random">("random");
   let step = $state<"choose" | "name">("choose");
 
   function close() {
@@ -26,6 +27,7 @@
   function reset() {
     selected_species = null;
     pet_name = "";
+    selected_gender = "random";
     step = "choose";
   }
 
@@ -41,7 +43,7 @@
 
   async function confirm_create() {
     if (!selected_species || !pet_name.trim()) return;
-    await pet_service.create_pet(selected_species, pet_name.trim());
+    await pet_service.create_pet(selected_species, pet_name.trim(), selected_gender);
     reset();
   }
 
@@ -130,6 +132,31 @@
             bind:value={pet_name}
             autofocus
           />
+
+          <!-- 性别选择 -->
+          <div class="PetSelect__gender-row">
+            <span class="PetSelect__gender-label">性别</span>
+            <div class="PetSelect__gender-options">
+              <button
+                type="button"
+                class="PetSelect__gender-btn"
+                class:PetSelect__gender-btn--active={selected_gender === "random"}
+                onclick={() => selected_gender = "random"}
+              >🎲 随机</button>
+              <button
+                type="button"
+                class="PetSelect__gender-btn"
+                class:PetSelect__gender-btn--active={selected_gender === "male"}
+                onclick={() => selected_gender = "male"}
+              >♂ 公</button>
+              <button
+                type="button"
+                class="PetSelect__gender-btn"
+                class:PetSelect__gender-btn--active={selected_gender === "female"}
+                onclick={() => selected_gender = "female"}
+              >♀ 母</button>
+            </div>
+          </div>
 
           <div class="PetSelect__name-actions">
             <button
@@ -382,6 +409,53 @@
   .PetSelect__btn--primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* ── 性别选择 ─────────────────────────────────── */
+
+  .PetSelect__gender-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .PetSelect__gender-label {
+    font-size: var(--text-sm, 14px);
+    color: var(--muted-foreground, #888);
+    flex-shrink: 0;
+  }
+
+  .PetSelect__gender-options {
+    display: flex;
+    gap: var(--space-2, 8px);
+    flex: 1;
+  }
+
+  .PetSelect__gender-btn {
+    flex: 1;
+    padding: var(--space-1, 4px) var(--space-2, 8px);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--muted, #2a2a3e);
+    border: 1px solid var(--border, #333);
+    color: var(--foreground, #fff);
+    font-size: var(--text-xs, 12px);
+    cursor: pointer;
+    transition:
+      background var(--duration-fast, 100ms),
+      border-color var(--duration-fast, 100ms);
+  }
+
+  .PetSelect__gender-btn:hover {
+    border-color: var(--interactive, #6366f1);
+  }
+
+  .PetSelect__gender-btn--active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--interactive, #6366f1);
+    color: var(--interactive, #6366f1);
+    font-weight: 600;
   }
 
   /* ── 动画 ────────────────────────────────────── */

@@ -7,7 +7,7 @@ use crate::shared::storage::vault_path;
 pub fn pet_create(app: AppHandle, args: CreatePetArgs) -> Result<PetState, String> {
     let vault_root = vault_path(&app, &args.vault_id)?;
     let conn = db::open_pets_db(&vault_root)?;
-    engine::create_pet(&conn, &args.owner_id, &args.species, &args.name)
+    engine::create_pet(&conn, &args.owner_id, &args.species, &args.name, args.gender.as_deref())
 }
 
 // ── pet_get_state ─────────────────────────────────────────

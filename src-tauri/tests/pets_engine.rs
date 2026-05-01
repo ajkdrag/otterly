@@ -22,6 +22,7 @@ fn setup_test_db() -> Connection {
             skills TEXT DEFAULT '[]',
             accessories TEXT DEFAULT '[]',
             skin_variant TEXT DEFAULT 'default',
+            gender TEXT DEFAULT 'male',
             born_at INTEGER NOT NULL,
             last_fed_at INTEGER,
             last_interaction_at INTEGER,
@@ -189,7 +190,7 @@ fn test_personality_exp_multiplier() {
 #[test]
 fn test_create_pet() {
     let conn = setup_test_db();
-    let state = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let state = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     assert_eq!(state.name, "小墨");
     assert_eq!(state.species, "ink_sprite");
@@ -203,13 +204,39 @@ fn test_create_pet() {
     assert_eq!(state.hunger, 100);
     assert!(!state.personality.is_empty());
     assert!(state.id.starts_with("pet_"));
+    // gender 和 bazi 字段
+    assert!(state.gender == "male" || state.gender == "female");
+    assert!(!state.gender_emoji.is_empty());
+    assert!(!state.gender_label.is_empty());
+    assert!(state.bazi.is_some());
+    let bazi = state.bazi.unwrap();
+    assert!(!bazi.bazi_full.is_empty());
+    assert!(!bazi.wu_xing.is_empty());
+    assert!(!bazi.sheng_xiao.is_empty());
+    assert!(!bazi.ba_gua.is_empty());
+}
+
+#[test]
+fn test_create_pet_with_gender_override() {
+    let conn = setup_test_db();
+
+    let state_male = engine::create_pet(&conn, "user_m", "ink_sprite", "小墨公", Some("male")).unwrap();
+    assert_eq!(state_male.gender, "male");
+    assert_eq!(state_male.gender_emoji, "♂");
+    assert_eq!(state_male.gender_label, "公");
+
+    let conn2 = setup_test_db();
+    let state_female = engine::create_pet(&conn2, "user_f", "scroll_pup", "小墨母", Some("female")).unwrap();
+    assert_eq!(state_female.gender, "female");
+    assert_eq!(state_female.gender_emoji, "♀");
+    assert_eq!(state_female.gender_label, "母");
 }
 
 #[test]
 fn test_create_pet_duplicate() {
     let conn = setup_test_db();
-    engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
-    let err = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷");
+    engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
+    let err = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷", None);
     assert!(err.is_err());
     assert!(err.unwrap_err().contains("已经有"));
 }
@@ -217,7 +244,7 @@ fn test_create_pet_duplicate() {
 #[test]
 fn test_create_pet_invalid_species() {
     let conn = setup_test_db();
-    let err = engine::create_pet(&conn, "user_1", "invalid_species", "test");
+    let err = engine::create_pet(&conn, "user_1", "invalid_species", "test", None);
     assert!(err.is_err());
 }
 
@@ -226,7 +253,7 @@ fn test_create_all_species() {
     let species = ["ink_sprite", "scroll_pup", "code_kit", "think_cloud", "sprout_bud"];
     for (i, s) in species.iter().enumerate() {
         let conn = setup_test_db();
-        let state = engine::create_pet(&conn, &format!("user_{}", i), s, &format!("pet_{}", i)).unwrap();
+        let state = engine::create_pet(&conn, &format!("user_{}", i), s, &format!("pet_{}", i), None).unwrap();
         assert_eq!(state.species, *s);
     }
 }
@@ -234,7 +261,7 @@ fn test_create_all_species() {
 #[test]
 fn test_get_state() {
     let conn = setup_test_db();
-    let created = engine::create_pet(&conn, "user_1", "sprout_bud", "芽芽").unwrap();
+    let created = engine::create_pet(&conn, "user_1", "sprout_bud", "芽芽", None).unwrap();
 
     let state = engine::get_state(&conn, &created.id).unwrap();
     assert!(state.is_some());
@@ -253,7 +280,7 @@ fn test_get_state_nonexistent() {
 #[test]
 fn test_get_state_by_owner() {
     let conn = setup_test_db();
-    engine::create_pet(&conn, "owner_abc", "code_kit", "码仔").unwrap();
+    engine::create_pet(&conn, "owner_abc", "code_kit", "码仔", None).unwrap();
 
     let state = engine::get_state_by_owner(&conn, "owner_abc").unwrap();
     assert!(state.is_some());
@@ -266,7 +293,7 @@ fn test_get_state_by_owner() {
 #[test]
 fn test_award_exp() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     let result = engine::award_exp(&conn, &pet.id, "note_create", 8).unwrap();
     assert!(result.success);
@@ -278,7 +305,7 @@ fn test_award_exp() {
 #[test]
 fn test_award_exp_level_up() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     // 重复给经验直到升级
     let mut leveled_up = false;
@@ -302,7 +329,7 @@ fn test_award_exp_nonexistent_pet() {
 #[test]
 fn test_interact_pet() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷", None).unwrap();
 
     // 创建时 last_interaction_at = now，所以需要先把它清除以避免冷却
     conn.execute(
@@ -320,7 +347,7 @@ fn test_interact_pet() {
 #[test]
 fn test_interact_pet_cooldown() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷", None).unwrap();
 
     // 清除初始 last_interaction_at 以允许第一次互动
     conn.execute(
@@ -341,7 +368,7 @@ fn test_interact_pet_cooldown() {
 #[test]
 fn test_interact_invalid_type() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "scroll_pup", "卷卷", None).unwrap();
 
     let result = engine::interact_pet(&conn, &pet.id, "invalid_interaction");
     assert!(result.is_err());
@@ -350,7 +377,7 @@ fn test_interact_invalid_type() {
 #[test]
 fn test_feed_pet() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思", None).unwrap();
 
     // 先添加库存
     db::add_inventory_item(&conn, "user_1", "ink_candy", 3).unwrap();
@@ -368,7 +395,7 @@ fn test_feed_pet() {
 #[test]
 fn test_feed_pet_no_inventory() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思", None).unwrap();
 
     // 没有库存，喂食应该失败
     let result = engine::feed_pet(&conn, &pet.id, "ink_candy").unwrap();
@@ -379,7 +406,7 @@ fn test_feed_pet_no_inventory() {
 #[test]
 fn test_feed_pet_invalid_food() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "think_cloud", "思思", None).unwrap();
 
     let result = engine::feed_pet(&conn, &pet.id, "invalid_food");
     assert!(result.is_err());
@@ -388,7 +415,7 @@ fn test_feed_pet_invalid_food() {
 #[test]
 fn test_check_evolution_not_ready() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     let result = engine::check_evolution(&conn, &pet.id).unwrap();
     assert!(!result.can_evolve);
@@ -398,7 +425,7 @@ fn test_check_evolution_not_ready() {
 #[test]
 fn test_evolve_pet_not_ready() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     let result = engine::evolve_pet(&conn, &pet.id).unwrap();
     assert!(!result.can_evolve);
@@ -407,7 +434,7 @@ fn test_evolve_pet_not_ready() {
 #[test]
 fn test_evolve_pet_ready() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     // 手动设置高经验使宠物升到 Lv.6 → 可进化到 Teen
     conn.execute(
@@ -431,7 +458,7 @@ fn test_evolve_pet_ready() {
 #[test]
 fn test_update_mood() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "sprout_bud", "芽芽").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "sprout_bud", "芽芽", None).unwrap();
 
     let result = engine::update_pet_mood(&conn, &pet.id).unwrap();
     assert!(result.success);
@@ -481,7 +508,7 @@ fn test_inventory_operations() {
 #[test]
 fn test_pet_events() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     // 创建后应该有一个 "born" 事件
     let events = db::get_recent_events(&conn, &pet.id, 10);
@@ -492,7 +519,7 @@ fn test_pet_events() {
 #[test]
 fn test_exp_progress_calculation() {
     let conn = setup_test_db();
-    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨").unwrap();
+    let pet = engine::create_pet(&conn, "user_1", "ink_sprite", "小墨", None).unwrap();
 
     assert_eq!(pet.level, 1);
     assert!(pet.level_progress >= 0.0);

@@ -14,6 +14,9 @@ pub fn open_pets_db(vault_root: &Path) -> Result<Connection, String> {
         .map_err(|e| e.to_string())?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))
         .map_err(|e| e.to_string())?;
+    // 迁移：为已有旧表添加 gender 列（忽略错误，列可能已存在）
+    let _ = conn.execute("ALTER TABLE pets ADD COLUMN gender TEXT DEFAULT 'male'", []);
+
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS pets (
             id TEXT PRIMARY KEY,
@@ -33,6 +36,7 @@ pub fn open_pets_db(vault_root: &Path) -> Result<Connection, String> {
             skills TEXT DEFAULT '[]',
             accessories TEXT DEFAULT '[]',
             skin_variant TEXT DEFAULT 'default',
+            gender TEXT DEFAULT 'male',
             born_at INTEGER NOT NULL,
             last_fed_at INTEGER,
             last_interaction_at INTEGER,
@@ -65,13 +69,13 @@ pub fn insert_pet(conn: &Connection, pet: &Pet) -> Result<(), String> {
     conn.execute(
         "INSERT INTO pets (id, owner_id, name, species, stage, variant,
             happiness, energy, hunger, bond_level, exp, level,
-            personality, mood, skills, accessories, skin_variant,
+            personality, mood, skills, accessories, skin_variant, gender,
             born_at, last_fed_at, last_interaction_at, created_at, updated_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)",
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)",
         rusqlite::params![
             pet.id, pet.owner_id, pet.name, pet.species, pet.stage, pet.variant,
             pet.happiness, pet.energy, pet.hunger, pet.bond_level, pet.exp, pet.level,
-            pet.personality, pet.mood, pet.skills, pet.accessories, pet.skin_variant,
+            pet.personality, pet.mood, pet.skills, pet.accessories, pet.skin_variant, pet.gender,
             pet.born_at, pet.last_fed_at, pet.last_interaction_at, pet.created_at, pet.updated_at,
         ],
     ).map_err(|e| e.to_string())?;
@@ -82,7 +86,7 @@ pub fn get_pet(conn: &Connection, pet_id: &str) -> Result<Option<Pet>, String> {
     let mut stmt = conn.prepare(
         "SELECT id, owner_id, name, species, stage, variant,
                 happiness, energy, hunger, bond_level, exp, level,
-                personality, mood, skills, accessories, skin_variant,
+                personality, mood, skills, accessories, skin_variant, gender,
                 born_at, last_fed_at, last_interaction_at, created_at, updated_at
          FROM pets WHERE id = ?1"
     ).map_err(|e| e.to_string())?;
@@ -106,11 +110,12 @@ pub fn get_pet(conn: &Connection, pet_id: &str) -> Result<Option<Pet>, String> {
             skills: r.get(14)?,
             accessories: r.get(15)?,
             skin_variant: r.get(16)?,
-            born_at: r.get(17)?,
-            last_fed_at: r.get(18)?,
-            last_interaction_at: r.get(19)?,
-            created_at: r.get(20)?,
-            updated_at: r.get(21)?,
+            gender: r.get::<_, Option<String>>(17)?.unwrap_or_else(|| "male".to_string()),
+            born_at: r.get(18)?,
+            last_fed_at: r.get(19)?,
+            last_interaction_at: r.get(20)?,
+            created_at: r.get(21)?,
+            updated_at: r.get(22)?,
         })
     }).optional().map_err(|e| e.to_string())?;
 
@@ -121,7 +126,7 @@ pub fn get_pet_by_owner(conn: &Connection, owner_id: &str) -> Result<Option<Pet>
     let mut stmt = conn.prepare(
         "SELECT id, owner_id, name, species, stage, variant,
                 happiness, energy, hunger, bond_level, exp, level,
-                personality, mood, skills, accessories, skin_variant,
+                personality, mood, skills, accessories, skin_variant, gender,
                 born_at, last_fed_at, last_interaction_at, created_at, updated_at
          FROM pets WHERE owner_id = ?1 ORDER BY created_at DESC LIMIT 1"
     ).map_err(|e| e.to_string())?;
@@ -145,11 +150,12 @@ pub fn get_pet_by_owner(conn: &Connection, owner_id: &str) -> Result<Option<Pet>
             skills: r.get(14)?,
             accessories: r.get(15)?,
             skin_variant: r.get(16)?,
-            born_at: r.get(17)?,
-            last_fed_at: r.get(18)?,
-            last_interaction_at: r.get(19)?,
-            created_at: r.get(20)?,
-            updated_at: r.get(21)?,
+            gender: r.get::<_, Option<String>>(17)?.unwrap_or_else(|| "male".to_string()),
+            born_at: r.get(18)?,
+            last_fed_at: r.get(19)?,
+            last_interaction_at: r.get(20)?,
+            created_at: r.get(21)?,
+            updated_at: r.get(22)?,
         })
     }).optional().map_err(|e| e.to_string())?;
 
@@ -162,14 +168,14 @@ pub fn update_pet(conn: &Connection, pet: &Pet) -> Result<(), String> {
             name=?2, stage=?3, variant=?4,
             happiness=?5, energy=?6, hunger=?7, bond_level=?8,
             exp=?9, level=?10, personality=?11, mood=?12,
-            skills=?13, accessories=?14, skin_variant=?15,
-            last_fed_at=?16, last_interaction_at=?17, updated_at=?18
+            skills=?13, accessories=?14, skin_variant=?15, gender=?16,
+            last_fed_at=?17, last_interaction_at=?18, updated_at=?19
          WHERE id=?1",
         rusqlite::params![
             pet.id, pet.name, pet.stage, pet.variant,
             pet.happiness, pet.energy, pet.hunger, pet.bond_level,
             pet.exp, pet.level, pet.personality, pet.mood,
-            pet.skills, pet.accessories, pet.skin_variant,
+            pet.skills, pet.accessories, pet.skin_variant, pet.gender,
             pet.last_fed_at, pet.last_interaction_at, pet.updated_at,
         ],
     ).map_err(|e| e.to_string())?;

@@ -86,11 +86,14 @@
         </span>
       </div>
 
-      <!-- 心情 -->
+      <!-- 性别 + 心情 -->
       <div class="PetDetail__mood">
+        <span class="PetDetail__gender-badge" title="{pet.gender_label}">
+          {pet.gender_emoji}
+        </span>
         <span class="PetDetail__mood-emoji">{pet.mood_emoji}</span>
         <span class="PetDetail__mood-label">
-          {pet.mood === "happy" ? "开心" :
+          {pet.gender_label} · {pet.mood === "happy" ? "开心" :
            pet.mood === "content" ? "满足" :
            pet.mood === "calm" ? "平静" :
            pet.mood === "bored" ? "无聊" :
@@ -203,10 +206,46 @@
         </div>
       {/if}
 
+      <!-- 八字命理 -->
+      {#if pet.bazi}
+        <div class="PetDetail__section">
+          <span class="PetDetail__section-title">☯ 生辰八字 · 命理</span>
+          <div class="PetDetail__bazi-card">
+            <div class="PetDetail__bazi-pillars">
+              <div class="PetDetail__bazi-pillar">
+                <span class="PetDetail__bazi-pillar-label">年柱</span>
+                <span class="PetDetail__bazi-pillar-value">{pet.bazi.year_pillar}</span>
+              </div>
+              <div class="PetDetail__bazi-pillar">
+                <span class="PetDetail__bazi-pillar-label">月柱</span>
+                <span class="PetDetail__bazi-pillar-value">{pet.bazi.month_pillar}</span>
+              </div>
+              <div class="PetDetail__bazi-pillar">
+                <span class="PetDetail__bazi-pillar-label">日柱</span>
+                <span class="PetDetail__bazi-pillar-value">{pet.bazi.day_pillar}</span>
+              </div>
+              <div class="PetDetail__bazi-pillar">
+                <span class="PetDetail__bazi-pillar-label">时柱</span>
+                <span class="PetDetail__bazi-pillar-value">{pet.bazi.hour_pillar}</span>
+              </div>
+            </div>
+            <div class="PetDetail__bazi-info-row">
+              <span class="PetDetail__tag">{pet.bazi.wu_xing_emoji} 五行·{pet.bazi.wu_xing}</span>
+              <span class="PetDetail__tag">{pet.bazi.sheng_xiao_emoji} {pet.bazi.sheng_xiao}</span>
+              <span class="PetDetail__tag">{pet.bazi.ba_gua_symbol} {pet.bazi.ba_gua}卦·{pet.bazi.ba_gua_nature}</span>
+              <span class="PetDetail__tag">🕐 {pet.bazi.shi_chen}</span>
+            </div>
+            <div class="PetDetail__bazi-fortune">
+              {pet.bazi.fortune_summary}
+            </div>
+          </div>
+        </div>
+      {/if}
+
       <!-- 信息 -->
       <div class="PetDetail__footer">
         <span class="PetDetail__footer-text">
-          🎂 出生于 {new Date(pet.born_at).toLocaleDateString("zh-CN")}
+          🎂 出生于 {new Date(pet.born_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </span>
       </div>
     </div>
@@ -472,6 +511,66 @@
   .PetDetail__food-qty {
     color: var(--muted-foreground, #888);
     font-size: var(--text-xs, 12px);
+  }
+
+  /* ── 性别标识 ─────────────────────────────────── */
+
+  .PetDetail__gender-badge {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  /* ── 八字命理 ─────────────────────────────────── */
+
+  .PetDetail__bazi-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+    background: var(--muted, #2a2a3e);
+    border: 1px solid var(--border, #333);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3, 12px);
+  }
+
+  .PetDetail__bazi-pillars {
+    display: flex;
+    gap: var(--space-2, 8px);
+    justify-content: center;
+  }
+
+  .PetDetail__bazi-pillar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 48px;
+  }
+
+  .PetDetail__bazi-pillar-label {
+    font-size: 10px;
+    color: var(--muted-foreground, #888);
+  }
+
+  .PetDetail__bazi-pillar-value {
+    font-size: var(--text-base, 16px);
+    font-weight: 700;
+    color: var(--foreground, #fff);
+    letter-spacing: 2px;
+  }
+
+  .PetDetail__bazi-info-row {
+    display: flex;
+    gap: var(--space-1, 4px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .PetDetail__bazi-fortune {
+    font-size: var(--text-xs, 12px);
+    color: var(--muted-foreground, #888);
+    line-height: 1.5;
+    text-align: center;
+    font-style: italic;
   }
 
   /* ── 页脚 ────────────────────────────────────── */

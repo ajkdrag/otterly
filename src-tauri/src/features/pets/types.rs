@@ -243,6 +243,7 @@ pub struct Pet {
     pub skills: String,         // JSON array
     pub accessories: String,    // JSON array
     pub skin_variant: String,
+    pub gender: String,
     pub born_at: i64,
     pub last_fed_at: Option<i64>,
     pub last_interaction_at: Option<i64>,
@@ -277,7 +278,11 @@ pub struct PetState {
     pub skills: Vec<String>,
     pub accessories: Vec<String>,
     pub skin_variant: String,
+    pub gender: String,
+    pub gender_emoji: String,
+    pub gender_label: String,
     pub born_at: i64,
+    pub bazi: Option<super::bazi::BaziInfo>,
     pub last_fed_at: Option<i64>,
     pub last_interaction_at: Option<i64>,
 }
@@ -289,6 +294,7 @@ pub struct CreatePetArgs {
     pub owner_id: String,
     pub species: String,
     pub name: String,
+    pub gender: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

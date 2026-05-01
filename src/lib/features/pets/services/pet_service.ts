@@ -25,16 +25,18 @@ export class PetService {
 
   // ── 宠物创建 ─────────────────────────────────────────
 
-  async create_pet(species: PetSpecies, name: string): Promise<void> {
+  async create_pet(species: PetSpecies, name: string, gender?: string): Promise<void> {
     const vid = this.vault_id();
     const oid = this.owner_id();
     if (!vid || !oid) return;
 
     this.pet_store.is_loading = true;
     try {
-      const state = await invoke<PetState>("pet_create", {
-        args: { vault_id: vid, owner_id: oid, species, name },
-      });
+      const args: Record<string, string> = { vault_id: vid, owner_id: oid, species, name };
+      if (gender && gender !== "random") {
+        args.gender = gender;
+      }
+      const state = await invoke<PetState>("pet_create", { args });
       this.pet_store.set_pet(state);
       this.pet_store.close_selection();
       this.pet_store.last_message = `🎉 ${state.species_name_cn}「${state.name}」诞生了!`;

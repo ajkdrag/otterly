@@ -100,6 +100,7 @@
   let loading = $state(false);
   let error_msg = $state<string | null>(null);
   let last_analyzed_path = $state<string | null>(null);
+  let user_triggered = $state(false);
 
   let py_sentiment = $state<PySentiment | null>(null);
   let py_keywords = $state<KeywordEntry[] | null>(null);
@@ -268,15 +269,48 @@
     }
   }
 
+  // 当文件切换时：检查是否有缓存，有则直接加载，无则显示按钮
   $effect(() => {
     const _tab = stores.tab.active_tab;
     const _vault = stores.vault.vault;
     const _rail_open = stores.ui.context_rail_open;
     const _rail_tab = stores.ui.context_rail_tab;
-    if (_rail_open && _rail_tab === "nlp" && _vault && _tab) {
-      untrack(() => run_analysis());
+    if (_tab && _vault && _rail_open && _rail_tab === "nlp") {
+      const note_path = _tab.note_path;
+      if (note_path !== last_analyzed_path) {
+        untrack(() => {
+          user_triggered = false;
+          analysis = null;
+          // 尝试从缓存加载（nlp_analyze_note 内部有缓存机制）
+          try_load_cached(note_path, _vault.id);
+        });
+      }
     }
   });
+
+  async function try_load_cached(note_path: string, vault_id: string) {
+    try {
+      const result: NlpAnalysis = await tracked_invoke("nlp_analyze_note", {
+        args: { vault_id, note_path },
+      });
+      // 如果成功返回（命中缓存），直接显示结果
+      analysis = result;
+      last_analyzed_path = note_path;
+      user_triggered = true;
+      // 也加载 Python 分析
+      run_python_analysis();
+      run_bpe_analysis();
+    } catch {
+      // 无缓存或失败，保持按钮状态
+      analysis = null;
+      user_triggered = false;
+    }
+  }
+
+  function handle_trigger_analysis() {
+    user_triggered = true;
+    run_analysis();
+  }
 
   function format_time(minutes: number): string {
     if (minutes < 1) return "< 1 min";
@@ -321,12 +355,31 @@
 </script>
 
 <div class="NlpPanel">
-  {#if loading}
-    <div class="NlpPanel__status">Analyzing...</div>
+  {#if !stores.tab.active_tab}
+    <div class="NlpPanel__status">打开一个文件来使用 NLP 分析</div>
+  {:else if !user_triggered}
+    <div class="NlpPanel__trigger">
+      <div class="NlpPanel__trigger-icon">🧠</div>
+      <div class="NlpPanel__trigger-text">点击按钮对当前文件进行 NLP 分析</div>
+      <button
+        type="button"
+        class="NlpPanel__trigger-btn"
+        onclick={handle_trigger_analysis}
+      >
+        🔬 开始 NLP 分析
+      </button>
+    </div>
+  {:else if loading}
+    <div class="NlpPanel__status">
+      <div class="NlpPanel__loading">
+        <span class="NlpPanel__loading-spinner">⏳</span>
+        <span>正在分析中...</span>
+      </div>
+    </div>
   {:else if error_msg}
     <div class="NlpPanel__status NlpPanel__status--error">{error_msg}</div>
   {:else if !analysis}
-    <div class="NlpPanel__status">Open a file to see NLP analysis</div>
+    <div class="NlpPanel__status">打开一个文件来使用 NLP 分析</div>
   {:else}
     <div class="NlpPanel__content">
       <section class="NlpPanel__section">
@@ -1133,6 +1186,65 @@
 
   .NlpPanel__py-status--error {
     color: var(--destructive);
+  }
+
+  /* ── Trigger Button ──────────────────────────── */
+
+  .NlpPanel__trigger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4, 16px);
+    height: 100%;
+    padding: var(--space-6, 24px);
+    text-align: center;
+  }
+
+  .NlpPanel__trigger-icon {
+    font-size: 48px;
+    line-height: 1;
+    opacity: 0.6;
+  }
+
+  .NlpPanel__trigger-text {
+    font-size: var(--text-sm, 14px);
+    color: var(--muted-foreground, #888);
+    max-width: 200px;
+  }
+
+  .NlpPanel__trigger-btn {
+    padding: var(--space-3, 12px) var(--space-5, 20px);
+    background: var(--interactive, #6366f1);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    font-size: var(--text-sm, 14px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--duration-fast, 100ms), transform var(--duration-fast, 100ms);
+  }
+
+  .NlpPanel__trigger-btn:hover {
+    background: var(--interactive-hover, #4f46e5);
+    transform: translateY(-1px);
+  }
+
+  .NlpPanel__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2, 8px);
+  }
+
+  .NlpPanel__loading-spinner {
+    font-size: 32px;
+    animation: nlp-spin 1.5s ease-in-out infinite;
+  }
+
+  @keyframes nlp-spin {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
   }
 
   /* BPE Section Styles */
