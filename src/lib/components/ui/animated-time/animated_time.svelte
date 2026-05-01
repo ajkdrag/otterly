@@ -43,9 +43,9 @@
     return s.split("");
   }
 
-  const hour_chars = $derived(chars_of(parts.hours, false));
-  const min_chars = $derived(chars_of(parts.minutes, !show_hours ? false : true));
-  const sec_chars = $derived(chars_of(parts.seconds));
+  const hour_chars = $derived(chars_of(parts.hours, true));
+  const min_chars = $derived(chars_of(parts.minutes, true));
+  const sec_chars = $derived(chars_of(parts.seconds, true));
 
   const digits = "0123456789".split("");
 </script>
@@ -53,7 +53,7 @@
 <span class="AnimTime {extra_class}" aria-label="{parts.hours}h {parts.minutes}m {parts.seconds}s">
   {#if show_hours}
     <span class="AnimTime__group">
-      {#each hour_chars as ch, i (i)}
+      {#each hour_chars as ch, i (`h${i}`)}
         <span class="AnimTime__digit-wrap">
           <span
             class="AnimTime__digit-strip"
@@ -70,7 +70,7 @@
   {/if}
 
   <span class="AnimTime__group">
-    {#each min_chars as ch, i (i)}
+    {#each min_chars as ch, i (`m${i}`)}
       <span class="AnimTime__digit-wrap">
         <span
           class="AnimTime__digit-strip"
@@ -86,7 +86,7 @@
   </span>
 
   <span class="AnimTime__group">
-    {#each sec_chars as ch, i (i)}
+    {#each sec_chars as ch, i (`s${i}`)}
       <span class="AnimTime__digit-wrap">
         <span
           class="AnimTime__digit-strip"

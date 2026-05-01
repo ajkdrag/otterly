@@ -17,8 +17,8 @@
   let { on_login_guest, on_login_credentials, on_register }: Props = $props();
 
   let mode = $state<"login" | "register">("login");
-  let username = $state("");
-  let password = $state("");
+  let username = $state("gaoqijie");
+  let password = $state("1234");
   let confirm_password = $state("");
   let error = $state<string | null>(null);
   let is_loading = $state(false);
@@ -104,8 +104,13 @@
   function switch_mode(new_mode: "login" | "register"): void {
     mode = new_mode;
     error = null;
-    username = "";
-    password = "";
+    if (new_mode === "register") {
+      username = "";
+      password = "";
+    } else {
+      username = "gaoqijie";
+      password = "1234";
+    }
     confirm_password = "";
   }
 </script>

@@ -10,6 +10,7 @@
   } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
   import confetti from "canvas-confetti";
+  import FloatingPoints from "$lib/components/ui/floating-points/floating_points.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { Tab, TabId } from "$lib/features/tab/types/tab";
@@ -23,6 +24,7 @@
   }
 
   let pts_badge = $state<PointsBadge | null>(null);
+  let floating_points: FloatingPoints;
 
   const { stores, action_registry } = use_app_context();
 
@@ -195,6 +197,8 @@
               pts_badge = r;
             })
             .catch(() => {});
+          // Show floating +2 animation
+          floating_points?.trigger(2);
           if (result?.level_up) {
             const intensity =
               result.new_level >= 17 ? 200 : result.new_level >= 10 ? 150 : 100;
@@ -474,6 +478,8 @@
     </div>
   </div>
 {/if}
+
+<FloatingPoints bind:this={floating_points} />
 
 <style>
   .TabBar {

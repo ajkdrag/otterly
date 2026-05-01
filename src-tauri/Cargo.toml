@@ -1,6 +1,6 @@
 [package]
 name = "leapgrownotes"
-version = "1.0.0"
+version = "1.0.3"
 description = "Local-first markdown vault"
 authors = ["altamkhan"]
 edition = "2021"
