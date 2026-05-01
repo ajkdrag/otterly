@@ -1,5 +1,14 @@
 export type UserId = string & { readonly __brand: "UserId" };
 
+/**
+ * Authentication identity type.
+ * - "guest": anonymous user with a local-only ID, no credentials
+ * - "registered": user with username and password
+ */
+export type AuthIdentity =
+  | { kind: "guest" }
+  | { kind: "registered"; username: string };
+
 export type Badge = {
   id: string;
   name: string;
@@ -13,6 +22,7 @@ export type UserProfile = {
   display_name: string;
   password_hash: string;
   avatar_emoji: string;
+  auth_identity: AuthIdentity;
   level: number;
   level_title: string;
   level_icon: string;
@@ -44,10 +54,13 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   notifications_enabled: true,
 };
 
+export const DEFAULT_GUEST_IDENTITY: AuthIdentity = { kind: "guest" };
+
 export const DEFAULT_USER_PROFILE: Omit<UserProfile, "id"> = {
-  display_name: "User",
+  display_name: "游客",
   password_hash: "",
   avatar_emoji: "👤",
+  auth_identity: { kind: "guest" },
   level: 0,
   level_title: "知识新生儿",
   level_icon: "👶",

@@ -170,6 +170,12 @@ export const ACTION_IDS = {
   user_delete: "user.delete",
   user_change_password: "user.change_password",
   user_verify_password: "user.verify_password",
+
+  auth_login_guest: "auth.login_guest",
+  auth_login_credentials: "auth.login_credentials",
+  auth_register: "auth.register",
+  auth_bind_account: "auth.bind_account",
+  auth_logout: "auth.logout",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

@@ -3,11 +3,15 @@ import type {
   UserId,
   Badge,
   UserPreferences,
+  AuthIdentity,
 } from "$lib/features/user/types/user_profile";
+
+export type AuthScreenState = "login" | "authenticated";
 
 export class UserStore {
   active_profile = $state<UserProfile | null>(null);
   all_profiles = $state<UserProfile[]>([]);
+  auth_screen = $state<AuthScreenState>("login");
 
   get active_user_id(): UserId | null {
     return this.active_profile?.id ?? null;
@@ -53,6 +57,18 @@ export class UserStore {
     return this.active_profile?.preferences ?? null;
   }
 
+  get is_authenticated(): boolean {
+    return this.auth_screen === "authenticated";
+  }
+
+  get is_guest(): boolean {
+    return this.active_profile?.auth_identity?.kind === "guest";
+  }
+
+  get auth_identity(): AuthIdentity | null {
+    return this.active_profile?.auth_identity ?? null;
+  }
+
   set_active_profile(profile: UserProfile): void {
     this.active_profile = profile;
   }
@@ -61,8 +77,13 @@ export class UserStore {
     this.all_profiles = profiles;
   }
 
+  set_auth_screen(screen: AuthScreenState): void {
+    this.auth_screen = screen;
+  }
+
   clear(): void {
     this.active_profile = null;
     this.all_profiles = [];
+    this.auth_screen = "login";
   }
 }

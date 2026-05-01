@@ -5,6 +5,7 @@ import type {
   UserId,
   UserPreferences,
   Badge,
+  AuthIdentity,
 } from "$lib/features/user/types/user_profile";
 import {
   DEFAULT_USER_PROFILE,
@@ -21,6 +22,14 @@ const log = create_logger("user_service");
 export type UserLoadResult =
   | { status: "success"; profile: UserProfile }
   | { status: "created"; profile: UserProfile }
+  | { status: "failed"; error: string };
+
+export type LoginResult =
+  | { status: "success"; profile: UserProfile }
+  | { status: "failed"; error: string };
+
+export type BindAccountResult =
+  | { status: "success"; profile: UserProfile }
   | { status: "failed"; error: string };
 
 export class UserService {
@@ -58,6 +67,187 @@ export class UserService {
       const msg = error_message(error);
       log.error("Load user profile failed", { error: msg });
       this.op_store.fail("user.load", msg);
+      return { status: "failed", error: msg };
+    }
+  }
+
+  /**
+   * Login as guest — creates a new guest profile or loads an existing one.
+   */
+  async login_as_guest(): Promise<UserLoadResult> {
+    this.op_store.start("user.guest_login", this.now_ms());
+
+    try {
+      // Check if there's already an active guest user
+      const active_id = await this.user_port.get_active_user_id();
+      if (active_id) {
+        const existing = await this.user_port.load_user_profile(active_id);
+        if (existing && existing.auth_identity?.kind === "guest") {
+          const updated = {
+            ...existing,
+            last_active_at: new Date().toISOString(),
+          };
+          await this.user_port.save_user_profile(updated);
+          this.op_store.succeed("user.guest_login");
+          return { status: "success", profile: updated };
+        }
+      }
+
+      // Create a new guest profile
+      const guest_profile = create_default_profile();
+      await this.user_port.create_user_profile(guest_profile);
+      await this.user_port.set_active_user_id(guest_profile.id);
+      this.op_store.succeed("user.guest_login");
+      return { status: "created", profile: guest_profile };
+    } catch (error) {
+      const msg = error_message(error);
+      log.error("Guest login failed", { error: msg });
+      this.op_store.fail("user.guest_login", msg);
+      return { status: "failed", error: msg };
+    }
+  }
+
+  /**
+   * Login with username and password.
+   * Finds the registered user profile matching the username, verifies the password.
+   */
+  async login_with_credentials(
+    username: string,
+    password: string,
+  ): Promise<LoginResult> {
+    this.op_store.start("user.login", this.now_ms());
+
+    try {
+      const all_profiles = await this.user_port.list_user_profiles();
+      const target = all_profiles.find(
+        (p) =>
+          p.auth_identity?.kind === "registered" &&
+          p.auth_identity.username === username,
+      );
+
+      if (!target) {
+        this.op_store.fail("user.login", "用户名不存在");
+        return { status: "failed", error: "用户名不存在" };
+      }
+
+      const valid = await verify_password(password, target.password_hash);
+      if (!valid) {
+        this.op_store.fail("user.login", "密码不正确");
+        return { status: "failed", error: "密码不正确" };
+      }
+
+      const updated = {
+        ...target,
+        last_active_at: new Date().toISOString(),
+      };
+      await this.user_port.save_user_profile(updated);
+      await this.user_port.set_active_user_id(updated.id);
+      this.op_store.succeed("user.login");
+      return { status: "success", profile: updated };
+    } catch (error) {
+      const msg = error_message(error);
+      log.error("Login failed", { error: msg });
+      this.op_store.fail("user.login", msg);
+      return { status: "failed", error: msg };
+    }
+  }
+
+  /**
+   * Register a new account with username and password.
+   * Creates a brand new registered user profile.
+   */
+  async register_account(
+    username: string,
+    password: string,
+    display_name?: string,
+  ): Promise<LoginResult> {
+    this.op_store.start("user.register", this.now_ms());
+
+    try {
+      // Check if username already exists
+      const all_profiles = await this.user_port.list_user_profiles();
+      const exists = all_profiles.some(
+        (p) =>
+          p.auth_identity?.kind === "registered" &&
+          p.auth_identity.username === username,
+      );
+
+      if (exists) {
+        this.op_store.fail("user.register", "用户名已存在");
+        return { status: "failed", error: "用户名已存在" };
+      }
+
+      const password_hash = await hash_password(password);
+      const profile: UserProfile = {
+        ...DEFAULT_USER_PROFILE,
+        id: as_user_id(generate_user_id()),
+        display_name: display_name || username,
+        password_hash,
+        auth_identity: { kind: "registered", username },
+        created_at: new Date().toISOString(),
+        last_active_at: new Date().toISOString(),
+      };
+
+      await this.user_port.create_user_profile(profile);
+      await this.user_port.set_active_user_id(profile.id);
+      this.op_store.succeed("user.register");
+      return { status: "success", profile };
+    } catch (error) {
+      const msg = error_message(error);
+      log.error("Register failed", { error: msg });
+      this.op_store.fail("user.register", msg);
+      return { status: "failed", error: msg };
+    }
+  }
+
+  /**
+   * Bind a guest account to a username and password.
+   * Upgrades the current guest profile to a registered profile.
+   * All existing data (points, badges, notes, etc.) is preserved.
+   */
+  async bind_account(
+    profile: UserProfile,
+    username: string,
+    password: string,
+  ): Promise<BindAccountResult> {
+    this.op_store.start("user.bind_account", this.now_ms());
+
+    try {
+      if (profile.auth_identity?.kind !== "guest") {
+        this.op_store.fail("user.bind_account", "当前账号已绑定");
+        return { status: "failed", error: "当前账号已绑定" };
+      }
+
+      // Check if username already exists
+      const all_profiles = await this.user_port.list_user_profiles();
+      const exists = all_profiles.some(
+        (p) =>
+          p.id !== profile.id &&
+          p.auth_identity?.kind === "registered" &&
+          p.auth_identity.username === username,
+      );
+
+      if (exists) {
+        this.op_store.fail("user.bind_account", "用户名已被占用");
+        return { status: "failed", error: "用户名已被占用" };
+      }
+
+      const password_hash = await hash_password(password);
+      const updated: UserProfile = {
+        ...profile,
+        display_name: profile.display_name === "游客" ? username : profile.display_name,
+        password_hash,
+        auth_identity: { kind: "registered", username },
+        last_active_at: new Date().toISOString(),
+      };
+
+      await this.user_port.save_user_profile(updated);
+      this.op_store.succeed("user.bind_account");
+      return { status: "success", profile: updated };
+    } catch (error) {
+      const msg = error_message(error);
+      log.error("Bind account failed", { error: msg });
+      this.op_store.fail("user.bind_account", msg);
       return { status: "failed", error: msg };
     }
   }
@@ -188,12 +378,16 @@ export class UserService {
 
     try {
       const password_hash = password ? await hash_password(password) : "";
+      const auth_identity: AuthIdentity = password
+        ? { kind: "registered", username: display_name }
+        : { kind: "guest" };
       const profile: UserProfile = {
         ...DEFAULT_USER_PROFILE,
         id: as_user_id(generate_user_id()),
         display_name,
         password_hash,
         avatar_emoji,
+        auth_identity,
         created_at: new Date().toISOString(),
         last_active_at: new Date().toISOString(),
       };

@@ -72,10 +72,11 @@ function is_user_profile(entry: unknown): entry is UserProfile {
   );
 }
 
-/** Ensure old profiles without password_hash field are compatible */
+/** Ensure old profiles without password_hash or auth_identity fields are compatible */
 function migrate_profile(profile: UserProfile): UserProfile {
   return {
     ...profile,
     password_hash: profile.password_hash ?? "",
+    auth_identity: profile.auth_identity ?? { kind: "guest" },
   };
 }
