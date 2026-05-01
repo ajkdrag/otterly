@@ -7,7 +7,12 @@ pub fn open_pets_db(vault_root: &Path) -> Result<Connection, String> {
     let db_dir = vault_root.join(APP_DIR);
     std::fs::create_dir_all(&db_dir).map_err(|e| e.to_string())?;
     let conn = Connection::open(db_dir.join("pets.db")).map_err(|e| e.to_string())?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;")
+    let _: String = conn
+        .pragma_update_and_check(None, "journal_mode", &"WAL", |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "synchronous", &"NORMAL")
+        .map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_millis(5000))
         .map_err(|e| e.to_string())?;
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS pets (

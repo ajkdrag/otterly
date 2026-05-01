@@ -10,12 +10,13 @@ pub fn open_nlp_db(vault_root: &Path) -> Result<Connection, String> {
     std::fs::create_dir_all(&db_dir).map_err(|e| e.to_string())?;
     let db_path = db_dir.join("nlp_db.db");
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    conn.execute_batch(
-        "PRAGMA journal_mode=WAL;
-         PRAGMA synchronous=NORMAL;
-         PRAGMA busy_timeout=5000;",
-    )
-    .map_err(|e| e.to_string())?;
+    let _: String = conn
+        .pragma_update_and_check(None, "journal_mode", &"WAL", |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "synchronous", &"NORMAL")
+        .map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_millis(5000))
+        .map_err(|e| e.to_string())?;
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS nlp_analysis (
             path TEXT PRIMARY KEY,
