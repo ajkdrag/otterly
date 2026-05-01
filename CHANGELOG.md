@@ -6,6 +6,19 @@
 
 ## [2.0.2] - 2026-05-02
 
+### 宠物系统 gender/bazi 集成 + NLP 按钮触发 + NLU tab
+
+- **feat**: 宠物创建支持性别（gender）选择 + 八字命理（bazi）自动计算
+  - `engine.rs`: `create_pet()` 调用 `bazi::determine_gender()`/`calculate_bazi()`，支持可选性别覆盖
+  - `db.rs`: DDL 添加 `gender` 列 + `ALTER TABLE` 迁移兼容旧库
+  - `types.rs`: `Pet`/`PetState`/`CreatePetArgs` 添加 `gender`/`bazi` 字段
+  - 前端: 选蛋阶段添加性别三选一 + 详情面板显示八字命理卡片
+- **feat**: NLP 面板改为按钮触发分析，已分析文件自动从缓存加载
+- **feat**: 新增 NLU tab（内容摘要/概况/大纲/情感/内容理解/关键词/可读性）
+- **feat**: 新增 `bazi.rs` 模块（246 行），实现八字计算算法
+- **test**: 全部 Rust 测试适配新签名 + gender override 测试
+- **chore**: 16 文件变更，+1,330 行 / -56 行
+
 ### 代码统计：otterly（基座） vs LeapGrowNotes（本项目）
 
 基座项目：[ajkdrag/otterly](https://github.com/ajkdrag/otterly)
