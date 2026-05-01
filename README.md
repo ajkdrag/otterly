@@ -56,7 +56,8 @@ LeapGrowNotes 是一个**本地优先（local-first）**的个人知识库桌面
 - **全文搜索**：SQLite FTS5 全文检索（17 个搜索命令），中文 trigram 分词支持
 - **文件树**：目录导航 + 拖拽排序 + 文件夹管理 + 作用域模式
 - **Tab 系统**：多标签页 + 拖拽排序 + 固定标签 + 脏状态同步
-- **Git 版本控制**：init / status / commit / history / checkpoint / restore / diff + 自动提交
+- **Git 版本控制**：基于 git2 crate 的完整本地 Git 集成（详见下方 Git 章节）
+- **自动更新**：应用内检查/下载/安装更新（Tauri Updater 插件，详见下方更新章节）
 - **收藏笔记**：星标笔记快速访问
 - **代码索引**：正则提取函数名/类名/导出符号（Python/JS/TS/Rust/Go/Java/C/C++）
 
@@ -198,6 +199,159 @@ LeapGrowNotes 是一个**本地优先（local-first）**的个人知识库桌面
 ### 前端 Feature 模块（20 个）
 
 `clipboard` · `editor` · `folder` · `git` · `hotkey` · `links` · `nlp_kernal` · `note` · `pets` · `search` · `session` · `settings` · `shell` · `stats` · `tab` · `theme` · `update` · `user` · `vault` · `watcher`
+
+---
+
+## 🔀 Git 版本控制
+
+LeapGrowNotes 内置了完整的 Git 版本控制系统，基于 **git2 crate**（libgit2 Rust binding）实现，无需用户安装 Git CLI。
+
+### 后端命令（8 个 Tauri 命令）
+
+| 命令 | 说明 |
+| --- | --- |
+| `git_has_repo` | 检查 vault 是否已初始化 Git 仓库 |
+| `git_init_repo` | 初始化 Git 仓库 + 写入默认 `.gitignore` + 创建 Initial commit |
+| `git_status` | 获取仓库状态：分支名、是否脏、ahead/behind 计数、变更文件列表（modified/added/deleted/untracked/conflicted） |
+| `git_stage_and_commit` | 暂存选定文件（或全部）并提交，返回 commit hash |
+| `git_log` | 获取提交历史（hash/message/date/author），支持分页 |
+| `git_create_checkpoint` | 创建检查点（带时间戳的特殊提交），用于快照恢复 |
+| `git_restore_checkpoint` | 恢复到指定检查点（hard reset） |
+| `git_diff` | 获取指定文件与上次提交的 diff |
+
+### 自动提交 (git_autocommit reactor)
+
+当用户在设置中启用「自动提交」后，`git_autocommit.reactor.svelte.ts` 会：
+
+1. **监听文件变更**：通过 `$effect.root()` 观察文件保存事件
+2. **防抖处理**：使用 5 秒防抖，避免频繁提交
+3. **智能提交**：自动暂存所有变更文件，生成格式化提交信息 `[auto] save: {文件名}`
+4. **条件触发**：仅在仓库已初始化且设置已开启时工作
+
+### 前端 UI 组件
+
+```
+Git 面板（侧边栏）
+├── 📊 仓库状态指示（分支名 + 脏状态标记）
+├── 📝 变更文件列表（带状态图标：M/A/D/U/C）
+├── 💬 提交消息输入框
+├── [✅ 提交] 按钮
+├── 📜 提交历史列表
+│   ├── commit hash + message + date
+│   └── [🔍 查看 diff] 按钮
+├── 📸 检查点管理
+│   ├── [创建检查点] 快照当前状态
+│   └── [恢复检查点] 回退到指定快照
+└── ⚙️ 设置
+    └── [🔄 自动提交] 开关
+```
+
+### 技术细节
+
+- **纯 Rust 实现**：使用 `git2` crate，不依赖系统 Git 安装
+- **提交者信息**：自动使用 `"LeapGrowNotes" <leapgrownotes@local>` 作为 author
+- **`.gitignore` 模板**：初始化时自动排除 `.DS_Store`、`node_modules/`、`*.db` 等
+- **Ports + Adapters**：前端通过 `git.port.ts` 接口和 `git.adapter.ts` (Tauri IPC) 与后端通信
+- **响应式状态**：`git_store.svelte.ts` 使用 Svelte 5 `$state` 管理仓库状态
+
+---
+
+## 🔄 自动更新系统
+
+LeapGrowNotes 内置了完整的应用内自动更新功能，基于 **Tauri Updater 插件** 实现。
+
+### 架构
+
+更新系统是一个 **纯前端模块**，后端仅注册 Tauri 插件 `.plugin(tauri_plugin_updater::Builder::new().build())`，不需要自定义 Rust 命令。前端通过 `@tauri-apps/plugin-updater` 和 `@tauri-apps/plugin-process` 直接与 Tauri 运行时交互。
+
+### 更新流程
+
+```
+应用启动
+    │
+    ▼
+[1] 自动检查更新（调用远端 endpoints）
+    │
+    ├─ 无更新 → 静默结束
+    │
+    └─ 发现新版本 → 弹出更新对话框
+                        │
+                        ├── 显示：新版本号 + 更新日志 + 发布日期
+                        ├── [📥 下载并安装] → 下载进度条 → 安装 → 重启应用
+                        └── [⏭️ 稍后] → 关闭对话框
+```
+
+### UpdateService（3 个方法）
+
+| 方法 | 说明 |
+| --- | --- |
+| `check_for_update()` | 检查远端是否有新版本，缓存更新对象，更新 store |
+| `download_and_install()` | 下载更新包（带进度回调：Started/Progress/Finished）→ 安装 → 重启 |
+| `get_current_version()` | 获取当前应用版本号 |
+
+### UpdateStore（响应式状态）
+
+```typescript
+class UpdateStore {
+    status: 'idle' | 'checking' | 'available' | 'up_to_date' | 'downloading' | 'error'
+    version: string | null        // 新版本号
+    body: string | null           // 更新日志（Markdown）
+    date: string | null           // 发布日期
+    download_progress: number     // 下载进度 0-100
+    content_length: number | null // 下载总大小
+    error: string | null
+}
+```
+
+### 更新对话框 UI
+
+```
+┌────────────────────────────────────┐
+│  🔄 发现新版本 v2.1.0              │
+│                                    │
+│  📅 发布日期: 2026-05-02           │
+│                                    │
+│  📋 更新内容:                      │
+│  • 新增 LLM Wiki 设计文档          │
+│  • 设计文档体系重组                │
+│  • 本地 LLM 技术方案               │
+│                                    │
+│  ████████████████░░░░  75%         │
+│  下载中... 15.2 MB / 20.3 MB      │
+│                                    │
+│  [📥 下载并安装]    [⏭️ 稍后]       │
+└────────────────────────────────────┘
+```
+
+### 配置
+
+更新端点配置在 `src-tauri/tauri.conf.json`：
+
+```json
+{
+  "plugins": {
+    "updater": {
+      "pubkey": "...(Ed25519 公钥)...",
+      "endpoints": [
+        "https://codeup.aliyun.com/.../releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
+```
+
+发布签名使用 Ed25519 密钥对（`TAURI_SIGNING_PRIVATE_KEY` 环境变量）。
+
+### 构建/发布工具
+
+| 脚本 | 说明 |
+| --- | --- |
+| `scripts/release.sh` | 完整发布流程（版本号提升 → 构建 → 签名 → 上传） |
+| `scripts/build_latest_json.mjs` | 生成 `latest.json` 更新元数据文件 |
+| `scripts/bump_version.mjs` | 自动提升版本号（patch/minor/major） |
+| `scripts/update_release_version.mjs` | 更新各配置文件中的版本号 |
+| `scripts/write_release_metadata.mjs` | 写入发布元数据 |
+| `scripts/sign_windows.ps1` | Windows 平台签名脚本 |
 
 ---
 
