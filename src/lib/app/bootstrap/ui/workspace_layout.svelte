@@ -26,12 +26,21 @@
     Star,
   } from "@lucide/svelte";
   import StatsOverlay from "$lib/features/stats/ui/stats_overlay.svelte";
+  import { PetWidget, PetDetailPanel, PetSelection } from "$lib/features/pets";
+  import { PetService } from "$lib/features/pets";
   import { ModulesPanel } from "$lib/features/nlp_kernal";
 
   const { stores, action_registry } = use_app_context();
 
   let stats_overlay_open = $state(false);
   let starred_expanded_node_ids = $state(new SvelteSet<string>());
+
+  // 宠物系统 — 创建 PetService 实例供 UI 组件使用
+  const pet_service = new PetService(
+    stores.pet,
+    () => stores.vault.vault?.id ?? null,
+    () => stores.user.active_user_id,
+  );
 
   function starred_node_id(root_path: string, relative_path: string): string {
     return `starred:${root_path}:${relative_path}`;
@@ -813,6 +822,11 @@
     open={stats_overlay_open}
     on_close={() => (stats_overlay_open = false)}
   />
+
+  <!-- 🐾 宠物系统 -->
+  <PetWidget pet_store={stores.pet} {pet_service} />
+  <PetDetailPanel pet_store={stores.pet} {pet_service} />
+  <PetSelection pet_store={stores.pet} {pet_service} />
 {/if}
 
 <style>

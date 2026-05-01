@@ -40,6 +40,7 @@ import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import type { UserStore } from "$lib/features/user";
 import type { UserService } from "$lib/features/user";
 import { create_user_folder_persist_reactor } from "$lib/reactors/user_folder_persist.reactor.svelte";
+import { create_pet_sync_reactor } from "$lib/reactors/pet_sync.reactor.svelte";
 
 export type ReactorContext = {
   editor_store: EditorStore;
@@ -52,6 +53,7 @@ export type ReactorContext = {
   git_store: GitStore;
   links_store: LinksStore;
   user_store: UserStore;
+  pet_store: import("$lib/features/pets").PetStore;
   editor_service: EditorService;
   note_service: NoteService;
   vault_service: VaultService;
@@ -62,6 +64,7 @@ export type ReactorContext = {
   links_service: LinksService;
   watcher_service: WatcherService;
   user_service: UserService;
+  pet_service: import("$lib/features/pets").PetService;
   action_registry: ActionRegistry;
 };
 
@@ -161,6 +164,12 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.ui_store,
       context.user_store,
       context.user_service,
+    ),
+    create_pet_sync_reactor(
+      context.pet_store,
+      context.vault_store,
+      context.user_store,
+      context.pet_service,
     ),
   ];
 

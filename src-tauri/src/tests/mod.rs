@@ -12,3 +12,6 @@ mod vault_session_service_parse;
 
 #[path = "../../tests/link_rewrite.rs"]
 mod link_rewrite;
+
+#[path = "../../tests/pets_engine.rs"]
+mod pets_engine;

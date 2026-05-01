@@ -1,7 +1,8 @@
 # 🐾 LeapGrowNotes 电子宠物系统 — 产品设计规划文档
 
-> **版本**: v1.0 Draft  
-> **日期**: 2026-05-01  
+> **版本**: v1.0.3  
+> **最后更新**: 2026-05-01  
+> **实现状态**: ❌ 完全未实现（规划阶段）  
 > **参考**: [gitanimals](https://github.com/git-goods/gitanimals) — GitHub 贡献动物系统  
 > **定位**: LeapGrowNotes 内置陪伴型电子宠物，与知识成长体系深度绑定
 

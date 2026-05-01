@@ -1,6 +1,7 @@
 pub mod git;
 pub mod nlp_kernal;
 pub mod notes;
+pub mod pets;
 pub mod points;
 pub mod search;
 pub mod settings;

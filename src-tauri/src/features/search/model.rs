@@ -8,6 +8,10 @@ pub struct IndexNoteMeta {
     pub name: String,
     pub mtime_ms: i64,
     pub size_bytes: i64,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub symbols: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
