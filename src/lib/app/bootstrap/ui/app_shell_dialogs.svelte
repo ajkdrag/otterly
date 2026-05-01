@@ -343,6 +343,10 @@
       });
     });
   }}
+  on_user_open_note={(note_path: string) => {
+    void action_registry.execute(ACTION_IDS.settings_close);
+    void action_registry.execute(ACTION_IDS.note_open, { note_path });
+  }}
 />
 
 <CreateFolderDialog

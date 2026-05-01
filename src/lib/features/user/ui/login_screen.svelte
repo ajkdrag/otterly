@@ -85,7 +85,7 @@
     <div class="LoginScreen__header">
       <span class="LoginScreen__logo">📝</span>
       <h1 class="LoginScreen__title">LeapGrowNotes</h1>
-      <p class="LoginScreen__subtitle">24小时陪伴成长型知识笔记</p>
+      <p class="LoginScreen__subtitle">24小时陪伴激励成长型知识笔记</p>
     </div>
 
     <div class="LoginScreen__tabs">

@@ -86,6 +86,7 @@
     on_user_delete = () => {},
     on_user_change_password = async () => ({ success: false, error: "不可用" }),
     on_user_verify_password = async () => true,
+    on_user_open_note = (_path: string) => {},
   }: Props & {
     user_profile?: UserProfile | null;
     user_all_profiles?: UserProfile[];
@@ -97,6 +98,7 @@
     on_user_delete?: (user_id: string) => void;
     on_user_change_password?: (current_password: string, new_password: string) => Promise<{ success: boolean; error?: string }>;
     on_user_verify_password?: (user_id: string, password: string) => Promise<boolean>;
+    on_user_open_note?: (path: string) => void;
   } = $props();
 
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
@@ -477,6 +479,7 @@
             on_delete_user={on_user_delete}
             on_change_password={on_user_change_password}
             on_verify_password={on_user_verify_password}
+            on_open_note={on_user_open_note}
           />
         {/if}
       </div>

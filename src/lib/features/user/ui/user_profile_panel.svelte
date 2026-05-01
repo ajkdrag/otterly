@@ -22,6 +22,7 @@
     on_delete_user?: (user_id: string) => void;
     on_change_password?: (current_password: string, new_password: string) => Promise<{ success: boolean; error?: string }>;
     on_verify_password?: (user_id: string, password: string) => Promise<boolean>;
+    on_open_note?: (note_path: string) => void;
   };
 
   let {
@@ -35,7 +36,14 @@
     on_delete_user = () => {},
     on_change_password = async () => ({ success: false, error: "不可用" }),
     on_verify_password = async () => true,
+    on_open_note = () => {},
   }: Props = $props();
+
+  const BADGES_NOTE_PATH = "docs/badges.md";
+
+  function open_badges_doc(): void {
+    on_open_note(BADGES_NOTE_PATH);
+  }
 
   let editing_name = $state(false);
   let draft_name = $state("");
@@ -44,6 +52,20 @@
   let new_user_emoji = $state("👤");
   let new_user_password = $state("");
   let confirm_delete_id = $state<string | null>(null);
+
+  // All possible badges (design spec)
+  const ALL_BADGES: Array<{ id: string; name: string; icon: string; description: string }> = [
+    { id: "early_bird", name: "早起鸟", icon: "🌅", description: "连续5天在早上8点前打开App" },
+    { id: "night_owl", name: "夜猫子", icon: "🦉", description: "连续5天在晚上10点后使用App" },
+    { id: "reading_marathon", name: "阅读马拉松", icon: "📖", description: "一天内完成阅读20个文件" },
+    { id: "creative_maniac", name: "创作狂人", icon: "✍️", description: "一天内创建10篇笔记" },
+    { id: "knowledge_networker", name: "知识网络师", icon: "🔗", description: "创建50个Wiki-links" },
+    { id: "streak_30", name: "连续30天", icon: "🔥", description: "连续30天打开App" },
+    { id: "data_lover", name: "数据爱好者", icon: "📊", description: "查看NLP分析100次" },
+    { id: "org_master", name: "整理大师", icon: "🗂️", description: "知识库超过1000个文件" },
+    { id: "author_100k", name: "十万字作者", icon: "📝", description: "总字数超过100,000" },
+    { id: "multilingual", name: "多语言学者", icon: "🌍", description: "知识库包含3种以上语言" },
+  ];
 
   // Password change state
   let show_password_form = $state(false);
@@ -396,19 +418,25 @@
 
     <!-- Badges -->
     <div class="UserProfile__section">
-      <h3 class="UserProfile__section-title">成就徽章 ({profile.badges.length})</h3>
-      {#if profile.badges.length > 0}
-        <div class="UserProfile__badges">
-          {#each profile.badges as badge (badge.id)}
-            <div class="UserProfile__badge" title={badge.description}>
-              <span class="UserProfile__badge-icon">{badge.icon}</span>
-              <span class="UserProfile__badge-name">{badge.name}</span>
-              <span class="UserProfile__badge-date">{format_date(badge.unlocked_at)}</span>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <p class="UserProfile__empty-text">还没有获得徽章，继续努力！🌟</p>
+      <h3 class="UserProfile__section-title">成就徽章 ({profile.badges.length}/{ALL_BADGES.length})</h3>
+      <div class="UserProfile__badges-row">
+        <!-- Unlocked badges -->
+        {#each profile.badges as badge (badge.id)}
+          <button type="button" class="UserProfile__badge UserProfile__badge--unlocked" title="{badge.name}: {badge.description} (获得于 {format_date(badge.unlocked_at)})" onclick={open_badges_doc}>
+            <span class="UserProfile__badge-icon">{badge.icon}</span>
+            <span class="UserProfile__badge-name">{badge.name}</span>
+          </button>
+        {/each}
+        <!-- Next 3 locked badges -->
+        {#each ALL_BADGES.filter((b) => !profile.badges.some((ub) => ub.id === b.id)).slice(0, 3) as locked (locked.id)}
+          <button type="button" class="UserProfile__badge UserProfile__badge--locked" title="{locked.name}: {locked.description}" onclick={open_badges_doc}>
+            <span class="UserProfile__badge-icon UserProfile__badge-icon--locked">{locked.icon}</span>
+            <span class="UserProfile__badge-name UserProfile__badge-name--locked">{locked.name}</span>
+          </button>
+        {/each}
+      </div>
+      {#if profile.badges.length === 0}
+        <p class="UserProfile__empty-text">还没有获得徽章，继续努力解锁右边的目标！🌟</p>
       {/if}
     </div>
 
@@ -915,37 +943,65 @@
     text-align: right;
   }
 
-  .UserProfile__badges {
+  .UserProfile__badges-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
   }
 
   .UserProfile__badge {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    min-width: 4.5rem;
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-default);
+    flex-shrink: 0;
+    background: none;
+  }
+
+  .UserProfile__badge--unlocked {
     background-color: var(--muted);
-    border: 1px solid var(--border);
-    cursor: default;
+    border: 2px solid var(--interactive);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
+  }
+
+  .UserProfile__badge--locked {
+    background-color: transparent;
+    border: 2px dashed var(--border);
+    opacity: 0.5;
+  }
+
+  .UserProfile__badge--locked:hover {
+    opacity: 0.75;
+    border-color: var(--muted-foreground);
   }
 
   .UserProfile__badge-icon {
-    font-size: 1rem;
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .UserProfile__badge-icon--locked {
+    filter: grayscale(1);
+    opacity: 0.4;
   }
 
   .UserProfile__badge-name {
-    font-size: var(--text-xs);
+    font-size: 0.625rem;
     color: var(--foreground);
     font-weight: 500;
+    text-align: center;
+    line-height: 1.2;
   }
 
-  .UserProfile__badge-date {
-    font-size: 0.625rem;
+  .UserProfile__badge-name--locked {
     color: var(--muted-foreground);
-    margin-inline-start: var(--space-1);
   }
 
   .UserProfile__empty-text {

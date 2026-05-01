@@ -449,6 +449,7 @@
     {/if}
 
     <div class="TabBar__actions">
+      <span class="TabBar__slogan">24小时陪伴激励成长型知识笔记</span>
       {#if pts_badge}
         <span class="TabBar__points-badge">
           <span>{pts_badge.level_icon}</span>
@@ -702,6 +703,16 @@
   .TabBar__action-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
+  }
+
+  .TabBar__slogan {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    padding: 0 var(--space-2);
+    letter-spacing: 0.02em;
+    opacity: 0.7;
+    font-style: italic;
   }
 
   .TabBar__points-badge {
