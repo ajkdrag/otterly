@@ -2,8 +2,10 @@
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Input } from "$lib/components/ui/input";
   import { HotkeyKey } from "$lib/features/hotkey";
+  import { Button } from "$lib/components/ui/button";
   import KeyboardIcon from "@lucide/svelte/icons/keyboard";
   import HashIcon from "@lucide/svelte/icons/hash";
+  import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
   import SearchIcon from "@lucide/svelte/icons/search";
   import {
     EDITOR_SHORTCUTS,
@@ -12,15 +14,16 @@
   import { format_hotkey_for_display } from "$lib/features/hotkey";
   import type { HotkeyConfig, HotkeyCategory } from "$lib/features/hotkey";
 
-  type HelpCategory = "shortcuts" | "markdown";
+  type HelpCategory = "shortcuts" | "markdown" | "update";
 
   type Props = {
     open: boolean;
     hotkeys_config: HotkeyConfig;
     on_close: () => void;
+    on_check_update?: () => void;
   };
 
-  let { open, hotkeys_config, on_close }: Props = $props();
+  let { open, hotkeys_config, on_close, on_check_update = () => {} }: Props = $props();
 
   let active_category = $state<HelpCategory>("shortcuts");
   let search_query = $state("");
@@ -32,6 +35,7 @@
   }[] = [
     { id: "shortcuts", label: "Shortcuts", icon: KeyboardIcon },
     { id: "markdown", label: "Markdown", icon: HashIcon },
+    { id: "update", label: "检查更新", icon: RefreshCwIcon },
   ];
 
   const app_category_order: HotkeyCategory[] = [
@@ -226,6 +230,15 @@
                 No syntax matching "{search_query}"
               </div>
             {/if}
+          </div>
+        {:else if active_category === "update"}
+          <h2 class="HelpDialog__content-header">🔄 检查更新</h2>
+          <div class="HelpDialog__update-section">
+            <p class="HelpDialog__update-desc">检查是否有新版本的 LeapGrowNotes 可用。</p>
+            <Button onclick={() => { on_check_update(); on_close(); }}>
+              🔄 检查更新
+            </Button>
+            <p class="HelpDialog__update-hint">当前版本: v1.0.0</p>
           </div>
         {/if}
       </div>
@@ -445,5 +458,27 @@
     padding: var(--space-8) var(--space-4);
     color: var(--muted-foreground);
     font-size: var(--text-sm);
+  }
+
+  .HelpDialog__update-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
+  }
+
+  .HelpDialog__update-desc {
+    font-size: var(--text-sm);
+    color: var(--muted-foreground);
+    margin: 0;
+  }
+
+  .HelpDialog__update-hint {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    margin: 0;
+    font-family: var(--font-mono, monospace);
   }
 </style>

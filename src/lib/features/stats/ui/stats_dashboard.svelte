@@ -540,9 +540,9 @@
       <section class="StatsDash__section">
         <h3 class="StatsDash__section-title">⚡ Current Session</h3>
         <div class="StatsDash__overview-grid">
-          <div class="StatsDash__card">
+          <div class="StatsDash__card StatsDash__card--duration">
             <span class="StatsDash__card-value">
-              <AnimatedTime total_seconds={session_elapsed_seconds} />
+              <AnimatedTime total_seconds={session_elapsed_seconds} format="hms" />
             </span>
             <span class="StatsDash__card-label">Duration</span>
           </div>

@@ -480,6 +480,19 @@
   open={stores.ui.help_dialog.open}
   hotkeys_config={stores.ui.hotkeys_config}
   on_close={() => void action_registry.execute(ACTION_IDS.help_close)}
+  on_check_update={() => {
+    import("@tauri-apps/plugin-updater").then(({ check }) => {
+      check().then((update) => {
+        if (update) {
+          alert(`发现新版本 v${update.version}！\n\n${update.body ?? ""}\n\n请前往 GitHub Releases 下载。`);
+        } else {
+          alert("✅ 已是最新版本！");
+        }
+      }).catch((e) => {
+        alert(`检查更新失败: ${String(e)}`);
+      });
+    });
+  }}
 />
 
 <HotkeyRecorderDialog

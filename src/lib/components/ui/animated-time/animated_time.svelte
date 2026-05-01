@@ -30,7 +30,7 @@
     };
   });
 
-  const show_hours = $derived(format === "hms" && parts.hours > 0);
+  const show_hours = $derived(format === "hms");
 
   /** Pad a number to 2 digits */
   function pad2(n: number): string {
