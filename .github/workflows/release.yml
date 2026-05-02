@@ -1,0 +1,117 @@
+name: Release v2.0.0
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+            rust_target: aarch64-apple-darwin
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+            rust_target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+            rust_target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            args: ''
+            rust_target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev python3-dev
+
+      - name: Setup Python (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup Python (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup Python (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Configure Python framework path (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          PYTHON_FW=$(python3 -c "import sys; print(sys.prefix)")/lib
+          echo "PYO3_PYTHON=$(which python3)" >> $GITHUB_ENV
+          # Update tauri.conf.json to use CI Python framework path
+          python3 -c "
+          import json
+          with open('src-tauri/tauri.conf.json', 'r') as f:
+              conf = json.load(f)
+          python_fw = '$(python3 -c "import sys; import os; print(os.path.dirname(os.path.dirname(sys.prefix)))")/Python.framework'
+          conf['bundle']['macOS']['frameworks'] = [python_fw] if os.path.exists(python_fw) else []
+          with open('src-tauri/tauri.conf.json', 'w') as f:
+              json.dump(conf, f, indent=2)
+          " || true
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'LeapGrowNotes ${{ github.ref_name }}'
+          releaseBody: |
+            ## LeapGrowNotes ${{ github.ref_name }}
+            
+            ### 下载说明
+            - **macOS (M 系列)**: `.dmg` (aarch64)
+            - **macOS (Intel)**: `.dmg` (x86_64) 
+            - **Windows**: `.msi` 或 `.exe`
+            - **Linux**: `.AppImage` 或 `.deb`
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
