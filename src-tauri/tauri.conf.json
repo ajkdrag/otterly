@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "LeapGrowNotes",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "identifier": "com.leapgrownotes.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -43,7 +43,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEMkY0REEwMEVGODhEQkYKUldTL2pmZ09vRTB2N1p4bWhJRGxkc2lZLy9ocTU3b2VBT1R5NHVtSzNsWFpzTDVWckQ4cnhSbEsK",
       "endpoints": [
-        "https://codeup.aliyun.com/qijie/LeapGrowNotes/releases/latest/download/latest.json"
+        "https://github.com/JieGaoPrinceton/LeapGrowNotes/releases/latest/download/latest.json"
       ]
     }
   },
