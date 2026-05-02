@@ -1,17 +1,17 @@
 [package]
-name = "otterly"
-version = "0.3.0"
+name = "leapgrownotes"
+version = "2.0.0"
 description = "Local-first markdown vault"
 authors = ["altamkhan"]
 edition = "2021"
 autotests = false
 
 [lib]
-name = "otterly_lib"
+name = "leapgrownotes_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "otterly"
+name = "leapgrownotes"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -20,12 +20,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 anyhow = "1.0.95"
 blake3 = "1.5.5"
+chrono = { version = "0.4", features = ["serde"] }
 comrak = "0.50.0"
 mime_guess = "2.0.5"
 notify = "7.0.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.138"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled-full"] }
 log = "0.4"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
@@ -37,6 +38,7 @@ tokio = { version = "1.43.0", features = ["fs", "rt-multi-thread", "sync"] }
 openssl = { version = "0.10", features = ["vendored"] }
 git2 = "0.19"
 walkdir = "2.5.0"
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
 
 [dev-dependencies]
 tempfile = "3"

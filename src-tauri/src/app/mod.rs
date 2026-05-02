@@ -6,7 +6,7 @@ include!(concat!(env!("OUT_DIR"), "/icon_stamp.rs"));
 
 pub fn run() {
     let _ = ICON_STAMP;
-    log::info!("Otterly starting");
+    log::info!("LeapGrowNotes starting");
 
     let log_level = if cfg!(debug_assertions) {
         log::LevelFilter::Debug
@@ -20,7 +20,7 @@ pub fn run() {
         tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
     ]);
 
-    if std::env::var("OTTERLY_LOG_FORMAT").as_deref() == Ok("json") {
+    if std::env::var("LEAPGROWNOTES_LOG_FORMAT").as_deref() == Ok("json") {
         log_builder = log_builder.format(|callback, message, record| {
             callback.finish(format_args!(
                 r#"{{"level":"{}","target":"{}","message":"{}"}}"#,
@@ -96,6 +96,35 @@ pub fn run() {
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,
             features::vault_settings::service::set_vault_setting,
+            features::nlp_kernal::commands::nlp_analyze_note,
+            features::nlp_kernal::commands::nlp_get_aggregate_stats,
+            features::nlp_kernal::commands::nlp_py_capabilities,
+            features::nlp_kernal::commands::nlp_py_tokenize,
+            features::nlp_kernal::commands::nlp_py_keywords,
+            features::nlp_kernal::commands::nlp_py_sentiment,
+            features::nlp_kernal::commands::nlp_py_entities,
+            features::nlp_kernal::commands::nlp_py_entities_ml,
+            features::nlp_kernal::commands::nlp_py_classify,
+            features::nlp_kernal::commands::nlp_bpe_analyze,
+            features::stats::commands::stats_start_session,
+            features::stats::commands::stats_end_session,
+            features::stats::commands::stats_file_opened,
+            features::stats::commands::stats_file_read_complete,
+            features::stats::commands::stats_get_history,
+            features::stats::commands::stats_scan_vault,
+            features::points::commands::points_award,
+            features::points::commands::points_get_account,
+            features::points::commands::points_get_transactions,
+            features::pets::commands::pet_create,
+            features::pets::commands::pet_get_state,
+            features::pets::commands::pet_get_state_by_owner,
+            features::pets::commands::pet_feed,
+            features::pets::commands::pet_interact,
+            features::pets::commands::pet_award_exp,
+            features::pets::commands::pet_check_evolution,
+            features::pets::commands::pet_evolve,
+            features::pets::commands::pet_update_mood,
+            features::pets::commands::pet_get_inventory,
             features::git::service::git_has_repo,
             features::git::service::git_init_repo,
             features::git::service::git_status,
@@ -106,7 +135,7 @@ pub fn run() {
             features::git::service::git_restore_file,
             features::git::service::git_create_tag
         ])
-        .register_uri_scheme_protocol("otterly-asset", |ctx, req| {
+        .register_uri_scheme_protocol("leapgrownotes-asset", |ctx, req| {
             shared::storage::handle_asset_request(ctx.app_handle(), req)
         })
         .run(tauri::generate_context!())

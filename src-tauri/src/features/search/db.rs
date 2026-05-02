@@ -78,6 +78,13 @@ pub(crate) fn extract_meta(abs: &Path, vault_root: &Path) -> Result<IndexNoteMet
     let title = notes_service::extract_title(abs);
     let name = file_stem_string(abs);
     let (mtime_ms, size_bytes) = notes_service::file_meta(abs)?;
+
+    // Extract tags from frontmatter and code symbols
+    let content = std::fs::read_to_string(abs).unwrap_or_default();
+    let tags = notes_service::extract_frontmatter_tags(&content);
+    let extension = abs.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let symbols = notes_service::extract_code_symbols(&content, extension);
+
     Ok(IndexNoteMeta {
         id: rel.clone(),
         path: rel,
@@ -85,6 +92,8 @@ pub(crate) fn extract_meta(abs: &Path, vault_root: &Path) -> Result<IndexNoteMet
         name,
         mtime_ms,
         size_bytes,
+        tags,
+        symbols,
     })
 }
 
@@ -97,7 +106,7 @@ const EXPECTED_FTS_COLUMNS: &str = "title, name, path, body";
 fn fts_schema_needs_migration(conn: &Connection) -> bool {
     let sql = "SELECT sql FROM sqlite_master WHERE type='table' AND name='notes_fts'";
     match conn.query_row(sql, [], |row| row.get::<_, String>(0)) {
-        Ok(ddl) => !ddl.contains("name,"),
+        Ok(ddl) => !ddl.contains("name,") || !ddl.contains("trigram"),
         Err(_) => false,
     }
 }
@@ -122,7 +131,7 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
 
         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
             {EXPECTED_FTS_COLUMNS},
-            tokenize='unicode61 remove_diacritics 2'
+            tokenize='trigram'
         );
 
         CREATE TABLE IF NOT EXISTS outlinks (
@@ -144,7 +153,10 @@ pub fn open_search_db(vault_root: &Path) -> Result<Connection, String> {
     let conn = Connection::open(&path).map_err(|e| e.to_string())?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))
         .map_err(|e| e.to_string())?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+    let _: String = conn
+        .pragma_update_and_check(None, "journal_mode", &"WAL", |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "synchronous", &"NORMAL")
         .map_err(|e| e.to_string())?;
     init_schema(&conn)?;
     Ok(conn)
@@ -526,6 +538,8 @@ pub fn get_all_notes_from_db(conn: &Connection) -> Result<BTreeMap<String, Index
 }
 
 fn escape_fts_query(query: &str) -> String {
+    // With trigram tokenizer, each term is matched as a substring.
+    // We quote each whitespace-separated term for exact substring matching.
     query
         .split_whitespace()
         .map(|term| format!("\"{}\"", term.replace('"', "")))
@@ -534,6 +548,8 @@ fn escape_fts_query(query: &str) -> String {
 }
 
 fn escape_fts_prefix_query(query: &str) -> String {
+    // With trigram tokenizer, we keep all alphanumeric characters including CJK/Unicode.
+    // c.is_alphanumeric() covers Chinese, Japanese, Korean characters.
     query
         .split_whitespace()
         .filter_map(|term| {
@@ -544,7 +560,9 @@ fn escape_fts_prefix_query(query: &str) -> String {
             if clean.is_empty() {
                 return None;
             }
-            Some(format!("\"{clean}\"*"))
+            // Trigram tokenizer supports substring queries via quoted strings.
+            // No need for prefix * operator with trigram.
+            Some(format!("\"{clean}\""))
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -695,6 +713,8 @@ fn note_meta_from_row(row: &rusqlite::Row) -> rusqlite::Result<IndexNoteMeta> {
         name,
         mtime_ms: row.get(2)?,
         size_bytes: row.get(3)?,
+        tags: Vec::new(),
+        symbols: Vec::new(),
     })
 }
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "otterly",
-  "version": "0.3.0",
-  "identifier": "com.otterly.app",
+  "productName": "LeapGrowNotes",
+  "version": "2.0.1",
+  "identifier": "com.leapgrownotes.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
@@ -31,14 +31,19 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [
+        "/opt/homebrew/opt/python@3.13/Frameworks/Python.framework"
+      ]
     }
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEMkY0REEwMEVGODhEQkYKUldTL2pmZ09vRTB2N1p4bWhJRGxkc2lZLy9ocTU3b2VBT1R5NHVtSzNsWFpzTDVWckQ4cnhSbEsK",
       "endpoints": [
-        "https://github.com/ajkdrag/otterly/releases/latest/download/latest.json"
+        "https://github.com/JieGaoPrinceton/LeapGrowNotes/releases/latest/download/latest.json"
       ]
     }
   },
@@ -46,7 +51,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "otterly",
+        "title": "LeapGrowNotes",
         "width": 1200,
         "height": 820,
         "resizable": true,
@@ -54,7 +59,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: blob: otterly-asset:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: blob: leapgrownotes-asset:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
     }
   }
 }

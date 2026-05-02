@@ -5,28 +5,42 @@
     Settings,
     Star,
     CircleHelp,
+    BarChart3,
+    Blocks,
   } from "@lucide/svelte";
 
-  type SidebarView = "explorer" | "dashboard" | "starred";
+  type SidebarView = "explorer" | "dashboard" | "starred" | "stats" | "modules";
 
   type Props = {
     sidebar_open: boolean;
     active_view: SidebarView;
+    user_avatar_emoji: string;
+    user_level: number;
+    user_level_icon: string;
     on_open_explorer: () => void;
     on_open_dashboard: () => void;
     on_open_starred: () => void;
+    on_open_stats: () => void;
+    on_open_modules: () => void;
     on_open_help: () => void;
     on_open_settings: () => void;
+    on_open_profile: () => void;
   };
 
   let {
     sidebar_open,
     active_view,
+    user_avatar_emoji = "👤",
+    user_level = 0,
+    user_level_icon = "👶",
     on_open_explorer,
     on_open_dashboard,
     on_open_starred,
+    on_open_stats,
+    on_open_modules,
     on_open_help,
     on_open_settings,
+    on_open_profile,
   }: Props = $props();
 </script>
 
@@ -67,9 +81,45 @@
     >
       <Star class="ActivityBar__icon" />
     </button>
+
+    <button
+      type="button"
+      class="ActivityBar__button"
+      class:ActivityBar__button--active={sidebar_open &&
+        active_view === "stats"}
+      onclick={on_open_stats}
+      aria-pressed={sidebar_open && active_view === "stats"}
+      aria-label="Statistics"
+    >
+      <BarChart3 class="ActivityBar__icon" />
+    </button>
+
+    <button
+      type="button"
+      class="ActivityBar__button"
+      class:ActivityBar__button--active={sidebar_open &&
+        active_view === "modules"}
+      onclick={on_open_modules}
+      aria-pressed={sidebar_open && active_view === "modules"}
+      aria-label="System Modules"
+    >
+      <Blocks class="ActivityBar__icon" />
+    </button>
   </div>
 
   <div class="ActivityBar__section">
+    <!-- User Profile Quick Access -->
+    <button
+      type="button"
+      class="ActivityBar__user-button"
+      onclick={on_open_profile}
+      aria-label="User Profile"
+      title="用户信息"
+    >
+      <span class="ActivityBar__user-avatar">{user_avatar_emoji}</span>
+      <span class="ActivityBar__user-level">{user_level_icon}</span>
+    </button>
+
     <button
       type="button"
       class="ActivityBar__button"
@@ -148,5 +198,41 @@
   :global(.ActivityBar__icon) {
     width: var(--size-activity-icon);
     height: var(--size-activity-icon);
+  }
+
+  /* User profile button */
+  .ActivityBar__user-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--size-activity-bar);
+    height: var(--size-activity-bar);
+    cursor: pointer;
+    transition:
+      opacity var(--duration-normal) var(--ease-default),
+      transform var(--duration-fast) var(--ease-default);
+  }
+
+  .ActivityBar__user-button:hover {
+    transform: scale(1.1);
+  }
+
+  .ActivityBar__user-button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  .ActivityBar__user-avatar {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .ActivityBar__user-level {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.625rem;
+    line-height: 1;
   }
 </style>

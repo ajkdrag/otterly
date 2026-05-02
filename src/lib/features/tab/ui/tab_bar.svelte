@@ -8,10 +8,23 @@
     ChevronRight,
     PanelRight,
   } from "@lucide/svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import confetti from "canvas-confetti";
+  import FloatingPoints from "$lib/components/ui/floating-points/floating_points.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { Tab, TabId } from "$lib/features/tab/types/tab";
   import type { NoteMeta } from "$lib/shared/types/note";
+
+  interface PointsBadge {
+    level_icon: string;
+    level_title: string;
+    total_points: number;
+    streak_days: number;
+  }
+
+  let pts_badge = $state<PointsBadge | null>(null);
+  let floating_points: FloatingPoints;
 
   const { stores, action_registry } = use_app_context();
 
@@ -145,6 +158,71 @@
       void action_registry.execute(ACTION_IDS.tab_close, tab_id);
     }
   }
+
+  let awarded_files = new Set<string>();
+
+  $effect(() => {
+    const vault = stores.vault.vault;
+    if (vault) {
+      invoke<PointsBadge>("points_get_account", {
+        args: { vault_id: vault.id },
+      })
+        .then((r) => {
+          pts_badge = r;
+        })
+        .catch(() => {});
+    }
+  });
+
+  $effect(() => {
+    const tab = stores.tab.active_tab;
+    const vault = stores.vault.vault;
+    if (tab && vault && !awarded_files.has(tab.note_path)) {
+      awarded_files.add(tab.note_path);
+      invoke<{ level_up: boolean; new_level: number; new_title: string }>(
+        "points_award",
+        {
+          args: {
+            vault_id: vault.id,
+            action: "file_open",
+            file_path: tab.note_path,
+          },
+        },
+      )
+        .then((result) => {
+          invoke<PointsBadge>("points_get_account", {
+            args: { vault_id: vault.id },
+          })
+            .then((r) => {
+              pts_badge = r;
+            })
+            .catch(() => {});
+          // Show floating +2 animation
+          floating_points?.trigger(2);
+          if (result?.level_up) {
+            const intensity =
+              result.new_level >= 17 ? 200 : result.new_level >= 10 ? 150 : 100;
+            confetti({
+              particleCount: intensity,
+              spread: 80,
+              origin: { y: 0.3 },
+            });
+            if (result.new_level >= 10) {
+              setTimeout(
+                () =>
+                  confetti({
+                    particleCount: intensity,
+                    spread: 100,
+                    origin: { y: 0.5 },
+                  }),
+                500,
+              );
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  });
 </script>
 
 {#if tabs.length > 0}
@@ -375,6 +453,17 @@
     {/if}
 
     <div class="TabBar__actions">
+      <span class="TabBar__slogan">24小时陪伴激励成长型知识笔记</span>
+      {#if pts_badge}
+        <span class="TabBar__points-badge">
+          <span>{pts_badge.level_icon}</span>
+          <span class="TabBar__points-text">{pts_badge.level_title}</span>
+          <span class="TabBar__points-num">{pts_badge.total_points} pts</span>
+          {#if pts_badge.streak_days > 0}
+            <span class="TabBar__points-streak"><span class="TabBar__flame">🔥</span>{pts_badge.streak_days}</span>
+          {/if}
+        </span>
+      {/if}
       <button
         type="button"
         class="TabBar__action-btn"
@@ -389,6 +478,8 @@
     </div>
   </div>
 {/if}
+
+<FloatingPoints bind:this={floating_points} />
 
 <style>
   .TabBar {
@@ -618,6 +709,61 @@
   .TabBar__action-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
+  }
+
+  .TabBar__slogan {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    padding: 0 var(--space-2);
+    letter-spacing: 0.02em;
+    opacity: 0.7;
+    font-style: italic;
+  }
+
+  .TabBar__points-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 var(--space-2);
+    font-size: 11px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .TabBar__points-text {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .TabBar__points-num {
+    color: var(--interactive);
+    font-weight: 600;
+  }
+
+  .TabBar__points-streak {
+    font-size: 10px;
+  }
+
+  .TabBar__flame {
+    display: inline-block;
+    animation: tabbar-flame-dance 1s ease-in-out infinite;
+  }
+
+  @keyframes tabbar-flame-dance {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    25% {
+      transform: translateY(-1px) scale(1.05) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-2px) scale(1.1);
+    }
+    75% {
+      transform: translateY(-1px) scale(1.05) rotate(3deg);
+    }
   }
 
   :global(.TabBar__action-icon) {

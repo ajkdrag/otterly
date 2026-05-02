@@ -6,8 +6,32 @@
   import PlusIcon from "@lucide/svelte/icons/plus";
   import { HotkeyKey } from "$lib/features/hotkey";
   import { Button } from "$lib/components/ui/button";
+  import StatsDashboard from "$lib/features/stats/ui/stats_dashboard.svelte";
+  import confetti from "canvas-confetti";
 
   const { stores, action_registry } = use_app_context();
+
+  let confetti_fired_for = $state<string | null>(null);
+
+  function handle_editor_scroll(e: Event) {
+    const el = e.target as HTMLElement;
+    if (!el || !stores.editor.open_note) return;
+    const at_bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+    const note_path = stores.editor.open_note.meta.path;
+    if (
+      at_bottom &&
+      el.scrollHeight > el.clientHeight + 200 &&
+      confetti_fired_for !== note_path
+    ) {
+      confetti_fired_for = note_path;
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.9 },
+        colors: ["#ff0", "#f0f", "#0ff", "#ff6600", "#00ff66"],
+      });
+    }
+  }
 
   const open_note = $derived(stores.editor.open_note);
 
@@ -28,35 +52,11 @@
   }
 </script>
 
-<div class="NoteEditor">
+<div class="NoteEditor" onscroll={handle_editor_scroll}>
   {#if open_note}
     <div use:mount_editor={open_note} class="NoteEditor__content"></div>
   {:else}
-    <div class="NoteEditor__empty">
-      <div class="NoteEditor__empty-content">
-        <div class="NoteEditor__empty-icon">
-          <FileTextIcon />
-        </div>
-        <p class="NoteEditor__empty-title">No note open</p>
-        <p class="NoteEditor__empty-hint">
-          Select a note from the sidebar or create a new one
-        </p>
-        <div class="NoteEditor__empty-actions">
-          <Button
-            variant="default"
-            size="sm"
-            onclick={() => void action_registry.execute(ACTION_IDS.note_create)}
-          >
-            <PlusIcon />
-            New Note
-          </Button>
-          {#if create_note_hotkey}
-            <span class="NoteEditor__empty-shortcut-label">or press</span>
-            <HotkeyKey hotkey={create_note_hotkey} />
-          {/if}
-        </div>
-      </div>
-    </div>
+    <StatsDashboard />
   {/if}
 </div>
 

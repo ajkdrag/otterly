@@ -134,6 +134,10 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
   }
 
   await mount_ready_vault_state(input, bootstrap_data.vault_initialize_result);
+
+  // Load user profile on startup
+  await input.registry.execute(ACTION_IDS.user_load);
+
   set_startup_idle(input);
 }
 
@@ -150,7 +154,7 @@ async function execute_app_check_for_updates() {
     const update = await check();
     toast.dismiss(loading_toast_id);
     if (!update) {
-      toast.success("Otterly is up to date");
+      toast.success("LeapGrowNotes is up to date");
       return;
     }
 
@@ -159,7 +163,7 @@ async function execute_app_check_for_updates() {
     });
     await update.downloadAndInstall();
     toast.dismiss(loading_toast_id);
-    toast.success("Update installed — restart Otterly to apply");
+    toast.success("Update installed — restart LeapGrowNotes to apply");
   } catch (error) {
     toast.dismiss(loading_toast_id);
     toast.error("Failed to check for updates");
@@ -186,7 +190,7 @@ async function execute_app_confirm_quit(input: ActionRegistrationInput) {
       is_quitting: false,
     };
     log.error("Quit failed", { error: String(error) });
-    toast.error("Failed to quit Otterly");
+    toast.error("Failed to quit LeapGrowNotes");
   }
 }
 

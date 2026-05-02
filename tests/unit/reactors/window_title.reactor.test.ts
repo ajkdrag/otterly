@@ -33,35 +33,46 @@ function mock_tab(title: string, is_dirty = false): Tab {
 describe("window_title.reactor", () => {
   describe("resolve_window_title", () => {
     it("returns app name when no vault is open", () => {
-      expect(resolve_window_title(null, null)).toBe("otterly");
+      expect(resolve_window_title(null, null)).toBe("LeapGrowNotes");
+      expect(resolve_window_title(null, null, "0.1.0")).toBe(
+        "LeapGrowNotes v0.1.0",
+      );
     });
 
     it("returns app name when no vault is open even with active tab", () => {
-      expect(resolve_window_title(null, mock_tab("notes"))).toBe("otterly");
+      expect(resolve_window_title(null, mock_tab("notes"))).toBe(
+        "LeapGrowNotes",
+      );
+      expect(resolve_window_title(null, mock_tab("notes"), "0.1.0")).toBe(
+        "LeapGrowNotes v0.1.0",
+      );
     });
 
     it("returns vault name when vault is open but no note", () => {
       expect(resolve_window_title(mock_vault("My Notes"), null)).toBe(
-        "My Notes",
+        "My Notes — LeapGrowNotes",
+      );
+      expect(resolve_window_title(mock_vault("My Notes"), null, "0.1.0")).toBe(
+        "My Notes — LeapGrowNotes v0.1.0",
       );
     });
 
     it("returns note title and vault name when note is open", () => {
       expect(
         resolve_window_title(mock_vault("My Notes"), mock_tab("hello")),
-      ).toBe("hello — My Notes");
+      ).toBe("hello — My Notes — LeapGrowNotes");
     });
 
     it("prefixes with dirty indicator when note has unsaved changes", () => {
       expect(
         resolve_window_title(mock_vault("My Notes"), mock_tab("hello", true)),
-      ).toBe("∘ hello — My Notes");
+      ).toBe("∘ hello — My Notes — LeapGrowNotes");
     });
 
     it("has no dirty indicator when note is clean", () => {
       expect(
         resolve_window_title(mock_vault("My Notes"), mock_tab("hello", false)),
-      ).toBe("hello — My Notes");
+      ).toBe("hello — My Notes — LeapGrowNotes");
     });
   });
 

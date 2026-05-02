@@ -186,7 +186,11 @@ pub(crate) fn extract_title(path: &Path) -> String {
     buf.truncate(n);
 
     let prefix = String::from_utf8_lossy(&buf);
-    for line in prefix.lines() {
+
+    // Skip YAML frontmatter block if present
+    let content = skip_frontmatter(&prefix);
+
+    for line in content.lines() {
         let l = line.trim();
         if l.is_empty() {
             continue;
@@ -204,6 +208,173 @@ pub(crate) fn extract_title(path: &Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
+}
+
+/// Skip YAML frontmatter (---...---) and return the remaining content.
+fn skip_frontmatter(content: &str) -> &str {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return content;
+    }
+    // Find the closing ---
+    if let Some(end) = trimmed[3..].find("\n---") {
+        let after = &trimmed[3 + end + 4..]; // skip past "\n---"
+        after.trim_start_matches(|c: char| c == '\n' || c == '\r')
+    } else {
+        content
+    }
+}
+
+/// Extract YAML frontmatter tags from a markdown string.
+/// Supports both `tags: [a, b, c]` and `tags:\n- a\n- b` formats.
+pub(crate) fn extract_frontmatter_tags(content: &str) -> Vec<String> {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return Vec::new();
+    }
+    let after_open = &trimmed[3..];
+    let end_pos = match after_open.find("\n---") {
+        Some(pos) => pos,
+        None => return Vec::new(),
+    };
+    let frontmatter = &after_open[..end_pos];
+
+    let mut tags = Vec::new();
+    let mut in_tags_block = false;
+
+    for line in frontmatter.lines() {
+        let l = line.trim();
+
+        // Inline format: tags: [tag1, tag2, tag3]
+        if let Some(rest) = l.strip_prefix("tags:") {
+            let rest = rest.trim();
+            if rest.starts_with('[') {
+                // Inline array format
+                let inner = rest.trim_start_matches('[').trim_end_matches(']');
+                for tag in inner.split(',') {
+                    let t = tag.trim().trim_matches(|c: char| c == '"' || c == '\'');
+                    if !t.is_empty() {
+                        tags.push(t.to_string());
+                    }
+                }
+                return tags;
+            } else if rest.is_empty() {
+                // Block list format starts on next lines
+                in_tags_block = true;
+                continue;
+            } else {
+                // Single tag: tags: mytag
+                let t = rest.trim_matches(|c: char| c == '"' || c == '\'');
+                if !t.is_empty() {
+                    tags.push(t.to_string());
+                }
+                return tags;
+            }
+        }
+
+        if in_tags_block {
+            if let Some(tag_val) = l.strip_prefix("- ") {
+                let t = tag_val.trim().trim_matches(|c: char| c == '"' || c == '\'');
+                if !t.is_empty() {
+                    tags.push(t.to_string());
+                }
+            } else if !l.is_empty() {
+                // End of tags block (new key encountered)
+                break;
+            }
+        }
+    }
+
+    tags
+}
+
+/// Extract code symbols (function names, class names) from source code.
+/// Supports Python, JavaScript/TypeScript, Rust, Go, Java, C/C++.
+pub(crate) fn extract_code_symbols(content: &str, extension: &str) -> Vec<String> {
+    let mut symbols = Vec::new();
+    let patterns: &[&str] = match extension {
+        "py" => &["def ", "class "],
+        "js" | "jsx" | "mjs" => &["function ", "class ", "const ", "let ", "var "],
+        "ts" | "tsx" | "mts" => &["function ", "class ", "interface ", "type ", "enum ", "const ", "let "],
+        "rs" => &["fn ", "struct ", "enum ", "trait ", "impl ", "type ", "const "],
+        "go" => &["func ", "type ", "var ", "const "],
+        "java" | "kt" => &["class ", "interface ", "enum ", "void ", "public ", "private ", "protected "],
+        "c" | "cpp" | "cc" | "cxx" | "h" | "hpp" => &["void ", "int ", "char ", "struct ", "class ", "enum "],
+        _ => return symbols,
+    };
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') && extension != "py" {
+            continue;
+        }
+        for pattern in patterns {
+            if let Some(rest) = trimmed.strip_prefix(pattern) {
+                // Extract the symbol name (first identifier)
+                let name: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() && name.len() > 1 {
+                    symbols.push(name);
+                }
+                break;
+            }
+            // Also handle "export function", "export class", "pub fn", "pub struct" etc.
+            if extension == "ts" || extension == "tsx" || extension == "js" || extension == "jsx" {
+                let export_pattern = format!("export {pattern}");
+                if let Some(rest) = trimmed.strip_prefix(export_pattern.as_str()) {
+                    let name: String = rest
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if !name.is_empty() && name.len() > 1 {
+                        symbols.push(name);
+                    }
+                    break;
+                }
+                let export_default = format!("export default {pattern}");
+                if let Some(rest) = trimmed.strip_prefix(export_default.as_str()) {
+                    let name: String = rest
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if !name.is_empty() && name.len() > 1 {
+                        symbols.push(name);
+                    }
+                    break;
+                }
+            }
+            if extension == "rs" {
+                let pub_pattern = format!("pub {pattern}");
+                if let Some(rest) = trimmed.strip_prefix(pub_pattern.as_str()) {
+                    let name: String = rest
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if !name.is_empty() && name.len() > 1 {
+                        symbols.push(name);
+                    }
+                    break;
+                }
+                let pub_crate = format!("pub(crate) {pattern}");
+                if let Some(rest) = trimmed.strip_prefix(pub_crate.as_str()) {
+                    let name: String = rest
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if !name.is_empty() && name.len() > 1 {
+                        symbols.push(name);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    symbols.sort();
+    symbols.dedup();
+    symbols
 }
 
 pub(crate) fn file_meta(path: &Path) -> Result<(i64, i64), String> {

@@ -19,6 +19,8 @@ import { HotkeyService } from "$lib/features/hotkey";
 import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
 import { WatcherService } from "$lib/features/watcher";
+import { UserService, create_user_settings_adapter } from "$lib/features/user";
+import { PetService } from "$lib/features/pets";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -160,6 +162,15 @@ export function create_app_context(input: {
     now_ms,
   );
 
+  const user_port = create_user_settings_adapter(input.ports.settings);
+  const user_service = new UserService(user_port, stores.op, now_ms);
+
+  const pet_service = new PetService(
+    stores.pet,
+    () => stores.vault.vault?.id ?? null,
+    () => stores.user.active_user_id,
+  );
+
   const vault_service = new VaultService(
     input.ports.vault,
     input.ports.notes,
@@ -185,6 +196,7 @@ export function create_app_context(input: {
       search: stores.search,
       tab: stores.tab,
       git: stores.git,
+      user: stores.user,
     },
     services: {
       vault: vault_service,
@@ -200,6 +212,7 @@ export function create_app_context(input: {
       git: git_service,
       hotkey: hotkey_service,
       theme: theme_service,
+      user: user_service,
     },
     default_mount_config: input.default_mount_config,
   });
@@ -214,6 +227,8 @@ export function create_app_context(input: {
     tab_store: stores.tab,
     git_store: stores.git,
     links_store: stores.links,
+    user_store: stores.user,
+    pet_store: stores.pet,
     editor_service,
     note_service,
     vault_service,
@@ -223,6 +238,8 @@ export function create_app_context(input: {
     git_service,
     links_service,
     watcher_service,
+    user_service,
+    pet_service,
     action_registry,
   });
 

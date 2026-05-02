@@ -1,4 +1,4 @@
-export const APP_DIR = ".otterly" as const;
+export const APP_DIR = ".leapgrownotes" as const;
 
 export const EXCLUDED_FOLDERS = [APP_DIR, ".git"] as const;
 

@@ -25,10 +25,22 @@
     FoldVertical,
     Star,
   } from "@lucide/svelte";
+  import StatsOverlay from "$lib/features/stats/ui/stats_overlay.svelte";
+  import { PetWidget, PetDetailPanel, PetSelection } from "$lib/features/pets";
+  import { PetService } from "$lib/features/pets";
+  import { ModulesPanel } from "$lib/features/nlp_kernal";
 
   const { stores, action_registry } = use_app_context();
 
+  let stats_overlay_open = $state(false);
   let starred_expanded_node_ids = $state(new SvelteSet<string>());
+
+  // 宠物系统 — 创建 PetService 实例供 UI 组件使用
+  const pet_service = new PetService(
+    stores.pet,
+    () => stores.vault.vault?.id ?? null,
+    () => stores.user.active_user_id,
+  );
 
   function starred_node_id(root_path: string, relative_path: string): string {
     return `starred:${root_path}:${relative_path}`;
@@ -360,6 +372,12 @@
       <ActivityBar
         sidebar_open={stores.ui.sidebar_open}
         active_view={stores.ui.sidebar_view}
+        user_avatar_emoji={stores.user.avatar_emoji}
+        user_level={stores.user.level}
+        user_level_icon={stores.user.level_icon}
+        on_open_profile={() => {
+          void action_registry.execute(ACTION_IDS.settings_open, "profile");
+        }}
         on_open_explorer={() => {
           if (stores.ui.sidebar_open && stores.ui.sidebar_view === "explorer") {
             void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
@@ -393,6 +411,19 @@
             "dashboard",
           );
         }}
+        on_open_modules={() => {
+          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "modules") {
+            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
+            return;
+          }
+          void action_registry.execute(
+            ACTION_IDS.ui_set_sidebar_view,
+            "modules",
+          );
+        }}
+        on_open_stats={() => {
+          stats_overlay_open = !stats_overlay_open;
+        }}
         on_open_help={() => void action_registry.execute(ACTION_IDS.help_open)}
         on_open_settings={() =>
           void action_registry.execute(ACTION_IDS.settings_open)}
@@ -416,6 +447,8 @@
                       <span class="SidebarHeader__title">Starred</span>
                     {:else if stores.ui.sidebar_view === "dashboard"}
                       <span class="SidebarHeader__title">Dashboard</span>
+                    {:else if stores.ui.sidebar_view === "modules"}
+                      <span class="SidebarHeader__title">System Modules</span>
                     {:else}
                       <button
                         type="button"
@@ -546,6 +579,28 @@
                               },
                             )}
                         />
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
+                  {#if stores.ui.sidebar_view === "stats"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        {@const StatsDashboard =
+                          stores.ui.sidebar_view === "stats"}
+                        {#if StatsDashboard}
+                          {#await import("$lib/features/stats/ui/stats_dashboard.svelte") then mod}
+                            <mod.default />
+                          {/await}
+                        {/if}
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
+                  {#if stores.ui.sidebar_view === "modules"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        <ModulesPanel />
                       </Sidebar.GroupContent>
                     </Sidebar.Group>
                   {/if}
@@ -762,6 +817,16 @@
     {line_count}
     on_close={() => (details_dialog_open = false)}
   />
+
+  <StatsOverlay
+    open={stats_overlay_open}
+    on_close={() => (stats_overlay_open = false)}
+  />
+
+  <!-- 🐾 宠物系统 -->
+  <PetWidget pet_store={stores.pet} {pet_service} />
+  <PetDetailPanel pet_store={stores.pet} {pet_service} />
+  <PetSelection pet_store={stores.pet} {pet_service} />
 {/if}
 
 <style>

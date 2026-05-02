@@ -80,7 +80,7 @@ fn remove_notes_by_prefix_deletes_matching_and_keeps_others() {
             title: title.to_string(),
             name: name.to_string(),
             mtime_ms: 100,
-            size_bytes: 10,
+            size_bytes: 0, tags: vec![], symbols: vec![],
         };
         upsert_note(&conn, &meta, body).expect("upsert should succeed");
     }
@@ -112,7 +112,7 @@ fn rename_note_path_moves_note_and_outgoing_source_links() {
         title: "Old".to_string(),
         name: "old".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     let b = IndexNoteMeta {
         id: "docs/source.md".to_string(),
@@ -120,7 +120,7 @@ fn rename_note_path_moves_note_and_outgoing_source_links() {
         title: "Source".to_string(),
         name: "source".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     upsert_note(&conn, &a, "body a").expect("upsert should succeed");
     upsert_note(&conn, &b, "body b").expect("upsert should succeed");
@@ -155,7 +155,7 @@ fn suggest_planned_returns_missing_targets_ranked_by_ref_count() {
         title: "Source A".to_string(),
         name: "source-a".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     let source_b = IndexNoteMeta {
         id: "docs/source-b.md".to_string(),
@@ -163,7 +163,7 @@ fn suggest_planned_returns_missing_targets_ranked_by_ref_count() {
         title: "Source B".to_string(),
         name: "source-b".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     let existing = IndexNoteMeta {
         id: "docs/existing.md".to_string(),
@@ -171,7 +171,7 @@ fn suggest_planned_returns_missing_targets_ranked_by_ref_count() {
         title: "Existing".to_string(),
         name: "existing".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
 
     upsert_note(&conn, &source_a, "body").expect("upsert should succeed");
@@ -219,7 +219,7 @@ fn suggest_files_matches_filename_path_and_fuzzy_input() {
             title: title.to_string(),
             name: name.to_string(),
             mtime_ms: 100,
-            size_bytes: 10,
+            size_bytes: 0, tags: vec![], symbols: vec![],
         };
         upsert_note(&conn, &meta, "body").expect("upsert should succeed");
     }
@@ -324,7 +324,7 @@ fn rename_folder_paths_escapes_like_wildcards() {
         title: "A".to_string(),
         name: "a".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     let b = IndexNoteMeta {
         id: "old_500/b.md".to_string(),
@@ -332,7 +332,7 @@ fn rename_folder_paths_escapes_like_wildcards() {
         title: "B".to_string(),
         name: "b".to_string(),
         mtime_ms: 100,
-        size_bytes: 10,
+        size_bytes: 0, tags: vec![], symbols: vec![],
     };
     upsert_note(&conn, &a, "body a").expect("upsert should succeed");
     upsert_note(&conn, &b, "body b").expect("upsert should succeed");
@@ -363,7 +363,7 @@ fn list_note_paths_by_prefix_respects_folder_boundary() {
             title: title.to_string(),
             name: name.to_string(),
             mtime_ms: 100,
-            size_bytes: 10,
+            size_bytes: 0, tags: vec![], symbols: vec![],
         };
         upsert_note(&conn, &meta, body).expect("upsert should succeed");
     }

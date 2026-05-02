@@ -1,6 +1,6 @@
 # Feature-First Organization
 
-Otterly uses capability-first organization for frontend modules.
+LeapGrowNotes uses capability-first organization for frontend modules.
 
 ## Rule of thumb
 

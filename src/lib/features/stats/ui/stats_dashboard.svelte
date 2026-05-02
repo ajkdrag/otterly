@@ -1,0 +1,1226 @@
+<script lang="ts">
+  import { untrack, onDestroy, onMount, tick } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { use_app_context } from "$lib/app/context/app_context.svelte";
+  import { tracked_invoke } from "$lib/features/nlp_kernal";
+  import AnimatedTime from "$lib/components/ui/animated-time/animated_time.svelte";
+
+  interface SessionStats {
+    session_id: string;
+    started_at: string;
+    ended_at: string | null;
+    duration_seconds: number | null;
+    folders_count: number;
+    files_count: number;
+    files_opened: number;
+    files_read_complete: number;
+    ip_address: string | null;
+  }
+
+  interface VaultOverview {
+    total_sessions: number;
+    total_files_opened: number;
+    total_files_read: number;
+    total_folders: number;
+    total_files: number;
+  }
+
+  interface StatsHistory {
+    sessions: SessionStats[];
+    overview: VaultOverview;
+  }
+
+  interface PointsTransaction {
+    action_type: string;
+    points: number;
+    description: string;
+    created_at: string;
+  }
+
+  interface KeywordEntry {
+    word: string;
+    count: number;
+  }
+
+  interface NlpAggregateStats {
+    total_files_analyzed: number;
+    total_word_count: number;
+    total_char_count: number;
+    total_unique_keywords: number;
+    avg_vocabulary_richness: number;
+    top_global_keywords: KeywordEntry[];
+  }
+
+  interface VaultScanResult {
+    folder_count: number;
+    file_count: number;
+    total_size_bytes: number;
+    md_count: number;
+    code_count: number;
+    txt_count: number;
+    other_count: number;
+  }
+
+  const { stores } = use_app_context();
+
+  interface PointsAccount {
+    total_points: number;
+    level: number;
+    level_title: string;
+    level_icon: string;
+    streak_days: number;
+    next_level_points: number;
+    progress_percent: number;
+  }
+
+  let stats = $state<StatsHistory | null>(null);
+  let nlp_stats = $state<NlpAggregateStats | null>(null);
+  let vault_scan = $state<VaultScanResult | null>(null);
+  let points = $state<PointsAccount | null>(null);
+  let points_transactions = $state<PointsTransaction[]>([]);
+  let loading = $state(false);
+  let error_msg = $state<string | null>(null);
+  let last_updated = $state<string | null>(null);
+
+  const session_id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const session_start_time = Date.now();
+  let session_started = false;
+  let session_elapsed_seconds = $state(0);
+  let streak_elapsed_seconds = $state(0);
+  let session_timer_id: ReturnType<typeof setInterval> | null = null;
+
+  // Start a 1-second tick for the animated duration display and streak timer
+  onMount(() => {
+    session_timer_id = setInterval(() => {
+      session_elapsed_seconds = Math.floor((Date.now() - session_start_time) / 1000);
+      streak_elapsed_seconds += 1;
+    }, 1000);
+    return () => {
+      if (session_timer_id) clearInterval(session_timer_id);
+    };
+  });
+
+  function format_streak_timer(days: number, extra_seconds: number): { dd: string; hh: string; mm: string; ss: string } {
+    const total_seconds = days * 86400 + extra_seconds;
+    const dd = String(Math.floor(total_seconds / 86400)).padStart(2, "0");
+    const hh = String(Math.floor((total_seconds % 86400) / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((total_seconds % 3600) / 60)).padStart(2, "0");
+    const ss = String(total_seconds % 60).padStart(2, "0");
+    return { dd, hh, mm, ss };
+  }
+
+  const streak_display = $derived.by(() => {
+    const days = points?.streak_days ?? 0;
+    return format_streak_timer(days, streak_elapsed_seconds);
+  });
+
+  onDestroy(() => {
+    const vault = stores.vault.vault;
+    if (session_started && vault) {
+      invoke("stats_end_session", {
+        args: { vault_id: vault.id, session_id },
+      }).catch(() => {});
+    }
+  });
+  let current_files_opened = $state(0);
+  let current_files_set = new Set<string>();
+
+  async function get_local_ip(): Promise<string | null> {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      return await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          pc.close();
+          resolve(null);
+        }, 1000);
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) return;
+          const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (m) {
+            clearTimeout(timeout);
+            pc.close();
+            resolve(m[1] ?? null);
+          }
+        };
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function start_session_if_needed(
+    vault_id: string,
+    scan: VaultScanResult,
+  ) {
+    if (session_started) return;
+    session_started = true;
+    const ip_address = await get_local_ip();
+    try {
+      await invoke("stats_start_session", {
+        args: {
+          vault_id,
+          session_id,
+          folders_count: scan.folder_count,
+          files_count: scan.file_count,
+          ip_address,
+        },
+      });
+    } catch {
+      // session tracking is best-effort
+    }
+  }
+
+  async function load_stats() {
+    const vault = stores.vault.vault;
+    if (!vault) return;
+    loading = true;
+    error_msg = null;
+    try {
+      const scan_result = await invoke<VaultScanResult>("stats_scan_vault", {
+        args: { vault_id: vault.id },
+      });
+      vault_scan = scan_result;
+
+      await start_session_if_needed(vault.id, scan_result);
+
+      const [stats_result, nlp_result] = await Promise.all([
+        invoke<StatsHistory>("stats_get_history", {
+          args: { vault_id: vault.id, limit: 30 },
+        }),
+        tracked_invoke<NlpAggregateStats>("nlp_get_aggregate_stats", {
+          args: { vault_id: vault.id },
+        }),
+      ]);
+      stats = stats_result;
+      nlp_stats = nlp_result;
+
+      const [pts, txns] = await Promise.all([
+        invoke<PointsAccount>("points_get_account", {
+          args: { vault_id: vault.id },
+        }),
+        invoke<PointsTransaction[]>("points_get_transactions", {
+          args: { vault_id: vault.id, limit: 500 },
+        }),
+      ]);
+      points = pts;
+      points_transactions = txns;
+
+      // Sync points data to user profile store
+      if (pts && stores.user.active_profile) {
+        const profile = stores.user.active_profile;
+        if (
+          profile.level !== pts.level ||
+          profile.total_points !== pts.total_points ||
+          profile.streak_days !== pts.streak_days ||
+          profile.level_title !== pts.level_title ||
+          profile.level_icon !== pts.level_icon
+        ) {
+          stores.user.set_active_profile({
+            ...profile,
+            level: pts.level,
+            level_title: pts.level_title,
+            level_icon: pts.level_icon,
+            total_points: pts.total_points,
+            streak_days: pts.streak_days,
+          });
+        }
+      }
+
+      await invoke("points_award", {
+        args: { vault_id: vault.id, action: "app_open" },
+      }).catch(() => {});
+
+      last_updated = new Date().toLocaleString();
+    } catch (e) {
+      error_msg = String(e);
+    } finally {
+      loading = false;
+    }
+  }
+
+  $effect(() => {
+    if (stores.vault.vault) {
+      untrack(() => load_stats());
+    }
+  });
+
+  $effect(() => {
+    const tab = stores.tab.active_tab;
+    const vault = stores.vault.vault;
+    if (tab && vault && session_started) {
+      const path = tab.note_path;
+      if (!current_files_set.has(path)) {
+        current_files_set.add(path);
+        current_files_opened = current_files_set.size;
+      }
+      invoke("stats_file_opened", {
+        args: { vault_id: vault.id, session_id, file_path: path },
+      }).catch(() => {});
+    }
+  });
+
+  function current_session_duration(): string {
+    const secs = Math.floor((Date.now() - session_start_time) / 1000);
+    if (secs < 60) return `${secs}s`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${m}m`;
+  }
+
+  function format_date(iso: string): string {
+    try {
+      const d = new Date(iso);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    } catch {
+      return iso.slice(5, 10);
+    }
+  }
+
+  function session_points_earned(session: SessionStats): number {
+    const start = session.started_at;
+    const end = session.ended_at ?? new Date().toISOString();
+    return points_transactions
+      .filter((tx) => tx.created_at >= start && tx.created_at <= end)
+      .reduce((sum, tx) => sum + tx.points, 0);
+  }
+
+  function format_datetime(iso: string): string {
+    try {
+      const d = new Date(iso);
+      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+    } catch {
+      return iso.slice(0, 16);
+    }
+  }
+
+  function format_duration(seconds: number | null): string {
+    if (seconds === null || seconds === undefined) return "-";
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}m ${s}s`;
+    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h}h ${m}m ${s}s`;
+  }
+
+  const CHART_W = 320;
+  const CHART_H = 140;
+  const PAD = { top: 10, right: 10, bottom: 25, left: 35 };
+
+  function make_line_path(data: number[], w: number, h: number): string {
+    if (data.length === 0) return "";
+    const max_val = Math.max(...data, 1);
+    const iw = w - PAD.left - PAD.right;
+    const ih = h - PAD.top - PAD.bottom;
+    const step = data.length > 1 ? iw / (data.length - 1) : 0;
+    return data
+      .map((v, i) => {
+        const x = PAD.left + i * step;
+        const y = PAD.top + ih - (v / max_val) * ih;
+        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  }
+
+  function make_bar_rects(
+    data: number[],
+    w: number,
+    h: number,
+  ): { x: number; y: number; width: number; height: number; value: number }[] {
+    if (data.length === 0) return [];
+    const max_val = Math.max(...data, 1);
+    const iw = w - PAD.left - PAD.right;
+    const ih = h - PAD.top - PAD.bottom;
+    const bar_w = Math.max(4, iw / data.length - 2);
+    const gap = (iw - bar_w * data.length) / (data.length + 1);
+    return data.map((v, i) => {
+      const bh = (v / max_val) * ih;
+      return {
+        x: PAD.left + gap + i * (bar_w + gap),
+        y: PAD.top + ih - bh,
+        width: bar_w,
+        height: bh,
+        value: v,
+      };
+    });
+  }
+
+  function format_size(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  const pie_data = $derived.by(() => {
+    if (!vault_scan) return [];
+    return [
+      {
+        label: "Markdown",
+        count: vault_scan.md_count,
+        color: "var(--interactive)",
+      },
+      { label: "Code", count: vault_scan.code_count, color: "#22c55e" },
+      { label: "Text", count: vault_scan.txt_count, color: "#f59e0b" },
+      {
+        label: "Other",
+        count: vault_scan.other_count,
+        color: "var(--muted-foreground)",
+      },
+    ].filter((d) => d.count > 0);
+  });
+  const pie_total = $derived(pie_data.reduce((s, d) => s + d.count, 0));
+
+  function pie_slice_path(
+    i: number,
+    cx: number,
+    cy: number,
+    r: number,
+  ): string {
+    const start_angle = pie_data
+      .slice(0, i)
+      .reduce((s, d) => s + (d.count / pie_total) * 360, 0);
+    const sweep = (pie_data[i]!.count / pie_total) * 360;
+    if (sweep >= 359.9) return "";
+    const start_rad = ((start_angle - 90) * Math.PI) / 180;
+    const end_rad = ((start_angle + sweep - 90) * Math.PI) / 180;
+    const large = sweep > 180 ? 1 : 0;
+    const x1 = cx + r * Math.cos(start_rad);
+    const y1 = cy + r * Math.sin(start_rad);
+    const x2 = cx + r * Math.cos(end_rad);
+    const y2 = cy + r * Math.sin(end_rad);
+    return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
+  }
+
+  function y_axis_ticks(
+    data: number[],
+    h: number,
+  ): { y: number; label: string }[] {
+    const max_val = Math.max(...data, 1);
+    const ih = h - PAD.top - PAD.bottom;
+    const ticks = [0, Math.round(max_val / 2), max_val];
+    return ticks.map((v) => ({
+      y: PAD.top + ih - (v / max_val) * ih,
+      label: String(v),
+    }));
+  }
+</script>
+
+<div class="StatsDash">
+  {#if loading}
+    <div class="StatsDash__status">Loading statistics...</div>
+  {:else if error_msg}
+    <div class="StatsDash__status StatsDash__status--error">{error_msg}</div>
+  {:else if !stats}
+    <div class="StatsDash__status">Open a vault to see statistics</div>
+  {:else}
+    <div class="StatsDash__content">
+      <div class="StatsDash__header">
+        <h2 class="StatsDash__title">📊 Usage Statistics</h2>
+        <div class="StatsDash__header-actions">
+          <button
+            class="StatsDash__refresh-btn"
+            onclick={load_stats}
+            disabled={loading}
+          >
+            {loading ? "⏳" : "🔄"} Refresh
+          </button>
+          {#if last_updated}
+            <span class="StatsDash__updated-at"
+              >Last updated: {last_updated}</span
+            >
+          {/if}
+        </div>
+      </div>
+
+      {#if points}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">🏆 Knowledge Growth</h3>
+          <div class="StatsDash__growth">
+            <div class="StatsDash__growth-header">
+              <span class="StatsDash__growth-icon">{points.level_icon}</span>
+              <div class="StatsDash__growth-info">
+                <span class="StatsDash__growth-title"
+                  >Lv.{points.level} {points.level_title}</span
+                >
+                <span class="StatsDash__growth-points">
+                  {points.total_points.toLocaleString()} pts |
+                  <span class="StatsDash__flame">🔥</span>
+                  <span class="StatsDash__streak-timer">
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.dd}</span><span class="StatsDash__streak-label">天</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.hh}</span><span class="StatsDash__streak-label">时</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num">{streak_display.mm}</span><span class="StatsDash__streak-label">分</span></span>
+                    <span class="StatsDash__streak-sep">:</span>
+                    <span class="StatsDash__streak-unit"><span class="StatsDash__streak-num StatsDash__streak-num--tick">{streak_display.ss}</span><span class="StatsDash__streak-label">秒</span></span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div class="StatsDash__growth-bar-wrap">
+              <div class="StatsDash__growth-bar">
+                <div
+                  class="StatsDash__growth-fill"
+                  style="width: {points.progress_percent}%"
+                ></div>
+              </div>
+              <span class="StatsDash__growth-next"
+                >{points.total_points} / {points.next_level_points}</span
+              >
+            </div>
+          </div>
+        </section>
+      {/if}
+
+      {#if vault_scan}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">📁 Vault Contents</h3>
+          <div class="StatsDash__overview-grid">
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{vault_scan.folder_count}</span
+              >
+              <span class="StatsDash__card-label">Folders</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.file_count}</span>
+              <span class="StatsDash__card-label">Files</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{format_size(vault_scan.total_size_bytes)}</span
+              >
+              <span class="StatsDash__card-label">Total Size</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.md_count}</span>
+              <span class="StatsDash__card-label">Markdown</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value">{vault_scan.code_count}</span>
+              <span class="StatsDash__card-label">Code</span>
+            </div>
+          </div>
+          {#if pie_data.length > 0}
+            <div class="StatsDash__pie-section">
+              <svg viewBox="0 0 100 100" class="StatsDash__pie">
+                {#each pie_data as slice, i}
+                  {#if (slice.count / pie_total) * 360 >= 359.9}
+                    <circle cx={50} cy={50} r={40} fill={slice.color} />
+                  {:else}
+                    <path
+                      d={pie_slice_path(i, 50, 50, 40)}
+                      fill={slice.color}
+                    />
+                  {/if}
+                {/each}
+              </svg>
+              <div class="StatsDash__pie-legend">
+                {#each pie_data as slice}
+                  <div class="StatsDash__pie-legend-item">
+                    <span
+                      class="StatsDash__pie-dot"
+                      style="background:{slice.color}"
+                    ></span>
+                    <span>{slice.label}</span>
+                    <span class="StatsDash__metric-value">{slice.count}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      <section class="StatsDash__section">
+        <h3 class="StatsDash__section-title">⚡ Current Session</h3>
+        <div class="StatsDash__overview-grid">
+          <div class="StatsDash__card StatsDash__card--duration">
+            <span class="StatsDash__card-value">
+              <AnimatedTime total_seconds={session_elapsed_seconds} format="hms" />
+            </span>
+            <span class="StatsDash__card-label">Duration</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value">{current_files_opened}</span>
+            <span class="StatsDash__card-label">Files Opened</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{vault_scan?.folder_count ?? 0}</span
+            >
+            <span class="StatsDash__card-label">Folders</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{vault_scan?.file_count ?? 0}</span
+            >
+            <span class="StatsDash__card-label">Files</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{vault_scan
+                ? format_size(vault_scan.total_size_bytes)
+                : "-"}</span
+            >
+            <span class="StatsDash__card-label">Vault Size</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="StatsDash__section">
+        <h3 class="StatsDash__section-title">📊 All Sessions (Cumulative)</h3>
+        <div class="StatsDash__overview-grid">
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_sessions}</span
+            >
+            <span class="StatsDash__card-label">Total Sessions</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files_opened}</span
+            >
+            <span class="StatsDash__card-label">Files Opened</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files_read}</span
+            >
+            <span class="StatsDash__card-label">Files Read</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_folders}</span
+            >
+            <span class="StatsDash__card-label">Max Folders</span>
+          </div>
+          <div class="StatsDash__card">
+            <span class="StatsDash__card-value"
+              >{stats.overview.total_files}</span
+            >
+            <span class="StatsDash__card-label">Max Files</span>
+          </div>
+        </div>
+      </section>
+
+      {#if nlp_stats && nlp_stats.total_files_analyzed > 0}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">🧠 NLP Knowledge Base</h3>
+          <div class="StatsDash__overview-grid">
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_files_analyzed}</span
+              >
+              <span class="StatsDash__card-label">Analyzed</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_word_count.toLocaleString()}</span
+              >
+              <span class="StatsDash__card-label">Total Words</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_char_count.toLocaleString()}</span
+              >
+              <span class="StatsDash__card-label">Total Chars</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{nlp_stats.total_unique_keywords}</span
+              >
+              <span class="StatsDash__card-label">Keywords</span>
+            </div>
+            <div class="StatsDash__card">
+              <span class="StatsDash__card-value"
+                >{(nlp_stats.avg_vocabulary_richness * 100).toFixed(1)}%</span
+              >
+              <span class="StatsDash__card-label">Avg Richness</span>
+            </div>
+          </div>
+          {#if nlp_stats.top_global_keywords.length > 0}
+            <div class="StatsDash__keywords">
+              <span class="StatsDash__keywords-label">Top Keywords:</span>
+              {#each nlp_stats.top_global_keywords.slice(0, 10) as kw}
+                <span class="StatsDash__keyword-tag"
+                  >{kw.word} ({kw.count})</span
+                >
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/if}
+
+      {#if stats.sessions.length > 1}
+        {@const reversed = [...stats.sessions].reverse()}
+        {@const opened_data = reversed.map((s) => s.files_opened)}
+        {@const read_data = reversed.map((s) => s.files_read_complete)}
+        {@const labels = reversed.map((s) => format_date(s.started_at))}
+
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">📈 Files Opened (Line Chart)</h3>
+          <svg viewBox="0 0 {CHART_W} {CHART_H}" class="StatsDash__chart">
+            {#each y_axis_ticks(opened_data, CHART_H) as tick}
+              <line
+                x1={PAD.left}
+                y1={tick.y}
+                x2={CHART_W - PAD.right}
+                y2={tick.y}
+                class="StatsDash__grid-line"
+              />
+              <text
+                x={PAD.left - 4}
+                y={tick.y + 3}
+                class="StatsDash__axis-label"
+                text-anchor="end"
+              >
+                {tick.label}
+              </text>
+            {/each}
+            <path
+              d={make_line_path(opened_data, CHART_W, CHART_H)}
+              class="StatsDash__line StatsDash__line--primary"
+            />
+            <path
+              d={make_line_path(read_data, CHART_W, CHART_H)}
+              class="StatsDash__line StatsDash__line--secondary"
+            />
+            {#each labels as label, i}
+              {#if i % Math.max(1, Math.floor(labels.length / 6)) === 0}
+                {@const x =
+                  PAD.left +
+                  (i / Math.max(1, labels.length - 1)) *
+                    (CHART_W - PAD.left - PAD.right)}
+                <text
+                  {x}
+                  y={CHART_H - 4}
+                  class="StatsDash__axis-label"
+                  text-anchor="middle">{label}</text
+                >
+              {/if}
+            {/each}
+            <text
+              x={CHART_W - 8}
+              y={16}
+              class="StatsDash__legend"
+              text-anchor="end"
+            >
+              <tspan fill="var(--interactive)">● Opened</tspan>
+              <tspan dx="8" fill="var(--accent-foreground)">● Read</tspan>
+            </text>
+          </svg>
+        </section>
+
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">
+            📊 Files Opened per Session (Bar Chart)
+          </h3>
+          <svg viewBox="0 0 {CHART_W} {CHART_H}" class="StatsDash__chart">
+            {#each y_axis_ticks(opened_data, CHART_H) as tick}
+              <line
+                x1={PAD.left}
+                y1={tick.y}
+                x2={CHART_W - PAD.right}
+                y2={tick.y}
+                class="StatsDash__grid-line"
+              />
+              <text
+                x={PAD.left - 4}
+                y={tick.y + 3}
+                class="StatsDash__axis-label"
+                text-anchor="end"
+              >
+                {tick.label}
+              </text>
+            {/each}
+            {#each make_bar_rects(opened_data, CHART_W, CHART_H) as bar, i}
+              <rect
+                x={bar.x}
+                y={bar.y}
+                width={bar.width}
+                height={bar.height}
+                class="StatsDash__bar"
+                rx="2"
+              />
+            {/each}
+            {#each labels as label, i}
+              {#if i % Math.max(1, Math.floor(labels.length / 6)) === 0}
+                {@const x =
+                  PAD.left +
+                  (i / Math.max(1, labels.length - 1)) *
+                    (CHART_W - PAD.left - PAD.right)}
+                <text
+                  {x}
+                  y={CHART_H - 4}
+                  class="StatsDash__axis-label"
+                  text-anchor="middle">{label}</text
+                >
+              {/if}
+            {/each}
+          </svg>
+        </section>
+      {/if}
+
+      {#if stats.sessions.length > 0}
+        <section class="StatsDash__section">
+          <h3 class="StatsDash__section-title">
+            📋 Recent Sessions (showing {Math.min(10, stats.sessions.length)} of {stats
+              .sessions.length})
+          </h3>
+          <div class="StatsDash__table-wrap">
+            <table class="StatsDash__table">
+              <thead>
+                <tr>
+                  <th>Started</th>
+                  <th>Duration</th>
+                  <th>IP</th>
+                  <th>Folders</th>
+                  <th>Files</th>
+                  <th>Opened</th>
+                  <th>Read</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each stats.sessions.slice(0, 10) as session}
+                  {@const earned = session_points_earned(session)}
+                  <tr>
+                    <td>{format_datetime(session.started_at)}</td>
+                    <td>{format_duration(session.duration_seconds)}</td>
+                    <td class="StatsDash__td-ip">{session.ip_address ?? "-"}</td
+                    >
+                    <td>{session.folders_count}</td>
+                    <td>{session.files_count}</td>
+                    <td>{session.files_opened}</td>
+                    <td>{session.files_read_complete}</td>
+                    <td class="StatsDash__td-points"
+                      >{earned > 0 ? `+${earned}` : "-"}</td
+                    >
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {/if}
+    </div>
+  {/if}
+</div>
+
+<style>
+  .StatsDash {
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-6);
+    color: var(--foreground);
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .StatsDash__status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__status--error {
+    color: var(--destructive);
+  }
+
+  .StatsDash__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .StatsDash__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .StatsDash__title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .StatsDash__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .StatsDash__refresh-btn {
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--foreground);
+    padding: 2px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .StatsDash__refresh-btn:hover {
+    background: var(--accent);
+  }
+
+  .StatsDash__refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .StatsDash__updated-at {
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .StatsDash__section-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--muted-foreground);
+    margin: 0;
+  }
+
+  .StatsDash__overview-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-2);
+  }
+
+  .StatsDash__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+  }
+
+  .StatsDash__card-value {
+    font-size: var(--text-lg);
+    font-weight: 700;
+  }
+
+  .StatsDash__card-label {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+  }
+
+  .StatsDash__chart {
+    width: 100%;
+    height: auto;
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+  }
+
+  .StatsDash__grid-line {
+    stroke: var(--border);
+    stroke-width: 0.5;
+    stroke-dasharray: 2 2;
+  }
+
+  .StatsDash__axis-label {
+    font-size: 8px;
+    fill: var(--muted-foreground);
+  }
+
+  .StatsDash__legend {
+    font-size: 8px;
+  }
+
+  .StatsDash__line {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .StatsDash__line--primary {
+    stroke: var(--interactive);
+  }
+
+  .StatsDash__line--secondary {
+    stroke: var(--accent-foreground);
+    stroke-dasharray: 4 2;
+    opacity: 0.7;
+  }
+
+  .StatsDash__bar {
+    fill: var(--interactive);
+    opacity: 0.8;
+  }
+
+  .StatsDash__table-wrap {
+    overflow-x: auto;
+  }
+
+  .StatsDash__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-xs);
+  }
+
+  .StatsDash__table th {
+    text-align: left;
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+
+  .StatsDash__table td {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .StatsDash__table tr:hover td {
+    background: var(--muted);
+  }
+
+  .StatsDash__keywords {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .StatsDash__keywords-label {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+    font-weight: 600;
+  }
+
+  .StatsDash__pie-section {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .StatsDash__pie {
+    width: 90px;
+    height: 90px;
+    flex-shrink: 0;
+  }
+
+  .StatsDash__pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .StatsDash__pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .StatsDash__pie-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .StatsDash__growth {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--muted);
+    border-radius: var(--radius-sm);
+  }
+
+  .StatsDash__growth-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .StatsDash__growth-icon {
+    font-size: 32px;
+    line-height: 1;
+  }
+
+  .StatsDash__growth-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .StatsDash__growth-title {
+    font-size: var(--text-base);
+    font-weight: 700;
+  }
+
+  .StatsDash__growth-points {
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__growth-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .StatsDash__growth-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .StatsDash__growth-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--interactive), #22c55e);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  .StatsDash__growth-next {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .StatsDash__keyword-tag {
+    font-size: 11px;
+    padding: 1px 8px;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--foreground);
+  }
+
+  .StatsDash__metric-value {
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  .StatsDash__td-ip {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+
+  .StatsDash__td-points {
+    font-weight: 600;
+    color: var(--interactive);
+  }
+
+  .StatsDash__flame {
+    display: inline-block;
+    animation: statsdash-flame-dance 1s ease-in-out infinite;
+  }
+
+  @keyframes statsdash-flame-dance {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    25% {
+      transform: translateY(-1px) scale(1.05) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-2px) scale(1.1);
+    }
+    75% {
+      transform: translateY(-1px) scale(1.05) rotate(3deg);
+    }
+  }
+
+  /* Streak timer styles */
+  .StatsDash__streak-timer {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    margin-left: 2px;
+    font-family: var(--font-mono, ui-monospace, monospace);
+  }
+
+  .StatsDash__streak-unit {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+  }
+
+  .StatsDash__streak-num {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--foreground);
+    min-width: 1.4em;
+    text-align: center;
+    background: var(--background);
+    border-radius: 3px;
+    padding: 0 2px;
+    border: 1px solid var(--border);
+  }
+
+  .StatsDash__streak-num--tick {
+    animation: statsdash-tick 1s ease-in-out infinite;
+    color: var(--interactive);
+  }
+
+  .StatsDash__streak-label {
+    font-size: 9px;
+    color: var(--muted-foreground);
+    font-weight: 400;
+    font-family: inherit;
+  }
+
+  .StatsDash__streak-sep {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    font-weight: 700;
+    margin: 0 1px;
+  }
+
+  @keyframes statsdash-tick {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    15% {
+      transform: translateY(-2px);
+      opacity: 0.6;
+    }
+    30% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+</style>

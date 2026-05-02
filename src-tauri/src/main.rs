@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    otterly_lib::run()
+    leapgrownotes_lib::run()
 }

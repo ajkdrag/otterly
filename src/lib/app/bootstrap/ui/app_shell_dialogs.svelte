@@ -35,6 +35,7 @@
   import type { VaultId } from "$lib/shared/types/ids";
   import type { HotkeyBinding } from "$lib/features/hotkey";
   import type { Theme } from "$lib/shared/types/theme";
+  import type { UserPreferences } from "$lib/features/user";
 
   type Props = {
     hide_choose_vault_button?: boolean;
@@ -310,6 +311,42 @@
     void action_registry.execute(ACTION_IDS.theme_delete, id)}
   on_theme_update={(theme: Theme) =>
     void action_registry.execute(ACTION_IDS.theme_update, theme)}
+  user_profile={stores.user.active_profile}
+  user_all_profiles={stores.user.all_profiles}
+  on_user_update_name={(name: string) =>
+    void action_registry.execute(ACTION_IDS.user_update_name, name)}
+  on_user_update_avatar={(emoji: string) =>
+    void action_registry.execute(ACTION_IDS.user_update_avatar, emoji)}
+  on_user_update_preferences={(prefs: Partial<UserPreferences>) =>
+    void action_registry.execute(ACTION_IDS.user_update_preferences, prefs)}
+  on_user_switch={(user_id: string) =>
+    void action_registry.execute(ACTION_IDS.user_switch, user_id)}
+  on_user_create={(name: string, emoji: string, password?: string) =>
+    void action_registry.execute(ACTION_IDS.user_create, { name, emoji, password })}
+  on_user_delete={(user_id: string) =>
+    void action_registry.execute(ACTION_IDS.user_delete, user_id)}
+  on_user_change_password={(current_password: string, new_password: string) => {
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      void action_registry.execute(ACTION_IDS.user_change_password, {
+        current_password,
+        new_password,
+        resolve,
+      });
+    });
+  }}
+  on_user_verify_password={(user_id: string, password: string) => {
+    return new Promise<boolean>((resolve) => {
+      void action_registry.execute(ACTION_IDS.user_verify_password, {
+        user_id,
+        password,
+        resolve,
+      });
+    });
+  }}
+  on_user_open_note={(note_path: string) => {
+    void action_registry.execute(ACTION_IDS.settings_close);
+    void action_registry.execute(ACTION_IDS.note_open, { note_path });
+  }}
 />
 
 <CreateFolderDialog
@@ -443,6 +480,19 @@
   open={stores.ui.help_dialog.open}
   hotkeys_config={stores.ui.hotkeys_config}
   on_close={() => void action_registry.execute(ACTION_IDS.help_close)}
+  on_check_update={() => {
+    import("@tauri-apps/plugin-updater").then(({ check }) => {
+      check().then((update) => {
+        if (update) {
+          alert(`发现新版本 v${update.version}！\n\n${update.body ?? ""}\n\n请前往 GitHub Releases 下载。`);
+        } else {
+          alert("✅ 已是最新版本！");
+        }
+      }).catch((e) => {
+        alert(`检查更新失败: ${String(e)}`);
+      });
+    });
+  }}
 />
 
 <HotkeyRecorderDialog

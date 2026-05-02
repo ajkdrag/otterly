@@ -89,7 +89,7 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
   {
     id: "check_for_updates",
     label: "Check for Updates",
-    description: "Check if a new version of Otterly is available",
+    description: "Check if a new version of LeapGrowNotes is available",
     keywords: ["update", "upgrade", "version", "release", "new version"],
     icon: "refresh-cw",
   },

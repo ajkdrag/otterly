@@ -160,6 +160,22 @@ export const ACTION_IDS = {
   hotkey_clear_binding: "hotkey.clear_binding",
   hotkey_reset_all: "hotkey.reset_all",
   hotkey_reset_single: "hotkey.reset_single",
+
+  user_load: "user.load",
+  user_update_name: "user.update_name",
+  user_update_avatar: "user.update_avatar",
+  user_update_preferences: "user.update_preferences",
+  user_switch: "user.switch",
+  user_create: "user.create",
+  user_delete: "user.delete",
+  user_change_password: "user.change_password",
+  user_verify_password: "user.verify_password",
+
+  auth_login_guest: "auth.login_guest",
+  auth_login_credentials: "auth.login_credentials",
+  auth_register: "auth.register",
+  auth_bind_account: "auth.bind_account",
+  auth_logout: "auth.logout",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

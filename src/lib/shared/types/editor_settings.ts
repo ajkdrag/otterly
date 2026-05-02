@@ -4,7 +4,8 @@ export type SettingsCategory =
   | "files"
   | "git"
   | "misc"
-  | "hotkeys";
+  | "hotkeys"
+  | "profile";
 
 export type EditorSettings = {
   attachment_folder: string;
