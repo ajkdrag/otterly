@@ -22,6 +22,8 @@ export function render_mermaid_preview(
         // Notes can come from anywhere. Strict drops click handlers and scripts.
         securityLevel: "strict",
         theme: is_dark_color_scheme() ? "dark" : "default",
+        // Mermaid 12's dark theme adds gradient borders and drop shadows.
+        themeVariables: { useGradient: false, dropShadow: "none" },
         suppressErrorRendering: true,
       });
       render_count += 1;

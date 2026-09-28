@@ -111,19 +111,26 @@ import { task_list_enter_plugin } from "./task_list_enter_plugin";
 import { render_mermaid_preview } from "./mermaid_preview";
 
 const log = create_logger("milkdown_adapter");
+const plain_text_support = new LanguageSupport(
+  StreamLanguage.define({
+    token(stream) {
+      stream.skipToEnd();
+      return null;
+    },
+  }),
+);
 const plain_language = LanguageDescription.of({
   name: "",
   alias: ["plain", "text"],
-  support: new LanguageSupport(
-    StreamLanguage.define({
-      token(stream) {
-        stream.skipToEnd();
-        return null;
-      },
-    }),
-  ),
+  support: plain_text_support,
 });
-const code_languages = [plain_language, ...languages];
+// language-data has no mermaid grammar, so it highlights as plain text. The
+// picker writes the name into the fence, and renderers expect lowercase.
+const mermaid_language = LanguageDescription.of({
+  name: "mermaid",
+  support: plain_text_support,
+});
+const code_languages = [plain_language, mermaid_language, ...languages];
 
 function render_code_language(language: string): string {
   if (!language) return "Plain";
@@ -132,6 +139,7 @@ function render_code_language(language: string): string {
     language,
     false,
   );
+  if (match === mermaid_language) return "Mermaid";
   return match ? match.name || "Plain" : language;
 }
 

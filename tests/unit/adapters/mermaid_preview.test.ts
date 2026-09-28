@@ -47,7 +47,7 @@ describe("render_mermaid_preview", () => {
     );
   });
 
-  it("uses strict security and follows the dark color scheme", async () => {
+  it("uses strict security and a flat dark theme in dark mode", async () => {
     document.documentElement.setAttribute("data-color-scheme", "dark");
     const { apply_preview } = render_preview("mermaid", "graph TD; A-->B");
 
@@ -55,7 +55,11 @@ describe("render_mermaid_preview", () => {
       expect(apply_preview).toHaveBeenCalled();
     });
     expect(mermaid.initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ securityLevel: "strict", theme: "dark" }),
+      expect.objectContaining({
+        securityLevel: "strict",
+        theme: "dark",
+        themeVariables: { useGradient: false, dropShadow: "none" },
+      }),
     );
   });
 

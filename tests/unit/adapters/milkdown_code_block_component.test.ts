@@ -667,6 +667,32 @@ describe("Milkdown CodeMirror code blocks", () => {
     root.remove();
   });
 
+  it("switches a block back to mermaid from the picker", async () => {
+    const { root, session, block } = await open_editor(
+      "```python\ngraph TD; A-->B\n```",
+    );
+    await show_code_mirror(block);
+    const trigger = block.querySelector<HTMLButtonElement>(".language-button");
+    if (!trigger) throw new Error("Expected language picker trigger");
+    trigger.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const option = block.querySelector<HTMLElement>(
+      '.language-list-item[data-language="mermaid"]',
+    );
+    if (!option) throw new Error("Expected mermaid option");
+    expect(option.textContent).toContain("Mermaid");
+    option.click();
+
+    expect(session.get_markdown()).toContain("```mermaid\n");
+    await vi.waitFor(() => {
+      expect(block.querySelector(".preview .test-diagram")).not.toBeNull();
+    });
+    session.destroy();
+    root.remove();
+  });
+
   it("moves among language results and closes on Escape", async () => {
     const { root, session, block } = await open_editor(
       "```js\nconst x = 1\n```",
