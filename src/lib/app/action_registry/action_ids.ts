@@ -81,6 +81,8 @@ export const ACTION_IDS = {
   filetree_clear_scope: "filetree.clear_scope",
 
   shell_open_url: "shell.open_url",
+  shell_reveal_in_file_manager: "shell.reveal_in_file_manager",
+  shell_open_in_default_app: "shell.open_in_default_app",
 
   ui_toggle_sidebar: "ui.toggle_sidebar",
   ui_select_folder: "ui.select_folder",

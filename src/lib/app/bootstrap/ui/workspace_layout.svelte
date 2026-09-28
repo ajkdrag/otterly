@@ -522,6 +522,16 @@
                               folder_path,
                             )}
                           on_toggle_star={toggle_star_for_selection}
+                          on_reveal_in_file_manager={(path: string) =>
+                            void action_registry.execute(
+                              ACTION_IDS.shell_reveal_in_file_manager,
+                              path,
+                            )}
+                          on_open_in_default_app={(path: string) =>
+                            void action_registry.execute(
+                              ACTION_IDS.shell_open_in_default_app,
+                              path,
+                            )}
                           on_retry_load={(path: string) =>
                             void action_registry.execute(
                               ACTION_IDS.folder_retry_load,
@@ -674,6 +684,16 @@
                             ACTION_IDS.filetree_clear_scope,
                           )}
                         on_toggle_star={toggle_star_for_selection}
+                        on_reveal_in_file_manager={(path: string) =>
+                          void action_registry.execute(
+                            ACTION_IDS.shell_reveal_in_file_manager,
+                            path,
+                          )}
+                        on_open_in_default_app={(path: string) =>
+                          void action_registry.execute(
+                            ACTION_IDS.shell_open_in_default_app,
+                            path,
+                          )}
                         on_retry_load={(path: string) =>
                           void action_registry.execute(
                             ACTION_IDS.folder_retry_load,

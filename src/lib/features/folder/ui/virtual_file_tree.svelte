@@ -36,6 +36,8 @@
     scoped_root_path?: string | null;
     on_scope_to_folder?: ((folder_path: string) => void) | undefined;
     on_clear_scope?: (() => void) | undefined;
+    on_reveal_in_file_manager?: ((path: string) => void) | undefined;
+    on_open_in_default_app?: ((path: string) => void) | undefined;
     on_retry_load: (path: string) => void;
     on_load_more: (folder_path: string) => void;
     on_retry_load_more: (folder_path: string) => void;
@@ -68,6 +70,8 @@
     scoped_root_path = null,
     on_scope_to_folder,
     on_clear_scope,
+    on_reveal_in_file_manager,
+    on_open_in_default_app,
     on_retry_load,
     on_load_more,
     on_retry_load_more,
@@ -421,6 +425,8 @@
             {scoped_root_path}
             {on_scope_to_folder}
             {on_clear_scope}
+            {on_reveal_in_file_manager}
+            {on_open_in_default_app}
             selection_count={selected_items.length}
             {all_selected_starred}
             {on_retry_load}

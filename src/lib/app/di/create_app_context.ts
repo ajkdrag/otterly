@@ -113,7 +113,7 @@ export function create_app_context(input: {
     link_repair_service,
   );
 
-  const shell_service = new ShellService(input.ports.shell);
+  const shell_service = new ShellService(input.ports.shell, stores.vault);
 
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,

@@ -19,8 +19,11 @@
     Copy,
     Search,
     X,
+    FolderOpen,
+    ExternalLink,
   } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
+  import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
   type Props = {
     node: FlatTreeNode;
@@ -62,6 +65,8 @@
     scoped_root_path?: string | null;
     on_scope_to_folder?: ((folder_path: string) => void) | undefined;
     on_clear_scope?: (() => void) | undefined;
+    on_reveal_in_file_manager?: ((path: string) => void) | undefined;
+    on_open_in_default_app?: ((path: string) => void) | undefined;
     selection_count?: number;
     all_selected_starred?: boolean;
     on_retry_load: (path: string) => void;
@@ -96,6 +101,8 @@
     scoped_root_path = null,
     on_scope_to_folder,
     on_clear_scope,
+    on_reveal_in_file_manager,
+    on_open_in_default_app,
     selection_count = 1,
     all_selected_starred = false,
     on_retry_load,
@@ -174,6 +181,7 @@
   }
 
   const can_scope = $derived(!!on_scope_to_folder || !!on_clear_scope);
+  const reveal_label = reveal_in_file_manager_label();
 </script>
 
 {#snippet row_content()}
@@ -346,6 +354,15 @@
               {/if}
             {/if}
           {/if}
+          {#if on_reveal_in_file_manager}
+            <ContextMenu.Separator />
+            <ContextMenu.Item
+              onSelect={() => on_reveal_in_file_manager(node.path)}
+            >
+              <FolderOpen class="mr-2 h-4 w-4" />
+              <span>{reveal_label}</span>
+            </ContextMenu.Item>
+          {/if}
           {#if on_request_rename_folder || on_request_delete_folder}
             <ContextMenu.Separator />
             {#if on_request_rename_folder}
@@ -413,6 +430,22 @@
             <Copy class="mr-2 h-4 w-4" />
             <span>Copy File Path</span>
           </ContextMenu.Item>
+          {#if on_reveal_in_file_manager}
+            <ContextMenu.Item
+              onSelect={() => on_reveal_in_file_manager(node.path)}
+            >
+              <FolderOpen class="mr-2 h-4 w-4" />
+              <span>{reveal_label}</span>
+            </ContextMenu.Item>
+          {/if}
+          {#if on_open_in_default_app}
+            <ContextMenu.Item
+              onSelect={() => on_open_in_default_app(node.path)}
+            >
+              <ExternalLink class="mr-2 h-4 w-4" />
+              <span>Open in Default App</span>
+            </ContextMenu.Item>
+          {/if}
           {#if on_request_rename || on_request_delete}
             <ContextMenu.Separator />
             {#if on_request_rename}

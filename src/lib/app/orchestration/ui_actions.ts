@@ -1,5 +1,7 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
+import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
+import { toast } from "svelte-sonner";
 
 type SidebarView = "explorer" | "dashboard" | "starred";
 
@@ -32,6 +34,24 @@ export function register_ui_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.shell_open_url,
     label: "Open External URL",
     execute: execute_open_external_url,
+  });
+
+  registry.register({
+    id: ACTION_IDS.shell_reveal_in_file_manager,
+    label: reveal_in_file_manager_label(),
+    execute: async (path: unknown) => {
+      const ok = await services.shell.reveal_in_file_manager(String(path));
+      if (!ok) toast.error("Could not show the item in the file manager");
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.shell_open_in_default_app,
+    label: "Open in Default App",
+    execute: async (path: unknown) => {
+      const ok = await services.shell.open_in_default_app(String(path));
+      if (!ok) toast.error("Could not open the item in the default app");
+    },
   });
 
   registry.register({
