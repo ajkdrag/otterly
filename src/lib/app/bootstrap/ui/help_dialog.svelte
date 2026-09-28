@@ -378,7 +378,6 @@
     letter-spacing: 0.05em;
     color: var(--muted-foreground);
     padding-bottom: var(--space-2);
-    border-bottom: 1px solid var(--border);
     margin-bottom: var(--space-1);
   }
 

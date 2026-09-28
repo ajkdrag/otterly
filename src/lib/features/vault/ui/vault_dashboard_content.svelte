@@ -1,21 +1,19 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import { Separator } from "$lib/components/ui/separator";
   import FileTextIcon from "@lucide/svelte/icons/file-text";
   import FolderIcon from "@lucide/svelte/icons/folder";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import SearchIcon from "@lucide/svelte/icons/search";
   import ClockIcon from "@lucide/svelte/icons/clock";
-  import TagsIcon from "@lucide/svelte/icons/tags";
   import InboxIcon from "@lucide/svelte/icons/inbox";
   import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
   import CircleXIcon from "@lucide/svelte/icons/circle-x";
   import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import type { NoteMeta } from "$lib/shared/types/note";
 
   interface Props {
     compact?: boolean;
-    vault_name: string | null;
     vault_path: string | null;
     stats_status: "idle" | "loading" | "ready" | "error";
     note_count: number | null;
@@ -33,7 +31,6 @@
 
   let {
     compact = false,
-    vault_name,
     vault_path,
     stats_status,
     note_count,
@@ -75,7 +72,6 @@
   class:VaultDashboardContent--compact={compact}
 >
   <section class="VaultDashboardContent__section">
-    <h3 class="VaultDashboardContent__section-header">Overview</h3>
     <div class="VaultDashboardContent__stats">
       <div class="VaultDashboardContent__stat">
         <FileTextIcon class="VaultDashboardContent__stat-icon" />
@@ -94,8 +90,6 @@
     </div>
   </section>
 
-  <Separator />
-
   <section class="VaultDashboardContent__section">
     <h3 class="VaultDashboardContent__section-header">Quick Actions</h3>
     <div class="VaultDashboardContent__actions">
@@ -111,19 +105,8 @@
         <ClockIcon />
         Resume last note
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled
-        class="VaultDashboardContent__action--placeholder"
-      >
-        <TagsIcon />
-        View all tags
-      </Button>
     </div>
   </section>
-
-  <Separator />
 
   <section class="VaultDashboardContent__section">
     <h3 class="VaultDashboardContent__section-header">Recent Activity</h3>
@@ -134,14 +117,18 @@
             <button
               type="button"
               class="VaultDashboardContent__recent-item"
+              title={note.path}
               onclick={() => on_open_note(note.path)}
             >
               <FileTextIcon class="VaultDashboardContent__recent-icon" />
               <span class="VaultDashboardContent__recent-title"
                 >{note.title}</span
               >
-              <span class="VaultDashboardContent__recent-path">{note.path}</span
-              >
+              {#if note.path.includes("/") || capped_recent.some((other) => other.id !== note.id && other.title === note.title)}
+                <span class="VaultDashboardContent__recent-path"
+                  >{note.path}</span
+                >
+              {/if}
             </button>
           </li>
         {/each}
@@ -157,26 +144,19 @@
   </section>
 
   {#if vault_path}
-    <Separator />
-
-    <section
-      class="VaultDashboardContent__section VaultDashboardContent__section--info"
-    >
-      <h3 class="VaultDashboardContent__section-header">Vault Info</h3>
+    <details class="VaultDashboardContent__details">
+      <summary
+        class="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-sm text-xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <span>Vault details</span>
+        <ChevronRightIcon class="size-4 shrink-0" aria-hidden="true" />
+      </summary>
       <div class="VaultDashboardContent__info-grid">
-        <span class="VaultDashboardContent__info-label">Name</span>
-        <span class="VaultDashboardContent__info-value"
-          >{vault_name ?? "—"}</span
-        >
         <span class="VaultDashboardContent__info-label">Path</span>
         <span
           class="VaultDashboardContent__info-value VaultDashboardContent__info-value--mono"
           >{vault_path}</span
         >
-        <span class="VaultDashboardContent__info-label">Notes</span>
-        <span class="VaultDashboardContent__info-value">{notes_display}</span>
-        <span class="VaultDashboardContent__info-label">Folders</span>
-        <span class="VaultDashboardContent__info-value">{folders_display}</span>
         <span class="VaultDashboardContent__info-label">Created</span>
         <span class="VaultDashboardContent__info-value"
           >{format_date(created_at)}</span
@@ -215,7 +195,7 @@
           Reindex vault
         </Button>
       {/if}
-    </section>
+    </details>
   {/if}
 </div>
 
@@ -223,8 +203,9 @@
   .VaultDashboardContent {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-2) 0;
+    gap: var(--space-6);
+    /* Keep the 3px button focus ring inside the scroll viewport. */
+    padding: var(--space-1);
     overflow-y: auto;
     min-height: 0;
     min-width: 0;
@@ -247,22 +228,16 @@
 
   .VaultDashboardContent__stats {
     display: flex;
-    gap: 0;
-    border-block: 1px solid var(--border);
+    gap: var(--space-6);
+    flex-wrap: wrap;
   }
 
   .VaultDashboardContent__stat {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    flex: 1;
     min-width: 0;
-    padding: var(--space-3);
-    background-color: var(--sidebar);
-  }
-
-  .VaultDashboardContent__stat + .VaultDashboardContent__stat {
-    border-inline-start: 1px solid var(--border);
+    padding: var(--space-1) 0;
   }
 
   :global(.VaultDashboardContent__stat-icon) {
@@ -381,11 +356,29 @@
     color: var(--muted-foreground);
   }
 
-  .VaultDashboardContent__section--info {
-    padding-bottom: var(--space-2);
+  .VaultDashboardContent__details {
+    margin-top: var(--space-2);
+  }
+  .VaultDashboardContent__details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .VaultDashboardContent__details > summary::marker {
+    content: "";
+  }
+  .VaultDashboardContent__details > summary :global(svg) {
+    transition: transform var(--duration-fast) var(--ease-default);
+  }
+  .VaultDashboardContent__details[open] > summary :global(svg) {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .VaultDashboardContent__details > summary :global(svg) {
+      transition: none;
+    }
   }
 
   .VaultDashboardContent__info-grid {
+    margin-top: var(--space-3);
     display: grid;
     grid-template-columns: auto 1fr;
     gap: var(--space-1) var(--space-4);
@@ -428,10 +421,6 @@
     color: var(--muted-foreground);
   }
 
-  :global(.VaultDashboardContent__action--placeholder) {
-    opacity: 0.5;
-  }
-
   :global(.VaultDashboardContent__reindex) {
     align-self: flex-start;
     margin-top: var(--space-2);
@@ -442,17 +431,6 @@
     gap: var(--space-4);
     padding: var(--space-4) var(--space-3);
     height: 100%;
-  }
-
-  .VaultDashboardContent--compact .VaultDashboardContent__stats {
-    flex-direction: column;
-  }
-
-  .VaultDashboardContent--compact
-    .VaultDashboardContent__stat
-    + .VaultDashboardContent__stat {
-    border-inline-start: 0;
-    border-block-start: 1px solid var(--border);
   }
 
   .VaultDashboardContent--compact .VaultDashboardContent__actions {
@@ -466,13 +444,18 @@
     justify-content: flex-start;
   }
 
-  .VaultDashboardContent--compact .VaultDashboardContent__recent-item {
+  .VaultDashboardContent--compact
+    .VaultDashboardContent__recent-item:has(
+      .VaultDashboardContent__recent-path
+    ) {
     display: grid;
     grid-template-columns: var(--size-icon-sm) minmax(0, 1fr);
     gap: 0 var(--space-2);
   }
 
-  :global(.VaultDashboardContent--compact .VaultDashboardContent__recent-icon) {
+  .VaultDashboardContent--compact
+    .VaultDashboardContent__recent-item:has(.VaultDashboardContent__recent-path)
+    :global(.VaultDashboardContent__recent-icon) {
     grid-row: span 2;
   }
 

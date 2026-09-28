@@ -40,11 +40,9 @@
 <div class="DashboardPanel">
   <header class="DashboardPanel__header">
     <h2 class="DashboardPanel__title">{vault_name}</h2>
-    <p class="DashboardPanel__subtitle">Dashboard overview</p>
   </header>
   <VaultDashboardContent
     compact
-    {vault_name}
     {vault_path}
     {stats_status}
     {note_count}
@@ -71,7 +69,6 @@
 
   .DashboardPanel__header {
     padding: var(--space-4) var(--space-3);
-    border-block-end: 1px solid var(--border);
   }
 
   .DashboardPanel__title {
@@ -81,10 +78,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .DashboardPanel__subtitle {
-    font-size: var(--text-sm);
-    color: var(--muted-foreground);
   }
 </style>

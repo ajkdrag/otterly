@@ -48,17 +48,16 @@
 
 <Dialog.Root {open} onOpenChange={on_open_change}>
   <Dialog.Content class="VaultDashboard">
-    <Dialog.Header class="border-b border-border pb-4 pr-8">
+    <Dialog.Header class="pr-8">
       <Dialog.Title class="VaultDashboard__title">
         {vault_name ?? "Vault"}
       </Dialog.Title>
-      <Dialog.Description class="VaultDashboard__subtitle">
+      <Dialog.Description class="sr-only">
         Dashboard overview
       </Dialog.Description>
     </Dialog.Header>
 
     <VaultDashboardContent
-      {vault_name}
       {vault_path}
       {stats_status}
       {note_count}
@@ -73,7 +72,7 @@
       on_open_recent={() => run_and_close(on_open_recent)}
     />
 
-    <Dialog.Footer class="border-t border-border pt-4">
+    <Dialog.Footer class="pt-2">
       <Button variant="outline" onclick={() => on_open_change(false)}>
         Close
       </Button>
@@ -93,10 +92,5 @@
     font-family: var(--font-heading, var(--font-sans));
     font-size: var(--text-xl);
     font-weight: 600;
-  }
-
-  :global(.VaultDashboard__subtitle) {
-    font-size: var(--text-sm);
-    color: var(--muted-foreground);
   }
 </style>

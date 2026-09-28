@@ -858,7 +858,6 @@
     gap: var(--space-2);
     min-height: 3.5rem;
     padding-inline: var(--space-4);
-    border-bottom: 1px solid var(--border);
   }
 
   :global(.Omnibar__search svg) {

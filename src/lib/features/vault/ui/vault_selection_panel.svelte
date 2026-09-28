@@ -65,10 +65,6 @@
 
   const visible_vaults = $derived([...pinned_vaults, ...unpinned_vaults]);
 
-  const has_sections = $derived(
-    pinned_vaults.length > 0 && unpinned_vaults.length > 0,
-  );
-
   const duplicate_names = $derived(duplicate_vault_names(recent_vaults));
 
   $effect(() => {
@@ -393,10 +389,6 @@
           </div>
         {/if}
 
-        {#if has_sections}
-          <div class="VaultPanel__divider" role="separator"></div>
-        {/if}
-
         {#if unpinned_vaults.length > 0}
           <div class="VaultPanel__section">
             <h3 class="VaultPanel__section-title">Recent</h3>
@@ -525,12 +517,6 @@
     width: var(--size-icon-xs);
     height: var(--size-icon-xs);
     opacity: 0.7;
-  }
-
-  .VaultPanel__divider {
-    height: 1px;
-    background-color: var(--border);
-    margin: 0 var(--space-1);
   }
 
   .VaultPanel__list {
