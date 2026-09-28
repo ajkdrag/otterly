@@ -55,7 +55,9 @@ import {
 import { indent } from "@milkdown/plugin-indent";
 import {
   ChevronDown,
+  Code,
   Copy,
+  Eye,
   ImageOff,
   LoaderCircle,
   Search,
@@ -106,6 +108,7 @@ import { create_logger } from "$lib/shared/utils/logger";
 import { mark_boundary_escape_plugin } from "./mark_boundary_escape_plugin";
 import { create_markdown_sync_plugin } from "./markdown_sync_plugin";
 import { task_list_enter_plugin } from "./task_list_enter_plugin";
+import { render_mermaid_preview } from "./mermaid_preview";
 
 const log = create_logger("milkdown_adapter");
 const plain_language = LanguageDescription.of({
@@ -602,6 +605,13 @@ export function create_milkdown_editor_port(args?: {
             expandIcon: ChevronDown,
             searchIcon: Search,
             clearSearchIcon: X,
+            renderPreview: render_mermaid_preview,
+            // Show source and diagram by default. With preview only, the
+            // source would vanish mid-typing once a new block first renders.
+            previewOnlyByDefault: false,
+            previewToggleButton: (preview_only) => (preview_only ? Code : Eye),
+            previewLabel: "Preview",
+            previewLoading: LoaderCircle,
           }));
         })
         .use(task_list_enter_plugin)

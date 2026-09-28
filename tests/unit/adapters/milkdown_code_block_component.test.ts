@@ -7,6 +7,15 @@ import { Editor, editorViewCtx } from "@milkdown/kit/core";
 import { create_milkdown_editor_port } from "$lib/features/editor/adapters/milkdown_adapter";
 import type { EditorSession } from "$lib/features/editor/ports";
 
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(() =>
+      Promise.resolve({ svg: '<svg class="test-diagram"></svg>' }),
+    ),
+  },
+}));
+
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
   readonly observed = new Set<Element>();
@@ -116,6 +125,20 @@ describe("Milkdown CodeMirror code blocks", () => {
     cm.dispatch({ changes: { from: cm.state.doc.length, insert: ";" } });
 
     expect(session.get_markdown()).toContain("const x = 1;");
+    session.destroy();
+    root.remove();
+  });
+
+  it("shows a mermaid diagram under the source and keeps the Markdown", async () => {
+    const original = "```mermaid\ngraph TD; A-->B\n```";
+    const { root, session, block } = await open_editor(original);
+    await show_code_mirror(block);
+
+    await vi.waitFor(() => {
+      expect(block.querySelector(".preview .test-diagram")).not.toBeNull();
+    });
+    expect(block.querySelector(".codemirror-host.hidden")).toBeNull();
+    expect(session.get_markdown().trimEnd()).toBe(original);
     session.destroy();
     root.remove();
   });
