@@ -18,6 +18,7 @@ Your notes stay as normal Markdown files in a folder you control. Otterly adds t
 | Windows x64         | [`setup.exe`](https://github.com/ajkdrag/otterly/releases/download/v0.2.2/otterly_0.2.2_x64-setup.exe)  | Run the installer.                                    |
 | Linux x64           | [`.AppImage`](https://github.com/ajkdrag/otterly/releases/download/v0.2.2/otterly_0.2.2_amd64.AppImage) | Make it executable, then run it.                      |
 | Debian/Ubuntu       | [`.deb`](https://github.com/ajkdrag/otterly/releases/download/v0.2.2/otterly_0.2.2_amd64.deb)           | Install with your package manager or double-click it. |
+| Arch Linux (x86_64) | [AUR package](https://aur.archlinux.org/packages/otterly-appimage)                                    | Install with an AUR helper, e.g. `yay -S otterly-appimage` or `paru -S otterly-appimage`. |
 
 [See the latest release](https://github.com/ajkdrag/otterly/releases/latest) if you want checksums, signatures, or every packaged asset.
 
