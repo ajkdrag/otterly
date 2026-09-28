@@ -166,7 +166,9 @@
                 <div class="HotkeysPanel__controls">
                   {#if modified}
                     <button
+                      type="button"
                       class="HotkeysPanel__icon-btn"
+                      aria-label={`Reset ${binding.label} hotkey to default`}
                       onclick={() => {
                         on_reset_single(binding.action_id);
                       }}
@@ -178,7 +180,9 @@
 
                   {#if binding.key !== null}
                     <button
+                      type="button"
                       class="HotkeysPanel__icon-btn"
+                      aria-label={`Clear ${binding.label} hotkey`}
                       onclick={() => {
                         on_clear(binding.action_id);
                       }}

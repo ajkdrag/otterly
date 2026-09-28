@@ -67,9 +67,9 @@
   }
 
   function get_title() {
-    if (error) return "Save Failed";
-    if (show_overwrite_confirm) return "File Already Exists";
-    return "Save Note";
+    if (error) return "Save failed";
+    if (show_overwrite_confirm) return "File already exists";
+    return "Save note";
   }
 
   function get_description() {
@@ -123,11 +123,12 @@
               }
             }}
             placeholder="e.g., my-note"
+            aria-label="Note filename"
             disabled={is_busy}
             class="rounded-r-none"
           />
           <span
-            class="px-3 py-2 bg-muted text-muted-foreground border border-l-0 rounded-r-md text-sm"
+            class="flex h-9 items-center px-3 bg-muted text-muted-foreground border border-l-0 rounded-r-md text-sm"
           >
             .md
           </span>

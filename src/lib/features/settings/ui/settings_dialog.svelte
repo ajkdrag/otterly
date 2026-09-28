@@ -157,13 +157,14 @@
     </Dialog.Header>
 
     <div class="SettingsDialog__panels">
-      <nav class="SettingsDialog__nav">
+      <nav class="SettingsDialog__nav" aria-label="Settings categories">
         <div class="SettingsDialog__nav-header">Settings</div>
         {#each categories as cat (cat.id)}
           <button
             class="SettingsDialog__nav-item"
             class:SettingsDialog__nav-item--selected={active_category ===
               cat.id}
+            aria-current={active_category === cat.id ? "page" : undefined}
             onclick={() => {
               on_category_change(cat.id);
             }}
@@ -202,6 +203,7 @@
               <div class="flex items-center gap-3">
                 <Slider
                   type="single"
+                  aria-label="Editor max width"
                   value={editor_settings.editor_max_width_ch}
                   onValueChange={(value: number | undefined) => {
                     if (value !== undefined) {
@@ -224,6 +226,7 @@
                       "editor_max_width_ch",
                       DEFAULT_EDITOR_SETTINGS.editor_max_width_ch,
                     )}
+                  aria-label="Reset editor max width to default"
                   disabled={editor_settings.editor_max_width_ch ===
                     DEFAULT_EDITOR_SETTINGS.editor_max_width_ch}
                   title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.editor_max_width_ch)}ch)`}
@@ -247,7 +250,7 @@
                     if (v) update("max_open_tabs", Number(v));
                   }}
                 >
-                  <Select.Trigger class="w-20">
+                  <Select.Trigger class="w-20" aria-label="Max open tabs">
                     <span data-slot="select-value"
                       >{editor_settings.max_open_tabs}</span
                     >
@@ -266,6 +269,7 @@
                       "max_open_tabs",
                       DEFAULT_EDITOR_SETTINGS.max_open_tabs,
                     )}
+                  aria-label="Reset max open tabs to default"
                   disabled={editor_settings.max_open_tabs ===
                     DEFAULT_EDITOR_SETTINGS.max_open_tabs}
                   title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.max_open_tabs)})`}
@@ -290,6 +294,7 @@
                 >
               </div>
               <Switch.Root
+                aria-label="Store new attachments next to note"
                 checked={editor_settings.store_attachments_with_note}
                 onCheckedChange={(v: boolean) => {
                   update("store_attachments_with_note", v);
@@ -314,6 +319,7 @@
                 }}
                 class="w-48"
                 placeholder=".assets"
+                aria-label="Attachment folder"
                 disabled={editor_settings.store_attachments_with_note}
               />
             </div>
@@ -325,6 +331,7 @@
                 >
               </div>
               <Switch.Root
+                aria-label="Show hidden files"
                 checked={editor_settings.show_hidden_files}
                 onCheckedChange={(v: boolean) => {
                   update("show_hidden_files", v);
@@ -339,6 +346,7 @@
                 >
               </div>
               <Switch.Root
+                aria-label="Autosave"
                 checked={editor_settings.autosave_enabled}
                 onCheckedChange={(v: boolean) => {
                   update("autosave_enabled", v);
@@ -356,6 +364,7 @@
                 <div class="flex items-center gap-3">
                   <Slider
                     type="single"
+                    aria-label="Autosave delay in milliseconds"
                     value={editor_settings.autosave_delay_ms}
                     onValueChange={(v: number | undefined) => {
                       if (v !== undefined) {
@@ -378,6 +387,7 @@
                         "autosave_delay_ms",
                         DEFAULT_EDITOR_SETTINGS.autosave_delay_ms,
                       )}
+                    aria-label="Reset autosave delay to default"
                     disabled={editor_settings.autosave_delay_ms ===
                       DEFAULT_EDITOR_SETTINGS.autosave_delay_ms}
                     title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.autosave_delay_ms)}ms)`}
@@ -400,6 +410,7 @@
                 >
               </div>
               <Switch.Root
+                aria-label="Auto-commit"
                 checked={editor_settings.git_autocommit_enabled}
                 onCheckedChange={(v: boolean) => {
                   update("git_autocommit_enabled", v);
@@ -421,6 +432,7 @@
                 >
               </div>
               <Switch.Root
+                aria-label="Show vault dashboard on open"
                 checked={editor_settings.show_vault_dashboard_on_open}
                 onCheckedChange={(v: boolean) => {
                   update("show_vault_dashboard_on_open", v);
@@ -455,7 +467,7 @@
         Cancel
       </Button>
       <Button
-        class="transition-colors"
+        class="min-w-28 transition-colors"
         onclick={on_save}
         disabled={!has_unsaved_changes || is_saving}
       >
@@ -468,7 +480,7 @@
 <style>
   :global(.SettingsDialog) {
     max-width: 52rem;
-    width: 52rem;
+    width: min(52rem, calc(100vw - 2rem));
     height: 80vh;
     max-height: 80vh;
     display: flex;
@@ -476,7 +488,6 @@
     padding: 0;
     gap: 0;
     overflow: hidden;
-    cursor: grab;
   }
 
   .SettingsDialog__panels {
@@ -489,8 +500,9 @@
   .SettingsDialog__nav {
     display: flex;
     flex-direction: column;
-    width: 12rem;
-    min-width: 12rem;
+    width: 11rem;
+    min-width: 11rem;
+    background: var(--sidebar);
     padding: var(--space-3);
     gap: var(--space-0-5);
     border-inline-end: 1px solid var(--border);
@@ -512,8 +524,9 @@
     width: 100%;
     min-height: var(--size-touch);
     padding: 0 var(--space-2);
-    border: none;
-    border-radius: var(--radius-md);
+    border: 0;
+    border-inline-start: 2px solid transparent;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--muted-foreground);
     font-size: var(--text-sm);
@@ -530,6 +543,7 @@
   }
 
   .SettingsDialog__nav-item--selected {
+    border-inline-start-color: var(--primary);
     background-color: var(--interactive-bg);
     color: var(--interactive);
   }
@@ -547,12 +561,17 @@
 
   .SettingsDialog__content {
     flex: 1;
+    min-width: 0;
     padding: var(--space-6);
     overflow-y: auto;
     min-height: 0;
   }
 
   .SettingsDialog__content-header {
+    font-family: var(--font-heading, var(--font-sans));
+    padding-bottom: var(--space-4);
+    padding-right: var(--space-6);
+    border-bottom: 1px solid var(--border);
     font-size: var(--text-lg);
     font-weight: 600;
     color: var(--foreground);
@@ -562,10 +581,12 @@
   .SettingsDialog__section-content {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: 0;
   }
 
   .SettingsDialog__row {
+    padding-block: var(--space-4);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -579,6 +600,8 @@
   }
 
   .SettingsDialog__label-group {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-0-5);
@@ -606,6 +629,11 @@
       color var(--duration-fast) var(--ease-default);
   }
 
+  .SettingsDialog__reset:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
   .SettingsDialog__reset:hover:not(:disabled) {
     background: var(--muted);
     color: var(--foreground);
@@ -622,7 +650,33 @@
   }
 
   :global(.SettingsDialog__footer) {
+    flex-shrink: 0;
+    background: var(--sidebar);
     padding: var(--space-3) var(--space-6);
     border-top: 1px solid var(--border);
+  }
+  .SettingsDialog__nav-item:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  @media (max-width: 640px) {
+    .SettingsDialog__nav {
+      width: 9rem;
+      min-width: 9rem;
+      padding: var(--space-2);
+    }
+
+    .SettingsDialog__row {
+      flex-wrap: wrap;
+    }
+
+    .SettingsDialog__label-group {
+      flex-basis: 100%;
+    }
+
+    .SettingsDialog__content {
+      padding: var(--space-4);
+    }
   }
 </style>

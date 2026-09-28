@@ -1,10 +1,20 @@
+import type { ThemeColorScheme } from "$lib/shared/types/theme";
+
 export type HSL = { h: number; s: number; l: number };
 
 const HSL_RE = /^hsl\(\s*(\d+)\s*,\s*(\d+)%?\s*,\s*(\d+)%?\s*\)$/i;
 
-export function parse_hsl(value: string | null): HSL | null {
+export function parse_hsl(
+  value: string | null,
+  color_scheme: ThemeColorScheme = "dark",
+): HSL | null {
   if (!value) return null;
-  const m = HSL_RE.exec(value);
+  const scheme_colors =
+    /^light-dark\(\s*(hsl\([^)]+\))\s*,\s*(hsl\([^)]+\))\s*\)$/i.exec(value);
+  const active_color = scheme_colors
+    ? (scheme_colors[color_scheme === "light" ? 1 : 2] ?? value)
+    : value;
+  const m = HSL_RE.exec(active_color);
   if (!m) return null;
   return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) };
 }
@@ -25,6 +35,8 @@ export function resolve_font_stack(
 }
 
 export const SANS_FONT_OPTIONS = [
+  { value: "IBM Plex Sans", label: "IBM Plex Sans" },
+  { value: "Space Grotesk", label: "Space Grotesk" },
   { value: "Inter", label: "Inter" },
   { value: "system-ui", label: "System UI" },
   { value: "SF Pro Display", label: "SF Pro" },

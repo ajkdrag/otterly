@@ -67,10 +67,17 @@ type SavePlanDecision =
 type SaveExecutionResult = {
   saved_path: NotePath;
   saved_mtime_ms: number;
+  saved_meta?: NoteMeta;
+};
+
+type PendingNoteWrites = {
+  count: number;
+  saved_mtime_ms?: number;
 };
 
 export class NoteService {
   private readonly enqueue_write = create_write_queue();
+  private readonly pending_note_writes = new Map<string, PendingNoteWrites>();
   private open_abort: AbortController | null = null;
   private active_save_count = 0;
   private pending_save_error: string | null = null;
@@ -461,6 +468,7 @@ export class NoteService {
       return { status: "conflict" };
     }
 
+    const vault_generation = this.vault_store.generation;
     this.begin_save_operation();
 
     try {
@@ -469,7 +477,12 @@ export class NoteService {
         plan_decision.plan,
       );
 
-      this.editor_service.mark_clean();
+      this.apply_save_completion(
+        save_context.vault_id,
+        vault_generation,
+        plan_decision.plan.open_note,
+        save_result,
+      );
       this.finish_save_operation(null);
       return {
         status: "saved",
@@ -495,6 +508,55 @@ export class NoteService {
         status: "failed",
         error: message,
       };
+    }
+  }
+
+  private apply_save_completion(
+    vault_id: VaultId,
+    vault_generation: number,
+    saved_note: OpenEditorNote,
+    result: SaveExecutionResult,
+  ) {
+    if (
+      this.get_active_vault_id() !== vault_id ||
+      this.vault_store.generation !== vault_generation
+    ) {
+      return;
+    }
+    if (result.saved_meta) {
+      this.notes_store.add_note(result.saved_meta);
+      this.notes_store.add_recent_note(result.saved_meta);
+    }
+    const current = this.editor_store.open_note;
+    if (
+      current?.meta.id !== saved_note.meta.id ||
+      current.buffer_id !== saved_note.buffer_id
+    ) {
+      return;
+    }
+
+    // Read the live editor again: typing may have continued during the write.
+    const flushed = this.editor_service.flush();
+    const matches_session = !flushed || flushed.note_id === saved_note.meta.id;
+    if (flushed && matches_session) {
+      this.editor_store.set_markdown(flushed.note_id, flushed.markdown);
+    }
+    if (result.saved_path !== saved_note.meta.path) {
+      this.editor_service.rename_buffer(
+        saved_note.meta.path,
+        result.saved_path,
+      );
+      this.editor_store.update_open_note_path(result.saved_path);
+    }
+    this.editor_store.update_mtime(result.saved_path, result.saved_mtime_ms);
+    if (
+      matches_session &&
+      this.editor_store.open_note?.markdown === saved_note.markdown
+    ) {
+      this.editor_store.mark_clean(result.saved_path, result.saved_mtime_ms);
+    }
+    if (flushed && matches_session) {
+      this.editor_service.mark_clean(result.saved_path, saved_note.markdown);
     }
   }
 
@@ -643,9 +705,12 @@ export class NoteService {
     vault_id: VaultId,
     plan: SavePlan,
   ): Promise<SaveExecutionResult> {
-    return await this.enqueue_write(
-      `note.save:${plan.open_note.meta.id}`,
-      async () => {
+    const key = JSON.stringify([vault_id, plan.open_note.meta.id]);
+    const pending = this.pending_note_writes.get(key) ?? { count: 0 };
+    pending.count += 1;
+    this.pending_note_writes.set(key, pending);
+    try {
+      return await this.enqueue_write(key, async () => {
         if (plan.kind === "save_untitled") {
           return await this.save_untitled_note(
             vault_id,
@@ -654,32 +719,23 @@ export class NoteService {
             plan.overwrite,
           );
         }
-        const saved_mtime_ms = await this.write_existing_note(
+        const note = plan.open_note;
+        this.on_file_written?.(note.meta.id);
+        // Queued saves inherit our preceding write, never a fresh disk mtime.
+        const saved_mtime_ms = await this.notes_port.write_note(
           vault_id,
-          plan.open_note,
+          note.meta.id,
+          note.markdown,
+          pending.saved_mtime_ms ?? note.meta.mtime_ms ?? undefined,
         );
-        return {
-          saved_path: plan.open_note.meta.path,
-          saved_mtime_ms,
-        };
-      },
-    );
-  }
-
-  private async write_existing_note(
-    vault_id: VaultId,
-    open_note: OpenEditorNote,
-  ): Promise<number> {
-    this.on_file_written?.(open_note.meta.id);
-    const new_mtime = await this.notes_port.write_note(
-      vault_id,
-      open_note.meta.id,
-      open_note.markdown,
-      open_note.meta.mtime_ms ?? undefined,
-    );
-    await this.index_port.upsert_note(vault_id, open_note.meta.id);
-    this.editor_store.mark_clean(open_note.meta.id, new_mtime);
-    return new_mtime;
+        pending.saved_mtime_ms = saved_mtime_ms;
+        await this.index_port.upsert_note(vault_id, note.meta.id);
+        return { saved_path: note.meta.path, saved_mtime_ms };
+      });
+    } finally {
+      pending.count -= 1;
+      if (pending.count === 0) this.pending_note_writes.delete(key);
+    }
   }
 
   reset_save_operation() {
@@ -733,8 +789,6 @@ export class NoteService {
     target_path: NotePath,
     overwrite: boolean,
   ): Promise<SaveExecutionResult> {
-    const old_path = open_note.meta.path;
-
     try {
       this.on_file_written?.(target_path);
       const created_meta = await this.notes_port.create_note(
@@ -743,14 +797,10 @@ export class NoteService {
         open_note.markdown,
       );
       await this.index_port.upsert_note(vault_id, created_meta.id);
-      this.notes_store.add_note(created_meta);
-      this.editor_service.rename_buffer(old_path, target_path);
-      this.editor_store.update_open_note_path(target_path);
-      this.editor_store.mark_clean(target_path, created_meta.mtime_ms);
-      this.notes_store.add_recent_note(created_meta);
       return {
         saved_path: target_path,
         saved_mtime_ms: created_meta.mtime_ms,
+        saved_meta: created_meta,
       };
     } catch (error) {
       if (!this.is_note_exists_error(error)) {
@@ -769,14 +819,10 @@ export class NoteService {
     );
     await this.index_port.upsert_note(vault_id, target_path);
     const written = await this.notes_port.read_note(vault_id, target_path);
-    this.notes_store.add_note(written.meta);
-    this.editor_service.rename_buffer(old_path, target_path);
-    this.editor_store.update_open_note_path(target_path);
-    this.editor_store.mark_clean(target_path, new_mtime);
-    this.notes_store.add_recent_note(written.meta);
     return {
       saved_path: target_path,
       saved_mtime_ms: new_mtime,
+      saved_meta: written.meta,
     };
   }
 
@@ -784,7 +830,7 @@ export class NoteService {
     const vault = this.vault_store.vault;
     if (!vault) return;
     this.on_file_written?.(note_path);
-    await this.notes_port.write_note(vault.id, note_path, markdown);
+    return await this.notes_port.write_note(vault.id, note_path, markdown);
   }
 
   private async rename_note_with_overwrite_if_needed(

@@ -5,12 +5,26 @@ import type { CommandId } from "$lib/features/search/types/command_palette";
 import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
 import { parse_search_query } from "$lib/features/search/domain/search_query_parser";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
+import { create_logger } from "$lib/shared/utils/logger";
+
+const log = create_logger("omnibar_actions");
+const is_performance_logging_enabled =
+  import.meta.env.DEV && import.meta.env.MODE !== "test";
 
 export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   create_new_note: ACTION_IDS.note_create,
+  save_note: ACTION_IDS.note_request_save,
   change_vault: ACTION_IDS.vault_request_change,
   open_settings: ACTION_IDS.settings_open,
+  open_theme_settings: ACTION_IDS.settings_open,
   open_hotkeys: ACTION_IDS.settings_open,
+  toggle_sidebar: ACTION_IDS.ui_toggle_sidebar,
+  find_in_note: ACTION_IDS.find_in_file_open,
+  open_help: ACTION_IDS.help_open,
+  next_tab: ACTION_IDS.tab_next,
+  previous_tab: ACTION_IDS.tab_prev,
+  last_used_tab: ACTION_IDS.tab_go_to_last_used,
+  reopen_closed_tab: ACTION_IDS.tab_reopen_closed,
   sync_index: ACTION_IDS.vault_sync_index,
   reindex_vault: ACTION_IDS.vault_reindex,
   show_vault_dashboard: ACTION_IDS.ui_open_vault_dashboard,
@@ -19,6 +33,11 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   git_init_repo: ACTION_IDS.git_init,
   toggle_links_panel: ACTION_IDS.ui_toggle_context_rail,
   check_for_updates: ACTION_IDS.app_check_for_updates,
+};
+
+const COMMAND_ACTION_ARGUMENTS: Partial<Record<CommandId, unknown[]>> = {
+  open_theme_settings: ["theme"],
+  open_hotkeys: ["hotkeys"],
 };
 
 function set_omnibar_state(
@@ -163,11 +182,10 @@ async function execute_command(
 ) {
   const { registry } = input;
   const action_id = COMMAND_TO_ACTION_ID[command_id];
-  if (command_id === "open_hotkeys") {
-    await registry.execute(action_id, "hotkeys");
-  } else {
-    await registry.execute(action_id);
-  }
+  await registry.execute(
+    action_id,
+    ...(COMMAND_ACTION_ARGUMENTS[command_id] ?? []),
+  );
 }
 
 async function confirm_item(input: ActionRegistrationInput, item: OmnibarItem) {
@@ -256,9 +274,9 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
   registry.register({
     id: ACTION_IDS.omnibar_open,
     label: "Open Omnibar",
-    execute: () => {
+    execute: async () => {
       if (stores.ui.omnibar.open) {
-        set_omnibar_state(input, { scope: "current_vault" });
+        await registry.execute(ACTION_IDS.omnibar_set_scope, "current_vault");
         return;
       }
       open_omnibar(input);
@@ -268,9 +286,9 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
   registry.register({
     id: ACTION_IDS.omnibar_open_all_vaults,
     label: "Open Omnibar (All Vaults)",
-    execute: () => {
+    execute: async () => {
       if (stores.ui.omnibar.open) {
-        set_omnibar_state(input, { scope: "all_vaults" });
+        await registry.execute(ACTION_IDS.omnibar_set_scope, "all_vaults");
         return;
       }
       set_omnibar_state(input, {
@@ -311,11 +329,25 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
 
       set_omnibar_searching(input, true);
       const scope = stores.ui.omnibar.scope;
+      const started_at = is_performance_logging_enabled
+        ? performance.now()
+        : null;
       await search_omnibar_query(input, normalized_query, scope);
       set_omnibar_state(input, {
         is_searching: false,
         selected_index: clamp_selected_index(input),
       });
+      if (
+        started_at !== null &&
+        stores.ui.omnibar.query.trim() === normalized_query.trim() &&
+        stores.ui.omnibar.scope === scope
+      ) {
+        log.debug("Omnibar query results ready", {
+          query_length: normalized_query.length,
+          result_count: stores.search.omnibar_items.length,
+          duration_ms: performance.now() - started_at,
+        });
+      }
     },
   });
 

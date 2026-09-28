@@ -11,6 +11,9 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
+    watch: {
+      ignored: ["**/src-tauri/target/**"],
+    },
   },
   css: {
     transformer: "lightningcss",

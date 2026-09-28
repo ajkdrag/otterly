@@ -120,7 +120,7 @@
 
 {#snippet color_field(desc: ThemeStyleDescriptor)}
   {@const current_value = active_theme[desc.theme_key] as string | null}
-  {@const parsed = parse_hsl(current_value)}
+  {@const parsed = parse_hsl(current_value, active_theme.color_scheme)}
   <div class="ColorField">
     <div class="ColorField__header">
       <div class="ColorField__header-left">
@@ -129,6 +129,7 @@
           <button
             type="button"
             class="ColorField__reset"
+            aria-label={`Reset ${desc.label} to default`}
             onclick={() => update(desc.theme_key, null as never)}
             disabled={locked}
             title="Reset to default"
@@ -153,6 +154,8 @@
             class="ColorField__swatch"
             class:ColorField__swatch--active={current_value === preset.value}
             style="background: {preset.value}"
+            aria-label={`${desc.label}: ${preset.label}`}
+            aria-pressed={current_value === preset.value}
             title={preset.label}
             onclick={() => update(desc.theme_key, preset.value as never)}
             disabled={locked}
@@ -166,6 +169,7 @@
         ></span>
         <Input
           type="number"
+          aria-label={`${desc.label} hue`}
           value={parsed ? String(parsed.h) : ""}
           placeholder="—"
           min={0}
@@ -180,6 +184,7 @@
         />
         <Input
           type="number"
+          aria-label={`${desc.label} saturation`}
           value={parsed ? String(parsed.s) : ""}
           placeholder="—"
           min={0}
@@ -194,6 +199,7 @@
         />
         <Input
           type="number"
+          aria-label={`${desc.label} lightness`}
           value={parsed ? String(parsed.l) : ""}
           placeholder="—"
           min={0}
@@ -222,6 +228,7 @@
           <button
             type="button"
             class="ThemeSettings__inline-reset"
+            aria-label={`Reset ${desc.label} to default`}
             onclick={() => reset_to_default(desc.theme_key)}
             disabled={locked}
             title="Reset to default"
@@ -234,6 +241,7 @@
     </div>
     <Slider.Root
       type="single"
+      aria-label={desc.label}
       value={val}
       onValueChange={(v: number) => {
         const step = desc.step ?? 1;
@@ -259,6 +267,7 @@
         <button
           type="button"
           class="ThemeSettings__inline-reset"
+          aria-label={`Reset ${desc.label} to default`}
           onclick={() => reset_to_default(desc.theme_key)}
           disabled={locked}
           title="Reset to default"
@@ -274,7 +283,7 @@
         update_select(desc.theme_key, v)}
       disabled={locked}
     >
-      <Select.Trigger class="w-40">
+      <Select.Trigger class="w-40" aria-label={desc.label}>
         <span data-slot="select-value">
           {desc.options?.find((o) => o.value === val)?.label ?? val}
         </span>
@@ -301,7 +310,7 @@
         update_select(desc.theme_key, v)}
       disabled={locked}
     >
-      <Select.Trigger class="w-44">
+      <Select.Trigger class="w-44" aria-label={desc.label}>
         <span data-slot="select-value">{val}</span>
       </Select.Trigger>
       <Select.Content>
@@ -332,6 +341,7 @@
         </div>
         <Slider.Root
           type="single"
+          aria-label={desc.label}
           value={active_theme.accent_hue}
           onValueChange={(v: number) => update("accent_hue", Math.round(v))}
           min={0}
@@ -361,7 +371,10 @@
         if (v) on_switch(v);
       }}
     >
-      <Select.Trigger class="ThemeSettings__theme-select">
+      <Select.Trigger
+        class="ThemeSettings__theme-select"
+        aria-label="Active theme"
+      >
         <span data-slot="select-value">{active_theme.name}</span>
       </Select.Trigger>
       <Select.Content>
@@ -408,6 +421,7 @@
       <Input
         type="text"
         bind:value={new_theme_name}
+        aria-label="New theme name"
         placeholder="Theme name..."
         class="flex-1"
         onkeydown={(e: KeyboardEvent) => {
@@ -430,6 +444,7 @@
       <Input
         type="text"
         value={active_theme.name}
+        aria-label="Theme name"
         onchange={(e: Event & { currentTarget: HTMLInputElement }) => {
           on_rename(active_theme.id, e.currentTarget.value);
         }}
@@ -447,6 +462,7 @@
     <SearchIcon class="ThemeSettings__search-icon" />
     <Input
       type="text"
+      aria-label="Filter theme settings"
       placeholder="Filter style settings..."
       value={search_query}
       oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
@@ -490,7 +506,8 @@
   }
 
   :global(.ThemeSettings__theme-select) {
-    min-width: 10rem;
+    min-width: 0;
+    flex: 1;
   }
 
   .ThemeSettings__profile-actions {
@@ -566,7 +583,7 @@
     font-size: var(--text-sm);
     font-weight: 500;
     color: var(--foreground);
-    white-space: nowrap;
+    line-height: 1.4;
   }
 
   .ThemeSettings__badge {
@@ -581,7 +598,7 @@
   .ThemeSettings__color-dot {
     width: 14px;
     height: 14px;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     flex-shrink: 0;
   }
@@ -589,10 +606,10 @@
   .ThemeSettings__hint {
     font-size: var(--text-xs);
     color: var(--muted-foreground);
-    font-style: italic;
     padding: var(--space-2) var(--space-3);
     background: var(--muted);
-    border-radius: var(--radius-md);
+    border-inline-start: 2px solid var(--primary);
+    border-radius: var(--radius-sm);
     margin-bottom: var(--space-2);
   }
 
@@ -600,20 +617,24 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
     border-radius: var(--radius-sm);
     border: none;
     background: transparent;
     color: var(--muted-foreground);
     opacity: 0.5;
     cursor: pointer;
-    transition: all var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      border-color var(--duration-fast) var(--ease-default),
+      opacity var(--duration-fast) var(--ease-default);
   }
 
   .ThemeSettings__inline-reset:hover:not(:disabled) {
     opacity: 1;
-    color: var(--destructive);
+    color: var(--interactive);
   }
 
   :global(.ThemeSettings__inline-reset svg) {
@@ -668,20 +689,24 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
     border-radius: var(--radius-sm);
     border: none;
     background: transparent;
     color: var(--muted-foreground);
     opacity: 0.5;
     cursor: pointer;
-    transition: all var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      border-color var(--duration-fast) var(--ease-default),
+      opacity var(--duration-fast) var(--ease-default);
   }
 
   .ColorField__reset:hover:not(:disabled) {
     opacity: 1;
-    color: var(--destructive);
+    color: var(--interactive);
   }
 
   :global(.ColorField__reset svg) {
@@ -707,16 +732,18 @@
   .ColorField__swatch {
     width: 20px;
     height: 20px;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     border: 2px solid transparent;
     cursor: pointer;
-    transition: all var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      border-color var(--duration-fast) var(--ease-default),
+      opacity var(--duration-fast) var(--ease-default);
     flex-shrink: 0;
   }
 
   .ColorField__swatch:hover:not(:disabled) {
     border-color: var(--muted-foreground);
-    transform: scale(1.15);
   }
 
   .ColorField__swatch--active {
@@ -739,7 +766,7 @@
   .ColorField__preview {
     width: 20px;
     height: 20px;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     border: 2px solid var(--border);
     flex-shrink: 0;
   }
@@ -760,7 +787,7 @@
 
   :global(.ColorField__channel-input) {
     width: 2.75rem !important;
-    height: 20px !important;
+    height: 28px !important;
     font-size: var(--text-xs) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     text-align: center !important;
@@ -771,5 +798,18 @@
   :global(.ColorField__channel-input::-webkit-outer-spin-button) {
     -webkit-appearance: none;
     margin: 0;
+  }
+  .ThemeSettings__inline-reset:focus-visible,
+  .ColorField__reset:focus-visible,
+  .ColorField__swatch:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .ThemeSettings__row,
+    .ColorField__body {
+      flex-wrap: wrap;
+    }
   }
 </style>

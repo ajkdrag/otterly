@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Schema } from "@milkdown/kit/prose/model";
 import {
   EditorState,
@@ -10,13 +10,38 @@ import {
 } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import {
-  clamp_code_block_height,
-  code_block_ui_key,
-  create_code_block_ui_node_view,
   create_code_block_ui_prosemirror_plugin,
   read_code_block_heights,
   replace_code_block_heights,
 } from "$lib/features/editor/adapters/code_block_ui_plugin";
+
+class TestResizeObserver {
+  static instances: TestResizeObserver[] = [];
+  readonly observed = new Set<Element>();
+
+  constructor(private callback: ResizeObserverCallback) {
+    TestResizeObserver.instances.push(this);
+  }
+
+  observe(target: Element): void {
+    this.observed.add(target);
+  }
+
+  unobserve(target: Element): void {
+    this.observed.delete(target);
+  }
+
+  disconnect(): void {
+    this.observed.clear();
+  }
+
+  emit(target: Element, height: number): void {
+    this.callback(
+      [{ target, contentRect: { height } } as ResizeObserverEntry],
+      this as unknown as ResizeObserver,
+    );
+  }
+}
 
 function create_schema(): Schema {
   return new Schema({
@@ -28,9 +53,7 @@ function create_schema(): Schema {
         group: "block",
         marks: "",
         code: true,
-        attrs: {
-          language: { default: "" },
-        },
+        attrs: { language: { default: "" } },
         toDOM: () => ["pre", ["code", 0]] as const,
         parseDOM: [{ tag: "pre" }],
       },
@@ -39,238 +62,171 @@ function create_schema(): Schema {
   });
 }
 
-function create_editor_state(
-  schema: Schema,
-  initial_heights: Array<number | null> = [320],
-): EditorState {
+function create_editor(initial_heights: Array<number | null> = [320]) {
+  const schema = create_schema();
+  const on_heights_change = vi.fn();
   const plugin = create_code_block_ui_prosemirror_plugin({
     get_initial_heights: () => initial_heights,
+    on_heights_change,
   }) as Plugin;
-
-  return EditorState.create({
+  let state = EditorState.create({
     schema,
     doc: schema.node("doc", null, [
-      schema.node(
-        "code_block",
-        { language: "ts" },
-        schema.text("const value = 1;"),
-      ),
+      schema.node("code_block", { language: "ts" }, schema.text("const x = 1")),
     ]),
     plugins: [plugin],
   });
-}
-
-function create_editor_view(state: EditorState): {
-  view: EditorView;
-  get_state: () => EditorState;
-} {
-  let current_state = state;
-
+  const dom = document.createElement("div");
+  dom.className = "milkdown-code-block";
   const view = {
-    state: current_state,
-    dispatch: vi.fn((transaction: Transaction) => {
-      current_state = current_state.apply(transaction);
-      (view as { state: EditorState }).state = current_state;
-    }),
+    get state() {
+      return state;
+    },
+    nodeDOM: () => dom,
+    dispatch(transaction: Transaction) {
+      const previous = state;
+      state = state.apply(transaction);
+      plugin_view?.update?.(view, previous);
+    },
   } as unknown as EditorView;
+  const plugin_view = plugin.spec.view?.(view);
 
   return {
     view,
-    get_state: () => current_state,
+    dom,
+    on_heights_change,
+    destroy: () => plugin_view?.destroy?.(),
   };
 }
 
-describe("code_block_ui_plugin", () => {
-  beforeEach(() => {
-    Object.defineProperty(window, "innerHeight", {
-      value: 1000,
-      writable: true,
-    });
+function dispatch_pointer(
+  target: EventTarget,
+  type: string,
+  pointer_id: number,
+  client_y: number,
+): void {
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    clientY: client_y,
   });
+  Object.defineProperty(event, "pointerId", { value: pointer_id });
+  target.dispatchEvent(event);
+}
 
-  it("clamps resized heights to the supported viewport range", () => {
-    expect(clamp_code_block_height(10, 1000)).toBe(48);
-    expect(clamp_code_block_height(1200, 1000)).toBe(800);
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  TestResizeObserver.instances = [];
+});
 
-  it("applies the stored height to the rendered code block", () => {
-    const schema = create_schema();
-    const state = create_editor_state(schema, [320]);
-    const { view } = create_editor_view(state);
-    const node = state.doc.firstChild;
-    if (!node) throw new Error("Expected code block node");
+describe("code block height state", () => {
+  it("restores height on the maintained code block without changing Markdown", () => {
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    const { view, dom, on_heights_change, destroy } = create_editor([320]);
 
-    const node_view = create_code_block_ui_node_view(node, view, () => 0);
-    const dom = node_view.dom as HTMLElement;
-    const pre = dom.querySelector("pre");
+    expect(dom.style.height).toBe("320px");
+    expect(on_heights_change).not.toHaveBeenCalled();
 
-    expect(pre?.style.height).toBe("320px");
-    expect(dom.getAttribute("data-visual-height")).toBe("320");
-  });
-
-  it("commits a new stored height when the resize handle is dragged", () => {
-    const schema = create_schema();
-    const state = create_editor_state(schema, [320]);
-    const { view, get_state } = create_editor_view(state);
-    const node = state.doc.firstChild;
-    if (!node) throw new Error("Expected code block node");
-
-    const node_view = create_code_block_ui_node_view(node, view, () => 0);
-    const dom = node_view.dom as HTMLElement;
-    const pre = dom.querySelector("pre");
-    const handle = dom.querySelector(".code-block-resize-handle");
-    if (!(pre instanceof HTMLElement) || !(handle instanceof HTMLElement)) {
-      throw new Error("Expected code block UI elements");
-    }
-
-    vi.spyOn(pre, "getBoundingClientRect").mockReturnValue({
-      left: 0,
-      top: 0,
-      right: 600,
-      bottom: 320,
-      width: 600,
-      height: 320,
-      x: 0,
-      y: 0,
-      toJSON: () => ({}),
-    });
-
-    handle.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        bubbles: true,
-        button: 0,
-        clientY: 320,
-        pointerId: 1,
-      }),
-    );
-
-    document.dispatchEvent(
-      new PointerEvent("pointermove", {
-        bubbles: true,
-        clientY: 520,
-        pointerId: 1,
-      }),
-    );
-
-    expect(pre.style.height).toBe("520px");
-
-    document.dispatchEvent(
-      new PointerEvent("pointerup", {
-        bubbles: true,
-        clientY: 520,
-        pointerId: 1,
-      }),
-    );
-
-    expect(view.dispatch).toHaveBeenCalledOnce();
-    expect(read_code_block_heights(get_state())).toEqual([520]);
-  });
-
-  it("prevents mouse fallback events on the resize handle", () => {
-    const schema = create_schema();
-    const state = create_editor_state(schema, [320]);
-    const { view } = create_editor_view(state);
-    const node = state.doc.firstChild;
-    if (!node) throw new Error("Expected code block node");
-
-    const node_view = create_code_block_ui_node_view(node, view, () => 0);
-    const dom = node_view.dom as HTMLElement;
-    const handle = dom.querySelector(".code-block-resize-handle");
-    if (!(handle instanceof HTMLElement)) {
-      throw new Error("Expected resize handle");
-    }
-
-    const mouse_down = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-    });
-    handle.dispatchEvent(mouse_down);
-
-    const click = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-    });
-    handle.dispatchEvent(click);
-
-    expect(mouse_down.defaultPrevented).toBe(true);
-    expect(click.defaultPrevented).toBe(true);
-  });
-
-  it("replaces stored heights without changing the document", () => {
-    const schema = create_schema();
-    const state = create_editor_state(schema, [null]);
-    const { view, get_state } = create_editor_view(state);
-    const original_doc = get_state().doc;
-
+    const original_doc = view.state.doc;
     replace_code_block_heights(view, [240]);
 
-    expect(get_state().doc).toBe(original_doc);
-    expect(read_code_block_heights(get_state())).toEqual([240]);
-    expect(code_block_ui_key.getState(get_state())?.positions).toEqual([0]);
+    expect(view.state.doc).toBe(original_doc);
+    expect(read_code_block_heights(view.state)).toEqual([240]);
+    expect(dom.style.height).toBe("240px");
+    expect(on_heights_change).toHaveBeenCalledWith([240]);
+    destroy();
   });
 
-  it("does not emit a heights change during initial plugin view setup", () => {
+  it("stores a user resize but ignores programmatic and layout observer events", () => {
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    const { view, dom, on_heights_change, destroy } = create_editor([320]);
+    const observer = TestResizeObserver.instances[0];
+    if (!observer) throw new Error("Expected resize observer");
+
+    observer.emit(dom, 320);
+    expect(on_heights_change).not.toHaveBeenCalled();
+
+    dom.style.height = "520px";
+    observer.emit(dom, 520);
+    expect(read_code_block_heights(view.state)).toEqual([520]);
+    expect(on_heights_change).toHaveBeenCalledOnce();
+
+    observer.emit(dom, 520);
+    expect(on_heights_change).toHaveBeenCalledOnce();
+    destroy();
+    expect(observer.observed.size).toBe(0);
+  });
+
+  it("resizes from the visible handle and commits one height without changing content", () => {
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    const { view, dom, on_heights_change, destroy } = create_editor([320]);
+    const handle = dom.querySelector<HTMLButtonElement>(
+      ".code-block-resize-handle",
+    );
+    if (!handle) throw new Error("Expected code block resize handle");
+    vi.spyOn(dom, "getBoundingClientRect").mockReturnValue({
+      height: 320,
+    } as DOMRect);
+    const original_doc = view.state.doc;
+
+    dispatch_pointer(handle, "pointerdown", 7, 100);
+    dispatch_pointer(document, "pointermove", 7, 300);
+    expect(dom.style.height).toBe("520px");
+    expect(read_code_block_heights(view.state)).toEqual([320]);
+
+    dispatch_pointer(document, "pointerup", 7, 300);
+    expect(read_code_block_heights(view.state)).toEqual([520]);
+    expect(on_heights_change).toHaveBeenCalledOnce();
+    expect(view.state.doc).toBe(original_doc);
+
+    dispatch_pointer(handle, "pointerdown", 8, 100);
+    dispatch_pointer(document, "pointermove", 8, 400);
+    dispatch_pointer(document, "pointercancel", 8, 400);
+    expect(dom.style.height).toBe("520px");
+    expect(on_heights_change).toHaveBeenCalledOnce();
+    expect(document.body.style.userSelect).toBe("");
+    destroy();
+  });
+
+  it("resizes with arrow keys and restores the handle after code view remount", async () => {
+    const { view, dom, destroy } = create_editor([320]);
+    const handle = dom.querySelector<HTMLButtonElement>(
+      ".code-block-resize-handle",
+    );
+    if (!handle) throw new Error("Expected code block resize handle");
+    expect(handle.getAttribute("aria-label")).toContain("Resize code block");
+
+    handle.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+    );
+    expect(read_code_block_heights(view.state)).toEqual([336]);
+
+    dom.replaceChildren();
+    await Promise.resolve();
+    expect(dom.querySelector(".code-block-resize-handle")).toBe(handle);
+
+    destroy();
+    dom.replaceChildren();
+    await Promise.resolve();
+    expect(dom.querySelector(".code-block-resize-handle")).toBeNull();
+  });
+
+  it("maps a stored height when text before the block changes", () => {
     const schema = create_schema();
-    const on_heights_change = vi.fn();
     const plugin = create_code_block_ui_prosemirror_plugin({
-      get_initial_heights: () => [320],
-      on_heights_change,
+      get_initial_heights: () => [320, 240],
     }) as Plugin;
     const state = EditorState.create({
       schema,
       doc: schema.node("doc", null, [
-        schema.node(
-          "code_block",
-          { language: "ts" },
-          schema.text("const value = 1;"),
-        ),
+        schema.node("code_block", null, schema.text("first")),
+        schema.node("code_block", null, schema.text("second")),
       ]),
       plugins: [plugin],
     });
 
-    const plugin_view = plugin.spec.view?.({
-      state,
-      dispatch: vi.fn(),
-      nodeDOM: vi.fn(() => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "code-block-wrapper";
-        const pre = document.createElement("pre");
-        pre.appendChild(document.createElement("code"));
-        wrapper.appendChild(pre);
-        return wrapper;
-      }),
-    } as unknown as EditorView);
-
-    expect(on_heights_change).not.toHaveBeenCalled();
-    plugin_view?.destroy?.();
-  });
-
-  it("ignores resize-only DOM mutations but not code content mutations", () => {
-    const schema = create_schema();
-    const state = create_editor_state(schema, [320]);
-    const { view } = create_editor_view(state);
-    const node = state.doc.firstChild;
-    if (!node) throw new Error("Expected code block node");
-
-    const node_view = create_code_block_ui_node_view(node, view, () => 0);
-    const dom = node_view.dom as HTMLElement;
-    const header = dom.querySelector(".code-block-header");
-    const code = dom.querySelector("code");
-    if (!(header instanceof HTMLElement) || !(code instanceof HTMLElement)) {
-      throw new Error("Expected code block UI elements");
-    }
-
-    expect(
-      node_view.ignoreMutation?.({
-        type: "attributes",
-        target: header,
-      } as unknown as MutationRecord),
-    ).toBe(true);
-    expect(
-      node_view.ignoreMutation?.({
-        type: "characterData",
-        target: code,
-      } as unknown as MutationRecord),
-    ).toBe(false);
+    const next = state.apply(state.tr.insertText("new ", 1));
+    expect(read_code_block_heights(next)).toEqual([320, 240]);
   });
 });

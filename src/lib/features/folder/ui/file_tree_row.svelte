@@ -5,6 +5,7 @@
   import {
     ChevronRight,
     ChevronDown,
+    Folder,
     FileText,
     Trash2,
     Pencil,
@@ -189,6 +190,7 @@
     tabindex="0"
     draggable={!node.is_load_more}
     aria-selected={is_selected}
+    aria-expanded={node.is_folder ? node.is_expanded : undefined}
     onclick={(event) => handle_click(event)}
     onkeydown={handle_keydown}
     ondragstart={(event) => on_drag_start_row?.(node, event)}
@@ -226,6 +228,7 @@
           {/if}
         </button>
       {/if}
+      <Folder class="TreeRow__type-icon" />
       <span class="TreeRow__label">{node.name}</span>
       {#if is_starred}
         <Star class="TreeRow__star-icon" />
@@ -241,6 +244,7 @@
         </button>
       {/if}
     {:else}
+      <span class="TreeRow__spacer" aria-hidden="true"></span>
       <FileText class="TreeRow__type-icon" />
       <span class="TreeRow__label">{node.name}</span>
       {#if is_starred}
@@ -455,7 +459,7 @@
         var(--size-tree-indent)
     );
     padding-inline-end: var(--space-2);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     font-size: var(--text-sm);
     color: var(--sidebar-foreground);
     cursor: pointer;
@@ -492,7 +496,18 @@
   }
 
   .TreeRow--selected {
-    background-color: var(--muted);
+    background-color: var(--interactive-bg);
+  }
+
+  .TreeRow--selected::after,
+  .TreeRow--multi-selected::after {
+    content: "";
+    position: absolute;
+    inset-block: var(--space-1);
+    inset-inline-start: 0;
+    width: 3px;
+    background-color: var(--interactive);
+    pointer-events: none;
   }
 
   .TreeRow--multi-selected:not(.TreeRow--selected) {
@@ -501,7 +516,7 @@
   }
 
   .TreeRow--selected:hover {
-    background-color: var(--sidebar-accent);
+    background-color: var(--interactive-bg-hover);
   }
 
   .TreeRow--drag-source {
@@ -594,6 +609,7 @@
   :global(.TreeRow__icon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
+    stroke-width: 1.8;
   }
 
   :global(.TreeRow__icon--spin) {
@@ -605,13 +621,11 @@
   }
 
   :global(.TreeRow__type-icon) {
-    width: var(--size-icon-sm);
-    height: var(--size-icon-sm);
+    width: var(--size-icon);
+    height: var(--size-icon);
     flex-shrink: 0;
-    opacity: 0.5;
-    --_offset: calc((var(--size-icon-md) - var(--size-icon-sm)) / 2);
-    margin-inline-start: var(--_offset);
-    margin-inline-end: var(--_offset);
+    color: var(--muted-foreground);
+    stroke-width: 1.8;
   }
 
   :global(.TreeRow__star-icon) {

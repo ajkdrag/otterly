@@ -33,6 +33,8 @@ import { create_logger } from "$lib/shared/utils/logger";
 import { PAGE_SIZE } from "$lib/shared/constants/pagination";
 
 const log = create_logger("vault_service");
+const is_performance_logging_enabled =
+  import.meta.env.DEV && import.meta.env.MODE !== "test";
 
 export type AppMountConfig = {
   reset_app_state: boolean;
@@ -368,10 +370,22 @@ export class VaultService {
     vault: Vault,
     open_revision: number,
   ): Promise<EditorSettings> {
+    const started_at = is_performance_logging_enabled
+      ? performance.now()
+      : null;
     const snapshot = await this.load_open_vault_snapshot(vault, open_revision);
     this.throw_if_stale(open_revision);
 
     this.apply_open_vault_snapshot(vault, snapshot);
+    if (started_at !== null) {
+      log.debug("Vault root snapshot store-ready", {
+        duration_ms: performance.now() - started_at,
+        root_loaded_count:
+          snapshot.root_contents.notes.length +
+          snapshot.root_contents.subfolders.length,
+        root_total_count: snapshot.root_contents.total_count,
+      });
+    }
     this.trigger_dashboard_stats_refresh(vault.id, open_revision);
     this.subscribe_open_vault_index_progress(vault.id, open_revision);
     this.trigger_background_index_sync(vault.id, open_revision);
@@ -500,6 +514,12 @@ export class VaultService {
         }
         if (event.vault_id === vault_id) {
           this.search_store.set_index_progress(event);
+          if (is_performance_logging_enabled && event.status === "completed") {
+            log.debug("Vault index completed", {
+              indexed_count: event.indexed,
+              duration_ms: event.elapsed_ms,
+            });
+          }
         }
       },
     );

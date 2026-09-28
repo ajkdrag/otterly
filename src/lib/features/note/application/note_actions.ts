@@ -21,7 +21,10 @@ import {
 import { is_draft_note_path } from "$lib/features/note/domain/ensure_open_note";
 import type { NoteMeta } from "$lib/shared/types/note";
 import { as_note_path, type NotePath } from "$lib/shared/types/ids";
-import type { ImagePasteRequest } from "$lib/shared/types/editor";
+import type {
+  ImagePasteRequest,
+  OpenNoteState,
+} from "$lib/shared/types/editor";
 import {
   note_name_from_path,
   parent_folder_path,
@@ -133,16 +136,6 @@ export function register_note_actions(input: ActionRegistrationInput) {
     clear_folder_filetree_state(input, parent_folder_path(note_path));
   }
 
-  function update_active_tab_path(saved_path: NotePath) {
-    if (!stores.tab.active_tab_id) {
-      return;
-    }
-    stores.tab.update_tab_path(
-      stores.tab.active_tab_id as NotePath,
-      saved_path,
-    );
-  }
-
   function apply_note_rename(old_path: NotePath, new_path: NotePath) {
     stores.tab.update_tab_path(old_path, new_path);
     clear_parent_folder_filetree(old_path);
@@ -173,15 +166,58 @@ export function register_note_actions(input: ActionRegistrationInput) {
     services.note.reset_save_operation();
   }
 
-  function apply_saved_note(saved_path: NotePath, close_dialog: boolean) {
-    update_active_tab_path(saved_path);
+  function apply_saved_note(
+    saved_note: OpenNoteState,
+    saved_path: NotePath,
+    saved_mtime_ms: number,
+  ) {
+    const previous_path = saved_note.meta.path;
+    const tab = stores.tab.find_tab_by_path(previous_path);
+    if (!tab) return false;
     const open_note = stores.editor.open_note;
-    if (open_note && open_note.meta.path === saved_path) {
-      stores.tab.reconcile_saved_note(open_note);
+    const is_active = open_note?.buffer_id === saved_note.buffer_id;
+    if (open_note?.meta.path === previous_path && !is_active) return false;
+    const latest = is_active ? open_note : stores.tab.get_cached_note(tab.id);
+    if (latest && latest.buffer_id !== saved_note.buffer_id) return false;
+
+    const source_note = latest ?? saved_note;
+    const name = note_name_from_path(saved_path);
+    const updated_note: OpenNoteState = {
+      ...source_note,
+      meta: {
+        ...source_note.meta,
+        id: saved_path,
+        path: saved_path,
+        name,
+        title: name,
+        mtime_ms: saved_mtime_ms,
+      },
+      is_dirty: is_active
+        ? source_note.is_dirty
+        : source_note.markdown !== saved_note.markdown,
+    };
+    if (!is_active) {
+      services.editor.rename_buffer(previous_path, saved_path);
+      services.editor.mark_clean(saved_path, saved_note.markdown);
     }
+    stores.tab.update_tab_path(previous_path, saved_path);
+    stores.tab.set_cached_note(saved_path, updated_note);
+    stores.tab.set_dirty(saved_path, updated_note.is_dirty);
     clear_parent_folder_filetree(saved_path);
-    if (close_dialog) {
-      close_save_dialog(input);
+    return true;
+  }
+
+  async function save_existing_note() {
+    services.editor.flush();
+    const saved_note = stores.editor.open_note;
+    const vault_generation = stores.vault.generation;
+    const result = await services.note.save_note(null, true);
+    if (
+      result.status === "saved" &&
+      saved_note &&
+      stores.vault.generation === vault_generation
+    ) {
+      apply_saved_note(saved_note, result.saved_path, result.saved_mtime_ms);
     }
   }
 
@@ -203,15 +239,24 @@ export function register_note_actions(input: ActionRegistrationInput) {
   }
 
   async function finalize_saved_note(args: {
-    previous_path: NotePath | null;
+    saved_note: OpenNoteState | null;
+    dialog: typeof stores.ui.save_note_dialog;
     saved_path: NotePath;
+    saved_mtime_ms: number;
     source: "manual" | "tab_close";
   }) {
-    apply_saved_note(args.saved_path, true);
-    if (!args.previous_path || args.source !== "tab_close") {
+    if (!args.saved_note) return;
+    if (
+      !apply_saved_note(args.saved_note, args.saved_path, args.saved_mtime_ms)
+    ) {
       return;
     }
-    sync_pending_close_saved_path(args.previous_path, args.saved_path);
+    if (stores.ui.save_note_dialog !== args.dialog) return;
+    close_save_dialog(input);
+    if (args.source !== "tab_close") {
+      return;
+    }
+    sync_pending_close_saved_path(args.saved_note.meta.path, args.saved_path);
     await registry.execute(ACTION_IDS.tab_confirm_close_save);
   }
 
@@ -636,7 +681,7 @@ export function register_note_actions(input: ActionRegistrationInput) {
 
         const source = parse_save_request_payload(payload)?.source ?? "manual";
         if (!is_draft_note_path(open_note.meta.path)) {
-          await services.note.save_note(null, true);
+          await save_existing_note();
           return;
         }
 
@@ -658,11 +703,14 @@ export function register_note_actions(input: ActionRegistrationInput) {
       label: "Confirm Save Note",
       execute: async () => {
         if (!stores.ui.save_note_dialog.open) {
-          await services.note.save_note(null, true);
+          await save_existing_note();
           return;
         }
 
-        const previous_path = stores.editor.open_note?.meta.path ?? null;
+        services.editor.flush();
+        const saved_note = stores.editor.open_note;
+        const vault_generation = stores.vault.generation;
+        const dialog = stores.ui.save_note_dialog;
         const source = stores.ui.save_note_dialog.source;
         const path = stores.ui.save_note_dialog.new_path;
         if (!path) {
@@ -671,17 +719,27 @@ export function register_note_actions(input: ActionRegistrationInput) {
 
         stores.ui.save_note_dialog.is_checking_existence = true;
         const result = await services.note.save_note(path, false);
-        stores.ui.save_note_dialog.is_checking_existence = false;
+        if (stores.vault.generation !== vault_generation) {
+          return;
+        }
+        if (stores.ui.save_note_dialog === dialog) {
+          stores.ui.save_note_dialog.is_checking_existence = false;
+        }
 
-        if (result.status === "conflict") {
+        if (
+          result.status === "conflict" &&
+          stores.ui.save_note_dialog === dialog
+        ) {
           stores.ui.save_note_dialog.show_overwrite_confirm = true;
           return;
         }
 
         if (result.status === "saved") {
           await finalize_saved_note({
-            previous_path,
+            saved_note,
+            dialog,
             saved_path: result.saved_path,
+            saved_mtime_ms: result.saved_mtime_ms,
             source,
           });
         }
@@ -692,7 +750,10 @@ export function register_note_actions(input: ActionRegistrationInput) {
       id: ACTION_IDS.note_confirm_save_overwrite,
       label: "Confirm Save Note Overwrite",
       execute: async () => {
-        const previous_path = stores.editor.open_note?.meta.path ?? null;
+        services.editor.flush();
+        const saved_note = stores.editor.open_note;
+        const vault_generation = stores.vault.generation;
+        const dialog = stores.ui.save_note_dialog;
         const source = stores.ui.save_note_dialog.source;
         const path = stores.ui.save_note_dialog.new_path;
         if (!path) {
@@ -700,10 +761,15 @@ export function register_note_actions(input: ActionRegistrationInput) {
         }
 
         const result = await services.note.save_note(path, true);
+        if (stores.vault.generation !== vault_generation) {
+          return;
+        }
         if (result.status === "saved") {
           await finalize_saved_note({
-            previous_path,
+            saved_note,
+            dialog,
             saved_path: result.saved_path,
+            saved_mtime_ms: result.saved_mtime_ms,
             source,
           });
         }
@@ -714,16 +780,26 @@ export function register_note_actions(input: ActionRegistrationInput) {
       id: ACTION_IDS.note_retry_save,
       label: "Retry Save Note",
       execute: async () => {
-        const previous_path = stores.editor.open_note?.meta.path ?? null;
+        if (!stores.ui.save_note_dialog.open) {
+          await save_existing_note();
+          return;
+        }
+        services.editor.flush();
+        const saved_note = stores.editor.open_note;
+        const vault_generation = stores.vault.generation;
+        const dialog = stores.ui.save_note_dialog;
         const source = stores.ui.save_note_dialog.source;
-        const path = stores.ui.save_note_dialog.open
-          ? stores.ui.save_note_dialog.new_path
-          : null;
+        const path = dialog.new_path;
         const result = await services.note.save_note(path, true);
-        if (result.status === "saved" && stores.ui.save_note_dialog.open) {
+        if (stores.vault.generation !== vault_generation) {
+          return;
+        }
+        if (result.status === "saved" && path) {
           await finalize_saved_note({
-            previous_path,
+            saved_note,
+            dialog,
             saved_path: result.saved_path,
+            saved_mtime_ms: result.saved_mtime_ms,
             source,
           });
         }

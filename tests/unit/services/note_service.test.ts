@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 import { NoteService } from "$lib/features/note/application/note_service";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 import { NotesStore } from "$lib/features/note/state/note_store.svelte";
@@ -15,7 +15,7 @@ import {
   create_mock_notes_port,
 } from "../helpers/mock_ports";
 import type { EditorService } from "$lib/features/editor/application/editor_service";
-import type { AssetsPort } from "$lib/features/note/ports";
+import type { AssetsPort, NotesPort } from "$lib/features/note/ports";
 import type { LinkRepairService } from "$lib/features/links/application/link_repair_service";
 
 function create_deferred<T>() {
@@ -1406,5 +1406,250 @@ describe("NoteService.save_pasted_image", () => {
     >;
     expect(call_arg.store_with_note).toBe(true);
     expect(call_arg.attachment_folder).toBeUndefined();
+  });
+});
+
+describe("NoteService save completion", () => {
+  function create_pending_save(draft = false) {
+    const vault_store = new VaultStore();
+    vault_store.set_vault(create_test_vault());
+    const notes_store = new NotesStore();
+    const editor_store = new EditorStore();
+    const path = as_note_path(draft ? "draft:1:Untitled-1" : "alpha.md");
+    const meta = {
+      id: path,
+      path,
+      name: "alpha",
+      title: "alpha",
+      mtime_ms: 10,
+      size_bytes: 0,
+    };
+    editor_store.set_open_note({
+      meta,
+      buffer_id: "original-buffer",
+      markdown: as_markdown_text("saved text"),
+      is_dirty: true,
+    });
+    let live_markdown = as_markdown_text("saved text");
+    const flush = vi.fn(() => ({ note_id: path, markdown: live_markdown }));
+    const mark_clean = vi.fn();
+    const rename_buffer = vi.fn();
+    const editor_service = {
+      flush,
+      mark_clean,
+      rename_buffer,
+    } as unknown as EditorService;
+    const write = create_deferred<number>();
+    const notes_port = create_mock_notes_port();
+    notes_port.write_note = vi.fn(() => write.promise);
+    notes_port.create_note = vi.fn<NotesPort["create_note"]>(
+      async (_vault, target) => ({
+        ...meta,
+        id: target,
+        path: target,
+        mtime_ms: await write.promise,
+      }),
+    );
+    const service = new NoteService(
+      notes_port,
+      create_mock_index_port(),
+      {
+        resolve_asset_url: vi.fn(),
+        write_image_asset: vi.fn(),
+      } as unknown as AssetsPort,
+      vault_store,
+      notes_store,
+      editor_store,
+      new OpStore(),
+      editor_service,
+      () => 1,
+    );
+    return {
+      service,
+      notes_port,
+      vault_store,
+      editor_store,
+      notes_store,
+      write,
+      flush,
+      mark_clean,
+      rename_buffer,
+      type_text(text: string) {
+        live_markdown = as_markdown_text(text);
+      },
+    };
+  }
+
+  it("returns the actual mtime when writing inactive note content", async () => {
+    const pending = create_pending_save();
+    const write = pending.service.write_note_content(
+      as_note_path("alpha.md"),
+      as_markdown_text("inactive edit"),
+    );
+    pending.write.resolve(42);
+    expect(await write).toBe(42);
+  });
+
+  it("reports no write when inactive note content has no active vault", async () => {
+    const pending = create_pending_save();
+    const write_note = vi.fn<NotesPort["write_note"]>();
+    pending.notes_port.write_note = write_note;
+    pending.vault_store.clear();
+    expect(
+      await pending.service.write_note_content(
+        as_note_path("alpha.md"),
+        as_markdown_text("inactive edit"),
+      ),
+    ).toBeUndefined();
+    expect(write_note).not.toHaveBeenCalled();
+  });
+
+  it("keeps later live edits dirty and updates the saved file mtime", async () => {
+    const pending = create_pending_save();
+    const save = pending.service.save_note(null, false);
+    pending.type_text("typed while saving");
+    pending.write.resolve(20);
+    await save;
+    expect(pending.editor_store.open_note).toMatchObject({
+      markdown: "typed while saving",
+      is_dirty: true,
+      meta: { mtime_ms: 20 },
+    });
+    expect(pending.mark_clean).toHaveBeenCalledWith("alpha.md", "saved text");
+  });
+
+  it("uses the preceding queued write mtime and still rejects external changes", async () => {
+    const pending = create_pending_save();
+    let disk_mtime = 10;
+    const written: string[] = [];
+    const first_write = create_deferred<void>();
+    pending.notes_port.write_note = vi.fn<NotesPort["write_note"]>(
+      async (_vault, _path, markdown, expected_mtime) => {
+        if (written.length === 0) await first_write.promise;
+        if (expected_mtime !== disk_mtime)
+          throw new Error("conflict:mtime_mismatch");
+        written.push(markdown);
+        return ++disk_mtime;
+      },
+    );
+    const first_save = pending.service.save_note(null, false);
+    pending.type_text("second save");
+    const second_save = pending.service.save_note(null, false);
+    first_write.resolve();
+    expect((await first_save).status).toBe("saved");
+    expect((await second_save).status).toBe("saved");
+    expect(written).toEqual(["saved text", "second save"]);
+    disk_mtime += 1;
+    pending.type_text("third save");
+    expect((await pending.service.save_note(null, false)).status).toBe(
+      "conflict",
+    );
+    expect(written).toEqual(["saved text", "second save"]);
+  });
+
+  it("marks an unchanged live document clean", async () => {
+    const pending = create_pending_save();
+    const save = pending.service.save_note(null, false);
+    pending.write.resolve(20);
+    await save;
+    expect(pending.editor_store.open_note?.is_dirty).toBe(false);
+    expect(pending.mark_clean).toHaveBeenCalledOnce();
+  });
+
+  it.each(["tab", "reload", "vault"])(
+    "does not clean a different %s after a pending save",
+    async (change) => {
+      const pending = create_pending_save();
+      const save = pending.service.save_note(null, false);
+      const original = pending.editor_store.open_note;
+      assert(original);
+      if (change === "vault") {
+        pending.vault_store.clear();
+        pending.vault_store.set_vault(create_test_vault());
+      } else {
+        pending.editor_store.set_open_note({
+          ...original,
+          buffer_id: "new-buffer",
+          meta:
+            change === "tab"
+              ? {
+                  ...original.meta,
+                  id: as_note_path("beta.md"),
+                  path: as_note_path("beta.md"),
+                }
+              : original.meta,
+        });
+      }
+      pending.write.resolve(20);
+      await save;
+      expect(pending.editor_store.open_note?.is_dirty).toBe(true);
+      expect(pending.editor_store.open_note?.meta.mtime_ms).toBe(10);
+      expect(pending.mark_clean).not.toHaveBeenCalled();
+      expect(pending.flush).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("does not clean an editor session still showing another note", async () => {
+    const pending = create_pending_save();
+    const save = pending.service.save_note(null, false);
+    pending.flush.mockReturnValue({
+      note_id: as_note_path("other.md"),
+      markdown: as_markdown_text("saved text"),
+    });
+    pending.write.resolve(20);
+    await save;
+    expect(pending.editor_store.open_note?.is_dirty).toBe(true);
+    expect(pending.mark_clean).not.toHaveBeenCalled();
+  });
+
+  it("does not add a saved draft to the newly opened vault", async () => {
+    const pending = create_pending_save(true);
+    const save = pending.service.save_note(as_note_path("named.md"), false);
+    pending.vault_store.clear();
+    pending.vault_store.set_vault(create_test_vault());
+    pending.write.resolve(20);
+    await save;
+    expect(pending.notes_store.notes).toEqual([]);
+    expect(pending.rename_buffer).not.toHaveBeenCalled();
+  });
+
+  it("renames the saved draft without cleaning edits made during creation", async () => {
+    const pending = create_pending_save(true);
+    const save = pending.service.save_note(as_note_path("named.md"), false);
+    pending.type_text("later draft edit");
+    pending.write.resolve(20);
+    await save;
+    expect(pending.editor_store.open_note).toMatchObject({
+      markdown: "later draft edit",
+      is_dirty: true,
+      meta: { path: "named.md", mtime_ms: 20 },
+    });
+    expect(pending.rename_buffer).toHaveBeenCalledWith(
+      "draft:1:Untitled-1",
+      "named.md",
+    );
+    expect(pending.mark_clean).toHaveBeenCalledWith("named.md", "saved text");
+  });
+
+  it("does not rename a different tab when draft creation finishes", async () => {
+    const pending = create_pending_save(true);
+    const save = pending.service.save_note(as_note_path("named.md"), false);
+    const original = pending.editor_store.open_note;
+    assert(original);
+    pending.editor_store.set_open_note({
+      ...original,
+      buffer_id: "other-draft",
+      markdown: as_markdown_text("other tab"),
+    });
+    pending.write.resolve(20);
+    await save;
+    expect(pending.editor_store.open_note?.meta.path).toBe(
+      "draft:1:Untitled-1",
+    );
+    expect(pending.rename_buffer).not.toHaveBeenCalled();
+    expect(pending.mark_clean).not.toHaveBeenCalled();
+    expect(
+      pending.notes_store.notes.some((note) => note.path === "named.md"),
+    ).toBe(true);
   });
 });

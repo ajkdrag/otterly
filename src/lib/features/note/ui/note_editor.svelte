@@ -48,7 +48,7 @@
             onclick={() => void action_registry.execute(ACTION_IDS.note_create)}
           >
             <PlusIcon />
-            New Note
+            New note
           </Button>
           {#if create_note_hotkey}
             <span class="NoteEditor__empty-shortcut-label">or press</span>
@@ -106,7 +106,8 @@
   }
 
   .NoteEditor__empty-title {
-    font-size: var(--text-base);
+    font-family: var(--font-heading, var(--font-sans));
+    font-size: 1.25rem;
     font-weight: 500;
     color: var(--foreground);
   }

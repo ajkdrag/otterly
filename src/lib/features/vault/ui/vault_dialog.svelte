@@ -36,7 +36,7 @@
 </script>
 
 <Dialog.Root {open} onOpenChange={on_open_change}>
-  <Dialog.Content class="VaultDialog" showCloseButton={false}>
+  <Dialog.Content class="VaultDialog font-sans" showCloseButton={false}>
     <VaultSelectionPanel
       is_dialog={true}
       {recent_vaults}
@@ -55,3 +55,10 @@
     />
   </Dialog.Content>
 </Dialog.Root>
+
+<style>
+  :global([data-slot="dialog-content"].VaultDialog) {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+</style>

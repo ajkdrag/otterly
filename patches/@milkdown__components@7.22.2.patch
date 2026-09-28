@@ -1,0 +1,552 @@
+diff --git a/lib/code-block/index.js b/lib/code-block/index.js
+index 407bf7b..46f6167 100644
+--- a/lib/code-block/index.js
++++ b/lib/code-block/index.js
+@@ -4,7 +4,7 @@ import { Compartment, EditorState } from '@codemirror/state';
+ import { EditorView, drawSelection, keymap } from '@codemirror/view';
+ import { exitCode } from '@milkdown/prose/commands';
+ import { undo, redo } from '@milkdown/prose/history';
+-import { TextSelection } from '@milkdown/prose/state';
++import { Selection, TextSelection } from '@milkdown/prose/state';
+ import { h, Fragment, defineComponent, ref, watch, computed, onMounted, onUnmounted, watchEffect, createApp } from 'vue';
+ import clsx from 'clsx';
+ import DOMPurify from 'dompurify';
+@@ -264,25 +264,79 @@ const LanguagePicker = defineComponent({
+       const target = e.target;
+       filter.value = target.value;
+     };
++    const results = () => {
++      const picker = pickerRef.value;
++      return Array.from(picker ? picker.querySelectorAll(".language-list-item[data-language]") : []);
++    };
++    const closePicker = () => {
++      var _a;
++      showPicker.value = false;
++      (_a = triggerRef.value) == null ? void 0 : _a.focus();
++    };
++    const chooseLanguage = (name) => {
++      setLanguage(name);
++      closePicker();
++    };
+     const onSearchKeydown = (e) => {
+-      if (e.key === "Escape") filter.value = "";
++      if (e.isComposing) return;
++      if (e.key === "Escape") {
++        e.preventDefault();
++        e.stopPropagation();
++        closePicker();
++      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
++        e.preventDefault();
++        e.stopPropagation();
++        const items = results();
++        const next = e.key === "ArrowDown" ? items[0] : items[items.length - 1];
++        next == null ? void 0 : next.focus();
++      } else if (e.key === "Enter") {
++        e.preventDefault();
++        e.stopPropagation();
++        const first = results()[0];
++        if (first) chooseLanguage(first.dataset.language != null ? first.dataset.language : "");
++      }
+     };
++    const onListKeydown = (e) => {
++      if (e.isComposing) return;
++      const active = document.activeElement;
++      if (!(active instanceof HTMLElement)) return;
++      const name = active.dataset.language;
++      if (e.key === "Escape") {
++        e.preventDefault();
++        e.stopPropagation();
++        closePicker();
++      } else if (name !== void 0 && e.key === "Enter") {
++        e.preventDefault();
++        e.stopPropagation();
++        chooseLanguage(name);
++      } else if (name !== void 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
++        e.preventDefault();
++        e.stopPropagation();
++        const items = results();
++        const index = items.indexOf(active);
++        if (index < 0) return;
++        const step = e.key === "ArrowDown" ? 1 : -1;
++        items[(index + step + items.length) % items.length].focus();
++      }
++    };
++    const isSelected = (languageInfo) => {
++      const current = language.value.toLowerCase();
++      return languageInfo.name.toLowerCase() === current || languageInfo.alias.some((alias) => alias.toLowerCase() === current);
++    };
++    const displayAliases = (languageInfo) => languageInfo.alias.filter((alias) => alias.toLowerCase() !== languageInfo.name.toLowerCase()).join(", ");
+     const languages = computed(() => {
+       var _a;
+       if (!showPicker.value) return [];
+       const all = (_a = getAllLanguages()) != null ? _a : [];
+-      const selected = all.find(
+-        (languageInfo) => languageInfo.name.toLowerCase() === language.value.toLowerCase()
++      const selected = all.find(isSelected);
++      const currentValue = filter.value.toLowerCase();
++      const matchesFilter = (languageInfo) => languageInfo.name.toLowerCase().includes(currentValue) || languageInfo.alias.some(
++        (alias) => alias.toLowerCase().includes(currentValue)
+       );
+-      const filtered = all.filter((languageInfo) => {
+-        const currentValue = filter.value.toLowerCase();
+-        return (languageInfo.name.toLowerCase().includes(currentValue) || languageInfo.alias.some(
+-          (alias) => alias.toLowerCase().includes(currentValue)
+-        )) && languageInfo !== selected;
+-      });
+-      if (filtered.length === 0) return [];
+-      if (!selected) return filtered;
+-      return [selected, ...filtered];
++      const filtered = all.filter(
++        (languageInfo) => languageInfo !== selected && matchesFilter(languageInfo)
++      );
++      return selected && matchesFilter(selected) ? [selected, ...filtered] : filtered;
+     });
+     const clickHandler = (e) => {
+       const target = e.target;
+@@ -307,9 +361,10 @@ const LanguagePicker = defineComponent({
+           ref: triggerRef,
+           class: "language-button",
+           onClick: onTogglePicker,
+-          "data-expanded": String(showPicker.value)
++          "data-expanded": String(showPicker.value),
++          title: language.value ? `Markdown fence: ${language.value}` : "Markdown fence: none"
+         },
+-        language.value || "Text",
++        config.renderLanguage(language.value, false),
+         /* @__PURE__ */ h("div", { class: "expand-icon" }, /* @__PURE__ */ h(Icon, { icon: config.expandIcon }))
+       ), /* @__PURE__ */ h("div", { ref: pickerRef, class: "language-picker" }, showPicker.value ? /* @__PURE__ */ h("div", { class: "list-wrapper" }, /* @__PURE__ */ h("div", { class: "search-box" }, /* @__PURE__ */ h("div", { class: "search-icon" }, /* @__PURE__ */ h(Icon, { icon: config.searchIcon })), /* @__PURE__ */ h(
+         "input",
+@@ -340,31 +395,25 @@ const LanguagePicker = defineComponent({
+         {
+           class: "language-list",
+           role: "listbox",
+-          onKeydown: (e) => {
+-            if (e.key === "Enter") {
+-              const active = document.activeElement;
+-              if (active instanceof HTMLElement && active.dataset.language)
+-                setLanguage(active.dataset.language);
+-            }
+-          }
++          onKeydown: onListKeydown
+         },
+         !languages.value.length ? /* @__PURE__ */ h("li", { class: "language-list-item no-result" }, config.noResultText) : languages.value.map((languageInfo) => /* @__PURE__ */ h(
+           "li",
+           {
+-            role: "listitem",
++            role: "option",
+             tabindex: "0",
+             class: "language-list-item",
+-            "aria-selected": languageInfo.name.toLowerCase() === language.value.toLowerCase(),
++            "aria-selected": isSelected(languageInfo),
+             "data-language": languageInfo.name,
+             onClick: () => {
+-              setLanguage(languageInfo.name);
+-              showPicker.value = false;
++              chooseLanguage(languageInfo.name);
+             }
+           },
+           config.renderLanguage(
+             languageInfo.name,
+-            languageInfo.name.toLowerCase() === language.value.toLowerCase()
+-          )
++            isSelected(languageInfo)
++          ),
++          /* @__PURE__ */ h("small", { class: "language-list-aliases" }, displayAliases(languageInfo))
+         ))
+       )) : null));
+     };
+@@ -680,19 +729,30 @@ const _CodeMirrorBlock = class _CodeMirrorBlock {
+       ];
+     };
+     this.maybeEscape = (unit, dir) => {
+-      var _a;
+       const { state } = this.cm;
+       let main = state.selection.main;
+       if (!main.empty) return false;
+       if (unit === "line") main = state.doc.lineAt(main.head);
+       if (dir < 0 ? main.from > 0 : main.to < state.doc.length) return false;
+-      const targetPos = ((_a = this.getPos()) != null ? _a : 0) + (dir < 0 ? 0 : this.node.nodeSize);
+-      const selection = TextSelection.near(
+-        this.view.state.doc.resolve(targetPos),
+-        dir
+-      );
+-      const tr = this.view.state.tr.setSelection(selection).scrollIntoView();
+-      this.view.dispatch(tr);
++      const pos = this.getPos();
++      if (pos === void 0) return false;
++      const targetPos = pos + (dir < 0 ? 0 : this.node.nodeSize);
++      const viewState = this.view.state;
++      const $target = viewState.doc.resolve(targetPos);
++      const selection = Selection.findFrom($target, dir, true);
++      if (selection) {
++        this.view.dispatch(viewState.tr.setSelection(selection).scrollIntoView());
++        this.view.focus();
++        return true;
++      }
++      const paragraph = viewState.schema.nodes.paragraph;
++      if (!paragraph || !this.view.editable) return false;
++      const index = $target.index();
++      if (!$target.parent.canReplaceWith(index, index, paragraph)) return false;
++      // No text exists in the requested direction. Add it beside this code block.
++      const tr = viewState.tr.insert(targetPos, paragraph.create());
++      tr.setSelection(TextSelection.create(tr.doc, targetPos + 1));
++      this.view.dispatch(tr.scrollIntoView());
+       this.view.focus();
+       return true;
+     };
+@@ -800,14 +860,13 @@ const _CodeMirrorBlock = class _CodeMirrorBlock {
+     const languageName = this.node.attrs.language;
+     if (languageName === this.languageName) return;
+     this.language.value = languageName;
+-    const language = this.loader.load(languageName != null ? languageName : "");
+-    language.then((lang) => {
+-      if (lang) {
+-        this.cm.dispatch({
+-          effects: this.languageConf.reconfigure(lang)
+-        });
+-        this.languageName = languageName;
+-      }
++    const cm = this.cm;
++    this.loader.load(languageName != null ? languageName : "").then((lang) => {
++      if (!this.initialized || this.cm !== cm || this.node.attrs.language !== languageName) return;
++      this.cm.dispatch({
++        effects: this.languageConf.reconfigure(lang != null ? lang : [])
++      });
++      this.languageName = languageName;
+     }).catch(console.error);
+   }
+   setSelection(anchor, head) {
+@@ -883,6 +942,7 @@ const _CodeMirrorBlock = class _CodeMirrorBlock {
+     if (this.initialized) {
+       this.app.unmount();
+       this.cm.destroy();
++      this.initialized = false;
+     }
+     this.disposeSelectedWatcher();
+   }
+diff --git a/lib/list-item-block/index.js b/lib/list-item-block/index.js
+index 4dd1d57..1a0c70d 100644
+--- a/lib/list-item-block/index.js
++++ b/lib/list-item-block/index.js
+@@ -186,6 +186,8 @@ const listItemBlockView = $view(
+   listItemSchema.node,
+   (ctx) => {
+     return (initialNode, view, getPos) => {
++      // Plain list items need only the schema DOM. Vue owns the task checkbox.
++      if (initialNode.attrs.checked == null) return {};
+       const dom = document.createElement("div");
+       dom.className = "milkdown-list-item-block";
+       const contentDOM = document.createElement("div");
+@@ -254,7 +256,7 @@ const listItemBlockView = $view(
+         dom,
+         contentDOM,
+         update: (updatedNode) => {
+-          if (updatedNode.type !== initialNode.type) return false;
++          if (updatedNode.type !== initialNode.type || updatedNode.attrs.checked == null) return false;
+           if (updatedNode.sameMarkup(node) && updatedNode.content.eq(node.content))
+             return true;
+           node = updatedNode;
+diff --git a/src/code-block/view/components/language-picker.tsx b/src/code-block/view/components/language-picker.tsx
+index 640fc7f..14ee36d 100644
+--- a/src/code-block/view/components/language-picker.tsx
++++ b/src/code-block/view/components/language-picker.tsx
+@@ -90,37 +90,100 @@ export const LanguagePicker = defineComponent<LanguagePickerProps>({
+       filter.value = target.value
+     }
+ 
+-    const onSearchKeydown = (e: Event) => {
+-      if ((e as KeyboardEvent).key === 'Escape') filter.value = ''
++    const results = () =>
++      Array.from(
++        pickerRef.value?.querySelectorAll<HTMLElement>(
++          '.language-list-item[data-language]'
++        ) ?? []
++      )
++
++    const closePicker = () => {
++      showPicker.value = false
++      triggerRef.value?.focus()
+     }
+ 
+-    const languages = computed(() => {
+-      if (!showPicker.value) return []
++    const chooseLanguage = (name: string) => {
++      setLanguage(name)
++      closePicker()
++    }
+ 
+-      const all = getAllLanguages() ?? []
++    const onSearchKeydown = (e: KeyboardEvent) => {
++      if (e.isComposing) return
++      if (e.key === 'Escape') {
++        e.preventDefault()
++        e.stopPropagation()
++        closePicker()
++      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
++        e.preventDefault()
++        e.stopPropagation()
++        const items = results()
++        const next = e.key === 'ArrowDown' ? items[0] : items[items.length - 1]
++        next?.focus()
++      } else if (e.key === 'Enter') {
++        e.preventDefault()
++        e.stopPropagation()
++        const first = results()[0]
++        if (first) chooseLanguage(first.dataset.language ?? '')
++      }
++    }
++
++    const onListKeydown = (e: KeyboardEvent) => {
++      if (e.isComposing) return
++      const active = document.activeElement
++      if (!(active instanceof HTMLElement)) return
++      const name = active.dataset.language
++      if (e.key === 'Escape') {
++        e.preventDefault()
++        e.stopPropagation()
++        closePicker()
++      } else if (name !== undefined && e.key === 'Enter') {
++        e.preventDefault()
++        e.stopPropagation()
++        chooseLanguage(name)
++      } else if (name !== undefined && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
++        e.preventDefault()
++        e.stopPropagation()
++        const items = results()
++        const index = items.indexOf(active)
++        if (index < 0) return
++        const step = e.key === 'ArrowDown' ? 1 : -1
++        items[(index + step + items.length) % items.length]?.focus()
++      }
++    }
+ 
+-      const selected = all.find(
+-        (languageInfo) =>
+-          languageInfo.name.toLowerCase() === language.value.toLowerCase()
++    const isSelected = (languageInfo: ReturnType<typeof getAllLanguages>[number]) => {
++      const current = language.value.toLowerCase()
++      return (
++        languageInfo.name.toLowerCase() === current ||
++        languageInfo.alias.some((alias) => alias.toLowerCase() === current)
+       )
++    }
+ 
+-      const filtered = all.filter((languageInfo) => {
+-        const currentValue = filter.value.toLowerCase()
++    const displayAliases = (languageInfo: ReturnType<typeof getAllLanguages>[number]) =>
++      languageInfo.alias
++        .filter((alias) => alias.toLowerCase() !== languageInfo.name.toLowerCase())
++        .join(', ')
+ 
+-        return (
+-          (languageInfo.name.toLowerCase().includes(currentValue) ||
+-            languageInfo.alias.some((alias) =>
+-              alias.toLowerCase().includes(currentValue)
+-            )) &&
+-          languageInfo !== selected
+-        )
+-      })
++    const languages = computed(() => {
++      if (!showPicker.value) return []
++
++      const all = getAllLanguages() ?? []
+ 
+-      if (filtered.length === 0) return []
++      const selected = all.find(isSelected)
+ 
+-      if (!selected) return filtered
++      const currentValue = filter.value.toLowerCase()
++      const matchesFilter = (languageInfo: (typeof all)[number]) =>
++        languageInfo.name.toLowerCase().includes(currentValue) ||
++        languageInfo.alias.some((alias) =>
++          alias.toLowerCase().includes(currentValue)
++        )
++      const filtered = all.filter(
++        (languageInfo) => languageInfo !== selected && matchesFilter(languageInfo)
++      )
+ 
+-      return [selected, ...filtered]
++      return selected && matchesFilter(selected)
++        ? [selected, ...filtered]
++        : filtered
+     })
+ 
+     const clickHandler = (e: MouseEvent) => {
+@@ -154,8 +217,9 @@ export const LanguagePicker = defineComponent<LanguagePickerProps>({
+             class="language-button"
+             onClick={onTogglePicker}
+             data-expanded={String(showPicker.value)}
++            title={language.value ? `Markdown fence: ${language.value}` : 'Markdown fence: none'}
+           >
+-            {language.value || 'Text'}
++            {config.renderLanguage(language.value, false)}
+             <div class="expand-icon">
+               <Icon icon={config.expandIcon} />
+             </div>
+@@ -192,16 +256,7 @@ export const LanguagePicker = defineComponent<LanguagePickerProps>({
+                 <ul
+                   class="language-list"
+                   role="listbox"
+-                  onKeydown={(e) => {
+-                    if (e.key === 'Enter') {
+-                      const active = document.activeElement
+-                      if (
+-                        active instanceof HTMLElement &&
+-                        active.dataset.language
+-                      )
+-                        setLanguage(active.dataset.language)
+-                    }
+-                  }}
++                  onKeydown={onListKeydown}
+                 >
+                   {!languages.value.length ? (
+                     <li class="language-list-item no-result">
+@@ -210,24 +265,20 @@ export const LanguagePicker = defineComponent<LanguagePickerProps>({
+                   ) : (
+                     languages.value.map((languageInfo) => (
+                       <li
+-                        role="listitem"
++                        role="option"
+                         tabindex="0"
+                         class="language-list-item"
+-                        aria-selected={
+-                          languageInfo.name.toLowerCase() ===
+-                          language.value.toLowerCase()
+-                        }
++                        aria-selected={isSelected(languageInfo)}
+                         data-language={languageInfo.name}
+                         onClick={() => {
+-                          setLanguage(languageInfo.name)
+-                          showPicker.value = false
++                          chooseLanguage(languageInfo.name)
+                         }}
+                       >
+                         {config.renderLanguage(
+                           languageInfo.name,
+-                          languageInfo.name.toLowerCase() ===
+-                            language.value.toLowerCase()
++                          isSelected(languageInfo)
+                         )}
++                        <small class="language-list-aliases">{displayAliases(languageInfo)}</small>
+                       </li>
+                     ))
+                   )}
+diff --git a/src/code-block/view/node-view.ts b/src/code-block/view/node-view.ts
+index 62b3b5d..b858c50 100644
+--- a/src/code-block/view/node-view.ts
++++ b/src/code-block/view/node-view.ts
+@@ -12,7 +12,7 @@ import {
+ } from '@codemirror/view'
+ import { exitCode } from '@milkdown/prose/commands'
+ import { redo, undo } from '@milkdown/prose/history'
+-import { TextSelection } from '@milkdown/prose/state'
++import { Selection, TextSelection } from '@milkdown/prose/state'
+ import { createApp, ref, watchEffect, type App, type WatchHandle } from 'vue'
+ 
+ import type { CodeBlockConfig } from '../config'
+@@ -213,24 +213,24 @@ export class CodeMirrorBlock implements NodeView {
+ 
+   private updateLanguage() {
+     const languageName = this.node.attrs.language
+-
+     if (languageName === this.languageName) return
+-
+     this.language.value = languageName
+-    const language = this.loader.load(languageName ?? '')
+-
+-    language
++    const cm = this.cm
++    this.loader
++      .load(languageName ?? '')
+       .then((lang) => {
+-        if (lang) {
+-          this.cm.dispatch({
+-            effects: this.languageConf.reconfigure(lang),
+-          })
+-          this.languageName = languageName
+-        }
++        if (
++          !this.initialized ||
++          this.cm !== cm ||
++          this.node.attrs.language !== languageName
++        ) return
++        this.cm.dispatch({
++          effects: this.languageConf.reconfigure(lang ?? []),
++        })
++        this.languageName = languageName
+       })
+       .catch(console.error)
+   }
+-
+   private codeMirrorKeymap = (): KeyBinding[] => {
+     const view = this.view
+     return [
+@@ -289,13 +289,27 @@ export class CodeMirrorBlock implements NodeView {
+     if (unit === 'line') main = state.doc.lineAt(main.head)
+     if (dir < 0 ? main.from > 0 : main.to < state.doc.length) return false
+ 
+-    const targetPos = (this.getPos() ?? 0) + (dir < 0 ? 0 : this.node.nodeSize)
+-    const selection = TextSelection.near(
+-      this.view.state.doc.resolve(targetPos),
+-      dir
+-    )
+-    const tr = this.view.state.tr.setSelection(selection).scrollIntoView()
+-    this.view.dispatch(tr)
++    const pos = this.getPos()
++    if (pos === undefined) return false
++    const targetPos = pos + (dir < 0 ? 0 : this.node.nodeSize)
++    const viewState = this.view.state
++    const $target = viewState.doc.resolve(targetPos)
++    const selection = Selection.findFrom($target, dir, true)
++    if (selection) {
++      this.view.dispatch(viewState.tr.setSelection(selection).scrollIntoView())
++      this.view.focus()
++      return true
++    }
++
++    const paragraph = viewState.schema.nodes.paragraph
++    if (!paragraph || !this.view.editable) return false
++    const index = $target.index()
++    if (!$target.parent.canReplaceWith(index, index, paragraph)) return false
++
++    // No text exists in the requested direction. Add it beside this code block.
++    const tr = viewState.tr.insert(targetPos, paragraph.create())
++    tr.setSelection(TextSelection.create(tr.doc, targetPos + 1))
++    this.view.dispatch(tr.scrollIntoView())
+     this.view.focus()
+     return true
+   }
+@@ -385,6 +399,7 @@ export class CodeMirrorBlock implements NodeView {
+     if (this.initialized) {
+       this.app.unmount()
+       this.cm.destroy()
++      this.initialized = false
+     }
+     this.disposeSelectedWatcher()
+   }
+diff --git a/src/list-item-block/view.ts b/src/list-item-block/view.ts
+index e40c18f..ee1d9e2 100644
+--- a/src/list-item-block/view.ts
++++ b/src/list-item-block/view.ts
+@@ -14,6 +14,9 @@ export const listItemBlockView = $view(
+   listItemSchema.node,
+   (ctx): NodeViewConstructor => {
+     return (initialNode, view, getPos) => {
++      // Plain list items need only the schema DOM. Vue owns the task checkbox.
++      if (initialNode.attrs.checked == null) return {}
++
+       const dom = document.createElement('div')
+       dom.className = 'milkdown-list-item-block'
+ 
+@@ -96,7 +99,10 @@ export const listItemBlockView = $view(
+         dom,
+         contentDOM,
+         update: (updatedNode) => {
+-          if (updatedNode.type !== initialNode.type) return false
++          if (
++            updatedNode.type !== initialNode.type ||
++            updatedNode.attrs.checked == null
++          ) return false
+ 
+           if (
+             updatedNode.sameMarkup(node) &&

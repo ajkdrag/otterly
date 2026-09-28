@@ -11,6 +11,8 @@ import { create_logger } from "$lib/shared/utils/logger";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const log = create_logger("app_actions");
+const is_performance_logging_enabled =
+  import.meta.env.DEV && import.meta.env.MODE !== "test";
 
 type VaultInitializeResult = Awaited<
   ReturnType<ActionRegistrationInput["services"]["vault"]["initialize"]>
@@ -119,6 +121,7 @@ async function mount_ready_vault_state(
 }
 
 async function execute_app_mounted(input: ActionRegistrationInput) {
+  const started_at = is_performance_logging_enabled ? performance.now() : null;
   set_startup_loading(input);
 
   const bootstrap_data = await load_bootstrap_data(input);
@@ -126,6 +129,11 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
 
   if (bootstrap_data.vault_initialize_result.status === "error") {
     set_startup_error(input, bootstrap_data.vault_initialize_result.error);
+    if (started_at !== null) {
+      log.debug("App bootstrap failed", {
+        duration_ms: performance.now() - started_at,
+      });
+    }
     return;
   }
 
@@ -135,6 +143,13 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
 
   await mount_ready_vault_state(input, bootstrap_data.vault_initialize_result);
   set_startup_idle(input);
+  if (started_at !== null) {
+    log.debug("App bootstrap ready", {
+      duration_ms: performance.now() - started_at,
+      // Includes frontend loading since navigation, but not native process launch.
+      navigation_ready_ms: performance.now(),
+    });
+  }
 }
 
 async function execute_app_check_for_updates() {

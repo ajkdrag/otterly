@@ -6,6 +6,10 @@ import {
   register_tab_actions,
   ensure_tab_capacity,
 } from "$lib/features/tab/application/tab_actions";
+import {
+  capture_active_tab_snapshot,
+  save_dirty_tab,
+} from "$lib/features/tab/application/tab_action_helpers";
 import { register_note_actions } from "$lib/features/note/application/note_actions";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
@@ -82,7 +86,7 @@ function create_tab_actions_harness() {
       }),
       save_note: vi.fn().mockResolvedValue({ status: "saved" }),
       skip_mtime_guard: vi.fn(),
-      write_note_content: vi.fn().mockResolvedValue(undefined),
+      write_note_content: vi.fn().mockResolvedValue(99),
       reset_save_operation: vi.fn(),
       reset_asset_write_operation: vi.fn(),
       reset_delete_operation: vi.fn(),
@@ -99,6 +103,8 @@ function create_tab_actions_harness() {
       restore_view_state: vi.fn(),
       set_code_block_heights: vi.fn(),
       close_buffer: vi.fn(),
+      rename_buffer: vi.fn(),
+      mark_clean: vi.fn(),
     },
     clipboard: {
       copy_text: vi.fn().mockResolvedValue(undefined),
@@ -139,6 +145,50 @@ function create_tab_actions_harness() {
 
   return { registry, stores, services };
 }
+
+describe("existing note save completion", () => {
+  it.each([
+    ACTION_IDS.note_request_save,
+    ACTION_IDS.note_confirm_save,
+    ACTION_IDS.note_retry_save,
+  ])(
+    "reconciles the originating inactive tab for %s without losing later edits",
+    async (action) => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      const saved_note = {
+        ...mock_open_note("first.md"),
+        markdown: as_markdown_text("saved"),
+        is_dirty: true,
+      };
+      stores.tab.open_tab(np("first.md"), "first");
+      stores.editor.set_open_note(saved_note);
+      services.note.save_note.mockImplementation(() => {
+        stores.tab.set_cached_note("first.md", {
+          ...saved_note,
+          markdown: as_markdown_text("later edit"),
+        });
+        stores.tab.open_tab(np("second.md"), "second");
+        stores.editor.set_open_note(mock_open_note("second.md"));
+        return Promise.resolve({
+          status: "saved",
+          saved_path: np("first.md"),
+          saved_mtime_ms: 42,
+        });
+      });
+      await registry.execute(action);
+      expect(stores.tab.get_cached_note("first.md")).toMatchObject({
+        markdown: "later edit",
+        is_dirty: true,
+        meta: { mtime_ms: 42 },
+      });
+      expect(services.editor.mark_clean).toHaveBeenCalledWith(
+        "first.md",
+        "saved",
+      );
+      expect(stores.editor.open_note?.meta.path).toBe("second.md");
+    },
+  );
+});
 
 describe("register_tab_actions", () => {
   describe("tab_activate", () => {
@@ -224,6 +274,68 @@ describe("register_tab_actions", () => {
       expect(stores.tab.get_cached_note("a.md")?.meta.mtime_ms).toBe(99);
       expect(stores.tab.find_tab_by_path(np("a.md"))?.is_dirty).toBe(false);
     });
+
+    it("preserves edits typed while the outgoing tab save is pending", async () => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      stores.tab.open_tab(np("a.md"), "a");
+      stores.tab.open_tab(np("b.md"), "b");
+      stores.tab.activate_tab("a.md");
+      stores.tab.set_dirty("a.md", true);
+      stores.editor.set_open_note({
+        ...mock_open_note("a.md"),
+        markdown: as_markdown_text("saved"),
+        is_dirty: true,
+      });
+      services.note.save_note.mockImplementationOnce(() => {
+        stores.editor.set_markdown(
+          np("a.md"),
+          as_markdown_text("later typing"),
+        );
+        stores.editor.update_mtime(np("a.md"), 99);
+        return Promise.resolve({
+          status: "saved",
+          saved_path: np("a.md"),
+          saved_mtime_ms: 99,
+        });
+      });
+      await registry.execute(ACTION_IDS.tab_activate, "b.md");
+      expect(stores.tab.get_cached_note("a.md")).toMatchObject({
+        markdown: "later typing",
+        is_dirty: true,
+        meta: { mtime_ms: 99 },
+      });
+      expect(stores.tab.find_tab_by_path(np("a.md"))?.is_dirty).toBe(true);
+    });
+
+    it.each(["vault", "buffer"])(
+      "ignores outgoing save completion after %s replacement",
+      async (change) => {
+        const { stores, services } = create_tab_actions_harness();
+        stores.tab.open_tab(np("a.md"), "a");
+        stores.tab.set_dirty("a.md", true);
+        const original = { ...mock_open_note("a.md"), is_dirty: true };
+        stores.editor.set_open_note(original);
+        const replacement = {
+          ...original,
+          buffer_id: change === "vault" ? original.buffer_id : "replacement",
+          markdown: as_markdown_text("replacement text"),
+        };
+        services.note.save_note.mockImplementationOnce(() => {
+          if (change === "vault") stores.vault.set_vault(create_test_vault());
+          stores.editor.set_open_note(replacement);
+          stores.tab.set_cached_note("a.md", replacement);
+          stores.tab.set_dirty("a.md", true);
+          return Promise.resolve({
+            status: "saved",
+            saved_path: np("a.md"),
+            saved_mtime_ms: 99,
+          });
+        });
+        await capture_active_tab_snapshot({ stores, services } as never);
+        expect(stores.tab.get_cached_note("a.md")).toEqual(replacement);
+        expect(stores.tab.find_tab_by_path(np("a.md"))?.is_dirty).toBe(true);
+      },
+    );
 
     it("switching away from a dirty tab does not save when autosave is disabled", async () => {
       const { registry, stores, services } = create_tab_actions_harness();
@@ -519,11 +631,127 @@ describe("register_tab_actions", () => {
   });
 
   describe("tab close confirm flow", () => {
+    it.each(["active", "inactive"])(
+      "keeps an %s tab open when text changes during save and close",
+      async (mode) => {
+        const { registry, stores, services } = create_tab_actions_harness();
+        const original = {
+          ...mock_open_note("a.md"),
+          markdown: as_markdown_text("saved"),
+          is_dirty: true,
+        };
+        stores.tab.open_tab(np("a.md"), "a");
+        stores.tab.set_dirty("a.md", true);
+        stores.tab.set_cached_note("a.md", original);
+        stores.editor.set_open_note(original);
+        if (mode === "inactive") {
+          stores.tab.open_tab(np("b.md"), "b");
+          stores.editor.set_open_note(mock_open_note("b.md"));
+        }
+        const later = {
+          ...original,
+          markdown: as_markdown_text("later typing"),
+        };
+        services.note.save_note.mockImplementationOnce(() => {
+          stores.editor.set_open_note(later);
+          return Promise.resolve({
+            status: "saved",
+            saved_path: np("a.md"),
+            saved_mtime_ms: 99,
+          });
+        });
+        services.note.write_note_content.mockImplementationOnce(() => {
+          stores.tab.set_cached_note("a.md", later);
+          return Promise.resolve(99);
+        });
+        stores.ui.tab_close_confirm = {
+          ...stores.ui.tab_close_confirm,
+          open: true,
+          tab_id: "a.md",
+          tab_title: "a",
+        };
+        await registry.execute(ACTION_IDS.tab_confirm_close_save);
+        expect(stores.tab.find_tab_by_path(np("a.md"))).not.toBeNull();
+        expect(stores.ui.tab_close_confirm.open).toBe(true);
+        if (mode === "inactive")
+          expect(stores.tab.get_cached_note("a.md")?.meta.mtime_ms).toBe(99);
+        expect(
+          mode === "active"
+            ? stores.editor.open_note?.markdown
+            : stores.tab.get_cached_note("a.md")?.markdown,
+        ).toBe("later typing");
+      },
+    );
+
+    it.each(["vault", "buffer"])(
+      "does not complete save and close after %s replacement",
+      async (change) => {
+        const { stores, services } = create_tab_actions_harness();
+        const original = { ...mock_open_note("a.md"), is_dirty: true };
+        stores.tab.open_tab(np("a.md"), "a");
+        stores.tab.set_dirty("a.md", true);
+        stores.editor.set_open_note(original);
+        services.note.save_note.mockImplementationOnce(() => {
+          if (change === "vault") stores.vault.set_vault(create_test_vault());
+          stores.editor.set_open_note({
+            ...original,
+            is_dirty: false,
+            buffer_id: change === "buffer" ? "replacement" : original.buffer_id,
+          });
+          return Promise.resolve({
+            status: "saved",
+            saved_path: np("a.md"),
+            saved_mtime_ms: 99,
+          });
+        });
+        expect(
+          await save_dirty_tab({ stores, services } as never, "a.md"),
+        ).toBe("failed");
+      },
+    );
+
+    it.each(["vault", "buffer", "skipped"])(
+      "rejects inactive save completion after %s",
+      async (change) => {
+        const { stores, services } = create_tab_actions_harness();
+        const original = { ...mock_open_note("a.md"), is_dirty: true };
+        stores.tab.open_tab(np("a.md"), "a");
+        stores.tab.set_dirty("a.md", true);
+        stores.tab.set_cached_note("a.md", original);
+        stores.tab.open_tab(np("b.md"), "b");
+        stores.editor.set_open_note(mock_open_note("b.md"));
+        services.note.write_note_content.mockImplementationOnce(() => {
+          if (change === "vault") stores.vault.set_vault(create_test_vault());
+          if (change === "buffer")
+            stores.tab.set_cached_note("a.md", {
+              ...original,
+              buffer_id: "replacement",
+            });
+          return Promise.resolve(change === "skipped" ? undefined : 99);
+        });
+        expect(
+          await save_dirty_tab({ stores, services } as never, "a.md"),
+        ).toBe("failed");
+        expect(stores.tab.get_cached_note("a.md")?.is_dirty).toBe(true);
+        expect(stores.tab.get_cached_note("a.md")?.meta.mtime_ms).toBe(0);
+        expect(services.editor.mark_clean).not.toHaveBeenCalled();
+      },
+    );
+
     it("saves and closes tab via confirm_close_save", async () => {
       const { registry, stores, services } = create_tab_actions_harness();
       stores.tab.open_tab(np("a.md"), "a");
       stores.tab.set_dirty("a.md", true);
+      stores.editor.set_open_note(mock_open_note("a.md"));
 
+      services.note.save_note.mockImplementationOnce(() => {
+        stores.editor.mark_clean(np("a.md"), 99);
+        return Promise.resolve({
+          status: "saved",
+          saved_path: np("a.md"),
+          saved_mtime_ms: 99,
+        });
+      });
       stores.ui.tab_close_confirm = {
         open: true,
         tab_id: "a.md",
@@ -551,6 +779,14 @@ describe("register_tab_actions", () => {
         is_dirty: true,
       });
 
+      services.note.save_note.mockImplementationOnce(() => {
+        stores.editor.mark_clean(np("a.md"), 99);
+        return Promise.resolve({
+          status: "saved",
+          saved_path: np("a.md"),
+          saved_mtime_ms: 99,
+        });
+      });
       stores.ui.tab_close_confirm = {
         open: true,
         tab_id: "a.md",
@@ -635,6 +871,7 @@ describe("register_tab_actions", () => {
         .mockImplementationOnce(() => {
           stores.editor.set_open_note({
             ...mock_open_note("saved.md"),
+            buffer_id: "untitled-buffer",
             is_dirty: false,
           });
           return Promise.resolve({
@@ -663,6 +900,130 @@ describe("register_tab_actions", () => {
 
       expect(stores.tab.find_tab_by_path(np("saved.md"))).toBeNull();
       expect(stores.ui.save_note_dialog.open).toBe(false);
+    });
+
+    it.each([
+      ACTION_IDS.note_confirm_save,
+      ACTION_IDS.note_confirm_save_overwrite,
+      ACTION_IDS.note_retry_save,
+    ])(
+      "renames only the original draft when a tab switches during %s",
+      async (action) => {
+        const { registry, stores, services } = create_tab_actions_harness();
+        const draft = mock_draft_open_note("draft:1:Untitled-1");
+        stores.tab.open_tab(draft.meta.path, "Untitled-1");
+        stores.editor.set_open_note(draft);
+        await registry.execute(ACTION_IDS.note_request_save);
+        stores.ui.save_note_dialog.new_path = np("saved.md");
+        let finish_save = () => {};
+        services.note.save_note.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish_save = () => {
+                resolve({ status: "saved", saved_path: np("saved.md") });
+              };
+            }),
+        );
+        const save = registry.execute(action);
+        stores.tab.open_tab(np("other.md"), "other");
+        stores.editor.set_open_note(mock_open_note("other.md"));
+        finish_save();
+        await save;
+        expect(stores.tab.active_tab_id).toBe("other.md");
+        expect(stores.tab.find_tab_by_path(np("other.md"))).not.toBeNull();
+        expect(stores.tab.find_tab_by_path(np("saved.md"))).not.toBeNull();
+        expect(stores.tab.get_cached_note("saved.md")?.meta.path).toBe(
+          "saved.md",
+        );
+        expect(stores.editor.open_note?.meta.path).toBe("other.md");
+      },
+    );
+
+    it("preserves later cached edits when saving an inactive draft", async () => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      const draft = {
+        ...mock_draft_open_note("draft:1:Untitled-1"),
+        markdown: as_markdown_text("saved"),
+        is_dirty: true,
+      };
+      stores.tab.open_tab(draft.meta.path, "Untitled-1");
+      stores.editor.set_open_note(draft);
+      await registry.execute(ACTION_IDS.note_request_save);
+      stores.ui.save_note_dialog.new_path = np("saved.md");
+      services.note.save_note.mockImplementationOnce(() => {
+        stores.tab.set_cached_note(draft.meta.path, {
+          ...draft,
+          markdown: as_markdown_text("later edit"),
+        });
+        stores.tab.open_tab(np("other.md"), "other");
+        stores.editor.set_open_note(mock_open_note("other.md"));
+        return Promise.resolve({
+          status: "saved",
+          saved_path: np("saved.md"),
+          saved_mtime_ms: 42,
+        });
+      });
+      await registry.execute(ACTION_IDS.note_confirm_save);
+      expect(stores.tab.get_cached_note("saved.md")).toMatchObject({
+        markdown: "later edit",
+        is_dirty: true,
+        meta: { path: "saved.md", mtime_ms: 42 },
+      });
+      expect(stores.tab.find_tab_by_path(np("saved.md"))?.is_dirty).toBe(true);
+      expect(stores.tab.active_tab_id).toBe("other.md");
+      expect(services.editor.mark_clean).toHaveBeenCalledWith(
+        "saved.md",
+        "saved",
+      );
+    });
+
+    it.each(["vault", "buffer"])(
+      "ignores draft save completion after the %s changes",
+      async (change) => {
+        const { registry, stores, services } = create_tab_actions_harness();
+        const draft = mock_draft_open_note("draft:1:Untitled-1");
+        stores.tab.open_tab(draft.meta.path, "Untitled-1");
+        stores.editor.set_open_note(draft);
+        await registry.execute(ACTION_IDS.note_request_save);
+        stores.ui.save_note_dialog.new_path = np("saved.md");
+        services.note.save_note.mockImplementationOnce(() => {
+          if (change === "vault") stores.vault.set_vault(create_test_vault());
+          else
+            stores.editor.set_open_note({ ...draft, buffer_id: "replacement" });
+          return Promise.resolve({
+            status: "saved",
+            saved_path: np("saved.md"),
+          });
+        });
+        await registry.execute(ACTION_IDS.note_confirm_save);
+        expect(stores.tab.active_tab_id).toBe(draft.meta.path);
+        expect(stores.tab.find_tab_by_path(np("saved.md"))).toBeNull();
+      },
+    );
+
+    it("keeps a saved draft tab dirty when typing continued during save", async () => {
+      const { registry, stores, services } = create_tab_actions_harness();
+      const draft = {
+        ...mock_draft_open_note("draft:1:Untitled-1"),
+        is_dirty: true,
+      };
+      stores.tab.open_tab(draft.meta.path, "Untitled-1");
+      stores.editor.set_open_note(draft);
+      await registry.execute(ACTION_IDS.note_request_save);
+      stores.ui.save_note_dialog.new_path = np("saved.md");
+      services.note.save_note.mockImplementationOnce(() => {
+        stores.editor.update_open_note_path(np("saved.md"));
+        stores.editor.set_markdown(
+          np("saved.md"),
+          as_markdown_text("later edit"),
+        );
+        return Promise.resolve({ status: "saved", saved_path: np("saved.md") });
+      });
+      await registry.execute(ACTION_IDS.note_confirm_save);
+      expect(stores.tab.find_tab_by_path(np("saved.md"))?.is_dirty).toBe(true);
+      expect(stores.tab.get_cached_note("saved.md")?.markdown).toBe(
+        "later edit",
+      );
     });
 
     it("discards and closes tab via confirm_close_discard", async () => {

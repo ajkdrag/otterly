@@ -25,7 +25,7 @@ export type EditorSession = {
   restore_view_state: (view_state: EditorBufferViewState | null) => void;
   insert_text_at_cursor: (text: string) => void;
   set_selection: (anchor: number, head: number) => void;
-  mark_clean: () => void;
+  mark_clean: (note_path?: string, saved_markdown?: string) => void;
   is_dirty: () => boolean;
   focus: () => void;
   set_wiki_suggestions?: (

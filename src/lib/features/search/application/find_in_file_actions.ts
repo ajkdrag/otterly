@@ -21,6 +21,7 @@ export function register_find_in_file_actions(input: ActionRegistrationInput) {
   function close_find() {
     stores.ui.find_in_file = { ...CLOSED_FIND_STATE };
     stores.search.clear_in_file_matches();
+    services.editor.focus();
   }
 
   function move_selection(step: 1 | -1) {
@@ -51,6 +52,7 @@ export function register_find_in_file_actions(input: ActionRegistrationInput) {
       update_find_state({ open: !stores.ui.find_in_file.open });
       if (!stores.ui.find_in_file.open) {
         stores.search.clear_in_file_matches();
+        services.editor.focus();
       }
     },
   });

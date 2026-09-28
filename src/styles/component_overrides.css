@@ -96,3 +96,32 @@
   max-width: var(--size-dialog-xl);
   padding: var(--space-8);
 }
+
+/* Popups share a short fade; focus and selection never depend on motion. */
+[data-slot="dialog-content"],
+[data-slot="dialog-overlay"],
+[data-slot="select-content"],
+[data-slot="context-menu-content"],
+[data-slot="context-menu-sub-content"],
+[data-slot="tooltip-content"] {
+  animation-duration: var(--duration-normal);
+  animation-timing-function: var(--ease-out);
+}
+
+[data-slot="select-trigger"] > [data-slot="select-value"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

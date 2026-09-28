@@ -23,7 +23,6 @@
     FolderPlus,
     RefreshCw,
     FoldVertical,
-    Star,
   } from "@lucide/svelte";
 
   const { stores, action_registry } = use_app_context();
@@ -286,11 +285,6 @@
 
   const explorer_header_actions: HeaderAction[] = [
     {
-      icon: FilePlus,
-      label: "New Note",
-      onclick: () => void action_registry.execute(ACTION_IDS.note_create),
-    },
-    {
       icon: FolderPlus,
       label: "New Folder",
       onclick: () =>
@@ -393,6 +387,8 @@
             "dashboard",
           );
         }}
+        on_open_commands={() =>
+          void action_registry.execute(ACTION_IDS.omnibar_open)}
         on_open_help={() => void action_registry.execute(ACTION_IDS.help_open)}
         on_open_settings={() =>
           void action_registry.execute(ACTION_IDS.settings_open)}
@@ -404,8 +400,8 @@
         <Resizable.PaneGroup direction="horizontal" class="h-full">
           {#if stores.ui.sidebar_open}
             <Resizable.Pane
-              defaultSize={15}
-              minSize={10}
+              defaultSize={20}
+              minSize={16}
               maxSize={40}
               order={1}
             >
@@ -420,13 +416,17 @@
                       <button
                         type="button"
                         class="SidebarHeader__title SidebarHeader__title--button"
-                        onclick={() => {
-                          void action_registry.execute(
+                        onclick={async () => {
+                          await action_registry.execute(
+                            ACTION_IDS.filetree_clear_scope,
+                          );
+                          await action_registry.execute(
                             ACTION_IDS.ui_select_folder,
                             "",
                           );
                         }}
-                        aria-label="Select vault root"
+                        title="Show vault root"
+                        aria-label={`Show ${stores.vault.vault.name} vault root`}
                       >
                         {stores.vault.vault.name}
                       </button>
@@ -442,6 +442,7 @@
                                 size="icon"
                                 class="SidebarHeaderButton"
                                 onclick={action.onclick}
+                                aria-label={action.label}
                               >
                                 <action.icon class="SidebarHeaderIcon" />
                               </Button>
@@ -562,11 +563,15 @@
                           recent_notes={stores.notes.recent_notes}
                           vault_name={stores.vault.vault.name}
                           vault_path={stores.vault.vault.path}
+                          created_at={stores.vault.vault.created_at ?? null}
+                          last_opened_at={stores.vault.vault.last_opened_at ??
+                            null}
+                          is_available={stores.vault.vault.is_available ?? null}
                           on_note_click={(note_path: string) =>
-                            void action_registry.execute(
-                              ACTION_IDS.note_open,
+                            void action_registry.execute(ACTION_IDS.note_open, {
                               note_path,
-                            )}
+                              cleanup_if_missing: true,
+                            })}
                           on_new_note={() =>
                             void action_registry.execute(
                               ACTION_IDS.note_create,
@@ -575,6 +580,19 @@
                             void action_registry.execute(
                               ACTION_IDS.omnibar_open,
                             )}
+                          on_open_recent={() => {
+                            const recent_note = stores.notes.recent_notes[0];
+                            if (recent_note) {
+                              void action_registry.execute(
+                                ACTION_IDS.note_open,
+                                recent_note.id,
+                              );
+                              return;
+                            }
+                            void action_registry.execute(
+                              ACTION_IDS.omnibar_open,
+                            );
+                          }}
                           on_reindex={() =>
                             void action_registry.execute(
                               ACTION_IDS.vault_reindex,
@@ -685,6 +703,18 @@
                   </Sidebar.Group>
                 </Sidebar.Content>
 
+                <Sidebar.Footer class="p-0">
+                  <button
+                    type="button"
+                    class="SidebarNewNote"
+                    onclick={() =>
+                      void action_registry.execute(ACTION_IDS.note_create)}
+                  >
+                    <FilePlus class="SidebarNewNote__icon" />
+                    <span>New note</span>
+                  </button>
+                </Sidebar.Footer>
+
                 <Sidebar.Rail />
               </Sidebar.Root>
             </Resizable.Pane>
@@ -735,6 +765,7 @@
       {word_count}
       {line_count}
       has_note={!!stores.editor.open_note}
+      is_dirty={stores.tab.is_open_note_dirty(stores.editor.open_note)}
       last_saved_at={stores.editor.last_saved_at}
       index_progress={stores.search.index_progress}
       vault_name={stores.vault.vault?.name ?? null}
@@ -765,13 +796,19 @@
 {/if}
 
 <style>
+  .SidebarHeader__title--button:focus-visible,
+  .SidebarScope__clear:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
   .SidebarHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
     height: var(--size-touch-lg);
-    padding-inline: var(--space-3);
-    gap: var(--space-2);
+    padding-inline: var(--space-2);
+    gap: var(--space-1);
     border-block-end: 1px solid var(--border);
   }
 
@@ -781,8 +818,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: var(--text-sm);
+    letter-spacing: 0.01em;
   }
 
   .SidebarHeader__title--button {
@@ -791,13 +830,14 @@
   }
 
   .SidebarHeader__title--button:hover {
-    color: var(--foreground);
+    color: var(--interactive);
   }
 
   .SidebarHeader__actions {
     display: flex;
     flex-shrink: 0;
     align-items: center;
+    gap: var(--space-0-5);
   }
 
   .SidebarScope {
@@ -834,19 +874,54 @@
   }
 
   :global(.SidebarHeaderButton) {
-    width: var(--size-touch-sm);
-    height: var(--size-touch-sm);
+    width: var(--size-touch);
+    height: var(--size-touch);
     color: var(--muted-foreground);
-    transition: color var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default);
   }
 
   :global(.SidebarHeaderButton:hover) {
-    color: var(--foreground);
+    color: var(--interactive);
+    background-color: var(--sidebar-accent);
   }
 
   :global(.SidebarHeaderIcon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
+  }
+
+  .SidebarNewNote {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    height: var(--size-touch-lg);
+    padding-inline: var(--space-3);
+    border-block-start: 1px solid var(--sidebar-border);
+    color: var(--sidebar-foreground);
+    font-size: var(--text-sm);
+    text-align: left;
+    transition:
+      background-color var(--duration-fast) var(--ease-default),
+      color var(--duration-fast) var(--ease-default);
+  }
+
+  .SidebarNewNote:hover {
+    background-color: var(--sidebar-accent);
+    color: var(--interactive);
+  }
+
+  .SidebarNewNote:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  :global(.SidebarNewNote__icon) {
+    width: var(--size-icon);
+    height: var(--size-icon);
+    flex-shrink: 0;
   }
 
   :global(.StarredGroupLabel) {

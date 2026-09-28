@@ -12,6 +12,7 @@
     word_count: number;
     line_count: number;
     has_note: boolean;
+    is_dirty: boolean;
     last_saved_at: number | null;
     index_progress: IndexProgress;
     vault_name: string | null;
@@ -33,6 +34,7 @@
     word_count,
     line_count,
     has_note,
+    is_dirty,
     last_saved_at,
     index_progress,
     vault_name,
@@ -91,7 +93,11 @@
   });
 
   const saved_label = $derived(
-    last_saved_at ? `Saved ${format_relative_time(last_saved_at, tick)}` : null,
+    is_dirty
+      ? "Unsaved changes"
+      : last_saved_at
+        ? `Saved ${format_relative_time(last_saved_at, tick)}`
+        : null,
   );
 </script>
 
@@ -110,7 +116,9 @@
     </span>
     {#if saved_label}
       <span class="StatusBar__separator" aria-hidden="true"></span>
-      <span class="StatusBar__item StatusBar__item--saved">{saved_label}</span>
+      <span class="StatusBar__item" class:StatusBar__item--unsaved={is_dirty}
+        >{saved_label}</span
+      >
     {/if}
   </div>
   <div class="StatusBar__section">
@@ -204,6 +212,7 @@
     justify-content: space-between;
     height: var(--size-status-bar);
     padding-inline: var(--space-3);
+    font-family: var(--font-family-mono);
     font-size: var(--text-xs);
     font-feature-settings: "tnum" 1;
     flex-shrink: 0;
@@ -240,8 +249,8 @@
     color: var(--muted-foreground);
   }
 
-  .StatusBar__item--saved {
-    opacity: 0.7;
+  .StatusBar__item--unsaved {
+    color: var(--indicator-dirty);
   }
 
   .StatusBar__separator {

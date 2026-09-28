@@ -125,6 +125,29 @@ function session_config_at(
 }
 
 describe("EditorService", () => {
+  it("restores a zero scroll position after a scrolled tab", async () => {
+    const session = create_session("# Alpha");
+    const { service } = create_setup(() => Promise.resolve(session));
+    const container = { scrollTop: 240 };
+    const root = { parentElement: container } as unknown as HTMLDivElement;
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    try {
+      await service.mount({ root, note });
+      service.set_scroll_top(0);
+      for (const frame of frames) frame(0);
+      expect(container.scrollTop).toBe(0);
+    } finally {
+      service.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("mounts session and delegates open_buffer to session handle", async () => {
     const session = create_session("alpha");
     const { service, editor_store, start_session, session_configs } =

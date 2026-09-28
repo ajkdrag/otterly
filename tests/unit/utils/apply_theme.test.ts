@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { apply_theme } from "$lib/shared/utils/apply_theme";
 import {
+  BUILTIN_MOCHA,
   BUILTIN_NORDIC_DARK,
   BUILTIN_NORDIC_LIGHT,
 } from "$lib/shared/types/theme";
@@ -68,16 +69,17 @@ describe("apply_theme", () => {
 
   it("sets font family tokens", () => {
     apply_theme(BUILTIN_NORDIC_LIGHT);
-    expect(store.get("--font-family-sans")).toContain("Inter");
-    expect(store.get("--font-family-mono")).toContain("JetBrains Mono");
+    expect(store.get("--font-family-sans")).toContain("IBM Plex Sans");
+    expect(store.get("--font-family-mono")).toContain("IBM Plex Mono");
   });
 
   it("sets editor typography tokens", () => {
     apply_theme(BUILTIN_NORDIC_DARK);
     expect(store.get("--editor-font-size")).toBe("1rem");
-    expect(store.get("--editor-line-height")).toBe("1.75");
+    expect(store.get("--editor-line-height")).toBe("1.7");
     expect(store.get("--editor-spacing")).toBe("1.5rem");
     expect(store.get("--editor-heading-color")).toBe("var(--foreground)");
+    expect(store.get("--editor-heading-font")).toBe("var(--font-heading)");
   });
 
   it("cleans up previous theme properties on switch", () => {
@@ -90,6 +92,17 @@ describe("apply_theme", () => {
 
     apply_theme(BUILTIN_NORDIC_LIGHT);
     expect(store.has("--editor-text")).toBe(false);
+  });
+
+  it("removes Mocha surfaces while keeping the shared heading font", () => {
+    apply_theme(BUILTIN_MOCHA);
+    expect(store.get("--background")).toBe("light-dark(#eff1f5, #1e1e2e)");
+    expect(store.get("--editor-heading-font")).toBe("var(--font-heading)");
+
+    apply_theme(BUILTIN_NORDIC_LIGHT);
+    expect(store.has("--background")).toBe(false);
+    expect(store.get("--editor-heading-font")).toBe("var(--font-heading)");
+    expect(store.get("--font-family-sans")).toContain("IBM Plex Sans");
   });
 
   it("applies token_overrides", () => {

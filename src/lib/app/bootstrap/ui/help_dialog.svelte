@@ -116,12 +116,13 @@
     </Dialog.Header>
 
     <div class="HelpDialog__panels">
-      <nav class="HelpDialog__nav">
+      <nav class="HelpDialog__nav" aria-label="Help categories">
         <div class="HelpDialog__nav-header">Help</div>
         {#each categories as cat (cat.id)}
           <button
             class="HelpDialog__nav-item"
             class:HelpDialog__nav-item--selected={active_category === cat.id}
+            aria-current={active_category === cat.id ? "page" : undefined}
             onclick={() => {
               active_category = cat.id;
               search_query = "";
@@ -236,7 +237,7 @@
 <style>
   :global(.HelpDialog) {
     max-width: 52rem;
-    width: 52rem;
+    width: min(52rem, calc(100vw - 2rem));
     height: 80vh;
     max-height: 80vh;
     display: flex;
@@ -256,8 +257,9 @@
   .HelpDialog__nav {
     display: flex;
     flex-direction: column;
-    width: 12rem;
-    min-width: 12rem;
+    width: 11rem;
+    min-width: 11rem;
+    background: var(--sidebar);
     padding: var(--space-3);
     gap: var(--space-0-5);
     border-inline-end: 1px solid var(--border);
@@ -278,8 +280,9 @@
     width: 100%;
     min-height: var(--size-touch);
     padding: 0 var(--space-2);
-    border: none;
-    border-radius: var(--radius-md);
+    border: 0;
+    border-inline-start: 2px solid transparent;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--muted-foreground);
     font-size: var(--text-sm);
@@ -296,6 +299,7 @@
   }
 
   .HelpDialog__nav-item--selected {
+    border-inline-start-color: var(--primary);
     background-color: var(--interactive-bg);
     color: var(--interactive);
   }
@@ -313,6 +317,7 @@
 
   .HelpDialog__content {
     flex: 1;
+    min-width: 0;
     padding: var(--space-6);
     overflow-y: auto;
     min-height: 0;
@@ -322,6 +327,10 @@
   }
 
   .HelpDialog__content-header {
+    font-family: var(--font-heading, var(--font-sans));
+    padding-bottom: var(--space-4);
+    padding-right: var(--space-6);
+    border-bottom: 1px solid var(--border);
     font-size: var(--text-lg);
     font-weight: 600;
     color: var(--foreground);
@@ -384,7 +393,7 @@
     justify-content: space-between;
     gap: var(--space-4);
     padding: var(--space-2);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     transition: background-color var(--duration-fast) var(--ease-default);
   }
 
@@ -418,7 +427,7 @@
     align-items: baseline;
     gap: var(--space-4);
     padding: var(--space-2);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     transition: background-color var(--duration-fast) var(--ease-default);
   }
 
@@ -428,11 +437,13 @@
 
   .HelpDialog__markdown-syntax {
     flex-shrink: 0;
-    min-width: 12rem;
+    width: 45%;
+    min-width: 0;
     font-family: var(--font-mono, ui-monospace, monospace);
     font-size: var(--text-sm);
     color: var(--interactive);
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .HelpDialog__markdown-label {
@@ -445,5 +456,21 @@
     padding: var(--space-8) var(--space-4);
     color: var(--muted-foreground);
     font-size: var(--text-sm);
+  }
+  .HelpDialog__nav-item:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  @media (max-width: 640px) {
+    .HelpDialog__nav {
+      width: 9rem;
+      min-width: 9rem;
+      padding: var(--space-2);
+    }
+
+    .HelpDialog__content {
+      padding: var(--space-4);
+    }
   }
 </style>

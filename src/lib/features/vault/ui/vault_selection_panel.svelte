@@ -2,6 +2,7 @@
   import type { Vault } from "$lib/shared/types/vault";
   import type { VaultId } from "$lib/shared/types/ids";
   import * as Card from "$lib/components/ui/card";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { search_vaults } from "$lib/features/vault/domain/search_vaults";
@@ -46,6 +47,7 @@
   let vault_query = $state("");
   let selected_vault_index = $state(0);
   let search_input_ref: HTMLInputElement | null = $state(null);
+  let sections_ref: HTMLDivElement | null = $state(null);
 
   const filtered_recent_vaults = $derived(
     search_vaults(recent_vaults, vault_query),
@@ -61,6 +63,8 @@
     filtered_recent_vaults.filter((v) => !pinned_ids_set.has(v.id)),
   );
 
+  const visible_vaults = $derived([...pinned_vaults, ...unpinned_vaults]);
+
   const has_sections = $derived(
     pinned_vaults.length > 0 && unpinned_vaults.length > 0,
   );
@@ -70,7 +74,7 @@
   $effect(() => {
     selected_vault_index = clamp_vault_selection(
       selected_vault_index,
-      filtered_recent_vaults.length,
+      visible_vaults.length,
     );
   });
 
@@ -115,7 +119,7 @@
     if (selected_vault_index < 0) {
       return;
     }
-    const selected_vault = filtered_recent_vaults[selected_vault_index];
+    const selected_vault = visible_vaults[selected_vault_index];
     if (!selected_vault) {
       return;
     }
@@ -134,18 +138,20 @@
       event.preventDefault();
       selected_vault_index = move_vault_selection(
         selected_vault_index,
-        filtered_recent_vaults.length,
+        visible_vaults.length,
         1,
       );
+      scroll_selected_vault_into_view();
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
       selected_vault_index = move_vault_selection(
         selected_vault_index,
-        filtered_recent_vaults.length,
+        visible_vaults.length,
         -1,
       );
+      scroll_selected_vault_into_view();
       return;
     }
     if (event.key === "Enter") {
@@ -159,8 +165,16 @@
     }
   }
 
+  function scroll_selected_vault_into_view() {
+    requestAnimationFrame(() => {
+      sections_ref
+        ?.querySelector<HTMLElement>(".VaultPanel__vault-item--highlighted")
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }
+
   function flat_index_of(vault: Vault): number {
-    return filtered_recent_vaults.indexOf(vault);
+    return visible_vaults.indexOf(vault);
   }
 
   function format_path(path: string, vault_name: string): string {
@@ -202,19 +216,17 @@
           type="button"
           onclick={on_close}
           disabled={is_loading}
-          class="ring-offset-background focus:ring-ring absolute end-0 top-0 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+          class="VaultPanel__close-btn"
         >
           <X class="h-4 w-4" />
           <span class="sr-only">Close</span>
         </button>
       {/if}
       <div class="space-y-1.5 pr-8">
-        <h2 class="text-lg font-semibold leading-none tracking-tight">
-          Select Vault
-        </h2>
-        <p class="text-sm text-muted-foreground">
+        <Dialog.Title>Select a vault</Dialog.Title>
+        <Dialog.Description>
           Choose a vault directory or select from recent vaults
-        </p>
+        </Dialog.Description>
       </div>
     </div>
     <div class="VaultPanel__body">
@@ -223,14 +235,18 @@
   </div>
 {:else}
   <div class="p-0">
-    <Card.Root>
-      <Card.Header>
-        <Card.Title>Select Vault</Card.Title>
+    <Card.Root
+      class="gap-0 rounded-none border border-border bg-card p-5 shadow-none"
+    >
+      <Card.Header class="mb-4 p-0">
+        <Card.Title class="font-heading text-xl font-medium tracking-tight">
+          Select a vault
+        </Card.Title>
         <Card.Description
           >Choose a vault directory or select from recent vaults</Card.Description
         >
       </Card.Header>
-      <Card.Content>
+      <Card.Content class="p-0">
         <div class="VaultPanel__body">
           {@render content()}
         </div>
@@ -299,7 +315,8 @@
           handle_toggle_pin(vault.id, event);
         }}
         disabled={is_loading}
-        aria-label={pinned_ids_set.has(vault.id) ? "Unpin vault" : "Pin vault"}
+        aria-label={`Pin ${vault.name}`}
+        aria-pressed={pinned_ids_set.has(vault.id)}
       >
         <Pin />
       </button>
@@ -310,7 +327,7 @@
           handle_remove_vault(vault.id, event);
         }}
         disabled={is_loading || current_vault_id === vault.id}
-        aria-label="Remove vault from list"
+        aria-label={`Remove ${vault.name} from recent vaults`}
       >
         <Trash2 />
       </button>
@@ -328,10 +345,10 @@
         handle_choose_vault(e);
       }}
       disabled={is_loading}
-      class="VaultPanel__action-btn"
+      class="VaultPanel__action-btn rounded-none"
     >
       <Plus />
-      Choose Vault Directory
+      Choose vault directory
     </Button>
   {/if}
 
@@ -357,7 +374,11 @@
           aria-label="Search vaults"
         />
       </div>
-      <div class="VaultPanel__sections">
+      <div
+        class="VaultPanel__sections"
+        bind:this={sections_ref}
+        class:VaultPanel__sections--dialog={is_dialog}
+      >
         {#if pinned_vaults.length > 0}
           <div class="VaultPanel__section">
             <h3 class="VaultPanel__section-title">
@@ -405,17 +426,48 @@
   .VaultPanel {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
+    gap: var(--space-4);
   }
 
   .VaultPanel__dialog-header {
     position: relative;
   }
 
+  .VaultPanel__close-btn {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--size-touch);
+    height: var(--size-touch);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted-foreground);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default);
+  }
+
+  .VaultPanel__close-btn:hover:not(:disabled) {
+    color: var(--foreground);
+    background-color: var(--muted);
+  }
+
+  .VaultPanel__close-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .VaultPanel__close-btn:disabled {
+    opacity: 0.5;
+  }
+
   .VaultPanel__body {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
 
   :global(.VaultPanel__action-btn) {
@@ -424,9 +476,8 @@
 
   .VaultPanel__error {
     padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
     border: 1px solid var(--border);
-    background-color: var(--card);
+    background-color: var(--muted);
     font-size: var(--text-base);
     color: var(--destructive);
   }
@@ -437,22 +488,27 @@
   }
 
   .VaultPanel__search {
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-3);
   }
 
   .VaultPanel__sections {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-3);
     max-height: var(--size-dialog-list-height-lg);
     overflow-y: auto;
     padding-right: var(--space-1);
   }
 
+  .VaultPanel__sections--dialog {
+    max-height: none;
+    overflow: visible;
+  }
+
   .VaultPanel__section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1-5);
   }
 
   .VaultPanel__section-title {
@@ -461,8 +517,6 @@
     gap: var(--space-1-5);
     font-size: var(--text-xs);
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--muted-foreground);
     padding-left: var(--space-1);
   }
@@ -482,7 +536,7 @@
   .VaultPanel__list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1-5);
+    border-top: 1px solid var(--border);
   }
 
   .VaultPanel__empty-filter {
@@ -496,10 +550,10 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: var(--space-3) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    background-color: var(--card);
+    padding: var(--space-2-5) var(--space-3);
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background-color: transparent;
     text-align: left;
     transition:
       background-color var(--duration-fast) var(--ease-default),
@@ -507,7 +561,7 @@
   }
 
   .VaultPanel__vault-item:not([data-disabled="true"]):hover {
-    background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+    background-color: var(--muted);
   }
 
   .VaultPanel__vault-item[data-disabled="true"] {
@@ -533,12 +587,11 @@
 
   .VaultPanel__vault-item--active {
     background-color: var(--interactive-bg);
-    border-color: color-mix(in oklch, var(--interactive) 30%, transparent);
+    box-shadow: inset 2px 0 0 var(--interactive);
   }
 
   .VaultPanel__vault-item--highlighted:not(.VaultPanel__vault-item--active) {
-    border-color: color-mix(in oklch, var(--interactive) 20%, transparent);
-    background-color: color-mix(in oklch, var(--muted) 80%, transparent);
+    background-color: var(--muted);
   }
 
   .VaultPanel__vault-item--active:not([data-disabled="true"]):hover {
@@ -563,7 +616,6 @@
   .VaultPanel__vault-select-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: var(--radius-md);
   }
 
   .VaultPanel__vault-name-row {
@@ -586,7 +638,7 @@
     font-weight: 500;
     line-height: 1;
     padding: var(--space-0-5) var(--space-1-5);
-    border-radius: var(--radius-sm);
+    border-radius: 0;
   }
 
   .VaultPanel__badge--unavailable {
@@ -633,7 +685,7 @@
   .VaultPanel__vault-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-1-5);
+    gap: var(--space-1);
     margin-left: var(--space-4);
   }
 
@@ -641,10 +693,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-touch-sm);
-    height: var(--size-touch-sm);
+    width: var(--size-touch);
+    height: var(--size-touch);
     border: 1px solid transparent;
-    border-radius: var(--radius-md);
+    border-radius: 0;
     color: var(--muted-foreground);
     transition:
       color var(--duration-fast) var(--ease-default),

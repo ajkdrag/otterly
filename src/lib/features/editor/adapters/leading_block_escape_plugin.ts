@@ -9,50 +9,45 @@ const NON_TEXT_BLOCK_TYPES = new Set([
   "hr",
   "image-block",
 ]);
-const ESCAPE_KEYS = new Set(["ArrowUp", "ArrowLeft"]);
-
 const leading_block_escape_plugin_key = new PluginKey("leading-block-escape");
 
-function get_first_escapable_block(view: EditorView) {
-  const { doc } = view.state;
-  const first_child = doc.firstChild;
-  if (!first_child) return null;
-  if (!NON_TEXT_BLOCK_TYPES.has(first_child.type.name)) return null;
-
-  return first_child;
-}
-
-function is_cursor_inside_first_escapable_block(view: EditorView): boolean {
+function is_cursor_in_first_textblock(view: EditorView): boolean {
   const { selection, doc } = view.state;
   if (!selection.empty) return false;
 
-  const first_child = get_first_escapable_block(view);
-  if (!first_child) return false;
-
-  const $pos = doc.resolve(selection.from);
-  for (let depth = $pos.depth; depth >= 1; depth--) {
-    if ($pos.node(depth) === first_child) return true;
+  let first = doc.firstChild;
+  if (!first || !NON_TEXT_BLOCK_TYPES.has(first.type.name)) return false;
+  let position = 0;
+  while (first && !first.isTextblock) {
+    first = first.firstChild;
+    position += 1;
   }
-
-  return false;
+  const { $from } = selection;
+  return (
+    first !== null && $from.depth > 0 && $from.before($from.depth) === position
+  );
 }
 
-function is_on_first_line(view: EditorView): boolean {
-  const { state } = view;
-  if (!state.selection.empty) return false;
+function should_escape_leading_block(
+  view: EditorView,
+  event: KeyboardEvent,
+): boolean {
+  if (event.key !== "ArrowUp" && event.key !== "ArrowLeft") return false;
+  if (
+    !view.editable ||
+    view.composing ||
+    event.isComposing ||
+    event.shiftKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey
+  )
+    return false;
+  if (!is_cursor_in_first_textblock(view)) return false;
 
-  const $pos = state.selection.$from;
-  const text_before = $pos.parent.textBetween(0, $pos.parentOffset);
-  return !text_before.includes("\n");
-}
-
-function should_escape_leading_block(view: EditorView, key: string): boolean {
-  if (!ESCAPE_KEYS.has(key)) return false;
-  if (!is_cursor_inside_first_escapable_block(view)) return false;
-
-  if (key === "ArrowUp") return is_on_first_line(view);
-
-  return view.state.selection.from === 1;
+  return event.key === "ArrowUp"
+    ? view.endOfTextblock("up")
+    : view.state.selection.$from.parentOffset === 0;
 }
 
 function insert_paragraph_before_first_block(view: EditorView): boolean {
@@ -71,7 +66,7 @@ export function create_leading_block_escape_prose_plugin() {
     key: leading_block_escape_plugin_key,
     props: {
       handleKeyDown(view, event) {
-        if (should_escape_leading_block(view, event.key)) {
+        if (should_escape_leading_block(view, event)) {
           return insert_paragraph_before_first_block(view);
         }
 

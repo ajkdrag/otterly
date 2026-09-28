@@ -24,6 +24,8 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "paste",
       "drop",
       "co-located",
+      "keep images with note",
+      "image storage",
     ],
   },
   {
@@ -39,6 +41,7 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "path",
       "upload",
       "paste",
+      "image location",
     ],
   },
   {
@@ -54,6 +57,7 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "invisible",
       "show",
       "hide",
+      "hidden folders",
     ],
   },
   {
@@ -68,6 +72,7 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "automatic",
       "draft",
       "unsaved",
+      "save automatically",
     ],
   },
   {
@@ -84,6 +89,7 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "automatic",
       "performance",
       "interval",
+      "wait before saving",
     ],
   },
   {
@@ -98,6 +104,8 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "commit",
       "version",
       "automatic",
+      "source control",
+      "version control",
     ],
   },
   {
@@ -112,13 +120,29 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     label: "Max Open Tabs",
     description: "Maximum number of tabs that can be open at once",
     category: "Layout",
-    keywords: ["tabs", "limit", "max", "open", "performance", "editor"],
+    keywords: [
+      "tabs",
+      "limit",
+      "max",
+      "open",
+      "performance",
+      "editor",
+      "tab limit",
+    ],
   },
   {
     key: "editor_max_width_ch",
     label: "Editor Max Width",
     description: "Maximum line width for the editor content in characters",
     category: "Layout",
-    keywords: ["editor", "width", "line length", "layout", "readability"],
+    keywords: [
+      "editor",
+      "width",
+      "line length",
+      "layout",
+      "readability",
+      "line width",
+      "reading width",
+    ],
   },
 ];

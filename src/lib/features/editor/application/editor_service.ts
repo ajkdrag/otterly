@@ -130,8 +130,8 @@ export class EditorService {
     this.session?.insert_text_at_cursor(text);
   }
 
-  mark_clean() {
-    this.session?.mark_clean();
+  mark_clean(note_path?: NotePath, saved_markdown?: MarkdownText) {
+    this.session?.mark_clean(note_path, saved_markdown);
   }
 
   flush(): EditorFlushResult | null {
@@ -153,7 +153,7 @@ export class EditorService {
 
   set_scroll_top(value: number) {
     const container = this.host_root?.parentElement;
-    if (!container || value <= 0) return;
+    if (!container || value < 0) return;
     requestAnimationFrame(() => {
       container.scrollTop = value;
     });

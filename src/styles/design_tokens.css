@@ -1,5 +1,5 @@
 /* ============================================
-   OTTERLY DESIGN TOKENS — Nordic Minimal
+   OTTERLY DESIGN TOKENS
    ============================================
    Extended design system that builds on shadcn-svelte.
    Import this AFTER app.css in your layout.
@@ -9,12 +9,15 @@
    ============================================ */
 
 :root {
+  /* Four pixels keeps shadcn radius offsets nonnegative. */
+  --radius: 0.25rem;
+  --font-heading: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
   /* ----------------------------------------
      FONT FAMILY
      ---------------------------------------- */
-  --font-family-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-family-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   --font-family-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     monospace;
 
   /* ----------------------------------------
@@ -347,10 +350,9 @@
 
 @theme inline {
   /* Font family */
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  --font-sans: var(--font-family-sans);
+  --font-heading: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-family-mono);
 
   /* Interactive colors */
   --color-interactive: var(--interactive);

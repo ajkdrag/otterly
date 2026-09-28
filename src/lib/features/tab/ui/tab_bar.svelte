@@ -395,7 +395,7 @@
     display: flex;
     align-items: stretch;
     height: var(--size-touch-lg);
-    background-color: var(--background);
+    background-color: var(--background-surface-2);
     border-block-end: 1px solid var(--border);
     position: relative;
     flex-shrink: 0;
@@ -422,13 +422,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: var(--space-6);
+    width: var(--size-touch);
     flex-shrink: 0;
     color: var(--muted-foreground);
-    background-color: var(--background);
+    background-color: var(--background-surface-2);
     border: none;
     z-index: var(--z-dropdown);
-    transition: color var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default);
   }
 
   .TabBar__scroll-btn:hover {
@@ -436,19 +438,10 @@
     background-color: var(--muted);
   }
 
-  .TabBar__scroll-btn--left {
-    box-shadow: 4px 0 8px -2px
-      color-mix(in oklch, var(--shadow-color) 8%, transparent);
-  }
-
-  .TabBar__scroll-btn--right {
-    box-shadow: -4px 0 8px -2px
-      color-mix(in oklch, var(--shadow-color) 8%, transparent);
-  }
-
   :global(.TabBar__scroll-icon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
+    stroke-width: 1.8;
   }
 
   .TabBar__tab {
@@ -457,7 +450,7 @@
     gap: var(--space-2);
     min-width: 100px;
     max-width: 260px;
-    padding-inline: var(--space-3) var(--space-2);
+    padding-inline: var(--space-3) var(--space-1);
     height: 100%;
     border-inline-end: 1px solid var(--border);
     color: var(--muted-foreground);
@@ -472,13 +465,14 @@
   }
 
   .TabBar__tab:hover {
-    background-color: var(--muted);
+    background-color: var(--sidebar-accent);
     color: var(--foreground);
   }
 
   .TabBar__tab--active {
     color: var(--foreground);
-    font-weight: 500;
+    background-color: var(--background);
+    font-weight: 600;
   }
 
   .TabBar__tab--active::after {
@@ -487,19 +481,24 @@
     inset-inline: 0;
     bottom: 0;
     height: 2px;
-    background-color: var(--foreground);
+    background-color: var(--interactive);
   }
 
   .TabBar__tab--active:hover {
-    background-color: var(--muted);
+    background-color: var(--background);
   }
 
   .TabBar__tab--pinned {
-    background-color: color-mix(in oklch, var(--muted) 30%, transparent);
+    background-color: var(--background-surface-2);
   }
 
   .TabBar__tab--pinned:hover {
-    background-color: var(--muted);
+    background-color: var(--sidebar-accent);
+  }
+
+  .TabBar__tab--pinned.TabBar__tab--active,
+  .TabBar__tab--pinned.TabBar__tab--active:hover {
+    background-color: var(--background);
   }
 
   .TabBar__pin-divider {
@@ -513,7 +512,7 @@
   }
 
   .TabBar__tab--drag-over {
-    border-inline-start: 2px solid var(--interactive);
+    box-shadow: inset 2px 0 var(--interactive);
   }
 
   .TabBar__tab:focus-visible {
@@ -530,6 +529,7 @@
   :global(.TabBar__icon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
+    stroke-width: 1.8;
   }
 
   :global(.TabBar__icon--pin) {
@@ -558,8 +558,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-touch-xs);
-    height: var(--size-touch-xs);
+    width: var(--size-touch-sm);
+    height: var(--size-touch-sm);
     border-radius: var(--radius-sm);
     color: var(--muted-foreground);
     opacity: 0;
@@ -583,6 +583,7 @@
   :global(.TabBar__close-icon) {
     width: var(--size-icon-xs);
     height: var(--size-icon-xs);
+    stroke-width: 1.8;
   }
 
   .TabBar__actions {
@@ -591,14 +592,15 @@
     padding-inline: var(--space-1);
     flex-shrink: 0;
     border-inline-start: 1px solid var(--border);
+    background-color: var(--background-surface-2);
   }
 
   .TabBar__action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-touch-sm);
-    height: var(--size-touch-sm);
+    width: var(--size-touch);
+    height: var(--size-touch);
     border-radius: var(--radius-sm);
     color: var(--muted-foreground);
     transition:
@@ -623,5 +625,6 @@
   :global(.TabBar__action-icon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
+    stroke-width: 1.8;
   }
 </style>

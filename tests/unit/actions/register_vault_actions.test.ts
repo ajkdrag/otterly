@@ -79,13 +79,15 @@ function create_vault_actions_harness() {
         status: "opened",
         selected_folder_path: "docs",
       }),
-      write_note_content: vi.fn().mockResolvedValue(undefined),
+      write_note_content: vi.fn().mockResolvedValue(123),
       create_new_note: vi.fn(),
     },
     folder: {},
     settings: {},
     search: {},
     editor: {
+      flush: vi.fn(),
+      mark_clean: vi.fn(),
       is_mounted: vi.fn().mockReturnValue(false),
       open_buffer: vi.fn(),
       set_scroll_top: vi.fn(),
@@ -217,6 +219,194 @@ describe("register_vault_actions", () => {
     expect(services.vault.change_vault_by_id).toHaveBeenCalledWith(
       target_vault_id,
     );
+  });
+
+  it("keeps the vault open when typing continues during save", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.tab.set_dirty(note.path, true);
+    services.note.save_note.mockImplementation(() => {
+      stores.editor.set_markdown(note.id, as_markdown_text("later typing"));
+      stores.editor.set_dirty(note.id, true);
+      return Promise.resolve({ status: "saved", saved_path: note.path });
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.editor.open_note?.markdown).toBe("later typing");
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(true);
+    expect(stores.ui.change_vault.is_loading).toBe(false);
+  });
+
+  it("does not switch vault after a background write was skipped", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/background", "Background");
+    const draft = create_draft_open_note();
+    stores.tab.open_tab(note.path, note.title);
+    stores.tab.set_cached_note(note.path, create_open_note_state(note));
+    stores.tab.set_dirty(note.path, true);
+    stores.tab.open_tab(draft.meta.path, draft.meta.title);
+    stores.editor.set_open_note(draft);
+    services.note.write_note_content.mockResolvedValue(undefined);
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(true);
+  });
+
+  it("keeps newer background content dirty after saving its earlier snapshot", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/background", "Background");
+    const cached = create_open_note_state(note);
+    const draft = create_draft_open_note();
+    stores.tab.open_tab(note.path, note.title);
+    stores.tab.set_cached_note(note.path, cached);
+    stores.tab.set_dirty(note.path, true);
+    stores.tab.open_tab(draft.meta.path, draft.meta.title);
+    stores.editor.set_open_note(draft);
+    services.note.write_note_content.mockImplementation(() => {
+      stores.tab.set_cached_note(note.path, {
+        ...cached,
+        markdown: as_markdown_text("later typing"),
+        is_dirty: true,
+      });
+      return Promise.resolve(456);
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.tab.get_cached_note(note.path)).toMatchObject({
+      markdown: "later typing",
+      is_dirty: true,
+      meta: { mtime_ms: 456 },
+    });
+    expect(services.editor.mark_clean).toHaveBeenCalledWith(
+      note.path,
+      "content",
+    );
+  });
+
+  it("rechecks an already saved note after background writes finish", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const active = create_test_note("docs/current", "Current");
+    const background = create_test_note("docs/background", "Background");
+    stores.tab.open_tab(background.path, background.title);
+    stores.tab.set_cached_note(
+      background.path,
+      create_open_note_state(background),
+    );
+    stores.tab.set_dirty(background.path, true);
+    stores.tab.open_tab(active.path, active.title);
+    stores.tab.set_dirty(active.path, true);
+    stores.editor.set_open_note(create_open_note_state(active));
+    services.note.write_note_content.mockImplementation(() => {
+      stores.editor.set_markdown(
+        active.id,
+        as_markdown_text("typed after active save"),
+      );
+      stores.editor.set_dirty(active.id, true);
+      return Promise.resolve(456);
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(true);
+    expect(stores.editor.open_note?.markdown).toBe("typed after active save");
+  });
+
+  it("keeps the vault open when typing resumes during session persistence", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.tab.set_dirty(note.path, true);
+
+    let finish_session_save: (() => void) | undefined;
+    services.session.save_latest_session.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish_session_save = resolve;
+        }),
+    );
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    const confirm = registry.execute(ACTION_IDS.vault_confirm_save_change);
+    await vi.waitFor(() => {
+      expect(services.session.save_latest_session).toHaveBeenCalledTimes(1);
+    });
+
+    stores.editor.set_markdown(note.id, as_markdown_text("later typing"));
+    stores.editor.set_dirty(note.id, true);
+    stores.tab.set_dirty(note.path, true);
+    if (!finish_session_save) throw new Error("Session save did not start");
+    finish_session_save();
+    await confirm;
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(true);
+    expect(stores.ui.change_vault.is_loading).toBe(false);
+    expect(stores.ui.change_vault.error).toBe(
+      "Could not save all open tabs before switching vault.",
+    );
+  });
+
+  it("does not resume a cancelled switch after session persistence", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.tab.set_dirty(note.path, true);
+
+    let finish_session_save: (() => void) | undefined;
+    services.session.save_latest_session.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish_session_save = resolve;
+        }),
+    );
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    const confirm = registry.execute(ACTION_IDS.vault_confirm_save_change);
+    await vi.waitFor(() => {
+      expect(services.session.save_latest_session).toHaveBeenCalledTimes(1);
+    });
+    await registry.execute(ACTION_IDS.vault_cancel_discard_change);
+    if (!finish_session_save) throw new Error("Session save did not start");
+    finish_session_save();
+    await confirm;
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(false);
+    expect(stores.ui.change_vault.open).toBe(true);
+  });
+
+  it("does not revive a cancelled vault switch when its save completes", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const note = create_test_note("docs/current", "Current");
+    stores.tab.open_tab(note.path, note.title);
+    stores.editor.set_open_note(create_open_note_state(note));
+    stores.tab.set_dirty(note.path, true);
+    services.note.save_note.mockImplementation(async () => {
+      await registry.execute(ACTION_IDS.vault_cancel_discard_change);
+      return { status: "saved", saved_path: note.path };
+    });
+
+    await registry.execute(ACTION_IDS.vault_select, as_vault_id("vault-next"));
+    await registry.execute(ACTION_IDS.vault_confirm_save_change);
+
+    expect(services.vault.change_vault_by_id).not.toHaveBeenCalled();
+    expect(stores.ui.change_vault.confirm_discard_open).toBe(false);
+    expect(stores.ui.change_vault.open).toBe(true);
   });
 
   it("does not prompt when only the editor buffer is marked dirty", async () => {

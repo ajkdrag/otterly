@@ -2,13 +2,16 @@ import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import { is_unavailable_vault_error } from "$lib/features/vault/domain/vault_errors";
 import type { VaultId } from "$lib/shared/types/ids";
+import type { OpenNoteState } from "$lib/shared/types/editor";
 import { toast } from "svelte-sonner";
 import { apply_opened_vault_session } from "./vault_action_helpers";
 
 export function register_vault_actions(input: ActionRegistrationInput) {
   const { registry, stores, services } = input;
   let change_vault_request_revision = 0;
-  let pending_discard_confirm_change: (() => Promise<void>) | null = null;
+  let pending_discard_confirm_change:
+    | ((before_change?: () => boolean) => Promise<void>)
+    | null = null;
 
   const has_unsaved_editor_changes = (): boolean =>
     stores.tab.has_tabs_requiring_save();
@@ -24,8 +27,11 @@ export function register_vault_actions(input: ActionRegistrationInput) {
   };
 
   const run_with_unsaved_confirm = async (run_change: () => Promise<void>) => {
-    const run_change_with_session_persist = async () => {
+    const run_change_with_session_persist = async (
+      before_change?: () => boolean,
+    ) => {
       await services.session.save_latest_session();
+      if (before_change && !before_change()) return;
       await run_change();
     };
 
@@ -222,14 +228,49 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       };
 
       const tabs_requiring_save = stores.tab.get_tabs_requiring_save();
+      const vault_generation = stores.vault.generation;
+      const saved_notes = new Map<string, OpenNoteState>();
+      const is_current_request = () =>
+        stores.vault.generation === vault_generation &&
+        pending_discard_confirm_change === run_change;
+      const saved_tabs_are_current = () => {
+        services.editor.flush();
+        for (const [tab_id, saved] of saved_notes) {
+          const active = stores.editor.open_note;
+          const latest =
+            active?.meta.path === saved.meta.path
+              ? active
+              : stores.tab.get_cached_note(tab_id);
+          if (
+            !latest ||
+            latest.buffer_id !== saved.buffer_id ||
+            latest.markdown !== saved.markdown
+          )
+            return false;
+        }
+        return !stores.tab
+          .get_tabs_requiring_save()
+          .some((tab) => !saved_notes.has(tab.id));
+      };
       const active_tab_id = stores.tab.active_tab_id;
       const active_tab_requires_save =
         active_tab_id !== null &&
         tabs_requiring_save.some((tab) => tab.id === active_tab_id);
 
       if (active_tab_requires_save) {
+        const origin = stores.editor.open_note;
         const active_save = await services.note.save_note(null, true);
-        if (active_save.status !== "saved") {
+        if (!is_current_request()) return;
+        services.editor.flush();
+        const latest = stores.editor.open_note;
+        if (
+          active_save.status !== "saved" ||
+          !origin ||
+          !latest ||
+          latest.buffer_id !== origin.buffer_id ||
+          latest.meta.path !== origin.meta.path ||
+          latest.is_dirty
+        ) {
           const error =
             active_save.status === "failed"
               ? active_save.error
@@ -242,6 +283,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
           };
           return;
         }
+        saved_notes.set(active_tab_id, latest);
       }
 
       const background_tabs_requiring_save = tabs_requiring_save.filter(
@@ -255,12 +297,42 @@ export function register_vault_actions(input: ActionRegistrationInput) {
             throw new Error("missing cached note");
           }
 
-          await services.note.write_note_content(
+          const saved_mtime_ms = await services.note.write_note_content(
             cached.meta.path,
             cached.markdown,
           );
+          if (!is_current_request()) return;
+          if (saved_mtime_ms === undefined) throw new Error("write skipped");
+          services.editor.flush();
+          const active = stores.editor.open_note;
+          const is_active = active?.meta.path === cached.meta.path;
+          const latest = is_active
+            ? active
+            : stores.tab.get_cached_note(tab.id);
+          if (
+            !latest ||
+            latest.buffer_id !== cached.buffer_id ||
+            latest.meta.path !== cached.meta.path
+          )
+            throw new Error("saved buffer changed");
+          const is_dirty = latest.markdown !== cached.markdown;
+          stores.tab.set_cached_note(tab.id, {
+            ...latest,
+            meta: { ...latest.meta, mtime_ms: saved_mtime_ms },
+            is_dirty,
+          });
+          stores.tab.set_dirty(tab.id, is_dirty);
+          if (is_active)
+            stores.editor.update_mtime(latest.meta.id, saved_mtime_ms);
+          services.editor.mark_clean(cached.meta.path, cached.markdown);
+          if (is_dirty) throw new Error("note changed during save");
+          saved_notes.set(tab.id, cached);
         }
+
+        if (!saved_tabs_are_current())
+          throw new Error("note changed during save");
       } catch {
+        if (!is_current_request()) return;
         stores.ui.change_vault = {
           ...stores.ui.change_vault,
           is_loading: false,
@@ -270,8 +342,20 @@ export function register_vault_actions(input: ActionRegistrationInput) {
         return;
       }
 
-      clear_discard_confirm_state();
-      await run_change();
+      await run_change(() => {
+        if (!is_current_request()) return false;
+        if (!saved_tabs_are_current()) {
+          stores.ui.change_vault = {
+            ...stores.ui.change_vault,
+            is_loading: false,
+            error: "Could not save all open tabs before switching vault.",
+            confirm_discard_open: true,
+          };
+          return false;
+        }
+        clear_discard_confirm_state();
+        return true;
+      });
     },
   });
 

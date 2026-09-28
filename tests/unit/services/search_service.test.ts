@@ -188,6 +188,60 @@ describe("SearchService", () => {
     ).toBe(true);
   });
 
+  it("finds palette commands by practical aliases", async () => {
+    const service = new SearchService(
+      {} as never,
+      new VaultStore(),
+      new OpStore(),
+      () => 1,
+    );
+
+    const save_results = await service.search_omnibar(">save note");
+    const find_results = await service.search_omnibar(">find in note");
+    const theme_results = await service.search_omnibar(">dark mode");
+
+    expect(save_results.items[0]).toMatchObject({
+      kind: "command",
+      command: { id: "save_note" },
+    });
+    expect(find_results.items[0]).toMatchObject({
+      kind: "command",
+      command: { id: "find_in_note" },
+    });
+    expect(theme_results.items[0]).toMatchObject({
+      kind: "command",
+      command: { id: "open_theme_settings" },
+    });
+  });
+
+  it("finds settings through their everyday aliases", () => {
+    const service = new SearchService(
+      {} as never,
+      new VaultStore(),
+      new OpStore(),
+      () => 1,
+    );
+
+    expect(
+      service
+        .search_settings("version control")
+        .some(
+          (item) =>
+            item.kind === "setting" &&
+            item.setting.key === "git_autocommit_enabled",
+        ),
+    ).toBe(true);
+    expect(
+      service
+        .search_settings("line width")
+        .some(
+          (item) =>
+            item.kind === "setting" &&
+            item.setting.key === "editor_max_width_ch",
+        ),
+    ).toBe(true);
+  });
+
   it("returns stale for out-of-order wiki suggest responses", async () => {
     const first = create_deferred<WikiSuggestion[]>();
     const second = create_deferred<WikiSuggestion[]>();

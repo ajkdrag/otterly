@@ -9,8 +9,23 @@ export class TabService {
     this.tab_store.set_dirty(tab_id, is_dirty);
   }
 
-  reconcile_saved_note(note: OpenNoteState) {
-    this.tab_store.reconcile_saved_note(note);
+  reconcile_saved_note(saved_note: OpenNoteState, latest_note?: OpenNoteState) {
+    const tab = this.tab_store.find_tab_by_path(saved_note.meta.path);
+    if (!tab) return;
+    const current =
+      latest_note ?? this.tab_store.get_cached_note(tab.id) ?? saved_note;
+    if (
+      current.buffer_id !== saved_note.buffer_id ||
+      current.meta.path !== saved_note.meta.path
+    )
+      return;
+    const updated = {
+      ...current,
+      meta: { ...current.meta, mtime_ms: saved_note.meta.mtime_ms },
+      is_dirty: current.markdown !== saved_note.markdown,
+    };
+    this.tab_store.set_cached_note(tab.id, updated);
+    this.tab_store.set_dirty(tab.id, updated.is_dirty);
   }
 
   mark_conflict(note_path: NotePath) {

@@ -47,15 +47,10 @@
   const has_vault = $derived(stores.vault.vault !== null);
 
   const vault_dashboard_open = $derived(stores.ui.vault_dashboard.open);
-  const vault_dashboard_recent = $derived(
-    stores.notes.recent_notes.map((n) => ({
-      id: n.id,
-      title: n.title,
-      path: n.path,
-    })),
-  );
-
   const recent_notes_for_display = $derived(stores.notes.recent_notes);
+  const available_action_ids = $derived(
+    action_registry.get_available().map((action) => action.id),
+  );
 
   const has_multiple_vaults = $derived(stores.vault.recent_vaults.length > 1);
 
@@ -140,7 +135,7 @@
     stats_status={stores.notes.dashboard_stats.status}
     note_count={stores.notes.dashboard_stats.value?.note_count ?? null}
     folder_count={stores.notes.dashboard_stats.value?.folder_count ?? null}
-    recent_notes={vault_dashboard_recent}
+    recent_notes={stores.notes.recent_notes}
     created_at={stores.vault.vault?.created_at ?? null}
     last_opened_at={stores.vault.vault?.last_opened_at ?? null}
     is_available={stores.vault.vault?.is_available ?? null}
@@ -165,7 +160,6 @@
       }
       void action_registry.execute(ACTION_IDS.omnibar_open);
     }}
-    on_view_all_tags={() => {}}
   />
 {/if}
 
@@ -335,6 +329,8 @@
   items={stores.search.omnibar_items}
   recent_notes={recent_notes_for_display}
   recent_command_ids={stores.ui.recent_command_ids}
+  {available_action_ids}
+  editor_settings={stores.ui.editor_settings}
   hotkeys_config={stores.ui.hotkeys_config}
   {has_multiple_vaults}
   on_open_change={(open) => {

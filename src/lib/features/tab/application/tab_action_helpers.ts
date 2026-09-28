@@ -91,14 +91,18 @@ export async function capture_active_tab_snapshot(
   if (open_note) {
     const is_dirty = stores.tab.is_open_note_dirty(open_note);
     if (is_dirty && stores.ui.editor_settings.autosave_enabled) {
+      const vault_generation = stores.vault.generation;
       const result = await services.note.save_note(null, true);
       const saved_open_note = stores.editor.open_note;
       if (
         result.status === "saved" &&
-        saved_open_note &&
+        stores.vault.generation === vault_generation &&
+        stores.tab.find_tab_by_path(open_note.meta.path)?.id === active_id &&
+        saved_open_note?.buffer_id === open_note.buffer_id &&
         saved_open_note.meta.path === result.saved_path
       ) {
-        stores.tab.reconcile_saved_note(saved_open_note);
+        stores.tab.set_cached_note(active_id, saved_open_note);
+        stores.tab.set_dirty(active_id, saved_open_note.is_dirty);
       }
     }
   }
@@ -183,6 +187,8 @@ export async function save_dirty_tab(
     return "saved";
   }
 
+  if (!stores.vault.vault) return "failed";
+  const vault_generation = stores.vault.generation;
   const open_note = stores.editor.open_note;
   const is_active_untitled =
     stores.tab.active_tab_id === tab_id &&
@@ -196,8 +202,18 @@ export async function save_dirty_tab(
     if (stores.tab.has_conflict(tab.note_path)) {
       services.note.skip_mtime_guard(tab.note_path);
     }
+    if (!open_note || open_note.meta.path !== tab.note_path) return "failed";
     const result = await services.note.save_note(null, true);
-    return result.status === "saved" ? "saved" : "failed";
+    const latest = stores.editor.open_note;
+    if (
+      result.status !== "saved" ||
+      stores.vault.generation !== vault_generation ||
+      latest?.buffer_id !== open_note.buffer_id ||
+      latest.meta.path !== tab.note_path ||
+      latest.is_dirty
+    )
+      return "failed";
+    return "saved";
   }
 
   const cached = stores.tab.get_cached_note(tab_id);
@@ -208,13 +224,39 @@ export async function save_dirty_tab(
       return "needs_path";
     }
 
-    await services.note.write_note_content(cached.meta.path, cached.markdown);
-    stores.tab.set_dirty(tab_id, false);
+    const saved_mtime_ms = await services.note.write_note_content(
+      cached.meta.path,
+      cached.markdown,
+    );
+    if (
+      saved_mtime_ms === undefined ||
+      stores.vault.generation !== vault_generation ||
+      stores.tab.find_tab_by_path(cached.meta.path)?.id !== tab_id
+    )
+      return "failed";
+    const active = stores.editor.open_note;
+    const is_active = active?.meta.path === cached.meta.path;
+    if (is_active && active.buffer_id === cached.buffer_id)
+      services.editor.flush();
+    const latest = is_active
+      ? stores.editor.open_note
+      : stores.tab.get_cached_note(tab_id);
+    if (
+      !latest ||
+      latest.buffer_id !== cached.buffer_id ||
+      latest.meta.path !== cached.meta.path
+    )
+      return "failed";
+    const is_dirty = latest.markdown !== cached.markdown;
     stores.tab.set_cached_note(tab_id, {
-      ...cached,
-      is_dirty: false,
+      ...latest,
+      meta: { ...latest.meta, mtime_ms: saved_mtime_ms },
+      is_dirty,
     });
-    return "saved";
+    stores.tab.set_dirty(tab_id, is_dirty);
+    if (is_active) stores.editor.update_mtime(latest.meta.id, saved_mtime_ms);
+    services.editor.mark_clean(cached.meta.path, cached.markdown);
+    return is_dirty ? "failed" : "saved";
   }
 
   return "failed";

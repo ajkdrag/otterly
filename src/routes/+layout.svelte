@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import "../app.css";
+  import "../styles/fonts.css";
   import "../styles/design_tokens.css";
   import "../styles/component_overrides.css";
   import "../styles/editor.css";

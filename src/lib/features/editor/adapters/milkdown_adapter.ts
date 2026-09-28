@@ -5,6 +5,7 @@ import {
   editorViewOptionsCtx,
   parserCtx,
   rootCtx,
+  serializerCtx,
 } from "@milkdown/kit/core";
 import {
   EditorState,
@@ -30,16 +31,36 @@ import {
   imageBlockComponent,
   imageBlockConfig,
 } from "@milkdown/kit/component/image-block";
-import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import {
+  codeBlockComponent,
+  codeBlockConfig,
+} from "@milkdown/kit/component/code-block";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { languages } from "@codemirror/language-data";
+import {
+  HighlightStyle,
+  LanguageDescription,
+  LanguageSupport,
+  StreamLanguage,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { EditorView as CodeMirrorView, keymap } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import { history } from "@milkdown/kit/plugin/history";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import {
   cursor as cursor_plugin,
   dropCursorConfig,
 } from "@milkdown/plugin-cursor";
-import { prism } from "@milkdown/plugin-prism";
 import { indent } from "@milkdown/plugin-indent";
-import { ImageOff, LoaderCircle } from "lucide-static";
+import {
+  ChevronDown,
+  Copy,
+  ImageOff,
+  LoaderCircle,
+  Search,
+  X,
+} from "lucide-static";
 import type { BufferConfig, EditorPort } from "$lib/features/editor/ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
 import { as_asset_path } from "$lib/shared/types/ids";
@@ -83,8 +104,112 @@ import { error_message } from "$lib/shared/utils/error_message";
 import { count_words } from "$lib/shared/utils/count_words";
 import { create_logger } from "$lib/shared/utils/logger";
 import { mark_boundary_escape_plugin } from "./mark_boundary_escape_plugin";
+import { create_markdown_sync_plugin } from "./markdown_sync_plugin";
+import { task_list_enter_plugin } from "./task_list_enter_plugin";
 
 const log = create_logger("milkdown_adapter");
+const plain_language = LanguageDescription.of({
+  name: "",
+  alias: ["plain", "text"],
+  support: new LanguageSupport(
+    StreamLanguage.define({
+      token(stream) {
+        stream.skipToEnd();
+        return null;
+      },
+    }),
+  ),
+});
+const code_languages = [plain_language, ...languages];
+
+function render_code_language(language: string): string {
+  if (!language) return "Plain";
+  const match = LanguageDescription.matchLanguageName(
+    code_languages,
+    language,
+    false,
+  );
+  return match ? match.name || "Plain" : language;
+}
+
+const code_block_theme = CodeMirrorView.theme({
+  "&": {
+    backgroundColor: "var(--editor-code-bg)",
+    color: "var(--editor-code-block-text)",
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.8125rem",
+  },
+  ".cm-content": {
+    padding: "0.75rem 0",
+    caretColor: "var(--foreground)",
+  },
+  ".cm-line": { padding: "0 0.75rem" },
+  ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.5" },
+  ".cm-cursor": { borderLeftColor: "var(--foreground)" },
+  ".cm-activeLine": { backgroundColor: "transparent" },
+  ".cm-selectionBackground": {
+    backgroundColor: "var(--editor-selection-bg)",
+  },
+  "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+    backgroundColor: "var(--editor-selection-bg)",
+  },
+});
+
+const code_block_highlight = HighlightStyle.define([
+  { tag: tags.comment, color: "var(--syntax-comment)", fontStyle: "italic" },
+  { tag: tags.punctuation, color: "var(--syntax-punctuation)" },
+  {
+    tag: [tags.propertyName, tags.attributeName],
+    color: "var(--syntax-property)",
+  },
+  {
+    tag: [tags.string, tags.special(tags.string)],
+    color: "var(--syntax-string)",
+  },
+  { tag: tags.operator, color: "var(--syntax-operator)" },
+  { tag: tags.keyword, color: "var(--syntax-keyword)" },
+  { tag: tags.function(tags.variableName), color: "var(--syntax-function)" },
+  { tag: tags.variableName, color: "var(--syntax-variable)" },
+  { tag: tags.className, color: "var(--syntax-class)" },
+  { tag: tags.number, color: "var(--syntax-number)" },
+  { tag: tags.bool, color: "var(--syntax-boolean)" },
+  { tag: tags.tagName, color: "var(--syntax-tag)" },
+  { tag: tags.regexp, color: "var(--syntax-regex)" },
+]);
+
+const is_editor_performance_enabled =
+  import.meta.env.DEV && import.meta.env.MODE !== "test";
+
+type EditorPerformanceCase = "empty" | "initial" | "restore";
+
+function report_editor_operation(input: {
+  operation: "start_session" | "open_buffer";
+  started_at: number | null;
+  char_count: number;
+  cache_reuse: boolean;
+  content_case: EditorPerformanceCase;
+  phase_ms?: Record<string, number>;
+}) {
+  const started_at = input.started_at;
+  if (!is_editor_performance_enabled || started_at === null) return;
+
+  const work_ms = performance.now() - started_at;
+  const metadata = {
+    operation: input.operation,
+    char_count: input.char_count,
+    cache_reuse: input.cache_reuse,
+    content_case: input.content_case,
+    work_ms,
+    ...input.phase_ms,
+  };
+
+  requestAnimationFrame((frame_time) => {
+    log.debug("Editor operation timing", {
+      ...metadata,
+      frame_ms: frame_time - started_at,
+    });
+  });
+}
 
 const cursor_plugins = cursor_plugin as unknown as Parameters<Editor["use"]>[0];
 const drop_cursor_config = dropCursorConfig as unknown as {
@@ -290,6 +415,9 @@ export function create_milkdown_editor_port(args?: {
   return {
     start_session: async (config) => {
       const { root, initial_markdown, note_path, vault_id, events } = config;
+      const started_at = is_editor_performance_enabled
+        ? performance.now()
+        : null;
       const {
         on_markdown_change,
         on_dirty_state_change,
@@ -303,11 +431,13 @@ export function create_milkdown_editor_port(args?: {
 
       let current_markdown = initial_markdown;
       let current_is_dirty = false;
+      let is_initializing = true;
       let editor: Editor | null = null;
       let is_large_note = is_large_markdown(initial_markdown);
       let current_note_path = note_path;
       let current_vault_id = vault_id;
       let current_code_block_heights: CodeBlockHeights = [];
+      let serialized_doc: ProseNode | null = null;
       let rendered_note_path = note_path;
       let rendered_vault_id = vault_id;
       const resolved_url_cache = new Map<string, string>();
@@ -318,6 +448,7 @@ export function create_milkdown_editor_port(args?: {
         note_path: string;
         markdown: string;
         is_dirty: boolean;
+        pending_saved_doc?: ProseNode;
         code_block_heights: CodeBlockHeights;
       };
 
@@ -457,11 +588,27 @@ export function create_milkdown_editor_port(args?: {
             width: 4,
             color: false,
           }));
+          ctx.update(codeBlockConfig.key, (config) => ({
+            ...config,
+            languages: code_languages,
+            extensions: [
+              keymap.of([...defaultKeymap, indentWithTab]),
+              code_block_theme,
+              syntaxHighlighting(code_block_highlight),
+            ],
+            renderLanguage: render_code_language,
+            copyText: "Copy",
+            copyIcon: Copy,
+            expandIcon: ChevronDown,
+            searchIcon: Search,
+            clearSearchIcon: X,
+          }));
         })
+        .use(task_list_enter_plugin)
         .use(gfm)
         .use(leading_block_escape_plugin)
         .use(cursor_plugins)
-        .use(prism)
+        .use(codeBlockComponent)
         .use(
           create_code_block_ui_plugin({
             get_initial_heights: () => current_code_block_heights,
@@ -491,7 +638,11 @@ export function create_milkdown_editor_port(args?: {
         .use(slash_command_plugin)
         .use(mark_boundary_escape_plugin)
         .use(find_highlight_plugin)
-        .use(listener)
+        .use(
+          create_markdown_sync_plugin(() => {
+            if (editor) on_markdown_change(get_current_markdown());
+          }),
+        )
         .use(history)
         .use(dirty_state_plugin_config_key)
         .use(dirty_state_plugin)
@@ -499,19 +650,8 @@ export function create_milkdown_editor_port(args?: {
           ctx.set(dirty_state_plugin_config_key.key, {
             on_dirty_state_change: (is_dirty) => {
               current_is_dirty = is_dirty;
-              on_dirty_state_change(is_dirty);
+              if (!is_initializing) on_dirty_state_change(is_dirty);
             },
-          });
-
-          const listener_instance = ctx.get(listenerCtx);
-          listener_instance.markdownUpdated((_ctx, markdown, prev_markdown) => {
-            if (markdown === prev_markdown) return;
-
-            const normalized = normalize_markdown(markdown);
-            if (normalized === current_markdown) return;
-
-            current_markdown = normalized;
-            on_markdown_change(normalized);
           });
         });
 
@@ -552,6 +692,19 @@ export function create_milkdown_editor_port(args?: {
       }
 
       editor = await builder.create();
+      serialized_doc = editor.ctx.get(editorViewCtx).state.doc;
+
+      function get_current_markdown(): string {
+        if (!editor) return current_markdown;
+        const doc = editor.ctx.get(editorViewCtx).state.doc;
+        if (doc !== serialized_doc) {
+          current_markdown = normalize_markdown(
+            editor.ctx.get(serializerCtx)(doc),
+          );
+          serialized_doc = doc;
+        }
+        return current_markdown;
+      }
 
       const run_editor_action = (
         action: Parameters<NonNullable<typeof editor>["action"]>[0],
@@ -600,7 +753,7 @@ export function create_milkdown_editor_port(args?: {
         );
         const current_buffer = {
           note_path: rendered_note_path,
-          markdown: current_markdown,
+          markdown: get_current_markdown(),
           code_block_heights: [...current_code_block_heights],
         };
         buffer_height_map.set(current_buffer_key, [
@@ -636,12 +789,16 @@ export function create_milkdown_editor_port(args?: {
         view.dispatch(full_scan_tr);
       }
 
-      function dispatch_mark_clean(view: {
-        state: EditorState;
-        dispatch: (tr: EditorState["tr"]) => void;
-      }) {
+      function dispatch_mark_clean(
+        view: {
+          state: EditorState;
+          dispatch: (tr: EditorState["tr"]) => void;
+        },
+        saved_doc?: ProseNode,
+      ) {
         const clean_tr = view.state.tr.setMeta(dirty_state_plugin_key, {
           action: "mark_clean",
+          saved_doc,
         });
         view.dispatch(clean_tr);
       }
@@ -656,16 +813,44 @@ export function create_milkdown_editor_port(args?: {
         });
       }
 
+      // Milkdown assigns heading IDs during view setup, after plugin state initialization.
+      dispatch_mark_clean(editor.ctx.get(editorViewCtx));
+      serialized_doc = editor.ctx.get(editorViewCtx).state.doc;
+      is_initializing = false;
       save_current_buffer();
+      report_editor_operation({
+        operation: "start_session",
+        started_at,
+        char_count: initial_markdown.length,
+        cache_reuse: false,
+        content_case: initial_markdown.length === 0 ? "empty" : "initial",
+      });
 
-      function mark_clean() {
+      function mark_clean(
+        note_path = current_note_path,
+        saved_markdown?: string,
+      ) {
         if (!editor) return;
-        run_editor_action((ctx) => {
-          const view = ctx.get(editorViewCtx);
-          const tr = view.state.tr;
-          tr.setMeta(dirty_state_plugin_key, { action: "mark_clean" });
-          view.dispatch(tr);
-        });
+        const parser = editor.ctx.get(parserCtx);
+        if (note_path !== current_note_path) {
+          const entry = buffer_map.get(buffer_key(current_vault_id, note_path));
+          if (!entry || saved_markdown === undefined) return;
+          const saved_doc =
+            entry.markdown === saved_markdown
+              ? entry.state.doc
+              : parser(saved_markdown);
+          // Applying an inactive state would send its dirty callback to the active note.
+          entry.pending_saved_doc = saved_doc;
+          entry.is_dirty = !entry.state.doc.eq(saved_doc);
+          return;
+        }
+        const view = editor.ctx.get(editorViewCtx);
+        const saved_doc =
+          saved_markdown === undefined ||
+          get_current_markdown() === saved_markdown
+            ? view.state.doc
+            : parser(saved_markdown);
+        dispatch_mark_clean(view, saved_doc);
       }
 
       return {
@@ -680,6 +865,7 @@ export function create_milkdown_editor_port(args?: {
           is_large_note = is_large_markdown(markdown);
           current_markdown = markdown;
           run_editor_action(replaceAll(markdown));
+          serialized_doc = editor.ctx.get(editorViewCtx).state.doc;
           if (!is_large_note) {
             run_editor_action((ctx) => {
               const view = ctx.get(editorViewCtx);
@@ -691,9 +877,7 @@ export function create_milkdown_editor_port(args?: {
           }
           save_current_buffer();
         },
-        get_markdown() {
-          return current_markdown;
-        },
+        get_markdown: get_current_markdown,
         set_code_block_heights(heights: CodeBlockHeights) {
           if (!editor) return;
           current_code_block_heights = heights;
@@ -776,6 +960,19 @@ export function create_milkdown_editor_port(args?: {
         },
         open_buffer(next_config: BufferConfig) {
           if (!editor) return;
+          const started_at = is_editor_performance_enabled
+            ? performance.now()
+            : null;
+          const phase_ms: Record<string, number> = {};
+          const time_phase = <T>(name: string, run: () => T): T => {
+            if (started_at === null) return run();
+            const phase_started_at = performance.now();
+            try {
+              return run();
+            } finally {
+              phase_ms[name] = performance.now() - phase_started_at;
+            }
+          };
 
           const restore_policy = next_config.restore_policy;
           const should_reuse_cache = restore_policy === "reuse_cache";
@@ -790,11 +987,12 @@ export function create_milkdown_editor_port(args?: {
             },
           );
           if (!is_same_buffer) {
-            save_current_buffer();
+            time_phase("save_ms", save_current_buffer);
             resolved_url_cache.clear();
             pending_resolutions.clear();
           }
 
+          let cache_reuse = false;
           current_vault_id = next_config.vault_id;
           current_note_path = next_config.note_path;
 
@@ -816,60 +1014,77 @@ export function create_milkdown_editor_port(args?: {
             const saved_entry = should_reuse_cache
               ? buffer_map.get(next_buffer_key)
               : null;
+            cache_reuse = Boolean(saved_entry);
             const restored_view_state = next_config.view_state;
             if (saved_entry) {
-              view.updateState(saved_entry.state);
+              time_phase("view_ms", () => {
+                view.updateState(saved_entry.state);
+              });
               current_markdown = saved_entry.markdown;
               is_large_note = is_large_markdown(current_markdown);
-              current_code_block_heights = apply_editor_view_state(view, {
-                cursor: restored_view_state?.cursor ?? null,
-                code_block_heights:
-                  restored_view_state?.code_block_heights ??
-                  (cached_heights.length > 0
-                    ? [...cached_heights]
-                    : [...saved_entry.code_block_heights]),
-              });
+              current_code_block_heights = time_phase("apply_view_ms", () =>
+                apply_editor_view_state(view, {
+                  cursor: restored_view_state?.cursor ?? null,
+                  code_block_heights:
+                    restored_view_state?.code_block_heights ??
+                    (cached_heights.length > 0
+                      ? [...cached_heights]
+                      : [...saved_entry.code_block_heights]),
+                }),
+              );
             } else {
               let parsed_doc: ProseNode;
               try {
-                parsed_doc = parser(next_config.initial_markdown);
+                parsed_doc = time_phase("parse_ms", () =>
+                  parser(next_config.initial_markdown),
+                );
               } catch {
                 parsed_doc =
                   view.state.schema.topNodeType.createAndFill() ??
                   view.state.doc;
               }
 
-              const new_state = EditorState.create({
-                schema: view.state.schema,
-                doc: parsed_doc,
-                plugins: view.state.plugins,
-              });
+              const new_state = time_phase("state_ms", () =>
+                EditorState.create({
+                  schema: view.state.schema,
+                  doc: parsed_doc,
+                  plugins: view.state.plugins,
+                }),
+              );
 
-              view.updateState(new_state);
+              time_phase("view_ms", () => {
+                view.updateState(new_state);
+              });
               current_markdown = normalize_markdown(
                 next_config.initial_markdown,
               );
               is_large_note = is_large_markdown(current_markdown);
-              current_code_block_heights = apply_editor_view_state(view, {
-                cursor: restored_view_state?.cursor ?? null,
-                code_block_heights:
-                  restored_view_state?.code_block_heights ??
-                  (cached_heights.length === 0
-                    ? read_code_block_heights(new_state)
-                    : [...cached_heights]),
-              });
+              current_code_block_heights = time_phase("apply_view_ms", () =>
+                apply_editor_view_state(view, {
+                  cursor: restored_view_state?.cursor ?? null,
+                  code_block_heights:
+                    restored_view_state?.code_block_heights ??
+                    (cached_heights.length === 0
+                      ? read_code_block_heights(new_state)
+                      : [...cached_heights]),
+                }),
+              );
             }
 
-            dispatch_editor_context_update(view);
+            time_phase("dispatch_ms", () => {
+              dispatch_editor_context_update(view);
 
-            if (
-              (restore_policy === "fresh" || !saved_entry) &&
-              !is_large_note
-            ) {
-              dispatch_full_scan(view);
-              dispatch_mark_clean(view);
-            }
+              if (restore_policy === "fresh" || !saved_entry) {
+                if (!is_large_note) dispatch_full_scan(view);
+                dispatch_mark_clean(view);
+              }
 
+              // Restore an inactive save's baseline only after this buffer owns callbacks.
+              if (saved_entry?.pending_saved_doc) {
+                dispatch_mark_clean(view, saved_entry.pending_saved_doc);
+              }
+            });
+            serialized_doc = view.state.doc;
             sync_runtime_dirty_from_state(view.state);
 
             buffer_map.set(
@@ -882,8 +1097,22 @@ export function create_milkdown_editor_port(args?: {
             );
           });
 
-          on_markdown_change(current_markdown);
-          on_dirty_state_change(current_is_dirty);
+          time_phase("callbacks_ms", () => {
+            on_markdown_change(current_markdown);
+            on_dirty_state_change(current_is_dirty);
+          });
+          const char_count = current_markdown.length;
+          let content_case: EditorPerformanceCase = "initial";
+          if (cache_reuse) content_case = "restore";
+          if (char_count === 0) content_case = "empty";
+          report_editor_operation({
+            operation: "open_buffer",
+            started_at,
+            char_count,
+            cache_reuse,
+            content_case,
+            phase_ms,
+          });
         },
         rename_buffer(old_note_path: string, new_note_path: string) {
           if (old_note_path === new_note_path) return;

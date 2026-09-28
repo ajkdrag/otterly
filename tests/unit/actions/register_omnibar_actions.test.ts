@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { register_omnibar_actions } from "$lib/features/search/application/omnibar_actions";
+import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
+import type { CommandId } from "$lib/features/search/types/command_palette";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 import { NotesStore } from "$lib/features/note/state/note_store.svelte";
@@ -113,7 +115,52 @@ function create_omnibar_actions_harness() {
   };
 }
 
+function command_item(command_id: CommandId) {
+  const command = COMMANDS_REGISTRY.find((entry) => entry.id === command_id);
+  if (!command) throw new Error(`Command "${command_id}" is not registered`);
+  return { kind: "command" as const, command, score: 100 };
+}
+
 describe("register_omnibar_actions", () => {
+  it("dispatches save, find, and theme commands to existing actions", async () => {
+    const { registry } = create_omnibar_actions_harness();
+    const save_note = vi.fn();
+    const open_find = vi.fn();
+    const open_settings = vi.fn();
+    registry.register({
+      id: ACTION_IDS.note_request_save,
+      label: "Save Note",
+      execute: save_note,
+    });
+    registry.register({
+      id: ACTION_IDS.find_in_file_open,
+      label: "Open Find in File",
+      execute: open_find,
+    });
+    registry.register({
+      id: ACTION_IDS.settings_open,
+      label: "Open Settings",
+      execute: open_settings,
+    });
+
+    await registry.execute(
+      ACTION_IDS.omnibar_confirm_item,
+      command_item("save_note"),
+    );
+    await registry.execute(
+      ACTION_IDS.omnibar_confirm_item,
+      command_item("find_in_note"),
+    );
+    await registry.execute(
+      ACTION_IDS.omnibar_confirm_item,
+      command_item("open_theme_settings"),
+    );
+
+    expect(save_note).toHaveBeenCalledOnce();
+    expect(open_find).toHaveBeenCalledOnce();
+    expect(open_settings).toHaveBeenCalledWith("theme");
+  });
+
   it("opens note after selecting cross-vault hit", async () => {
     const { registry, stores, execute_vault_select, execute_note_open } =
       create_omnibar_actions_harness();
@@ -323,27 +370,39 @@ describe("register_omnibar_actions", () => {
   });
 
   it("omnibar_open switches to current_vault when already open in all_vaults", async () => {
-    const { registry, stores } = create_omnibar_actions_harness();
+    const { registry, stores, services } = create_omnibar_actions_harness();
 
     await registry.execute(ACTION_IDS.omnibar_open_all_vaults);
-    expect(stores.ui.omnibar.open).toBe(true);
-    expect(stores.ui.omnibar.scope).toBe("all_vaults");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "machine learning");
+    expect(services.search.search_notes_all_vaults).toHaveBeenCalledWith(
+      "machine learning",
+    );
 
     await registry.execute(ACTION_IDS.omnibar_open);
     expect(stores.ui.omnibar.open).toBe(true);
     expect(stores.ui.omnibar.scope).toBe("current_vault");
+    expect(stores.ui.omnibar.query).toBe("machine learning");
+    expect(services.search.search_omnibar).toHaveBeenCalledWith(
+      "machine learning",
+    );
   });
 
   it("omnibar_open_all_vaults switches to all_vaults when already open in current_vault", async () => {
-    const { registry, stores } = create_omnibar_actions_harness();
+    const { registry, stores, services } = create_omnibar_actions_harness();
 
     await registry.execute(ACTION_IDS.omnibar_open);
-    expect(stores.ui.omnibar.open).toBe(true);
-    expect(stores.ui.omnibar.scope).toBe("current_vault");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "machine learning");
+    expect(services.search.search_omnibar).toHaveBeenCalledWith(
+      "machine learning",
+    );
 
     await registry.execute(ACTION_IDS.omnibar_open_all_vaults);
     expect(stores.ui.omnibar.open).toBe(true);
     expect(stores.ui.omnibar.scope).toBe("all_vaults");
+    expect(stores.ui.omnibar.query).toBe("machine learning");
+    expect(services.search.search_notes_all_vaults).toHaveBeenCalledWith(
+      "machine learning",
+    );
   });
 
   it("does not prompt switch for vault already marked unavailable", async () => {

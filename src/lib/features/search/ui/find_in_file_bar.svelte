@@ -62,7 +62,8 @@
       bind:this={input_ref}
       class="FindInFileBar__input"
       type="text"
-      placeholder="Find in file..."
+      placeholder="Find in note..."
+      aria-label="Find in note"
       value={query}
       oninput={(e) => {
         on_query_change(e.currentTarget.value);
@@ -70,23 +71,35 @@
       onkeydown={handle_keydown}
     />
     {#if count_display}
-      <span class="FindInFileBar__count">{count_display}</span>
+      <span class="FindInFileBar__count" role="status">{count_display}</span>
     {/if}
     <button
+      type="button"
       class="FindInFileBar__nav"
+      aria-label="Previous match"
+      title="Previous match (Shift+Enter)"
       onclick={on_prev}
       disabled={matches.length === 0}
     >
       <ChevronUpIcon />
     </button>
     <button
+      type="button"
       class="FindInFileBar__nav"
+      aria-label="Next match"
+      title="Next match (Enter)"
       onclick={on_next}
       disabled={matches.length === 0}
     >
       <ChevronDownIcon />
     </button>
-    <button class="FindInFileBar__close" onclick={on_close}>
+    <button
+      type="button"
+      class="FindInFileBar__close"
+      aria-label="Close find"
+      title="Close find (Esc)"
+      onclick={on_close}
+    >
       <XIcon />
     </button>
   </div>
@@ -105,6 +118,7 @@
   .FindInFileBar__input {
     flex: 1;
     min-width: 0;
+    height: var(--size-touch);
     padding: var(--space-1) var(--space-2);
     font-size: var(--text-sm);
     border: 1px solid var(--border);
@@ -114,7 +128,8 @@
   }
 
   .FindInFileBar__input:focus {
-    outline: none;
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
     border-color: var(--ring);
   }
 
@@ -129,15 +144,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    width: var(--size-touch);
+    height: var(--size-touch);
     padding: var(--space-1);
     border-radius: var(--radius-sm);
     color: var(--muted-foreground);
-    transition: color var(--duration-fast) var(--ease-default);
+    transition:
+      color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default);
   }
 
-  .FindInFileBar__nav:hover,
+  .FindInFileBar__nav:hover:not(:disabled),
   .FindInFileBar__close:hover {
     color: var(--foreground);
+    background-color: var(--accent);
+  }
+
+  .FindInFileBar__nav:focus-visible,
+  .FindInFileBar__close:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   .FindInFileBar__nav:disabled {

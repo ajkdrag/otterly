@@ -1,0 +1,55 @@
+diff --git a/lib/index.js b/lib/index.js
+index ea8cdaa076c309a314b2538f34dbb04b8b4c89b0..117ec0deaada604f52b806658db2e892518b62e0 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1426,6 +1426,7 @@ var listItemSchema = $nodeSchema("list_item", (ctx) => ({
+ 		"li",
+ 		{
+ 			...ctx.get(listItemAttr.key)(node),
++			...(node.attrs.listType === "ordered" && /^\d+\.$/.test(node.attrs.label) ? { value: node.attrs.label.slice(0, -1) } : {}),
+ 			"data-label": node.attrs.label,
+ 			"data-list-type": node.attrs.listType,
+ 			"data-spread": node.attrs.spread
+@@ -2107,7 +2108,7 @@ withMeta(syncHeadingIdPlugin, {
+ //#region src/plugin/sync-list-order-plugin.ts
+ var syncListOrderPlugin = $prose((ctx) => {
+ 	const syncOrderLabel = (transactions, _oldState, newState) => {
+-		if (!newState.selection || transactions.some((tr) => tr.getMeta("addToHistory") === false || !tr.isGeneric)) return null;
++		if (!newState.selection || transactions.some((tr) => tr.getMeta("addToHistory") === false || tr.getMeta("composition"))) return null;
+ 		const orderedListType = orderedListSchema.type(ctx);
+ 		const bulletListType = bulletListSchema.type(ctx);
+ 		const listItemType = listItemSchema.type(ctx);
+diff --git a/src/node/list-item.ts b/src/node/list-item.ts
+index c7cdfd2ed06c5a512667dbb2400ca8ea6de6cb21..0374d8ab95f44eb2f86514f3e776efe4b908349c 100644
+--- a/src/node/list-item.ts
++++ b/src/node/list-item.ts
+@@ -58,6 +58,10 @@ export const listItemSchema = $nodeSchema('list_item', (ctx) => ({
+     'li',
+     {
+       ...ctx.get(listItemAttr.key)(node),
++      // WebKit needs the native value attribute when task divs interrupt <li>s.
++      ...(node.attrs.listType === 'ordered' && /^\d+\.$/.test(node.attrs.label)
++        ? { value: node.attrs.label.slice(0, -1) }
++        : {}),
+       'data-label': node.attrs.label,
+       'data-list-type': node.attrs.listType,
+       'data-spread': node.attrs.spread,
+diff --git a/src/plugin/sync-list-order-plugin.ts b/src/plugin/sync-list-order-plugin.ts
+index c0de49ba3e5eefd307588971dd6d93b3707cc903..575cf003a36601a329e032997c4e7c80b4037b64 100644
+--- a/src/plugin/sync-list-order-plugin.ts
++++ b/src/plugin/sync-list-order-plugin.ts
+@@ -17,11 +17,12 @@ export const syncListOrderPlugin = $prose((ctx) => {
+     _oldState: EditorState,
+     newState: EditorState
+   ) => {
+-    // Skip if composing or not editable
++    // Skip composition and our own history-free label updates. Undo and redo
++    // also carry metadata, but still need their ordered labels synchronized.
+     if (
+       !newState.selection ||
+       transactions.some(
+-        (tr) => tr.getMeta('addToHistory') === false || !tr.isGeneric
++        (tr) => tr.getMeta('addToHistory') === false || tr.getMeta('composition')
+       )
+     )
+       return null
