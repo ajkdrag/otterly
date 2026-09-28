@@ -168,6 +168,9 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v0.6.1
         env:
+          # Mermaid's dependency tree pushes vite build past Node's default
+          # ~2GB heap on the 7GB runners.
+          NODE_OPTIONS: --max-old-space-size=4096
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
