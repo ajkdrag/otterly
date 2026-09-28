@@ -36,7 +36,7 @@ function push_closed_tab_history(
     title: tab.title,
     scroll_top: snapshot?.scroll_top ?? 0,
     cursor: snapshot?.cursor ?? null,
-    code_block_heights: snapshot?.code_block_heights ?? [],
+    code_block_view_states: snapshot?.code_block_view_states ?? [],
     draft_note: resolve_closed_tab_draft(stores, tab.id),
   });
 }

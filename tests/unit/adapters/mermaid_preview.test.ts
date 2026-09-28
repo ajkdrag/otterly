@@ -3,7 +3,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import mermaid from "mermaid";
-import { render_mermaid_preview } from "$lib/features/editor/adapters/mermaid_preview";
+import {
+  make_svg_zoomable,
+  render_mermaid_preview,
+} from "$lib/features/editor/adapters/mermaid_preview";
 
 // jsdom can't lay out SVG, so we mock mermaid and test our wiring around it.
 vi.mock("mermaid", () => ({
@@ -76,5 +79,27 @@ describe("render_mermaid_preview", () => {
     expect(element.className).toBe("mermaid-error");
     expect(element.textContent).toBe("<b>Parse error</b>");
     expect(element.children).toHaveLength(0);
+  });
+});
+
+describe("make_svg_zoomable", () => {
+  it("swaps mermaid's max-width for the natural width variable", () => {
+    const svg =
+      '<svg id="m" width="100%" style="max-width: 812.5px; background: red;" viewBox="-8 -8 812.5 240"><g></g></svg>';
+
+    expect(make_svg_zoomable(svg)).toBe(
+      '<svg id="m" width="100%" style="--diagram-width: 812.5px; background: red;" viewBox="-8 -8 812.5 240"><g></g></svg>',
+    );
+  });
+
+  it("adds a style when mermaid sets none", () => {
+    expect(make_svg_zoomable('<svg viewBox="0 0 100 50"></svg>')).toBe(
+      '<svg style="--diagram-width: 100px;" viewBox="0 0 100 50"></svg>',
+    );
+  });
+
+  it("leaves an svg without a viewBox alone", () => {
+    const svg = '<svg style="max-width: 10px;"></svg>';
+    expect(make_svg_zoomable(svg)).toBe(svg);
   });
 });

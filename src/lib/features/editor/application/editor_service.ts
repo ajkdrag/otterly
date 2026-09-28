@@ -4,7 +4,7 @@ import type {
   EditorSession,
 } from "$lib/features/editor/ports";
 import type {
-  CodeBlockHeights,
+  CodeBlockViewStates,
   EditorBufferViewState,
   OpenNoteState,
   CursorInfo,
@@ -169,8 +169,8 @@ export class EditorService {
     });
   }
 
-  get_code_block_heights(): CodeBlockHeights {
-    return this.session?.get_code_block_heights() ?? [];
+  get_code_block_view_states(): CodeBlockViewStates {
+    return this.session?.get_code_block_view_states() ?? [];
   }
 
   restore_view_state(view_state: EditorBufferViewState | null) {
@@ -291,14 +291,14 @@ export class EditorService {
           this.editor_store.set_cursor(id, cursor);
         });
       },
-      on_code_block_heights_change: (heights: CodeBlockHeights) => {
+      on_code_block_view_states_change: (heights: CodeBlockViewStates) => {
         if (!this.is_generation_current(generation)) return;
         const active_tab = this.tab_store.active_tab;
         const active_note_path = this.get_active_note_path();
         if (!active_tab || !active_note_path) return;
         if (active_tab.note_path !== active_note_path) return;
         this.tab_store.patch_snapshot(active_tab.id, {
-          code_block_heights: heights,
+          code_block_view_states: heights,
         });
       },
       on_internal_link_click: (raw_path: string, base_note_path: string) => {

@@ -6,7 +6,7 @@ export function sync_active_tab_editor_state(
   editor_store: EditorStore,
   editor_service: Pick<
     EditorService,
-    "get_scroll_top" | "get_code_block_heights"
+    "get_scroll_top" | "get_code_block_view_states"
   >,
 ): void {
   const active_tab = tab_store.active_tab;
@@ -21,7 +21,7 @@ export function sync_active_tab_editor_state(
   const snapshot = {
     scroll_top: editor_service.get_scroll_top(),
     cursor: editor_store.cursor,
-    code_block_heights: editor_service.get_code_block_heights(),
+    code_block_view_states: editor_service.get_code_block_view_states(),
   };
 
   tab_store.set_snapshot(active_tab.id, snapshot);

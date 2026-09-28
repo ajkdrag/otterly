@@ -55,7 +55,7 @@ export class SessionService {
           is_dirty: tab.is_dirty,
           scroll_top: snapshot?.scroll_top ?? 0,
           cursor: snapshot?.cursor ?? null,
-          code_block_heights: snapshot?.code_block_heights ?? [],
+          code_block_view_states: snapshot?.code_block_view_states ?? [],
           cached_note,
         };
       }),
@@ -155,8 +155,8 @@ export class SessionService {
       this.tab_store.set_snapshot(entry.note_path, {
         scroll_top: entry.scroll_top,
         cursor: entry.cursor ?? null,
-        code_block_heights: Array.isArray(entry.code_block_heights)
-          ? entry.code_block_heights
+        code_block_view_states: Array.isArray(entry.code_block_view_states)
+          ? entry.code_block_view_states
           : [],
       });
       if (entry.cached_note) {

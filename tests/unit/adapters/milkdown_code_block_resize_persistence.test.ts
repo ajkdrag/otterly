@@ -4,6 +4,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create_milkdown_editor_port } from "$lib/features/editor/adapters/milkdown_adapter";
 import { as_vault_id } from "$lib/shared/types/ids";
+import { code_block_view_state } from "../helpers/test_fixtures";
+
+function source_height(block: HTMLElement | undefined): string {
+  return block?.style.getPropertyValue("--code-block-source-height") ?? "";
+}
 
 async function flush_editor_actions(): Promise<void> {
   await Promise.resolve();
@@ -69,7 +74,10 @@ dada
       },
     });
 
-    session.set_code_block_heights([245, 381]);
+    session.set_code_block_view_states([
+      code_block_view_state(245),
+      code_block_view_state(381),
+    ]);
     await flush_editor_actions();
 
     let code_blocks = root.querySelectorAll<HTMLElement>(
@@ -77,20 +85,27 @@ dada
     );
 
     expect(session.get_markdown()).not.toContain("otterly:code-block");
-    expect(code_blocks[0]?.style.height).toBe("245px");
-    expect(code_blocks[1]?.style.height).toBe("381px");
+    expect(source_height(code_blocks[0])).toBe("245px");
+    expect(source_height(code_blocks[1])).toBe("381px");
 
     const first_block = code_blocks[0];
     const handle = first_block?.querySelector(".code-block-resize-handle");
     if (!first_block || !handle)
       throw new Error("Expected first code block resize handle");
-    vi.spyOn(first_block, "getBoundingClientRect").mockReturnValue({
+    const first_source = first_block.querySelector(
+      ".milkdown-code-block-placeholder",
+    );
+    if (!first_source) throw new Error("Expected code block source");
+    vi.spyOn(first_source, "getBoundingClientRect").mockReturnValue({
       height: 245,
     } as DOMRect);
     dispatch_pointer(handle, "pointerdown", 7, 100);
     dispatch_pointer(document, "pointermove", 7, 155);
     dispatch_pointer(document, "pointerup", 7, 155);
-    expect(session.get_code_block_heights()).toEqual([300, 381]);
+    expect(session.get_code_block_view_states()).toEqual([
+      code_block_view_state(300),
+      code_block_view_state(381),
+    ]);
 
     session.open_buffer({
       note_path: "docs/b.md",
@@ -123,9 +138,12 @@ dada
 
     code_blocks = root.querySelectorAll<HTMLElement>(".milkdown-code-block");
 
-    expect(session.get_code_block_heights()).toEqual([300, 381]);
-    expect(code_blocks[0]?.style.height).toBe("300px");
-    expect(code_blocks[1]?.style.height).toBe("381px");
+    expect(session.get_code_block_view_states()).toEqual([
+      code_block_view_state(300),
+      code_block_view_state(381),
+    ]);
+    expect(source_height(code_blocks[0])).toBe("300px");
+    expect(source_height(code_blocks[1])).toBe("381px");
 
     session.destroy();
     root.remove();
@@ -149,7 +167,7 @@ dada
       },
     });
 
-    session.set_code_block_heights([245]);
+    session.set_code_block_view_states([code_block_view_state(245)]);
     await flush_editor_actions();
 
     session.open_buffer({
@@ -159,7 +177,7 @@ dada
       restore_policy: "reuse_cache",
     });
     await flush_editor_actions();
-    session.set_code_block_heights([381]);
+    session.set_code_block_view_states([code_block_view_state(381)]);
     await flush_editor_actions();
 
     session.open_buffer({
@@ -170,7 +188,9 @@ dada
     });
     await flush_editor_actions();
 
-    expect(session.get_code_block_heights()).toEqual([245]);
+    expect(session.get_code_block_view_states()).toEqual([
+      code_block_view_state(245),
+    ]);
 
     session.open_buffer({
       note_path: "docs/shared.md",
@@ -180,7 +200,9 @@ dada
     });
     await flush_editor_actions();
 
-    expect(session.get_code_block_heights()).toEqual([381]);
+    expect(session.get_code_block_view_states()).toEqual([
+      code_block_view_state(381),
+    ]);
 
     session.destroy();
     root.remove();
@@ -216,13 +238,15 @@ dada
           anchor: 3,
           head: 3,
         },
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       },
     });
     await flush_editor_actions();
     await flush_editor_actions();
 
-    expect(session.get_code_block_heights()).toEqual([245]);
+    expect(session.get_code_block_view_states()).toEqual([
+      code_block_view_state(245),
+    ]);
 
     session.destroy();
     root.remove();

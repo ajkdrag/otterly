@@ -1,5 +1,5 @@
 import type {
-  CodeBlockHeights,
+  CodeBlockViewStates,
   OpenNoteState,
   CursorInfo,
 } from "$lib/shared/types/editor";
@@ -12,7 +12,7 @@ export type SessionEntry = {
   is_dirty: boolean;
   scroll_top: number;
   cursor: CursorInfo | null;
-  code_block_heights: CodeBlockHeights;
+  code_block_view_states: CodeBlockViewStates;
   cached_note: OpenNoteState | null;
 };
 

@@ -244,12 +244,12 @@ export function register_tab_actions(input: ActionRegistrationInput) {
       if (
         entry.cursor ||
         entry.scroll_top > 0 ||
-        entry.code_block_heights.length > 0
+        entry.code_block_view_states.length > 0
       ) {
         stores.tab.set_snapshot(tab.id, {
           scroll_top: entry.scroll_top,
           cursor: entry.cursor,
-          code_block_heights: entry.code_block_heights,
+          code_block_view_states: entry.code_block_view_states,
         });
       }
 

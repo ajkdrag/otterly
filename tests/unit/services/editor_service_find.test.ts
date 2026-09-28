@@ -34,8 +34,8 @@ function create_session_with_find(initial_markdown: string): EditorSession {
       current_markdown = markdown;
     }),
     get_markdown: vi.fn(() => current_markdown),
-    set_code_block_heights: vi.fn(),
-    get_code_block_heights: vi.fn(() => []),
+    set_code_block_view_states: vi.fn(),
+    get_code_block_view_states: vi.fn(() => []),
     restore_view_state: vi.fn(),
     insert_text_at_cursor: vi.fn(),
     set_selection: vi.fn(),

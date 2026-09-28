@@ -13,6 +13,7 @@ import {
   create_open_note_state,
   create_test_note,
   create_test_vault,
+  code_block_view_state,
 } from "../helpers/test_fixtures";
 
 function create_setup() {
@@ -27,7 +28,7 @@ function create_setup() {
   const editor_service = {
     flush: vi.fn().mockReturnValue(null),
     get_scroll_top: vi.fn().mockReturnValue(0),
-    get_code_block_heights: vi.fn().mockReturnValue([]),
+    get_code_block_view_states: vi.fn().mockReturnValue([]),
   };
   const note_service = {
     note_exists: vi.fn().mockResolvedValue(true),
@@ -90,7 +91,7 @@ describe("SessionService", () => {
       tab_store.set_snapshot(beta, {
         scroll_top: 120,
         cursor,
-        code_block_heights: [240],
+        code_block_view_states: [code_block_view_state(240)],
       });
 
       await service.save_latest_session();
@@ -106,7 +107,7 @@ describe("SessionService", () => {
               is_dirty: false,
               scroll_top: 120,
               cursor,
-              code_block_heights: [240],
+              code_block_view_states: [code_block_view_state(240)],
               cached_note: null,
             },
             {
@@ -116,7 +117,7 @@ describe("SessionService", () => {
               is_dirty: false,
               scroll_top: 0,
               cursor: null,
-              code_block_heights: [],
+              code_block_view_states: [],
               cached_note: null,
             },
           ],
@@ -147,7 +148,10 @@ describe("SessionService", () => {
       editor_store.set_open_note(open_note);
       editor_store.set_cursor(note.id, cursor);
       editor_service.get_scroll_top.mockReturnValue(88);
-      editor_service.get_code_block_heights.mockReturnValue([180, 320]);
+      editor_service.get_code_block_view_states.mockReturnValue([
+        code_block_view_state(180),
+        code_block_view_state(320),
+      ]);
       editor_service.flush.mockReturnValue({
         note_id: note.id,
         markdown: as_markdown_text("dirty draft"),
@@ -166,7 +170,10 @@ describe("SessionService", () => {
               is_dirty: true,
               scroll_top: 88,
               cursor,
-              code_block_heights: [180, 320],
+              code_block_view_states: [
+                code_block_view_state(180),
+                code_block_view_state(320),
+              ],
               cached_note: {
                 ...open_note,
                 markdown: as_markdown_text("dirty draft"),
@@ -188,10 +195,12 @@ describe("SessionService", () => {
       tab_store.set_snapshot(note.path, {
         scroll_top: 0,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
       });
       editor_store.set_open_note(open_note);
-      editor_service.get_code_block_heights.mockReturnValue([245]);
+      editor_service.get_code_block_view_states.mockReturnValue([
+        code_block_view_state(245),
+      ]);
 
       await service.save_latest_session();
 
@@ -201,7 +210,7 @@ describe("SessionService", () => {
           tabs: [
             expect.objectContaining({
               note_path: note.path,
-              code_block_heights: [245],
+              code_block_view_states: [code_block_view_state(245)],
             }),
           ],
         }),
@@ -238,7 +247,7 @@ describe("SessionService", () => {
             expect.objectContaining({
               note_path: draft_path,
               is_dirty: true,
-              code_block_heights: [],
+              code_block_view_states: [],
               cached_note: draft_note,
             }),
           ],
@@ -275,7 +284,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
-            code_block_heights: [],
+            code_block_view_states: [],
             cached_note: null,
           },
           {
@@ -285,7 +294,7 @@ describe("SessionService", () => {
             is_dirty: true,
             scroll_top: 64,
             cursor,
-            code_block_heights: [220],
+            code_block_view_states: [code_block_view_state(220)],
             cached_note: beta_cached,
           },
         ],
@@ -314,7 +323,7 @@ describe("SessionService", () => {
       expect(tab_store.get_snapshot(beta)).toEqual({
         scroll_top: 64,
         cursor,
-        code_block_heights: [220],
+        code_block_view_states: [code_block_view_state(220)],
       });
       expect(tab_store.get_cached_note(beta)).toEqual(beta_cached);
     });
@@ -345,7 +354,7 @@ describe("SessionService", () => {
             is_dirty: true,
             scroll_top: 20,
             cursor: null,
-            code_block_heights: [300],
+            code_block_view_states: [code_block_view_state(300)],
             cached_note: draft_note,
           },
         ],
@@ -357,7 +366,7 @@ describe("SessionService", () => {
       expect(tab_store.get_snapshot(draft_path)).toEqual({
         scroll_top: 20,
         cursor: null,
-        code_block_heights: [300],
+        code_block_view_states: [code_block_view_state(300)],
       });
       expect(tab_store.get_cached_note(draft_path)).toEqual(draft_note);
     });
@@ -377,7 +386,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
-            code_block_heights: [],
+            code_block_view_states: [],
             cached_note: null,
           },
           {
@@ -387,7 +396,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
-            code_block_heights: [],
+            code_block_view_states: [],
             cached_note: null,
           },
           {
@@ -397,7 +406,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
-            code_block_heights: [],
+            code_block_view_states: [],
             cached_note: null,
           },
         ],
@@ -424,7 +433,7 @@ describe("SessionService", () => {
             is_dirty: false,
             scroll_top: 0,
             cursor: null,
-            code_block_heights: [],
+            code_block_view_states: [],
             cached_note: null,
           },
         ],

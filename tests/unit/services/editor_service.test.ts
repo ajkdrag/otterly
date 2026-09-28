@@ -15,7 +15,10 @@ import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import type { OpenNoteState, CursorInfo } from "$lib/shared/types/editor";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
-import { create_test_vault } from "../helpers/test_fixtures";
+import {
+  create_test_vault,
+  code_block_view_state,
+} from "../helpers/test_fixtures";
 
 function create_open_note(note_path: string, markdown: string): OpenNoteState {
   const path = as_note_path(note_path);
@@ -42,8 +45,8 @@ function create_session(initial_markdown: string): EditorSession {
       current_markdown = markdown;
     }),
     get_markdown: vi.fn(() => current_markdown),
-    set_code_block_heights: vi.fn(),
-    get_code_block_heights: vi.fn(() => []),
+    set_code_block_view_states: vi.fn(),
+    get_code_block_view_states: vi.fn(() => []),
     restore_view_state: vi.fn(),
     insert_text_at_cursor: vi.fn(),
     set_selection: vi.fn(),
@@ -171,7 +174,7 @@ describe("EditorService", () => {
     expect(typeof mount_config.events.on_markdown_change).toBe("function");
     expect(typeof mount_config.events.on_dirty_state_change).toBe("function");
     expect(typeof mount_config.events.on_cursor_change).toBe("function");
-    expect(typeof mount_config.events.on_code_block_heights_change).toBe(
+    expect(typeof mount_config.events.on_code_block_view_states_change).toBe(
       "function",
     );
     expect(typeof mount_config.events.on_internal_link_click).toBe("function");
@@ -207,13 +210,15 @@ describe("EditorService", () => {
     await service.mount({ root, note });
 
     const events = session_config_at(session_configs, 0).events;
-    events.on_code_block_heights_change?.([180, null, 320]);
-
-    expect(tab_store.get_snapshot(note.meta.path)?.code_block_heights).toEqual([
-      180,
+    events.on_code_block_view_states_change?.([
+      code_block_view_state(180),
       null,
-      320,
+      code_block_view_state(320),
     ]);
+
+    expect(
+      tab_store.get_snapshot(note.meta.path)?.code_block_view_states,
+    ).toEqual([code_block_view_state(180), null, code_block_view_state(320)]);
     expect(tab_store.get_snapshot(note.meta.path)?.scroll_top).toBe(10);
     expect(tab_store.session_metadata_revision).toBeGreaterThan(
       previous_revision,

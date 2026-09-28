@@ -16,6 +16,7 @@ import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import type { VaultSession } from "$lib/features/session";
 import { toast } from "svelte-sonner";
+import { code_block_view_state } from "../helpers/test_fixtures";
 
 vi.mock("svelte-sonner", () => ({
   toast: {
@@ -118,7 +119,7 @@ function create_harness(options: HarnessOptions = {}) {
       unmount: vi.fn(),
       set_scroll_top: vi.fn(),
       restore_view_state: vi.fn(),
-      set_code_block_heights: vi.fn(),
+      set_code_block_view_states: vi.fn(),
       restore_cursor: vi.fn(),
     },
     note: {
@@ -236,7 +237,7 @@ describe("register_app_actions", () => {
           is_dirty: false,
           scroll_top: 12,
           cursor: null,
-          code_block_heights: [],
+          code_block_view_states: [],
           cached_note: null,
         },
       ],
@@ -332,7 +333,7 @@ describe("register_app_actions", () => {
     stores.tab.set_snapshot(note.meta.path, {
       scroll_top: 36,
       cursor,
-      code_block_heights: [245],
+      code_block_view_states: [code_block_view_state(245)],
     });
 
     await registry.execute(ACTION_IDS.app_editor_mount, root, note);
@@ -340,7 +341,7 @@ describe("register_app_actions", () => {
     expect(services.editor.set_scroll_top).toHaveBeenCalledWith(36);
     expect(services.editor.restore_view_state).toHaveBeenCalledWith({
       cursor,
-      code_block_heights: [245],
+      code_block_view_states: [code_block_view_state(245)],
     });
   });
 

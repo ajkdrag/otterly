@@ -545,7 +545,6 @@
   display: flex;
   flex-direction: column;
   min-height: 48px;
-  max-height: min(4096px, 80vh);
   margin: calc(var(--editor-spacing) * 0.75) 0
     calc(var(--editor-spacing) * 1.25);
   overflow: hidden;
@@ -555,9 +554,12 @@
   color: var(--editor-code-block-text);
 }
 
+/* Our elements are appended to the block. order lays it out as: tools and
+   source, source handle, diagram bar, diagram, diagram handle. */
 .ProseMirror .milkdown-code-block .code-block-resize-handle {
   display: flex;
   flex: none;
+  order: 1;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -610,7 +612,7 @@
 
 .ProseMirror .milkdown-code-block .language-button,
 .ProseMirror .milkdown-code-block .copy-button,
-.ProseMirror .milkdown-code-block .preview-toggle-button {
+.ProseMirror .milkdown-code-block .code-block-diagram-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -632,13 +634,14 @@
 
 .ProseMirror .milkdown-code-block .language-button:hover,
 .ProseMirror .milkdown-code-block .copy-button:hover,
-.ProseMirror .milkdown-code-block .preview-toggle-button:hover {
+.ProseMirror .milkdown-code-block .code-block-diagram-button:hover:enabled {
   background: var(--accent);
   color: var(--accent-foreground);
 }
 
 .ProseMirror .milkdown-code-block .milkdown-icon,
-.ProseMirror .milkdown-code-block .milkdown-icon svg {
+.ProseMirror .milkdown-code-block .milkdown-icon svg,
+.ProseMirror .milkdown-code-block .code-block-diagram-button svg {
   display: inline-flex;
   width: 0.875rem;
   height: 0.875rem;
@@ -688,38 +691,89 @@
   cursor: pointer;
 }
 
-.ProseMirror .milkdown-code-block .clear-icon.hidden,
-.ProseMirror .milkdown-code-block .codemirror-host.hidden {
+.ProseMirror .milkdown-code-block .clear-icon.hidden {
   display: none;
 }
 
-/* The block clips its content, so large diagrams scroll inside the panel. */
-.ProseMirror .milkdown-code-block .preview-panel {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+/* Hidden source applies to diagram blocks only. A block switched to another
+   language shows its source again. */
+.ProseMirror
+  .milkdown-code-block[data-diagram][data-source-hidden]
+  > :is(
+    .codemirror-host,
+    .milkdown-code-block-placeholder,
+    .code-block-source-resize-handle
+  ) {
+  display: none;
 }
 
-.ProseMirror .milkdown-code-block .preview-divider {
+.ProseMirror .milkdown-code-block .code-block-diagram-resize-handle {
+  display: none;
+  order: 4;
+}
+
+.ProseMirror
+  .milkdown-code-block[data-diagram]:has(> .preview-panel)
+  > .code-block-diagram-resize-handle {
+  display: flex;
+}
+
+.ProseMirror .milkdown-code-block .code-block-diagram-bar {
+  display: none;
+  flex: none;
+  order: 2;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.25rem;
   border-top: 1px solid var(--editor-code-border);
-}
-
-.ProseMirror .milkdown-code-block .preview-label {
-  padding: 0.5rem 0.75rem 0;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
   user-select: none;
 }
 
-.ProseMirror .milkdown-code-block .preview {
+.ProseMirror .milkdown-code-block[data-diagram] > .code-block-diagram-bar {
   display: flex;
-  justify-content: center;
+}
+
+.ProseMirror .milkdown-code-block .code-block-diagram-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ProseMirror .milkdown-code-block .code-block-diagram-zoom-reset {
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Our diagram bar replaces Milkdown's preview toggle and label. */
+.ProseMirror .milkdown-code-block .preview-toggle-button,
+.ProseMirror .milkdown-code-block .preview-divider,
+.ProseMirror .milkdown-code-block .preview-label {
+  display: none;
+}
+
+/* The diagram handle sets --diagram-height. Without it the diagram sizes from
+   its width and zoom, and scrolls past 80vh. */
+.ProseMirror .milkdown-code-block .preview-panel {
+  flex: none;
+  order: 3;
+  height: var(--diagram-height, auto);
+  max-height: min(4096px, 80vh);
+  overflow: auto;
+}
+
+.ProseMirror .milkdown-code-block .preview {
   padding: 0.75rem;
 }
 
-.ProseMirror .milkdown-code-block .preview svg {
-  max-width: 100%;
+/* Zoom 1 fits the diagram to the block, never past its natural width. Auto
+   margins center it and drop to zero once zoom makes it overflow, so the
+   left edge stays reachable by scrolling. */
+.ProseMirror .milkdown-code-block .preview > svg {
+  display: block;
+  width: calc(min(100%, var(--diagram-width)) * var(--diagram-zoom, 1));
+  max-width: none;
   height: auto;
+  margin-inline: auto;
 }
 
 .ProseMirror .milkdown-code-block .preview .mermaid-error {
@@ -764,9 +818,12 @@
   font-weight: 600;
 }
 
+/* The resize handle sets --code-block-source-height on the block. Only the
+   source takes it, so a diagram below keeps its own size. */
 .ProseMirror .milkdown-code-block .codemirror-host {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  height: var(--code-block-source-height, auto);
+  max-height: min(4096px, 80vh);
   overflow: auto;
 }
 
@@ -785,7 +842,9 @@
 }
 
 .ProseMirror .milkdown-code-block .milkdown-code-block-placeholder {
-  max-height: none;
+  flex: none;
+  height: var(--code-block-source-height, auto);
+  max-height: min(4096px, 80vh);
   margin: 0;
   padding: 0.75rem;
   overflow: auto;

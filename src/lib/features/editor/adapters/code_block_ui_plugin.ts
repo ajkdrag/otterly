@@ -7,35 +7,99 @@ import {
   type Transaction,
 } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import type { CodeBlockHeights } from "$lib/shared/types/editor";
+import { Code, EyeOff, ZoomIn, ZoomOut } from "lucide-static";
+import {
+  are_code_block_view_states_equal,
+  is_same_code_block_view_state,
+  type CodeBlockViewState,
+  type CodeBlockViewStates,
+} from "$lib/shared/types/editor";
+import { is_diagram_language } from "./mermaid_preview";
+
+// Owns the UI we add to Milkdown's code blocks: resize handles for the source
+// and the diagram, and for diagram blocks a bar with zoom and a source toggle.
+// Milkdown tears a block's own UI down when it scrolls away, so the state
+// lives here, keyed by block order, and the adapter persists it with the tab.
 
 const CODE_BLOCK_MIN_HEIGHT = 48;
 const CODE_BLOCK_MAX_HEIGHT = 4096;
 const CODE_BLOCK_MAX_VIEWPORT_RATIO = 0.8;
+// Zoom in and out walk these levels, like browser zoom. 1 fits the width.
+const DIAGRAM_ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8, 10];
+const DIAGRAM_ZOOM_MIN = 0.25;
+const DIAGRAM_ZOOM_MAX = 10;
+const DIAGRAM_ZOOM_PROPERTY = "--diagram-zoom";
+
+const DEFAULT_VIEW_STATE: CodeBlockViewState = {
+  source_height: null,
+  diagram_height: null,
+  source_hidden: false,
+  diagram_zoom: 1,
+};
+
+// The two parts a handle can resize. Each handle writes a CSS variable on the
+// block, and editor.css applies it to that part only.
+type ResizeTarget = {
+  state_key: "source_height" | "diagram_height";
+  property: string;
+  part_selector: string;
+  handle_class: string;
+  label: string;
+};
+
+const SOURCE_RESIZE: ResizeTarget = {
+  state_key: "source_height",
+  property: "--code-block-source-height",
+  // CodeMirror's host once mounted, or Milkdown's placeholder before that.
+  part_selector:
+    ":scope > .codemirror-host, :scope > .milkdown-code-block-placeholder",
+  handle_class: "code-block-resize-handle code-block-source-resize-handle",
+  label: "Resize code block",
+};
+
+const DIAGRAM_RESIZE: ResizeTarget = {
+  state_key: "diagram_height",
+  property: "--diagram-height",
+  part_selector: ":scope > .preview-panel",
+  handle_class: "code-block-resize-handle code-block-diagram-resize-handle",
+  label: "Resize diagram",
+};
 
 type CodeBlockUiState = {
   positions: number[];
-  heights: CodeBlockHeights;
+  view_states: CodeBlockViewStates;
 };
 
 type CodeBlockUiMeta =
-  | { kind: "set_height"; ordinal: number; height: number }
-  | { kind: "set_heights"; heights: CodeBlockHeights };
+  | {
+      kind: "patch_view_state";
+      ordinal: number;
+      patch: Partial<CodeBlockViewState>;
+    }
+  | { kind: "set_view_states"; view_states: CodeBlockViewStates };
 
 type TrackedBlock = {
   position: number;
-  persisted_height: number | null | undefined;
-  applied_style_height: string;
-  handle: HTMLButtonElement;
+  applied_view_state: CodeBlockViewState | null | undefined;
+  diagram_bar: DiagramBar;
   cleanup: () => void;
+};
+
+type DiagramBar = {
+  element: HTMLDivElement;
+  source_button: HTMLButtonElement;
+  zoom_out_button: HTMLButtonElement;
+  zoom_reset_button: HTMLButtonElement;
+  zoom_in_button: HTMLButtonElement;
 };
 
 type ActiveResize = {
   block: HTMLElement;
+  target: ResizeTarget;
   pointer_id: number;
   start_y: number;
   start_height: number;
-  original_style_height: string;
+  original_height: string;
   previous_user_select: string;
   pending_height: number | null;
 };
@@ -44,120 +108,32 @@ export const code_block_ui_key = new PluginKey<CodeBlockUiState>(
   "code-block-ui",
 );
 
-function normalize_code_block_height(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return Math.min(
-    Math.max(Math.round(value), CODE_BLOCK_MIN_HEIGHT),
-    CODE_BLOCK_MAX_HEIGHT,
-  );
+export function read_code_block_view_states(
+  state: EditorState,
+): CodeBlockViewStates {
+  return [...get_code_block_ui_state(state).view_states];
 }
 
-function collect_code_block_positions(doc: ProseNode): number[] {
-  const positions: number[] = [];
-  doc.descendants((node, pos) => {
-    if (node.type.name === "code_block") positions.push(pos);
-  });
-  return positions;
-}
-
-function create_code_block_ui_state(
-  doc: ProseNode,
-  heights: CodeBlockHeights,
-): CodeBlockUiState {
-  const positions = collect_code_block_positions(doc);
-  return {
-    positions,
-    heights: positions.map((_, index) =>
-      normalize_code_block_height(heights[index] ?? null),
-    ),
-  };
-}
-
-function remap_code_block_ui_state(
-  current: CodeBlockUiState,
-  tr: Transaction,
-  next_doc: ProseNode,
-): CodeBlockUiState {
-  const positions = collect_code_block_positions(next_doc);
-  const next_index_by_position = new Map(
-    positions.map((position, index) => [position, index]),
-  );
-  const heights = positions.map(() => null) as CodeBlockHeights;
-
-  current.positions.forEach((position, index) => {
-    const height = current.heights[index] ?? null;
-    const next_index = next_index_by_position.get(tr.mapping.map(position, 1));
-    if (height !== null && next_index !== undefined) {
-      heights[next_index] = height;
-    }
-  });
-
-  return { positions, heights };
-}
-
-function are_code_block_heights_equal(
-  left: CodeBlockHeights,
-  right: CodeBlockHeights,
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((height, index) => height === right[index])
-  );
-}
-
-function get_code_block_ui_state(state: EditorState): CodeBlockUiState {
-  return code_block_ui_key.getState(state) ?? { positions: [], heights: [] };
-}
-
-export function read_code_block_heights(state: EditorState): CodeBlockHeights {
-  return [...get_code_block_ui_state(state).heights];
-}
-
-export function replace_code_block_heights(
+export function replace_code_block_view_states(
   view: EditorView,
-  heights: CodeBlockHeights,
+  view_states: CodeBlockViewStates,
 ): void {
   view.dispatch(
     view.state.tr.setMeta(code_block_ui_key, {
-      kind: "set_heights",
-      heights,
-    } satisfies CodeBlockUiMeta),
-  );
-}
-
-function clamp_code_block_height(height: number): number {
-  const viewport_height = window.innerHeight || 900;
-  const max_height = Math.max(
-    CODE_BLOCK_MIN_HEIGHT,
-    Math.min(
-      CODE_BLOCK_MAX_HEIGHT,
-      Math.floor(viewport_height * CODE_BLOCK_MAX_VIEWPORT_RATIO),
-    ),
-  );
-  return Math.min(
-    Math.max(Math.round(height), CODE_BLOCK_MIN_HEIGHT),
-    max_height,
-  );
-}
-
-function set_code_block_height(
-  view: EditorView,
-  ordinal: number,
-  height: number,
-): void {
-  view.dispatch(
-    view.state.tr.setMeta(code_block_ui_key, {
-      kind: "set_height",
-      ordinal,
-      height,
+      kind: "set_view_states",
+      view_states,
     } satisfies CodeBlockUiMeta),
   );
 }
 
 type CodeBlockUiPluginArgs = {
-  get_initial_heights: () => CodeBlockHeights;
-  on_heights_change?: (heights: CodeBlockHeights) => void;
+  get_initial_view_states: () => CodeBlockViewStates;
+  on_view_states_change?: (view_states: CodeBlockViewStates) => void;
 };
+
+export function create_code_block_ui_plugin(args: CodeBlockUiPluginArgs) {
+  return $prose(() => create_code_block_ui_prosemirror_plugin(args));
+}
 
 export function create_code_block_ui_prosemirror_plugin(
   args: CodeBlockUiPluginArgs,
@@ -166,7 +142,7 @@ export function create_code_block_ui_prosemirror_plugin(
     key: code_block_ui_key,
     state: {
       init: (_, state) =>
-        create_code_block_ui_state(state.doc, args.get_initial_heights()),
+        create_code_block_ui_state(state.doc, args.get_initial_view_states()),
       apply: (tr, value, _, new_state) => {
         const meta = tr.getMeta(code_block_ui_key) as
           | CodeBlockUiMeta
@@ -175,19 +151,22 @@ export function create_code_block_ui_prosemirror_plugin(
           ? remap_code_block_ui_state(value, tr, new_state.doc)
           : value;
 
-        if (meta?.kind === "set_heights") {
-          next = create_code_block_ui_state(new_state.doc, meta.heights);
-        } else if (meta?.kind === "set_height") {
-          if (meta.ordinal >= 0 && meta.ordinal < next.heights.length) {
-            const heights = [...next.heights];
-            heights[meta.ordinal] = normalize_code_block_height(meta.height);
-            next = { ...next, heights };
+        if (meta?.kind === "set_view_states") {
+          next = create_code_block_ui_state(new_state.doc, meta.view_states);
+        } else if (meta?.kind === "patch_view_state") {
+          if (meta.ordinal >= 0 && meta.ordinal < next.view_states.length) {
+            const view_states = [...next.view_states];
+            view_states[meta.ordinal] = normalize_view_state({
+              ...(view_states[meta.ordinal] ?? DEFAULT_VIEW_STATE),
+              ...meta.patch,
+            });
+            next = { ...next, view_states };
           }
         }
 
         if (
           next.positions === value.positions &&
-          are_code_block_heights_equal(next.heights, value.heights)
+          are_code_block_view_states_equal(next.view_states, value.view_states)
         ) {
           return value;
         }
@@ -197,41 +176,37 @@ export function create_code_block_ui_prosemirror_plugin(
     view: (view) => {
       const tracked_blocks = new Map<HTMLElement, TrackedBlock>();
       let active_resize: ActiveResize | null = null;
-      let previous_heights = read_code_block_heights(view.state);
-      const resize_observer =
-        typeof ResizeObserver === "undefined"
-          ? null
-          : new ResizeObserver((entries) => {
-              for (const entry of entries) {
-                const dom = entry.target;
-                if (!(dom instanceof HTMLElement)) continue;
-                const tracked = tracked_blocks.get(dom);
-                if (!tracked) continue;
+      let previous_view_states = read_code_block_view_states(view.state);
 
-                // A restored or actively dragged height is already tracked. Only
-                // an external inline-height change needs a transaction.
-                const inline_height = dom.style.height;
-                if (
-                  !inline_height ||
-                  inline_height === tracked.applied_style_height
-                ) {
-                  continue;
-                }
-                tracked.applied_style_height = inline_height;
+      function current_view_state(dom: HTMLElement): {
+        ordinal: number;
+        view_state: CodeBlockViewState;
+      } | null {
+        const tracked = tracked_blocks.get(dom);
+        if (!tracked) return null;
+        const plugin_state = get_code_block_ui_state(view.state);
+        const ordinal = plugin_state.positions.indexOf(tracked.position);
+        if (ordinal < 0) return null;
+        return {
+          ordinal,
+          view_state: plugin_state.view_states[ordinal] ?? DEFAULT_VIEW_STATE,
+        };
+      }
 
-                const plugin_state = get_code_block_ui_state(view.state);
-                const ordinal = plugin_state.positions.indexOf(
-                  tracked.position,
-                );
-                if (ordinal < 0) continue;
-                const height = clamp_code_block_height(
-                  entry.contentRect.height,
-                );
-                if (plugin_state.heights[ordinal] !== height) {
-                  set_code_block_height(view, ordinal, height);
-                }
-              }
-            });
+      function patch_view_state(
+        dom: HTMLElement,
+        patch: (view_state: CodeBlockViewState) => Partial<CodeBlockViewState>,
+      ): void {
+        const current = current_view_state(dom);
+        if (!current) return;
+        view.dispatch(
+          view.state.tr.setMeta(code_block_ui_key, {
+            kind: "patch_view_state",
+            ordinal: current.ordinal,
+            patch: patch(current.view_state),
+          } satisfies CodeBlockUiMeta),
+        );
+      }
 
       function finish_resize(pointer_id: number | null, commit: boolean): void {
         const active = active_resize;
@@ -248,20 +223,18 @@ export function create_code_block_ui_prosemirror_plugin(
         document.removeEventListener("pointerup", handle_pointer_up);
         document.removeEventListener("pointercancel", handle_pointer_cancel);
 
-        const tracked = tracked_blocks.get(active.block);
-        const ordinal = tracked
-          ? get_code_block_ui_state(view.state).positions.indexOf(
-              tracked.position,
-            )
-          : -1;
-        if (commit && active.pending_height !== null && ordinal >= 0) {
-          set_code_block_height(view, ordinal, active.pending_height);
+        if (commit && active.pending_height !== null) {
+          const height = active.pending_height;
+          patch_view_state(active.block, () => ({
+            [active.target.state_key]: height,
+          }));
           return;
         }
-
-        active.block.style.height = active.original_style_height;
-        if (tracked)
-          tracked.applied_style_height = active.original_style_height;
+        set_height_style(
+          active.block,
+          active.target.property,
+          active.original_height,
+        );
       }
 
       function handle_pointer_move(event: PointerEvent): void {
@@ -273,10 +246,11 @@ export function create_code_block_ui_prosemirror_plugin(
           active.start_height + event.clientY - active.start_y,
         );
         active.pending_height = height;
-        const style_height = `${String(height)}px`;
-        active.block.style.height = style_height;
-        const tracked = tracked_blocks.get(active.block);
-        if (tracked) tracked.applied_style_height = style_height;
+        set_height_style(
+          active.block,
+          active.target.property,
+          `${String(height)}px`,
+        );
       }
 
       function handle_pointer_up(event: PointerEvent): void {
@@ -287,51 +261,34 @@ export function create_code_block_ui_prosemirror_plugin(
         finish_resize(event.pointerId, false);
       }
 
-      function track_code_block(
+      function create_resize_handle(
         dom: HTMLElement,
-        position: number,
-      ): TrackedBlock {
+        target: ResizeTarget,
+      ): HTMLButtonElement {
         const handle = document.createElement("button");
         handle.type = "button";
-        handle.className = "code-block-resize-handle";
+        handle.className = target.handle_class;
         handle.contentEditable = "false";
         handle.setAttribute(
           "aria-label",
-          "Resize code block. Use the up and down arrow keys when focused.",
+          `${target.label}. Use the up and down arrow keys when focused.`,
         );
-        handle.title = "Drag to resize code block";
+        handle.title = `Drag to ${target.label.toLowerCase()}`;
+        consume_mouse_events(handle);
 
-        // Milkdown's Vue component replaces its children when CodeMirror mounts.
-        // Keep this one handle attached without owning the rest of its DOM.
-        const mutation_observer = new MutationObserver(() => {
-          if (handle.parentElement !== dom) dom.appendChild(handle);
-        });
-        mutation_observer.observe(dom, { childList: true });
-        dom.appendChild(handle);
-
-        const consume_mouse_event = (event: MouseEvent) => {
-          event.preventDefault();
-          event.stopPropagation();
-        };
-        handle.addEventListener("mousedown", consume_mouse_event);
-        handle.addEventListener("click", consume_mouse_event);
         handle.addEventListener("pointerdown", (event) => {
           if (event.button !== 0) return;
           event.preventDefault();
           event.stopPropagation();
           finish_resize(null, false);
 
-          const measured_height = dom.getBoundingClientRect().height;
-          const start_height =
-            measured_height ||
-            Number.parseFloat(dom.style.height) ||
-            CODE_BLOCK_MIN_HEIGHT;
           active_resize = {
             block: dom,
+            target,
             pointer_id: event.pointerId,
             start_y: event.clientY,
-            start_height,
-            original_style_height: dom.style.height,
+            start_height: measure_part_height(dom, target),
+            original_height: dom.style.getPropertyValue(target.property),
             previous_user_select: document.body.style.userSelect,
             pending_height: null,
           };
@@ -346,39 +303,104 @@ export function create_code_block_ui_prosemirror_plugin(
           event.preventDefault();
           event.stopPropagation();
 
-          const tracked = tracked_blocks.get(dom);
-          if (!tracked) return;
-          const ordinal = get_code_block_ui_state(view.state).positions.indexOf(
-            tracked.position,
-          );
-          if (ordinal < 0) return;
-          const current_height =
-            dom.getBoundingClientRect().height ||
-            Number.parseFloat(dom.style.height) ||
-            CODE_BLOCK_MIN_HEIGHT;
           const step = event.shiftKey ? 64 : 16;
           const direction = event.key === "ArrowDown" ? 1 : -1;
-          set_code_block_height(
-            view,
-            ordinal,
-            clamp_code_block_height(current_height + direction * step),
+          const height = clamp_code_block_height(
+            measure_part_height(dom, target) + direction * step,
           );
+          patch_view_state(dom, () => ({ [target.state_key]: height }));
         });
+        return handle;
+      }
+
+      function create_diagram_bar(dom: HTMLElement): DiagramBar {
+        const element = document.createElement("div");
+        element.className = "code-block-diagram-bar";
+        element.contentEditable = "false";
+
+        const zoom_out_button = create_bar_button("Zoom out", () => {
+          patch_view_state(dom, (view_state) => ({
+            diagram_zoom: step_diagram_zoom(view_state.diagram_zoom, -1),
+          }));
+        });
+        zoom_out_button.innerHTML = ZoomOut;
+
+        const zoom_reset_button = create_bar_button("Fit to width", () => {
+          patch_view_state(dom, () => ({ diagram_zoom: 1 }));
+        });
+        zoom_reset_button.classList.add("code-block-diagram-zoom-reset");
+
+        const zoom_in_button = create_bar_button("Zoom in", () => {
+          patch_view_state(dom, (view_state) => ({
+            diagram_zoom: step_diagram_zoom(view_state.diagram_zoom, 1),
+          }));
+        });
+        zoom_in_button.innerHTML = ZoomIn;
+
+        // Its label flips with the state, so apply_view_state sets it.
+        const source_button = create_bar_button("", () => {
+          patch_view_state(dom, (view_state) => ({
+            source_hidden: !view_state.source_hidden,
+          }));
+        });
+
+        element.append(
+          zoom_out_button,
+          zoom_reset_button,
+          zoom_in_button,
+          source_button,
+        );
+        return {
+          element,
+          source_button,
+          zoom_out_button,
+          zoom_reset_button,
+          zoom_in_button,
+        };
+      }
+
+      function track_code_block(
+        dom: HTMLElement,
+        position: number,
+      ): TrackedBlock {
+        const source_handle = create_resize_handle(dom, SOURCE_RESIZE);
+        const diagram_handle = create_resize_handle(dom, DIAGRAM_RESIZE);
+        const diagram_bar = create_diagram_bar(dom);
+        const owned_elements = [
+          source_handle,
+          diagram_bar.element,
+          diagram_handle,
+        ];
+
+        // Milkdown's Vue component replaces its children when CodeMirror mounts
+        // and unmounts. Keep our elements attached without owning the rest.
+        // Their order comes from CSS, not DOM position.
+        const mutation_observer = new MutationObserver(() => {
+          for (const element of owned_elements) {
+            if (element.parentElement !== dom) dom.appendChild(element);
+          }
+        });
+        mutation_observer.observe(dom, { childList: true });
+        dom.append(...owned_elements);
 
         return {
           position,
-          persisted_height: undefined,
-          applied_style_height: "",
-          handle,
+          applied_view_state: undefined,
+          diagram_bar,
           cleanup: () => {
             if (active_resize?.block === dom) finish_resize(null, false);
             mutation_observer.disconnect();
-            handle.remove();
+            for (const element of owned_elements) element.remove();
+            dom.style.removeProperty(SOURCE_RESIZE.property);
+            dom.style.removeProperty(DIAGRAM_RESIZE.property);
+            dom.style.removeProperty(DIAGRAM_ZOOM_PROPERTY);
+            delete dom.dataset.diagram;
+            delete dom.dataset.sourceHidden;
           },
         };
       }
 
-      function sync_rendered_heights(): void {
+      function sync_rendered_blocks(): void {
         const plugin_state = get_code_block_ui_state(view.state);
         const rendered = new Set<HTMLElement>();
 
@@ -396,45 +418,50 @@ export function create_code_block_ui_prosemirror_plugin(
           if (!tracked) {
             tracked = track_code_block(dom, position);
             tracked_blocks.set(dom, tracked);
-            resize_observer?.observe(dom);
           }
           tracked.position = position;
-          if (tracked.handle.parentElement !== dom)
-            dom.appendChild(tracked.handle);
 
-          const height = plugin_state.heights[index] ?? null;
-          if (tracked.persisted_height !== height) {
-            const style_height =
-              height === null
-                ? ""
-                : `${String(clamp_code_block_height(height))}px`;
-            if (dom.style.height !== style_height)
-              dom.style.height = style_height;
-            tracked.persisted_height = height;
-            tracked.applied_style_height = style_height;
+          const language: unknown =
+            view.state.doc.nodeAt(position)?.attrs.language;
+          const is_diagram =
+            typeof language === "string" && is_diagram_language(language);
+          if (is_diagram) dom.dataset.diagram = "true";
+          else delete dom.dataset.diagram;
+
+          const view_state = plugin_state.view_states[index] ?? null;
+          if (
+            tracked.applied_view_state !== undefined &&
+            is_same_code_block_view_state(
+              tracked.applied_view_state,
+              view_state,
+            )
+          ) {
+            return;
           }
+          tracked.applied_view_state = view_state;
+          apply_view_state(dom, tracked.diagram_bar, view_state);
         });
 
         for (const dom of tracked_blocks.keys()) {
           if (rendered.has(dom)) continue;
-          resize_observer?.unobserve(dom);
           tracked_blocks.get(dom)?.cleanup();
           tracked_blocks.delete(dom);
         }
       }
 
-      sync_rendered_heights();
+      sync_rendered_blocks();
       return {
         update(updated_view) {
-          const heights = read_code_block_heights(updated_view.state);
-          sync_rendered_heights();
-          if (!are_code_block_heights_equal(previous_heights, heights)) {
-            previous_heights = heights;
-            args.on_heights_change?.(heights);
+          const view_states = read_code_block_view_states(updated_view.state);
+          sync_rendered_blocks();
+          if (
+            !are_code_block_view_states_equal(previous_view_states, view_states)
+          ) {
+            previous_view_states = view_states;
+            args.on_view_states_change?.(view_states);
           }
         },
         destroy() {
-          resize_observer?.disconnect();
           for (const tracked of tracked_blocks.values()) tracked.cleanup();
           tracked_blocks.clear();
         },
@@ -443,6 +470,178 @@ export function create_code_block_ui_prosemirror_plugin(
   });
 }
 
-export function create_code_block_ui_plugin(args: CodeBlockUiPluginArgs) {
-  return $prose(() => create_code_block_ui_prosemirror_plugin(args));
+function apply_view_state(
+  dom: HTMLElement,
+  diagram_bar: DiagramBar,
+  view_state: CodeBlockViewState | null,
+): void {
+  const { source_height, diagram_height, source_hidden, diagram_zoom } =
+    view_state ?? DEFAULT_VIEW_STATE;
+
+  set_height_style(dom, SOURCE_RESIZE.property, height_style(source_height));
+  set_height_style(dom, DIAGRAM_RESIZE.property, height_style(diagram_height));
+  if (source_hidden) dom.dataset.sourceHidden = "true";
+  else delete dom.dataset.sourceHidden;
+  dom.style.setProperty(DIAGRAM_ZOOM_PROPERTY, String(diagram_zoom));
+
+  const source_label = source_hidden ? "Show source" : "Hide source";
+  diagram_bar.source_button.innerHTML = source_hidden ? Code : EyeOff;
+  diagram_bar.source_button.title = source_label;
+  diagram_bar.source_button.setAttribute("aria-label", source_label);
+  diagram_bar.zoom_reset_button.textContent = `${String(Math.round(diagram_zoom * 100))}%`;
+  diagram_bar.zoom_out_button.disabled = diagram_zoom <= DIAGRAM_ZOOM_MIN;
+  diagram_bar.zoom_in_button.disabled = diagram_zoom >= DIAGRAM_ZOOM_MAX;
+}
+
+function height_style(height: number | null): string {
+  return height === null ? "" : `${String(clamp_code_block_height(height))}px`;
+}
+
+function set_height_style(
+  dom: HTMLElement,
+  property: string,
+  value: string,
+): void {
+  if (value) dom.style.setProperty(property, value);
+  else dom.style.removeProperty(property);
+}
+
+function measure_part_height(dom: HTMLElement, target: ResizeTarget): number {
+  const part = dom.querySelector<HTMLElement>(target.part_selector);
+  return (
+    part?.getBoundingClientRect().height ||
+    Number.parseFloat(dom.style.getPropertyValue(target.property)) ||
+    CODE_BLOCK_MIN_HEIGHT
+  );
+}
+
+// Moves to the next level in the given direction. A zoom between levels, say
+// from an older session, snaps to the nearest level that way.
+function step_diagram_zoom(zoom: number, direction: 1 | -1): number {
+  const next =
+    direction === 1
+      ? DIAGRAM_ZOOM_LEVELS.find((level) => level > zoom)
+      : DIAGRAM_ZOOM_LEVELS.findLast((level) => level < zoom);
+  return next ?? zoom;
+}
+
+function create_bar_button(
+  label: string,
+  on_click: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "code-block-diagram-button";
+  if (label) {
+    button.title = label;
+    button.setAttribute("aria-label", label);
+  }
+  consume_mouse_events(button);
+  // Buttons turn Enter and Space into clicks, so this covers the keyboard too.
+  button.addEventListener("click", on_click);
+  return button;
+}
+
+// Keep ProseMirror from moving the selection when our controls are clicked.
+function consume_mouse_events(element: HTMLElement): void {
+  const consume = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  element.addEventListener("mousedown", consume);
+  element.addEventListener("click", consume);
+}
+
+function get_code_block_ui_state(state: EditorState): CodeBlockUiState {
+  return (
+    code_block_ui_key.getState(state) ?? { positions: [], view_states: [] }
+  );
+}
+
+function create_code_block_ui_state(
+  doc: ProseNode,
+  view_states: CodeBlockViewStates,
+): CodeBlockUiState {
+  const positions = collect_code_block_positions(doc);
+  return {
+    positions,
+    view_states: positions.map((_, index) =>
+      normalize_view_state(view_states[index] ?? null),
+    ),
+  };
+}
+
+function remap_code_block_ui_state(
+  current: CodeBlockUiState,
+  tr: Transaction,
+  next_doc: ProseNode,
+): CodeBlockUiState {
+  const positions = collect_code_block_positions(next_doc);
+  const next_index_by_position = new Map(
+    positions.map((position, index) => [position, index]),
+  );
+  const view_states = positions.map(() => null) as CodeBlockViewStates;
+
+  current.positions.forEach((position, index) => {
+    const view_state = current.view_states[index] ?? null;
+    const next_index = next_index_by_position.get(tr.mapping.map(position, 1));
+    if (view_state !== null && next_index !== undefined) {
+      view_states[next_index] = view_state;
+    }
+  });
+
+  return { positions, view_states };
+}
+
+function collect_code_block_positions(doc: ProseNode): number[] {
+  const positions: number[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === "code_block") positions.push(pos);
+  });
+  return positions;
+}
+
+// Validates restored session data too, so it takes unknown input. Returns null
+// for the defaults, which keeps untouched blocks as null in the saved state.
+function normalize_view_state(value: unknown): CodeBlockViewState | null {
+  if (typeof value !== "object" || value === null) return null;
+  const input = value as Partial<Record<keyof CodeBlockViewState, unknown>>;
+  const view_state: CodeBlockViewState = {
+    source_height: normalize_code_block_height(input.source_height),
+    diagram_height: normalize_code_block_height(input.diagram_height),
+    source_hidden: input.source_hidden === true,
+    diagram_zoom: normalize_diagram_zoom(input.diagram_zoom),
+  };
+  return is_same_code_block_view_state(view_state, DEFAULT_VIEW_STATE)
+    ? null
+    : view_state;
+}
+
+function normalize_code_block_height(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.min(
+    Math.max(Math.round(value), CODE_BLOCK_MIN_HEIGHT),
+    CODE_BLOCK_MAX_HEIGHT,
+  );
+}
+
+function normalize_diagram_zoom(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+  const zoom = Math.min(Math.max(value, DIAGRAM_ZOOM_MIN), DIAGRAM_ZOOM_MAX);
+  return Math.round(zoom * 100) / 100;
+}
+
+function clamp_code_block_height(height: number): number {
+  const viewport_height = window.innerHeight || 900;
+  const max_height = Math.max(
+    CODE_BLOCK_MIN_HEIGHT,
+    Math.min(
+      CODE_BLOCK_MAX_HEIGHT,
+      Math.floor(viewport_height * CODE_BLOCK_MAX_VIEWPORT_RATIO),
+    ),
+  );
+  return Math.min(
+    Math.max(Math.round(height), CODE_BLOCK_MIN_HEIGHT),
+    max_height,
+  );
 }

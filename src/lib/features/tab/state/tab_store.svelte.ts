@@ -5,7 +5,10 @@ import type {
   TabEditorSnapshot,
   TabId,
 } from "$lib/features/tab/types/tab";
-import type { OpenNoteState } from "$lib/shared/types/editor";
+import {
+  are_code_block_view_states_equal,
+  type OpenNoteState,
+} from "$lib/shared/types/editor";
 import {
   note_name_from_path,
   paths_equal_ignore_case,
@@ -18,29 +21,12 @@ function create_empty_editor_snapshot(): TabEditorSnapshot {
   return {
     scroll_top: 0,
     cursor: null,
-    code_block_heights: [],
+    code_block_view_states: [],
   };
 }
 
 function conflict_path_key(note_path: NotePath): string {
   return note_path.toLowerCase();
-}
-
-function are_code_block_heights_equal(
-  left: TabEditorSnapshot["code_block_heights"],
-  right: TabEditorSnapshot["code_block_heights"],
-): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if ((left[index] ?? null) !== (right[index] ?? null)) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 function are_cursors_equal(
@@ -75,9 +61,9 @@ function are_editor_snapshots_equal(
   return (
     left.scroll_top === right.scroll_top &&
     are_cursors_equal(left.cursor, right.cursor) &&
-    are_code_block_heights_equal(
-      left.code_block_heights,
-      right.code_block_heights,
+    are_code_block_view_states_equal(
+      left.code_block_view_states,
+      right.code_block_view_states,
     )
   );
 }
@@ -372,8 +358,8 @@ export class TabStore {
     this.set_snapshot(tab_id, {
       ...current,
       ...patch,
-      code_block_heights:
-        patch.code_block_heights ?? current.code_block_heights,
+      code_block_view_states:
+        patch.code_block_view_states ?? current.code_block_view_states,
     });
   }
 

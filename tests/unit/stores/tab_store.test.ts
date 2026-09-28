@@ -3,6 +3,7 @@ import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import type { NotePath } from "$lib/shared/types/ids";
+import { code_block_view_state } from "../helpers/test_fixtures";
 
 function np(path: string): NotePath {
   return as_note_path(path);
@@ -119,7 +120,7 @@ describe("TabStore", () => {
       store.set_snapshot("a.md", {
         scroll_top: 100,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
       });
 
       store.close_tab("a.md");
@@ -143,7 +144,7 @@ describe("TabStore", () => {
       store.set_snapshot("a.md", {
         scroll_top: 100,
         cursor: null,
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       });
       const previous_revision = store.session_metadata_revision;
 
@@ -160,7 +161,7 @@ describe("TabStore", () => {
       const previous_revision = store.session_metadata_revision;
 
       store.patch_snapshot("a.md", {
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       });
 
       expect(store.session_metadata_revision).toBe(previous_revision + 1);
@@ -172,14 +173,14 @@ describe("TabStore", () => {
       store.set_snapshot("a.md", {
         scroll_top: 12,
         cursor: null,
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       });
       const previous_revision = store.session_metadata_revision;
 
       store.set_snapshot("a.md", {
         scroll_top: 12,
         cursor: null,
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       });
 
       expect(store.session_metadata_revision).toBe(previous_revision);
@@ -334,7 +335,7 @@ describe("TabStore", () => {
       store.set_snapshot("a.md", {
         scroll_top: 50,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
       });
 
       store.close_all_tabs();
@@ -581,14 +582,16 @@ describe("TabStore", () => {
       store.set_snapshot("old.md", {
         scroll_top: 42,
         cursor: null,
-        code_block_heights: [180],
+        code_block_view_states: [code_block_view_state(180)],
       });
 
       store.update_tab_path(np("old.md"), np("new.md"));
 
       expect(store.get_snapshot("old.md")).toBeNull();
       expect(store.get_snapshot("new.md")?.scroll_top).toBe(42);
-      expect(store.get_snapshot("new.md")?.code_block_heights).toEqual([180]);
+      expect(store.get_snapshot("new.md")?.code_block_view_states).toEqual([
+        code_block_view_state(180),
+      ]);
     });
 
     it("migrates note cache to new path", () => {
@@ -756,7 +759,7 @@ describe("TabStore", () => {
         title: "a",
         scroll_top: 10,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
         draft_note: null,
       });
       store.push_closed_history({
@@ -764,7 +767,7 @@ describe("TabStore", () => {
         title: "b",
         scroll_top: 20,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
         draft_note: null,
       });
 
@@ -788,7 +791,7 @@ describe("TabStore", () => {
           title: String(i),
           scroll_top: 0,
           cursor: null,
-          code_block_heights: [],
+          code_block_view_states: [],
           draft_note: null,
         });
       }
@@ -974,14 +977,14 @@ describe("TabStore", () => {
       store.set_snapshot("a.md", {
         scroll_top: 50,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
       });
       store.push_closed_history({
         note_path: np("b.md"),
         title: "b",
         scroll_top: 0,
         cursor: null,
-        code_block_heights: [],
+        code_block_view_states: [],
         draft_note: null,
       });
 

@@ -1,6 +1,9 @@
 import type { Vault } from "$lib/shared/types/vault";
 import type { NoteMeta } from "$lib/shared/types/note";
-import type { OpenNoteState } from "$lib/shared/types/editor";
+import type {
+  CodeBlockViewState,
+  OpenNoteState,
+} from "$lib/shared/types/editor";
 import type {
   VaultId,
   VaultPath,
@@ -39,5 +42,16 @@ export function create_open_note_state(
     markdown: as_markdown_text(markdown),
     buffer_id: note.id,
     is_dirty: false,
+  };
+}
+
+export function code_block_view_state(
+  source_height: number,
+): CodeBlockViewState {
+  return {
+    source_height,
+    diagram_height: null,
+    source_hidden: false,
+    diagram_zoom: 1,
   };
 }

@@ -1,6 +1,6 @@
 import type { NotePath } from "$lib/shared/types/ids";
 import type {
-  CodeBlockHeights,
+  CodeBlockViewStates,
   CursorInfo,
   OpenNoteState,
 } from "$lib/shared/types/editor";
@@ -18,7 +18,7 @@ export type Tab = {
 export type TabEditorSnapshot = {
   scroll_top: number;
   cursor: CursorInfo | null;
-  code_block_heights: CodeBlockHeights;
+  code_block_view_states: CodeBlockViewStates;
 };
 
 export type ClosedTabEntry = {
@@ -26,6 +26,6 @@ export type ClosedTabEntry = {
   title: string;
   scroll_top: number;
   cursor: CursorInfo | null;
-  code_block_heights: CodeBlockHeights;
+  code_block_view_states: CodeBlockViewStates;
   draft_note: OpenNoteState | null;
 };

@@ -12,6 +12,7 @@ import { GitStore } from "$lib/features/git/state/git_store.svelte";
 import { apply_opened_vault_session } from "$lib/features/vault";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import type { VaultSession } from "$lib/features/session";
+import { code_block_view_state } from "../helpers/test_fixtures";
 
 function create_open_note(path: string) {
   const note_path = as_note_path(path);
@@ -61,7 +62,7 @@ describe("apply_opened_vault_session", () => {
           is_dirty: false,
           scroll_top: 48,
           cursor,
-          code_block_heights: [245],
+          code_block_view_states: [code_block_view_state(245)],
           cached_note: open_note,
         },
       ],
@@ -87,7 +88,7 @@ describe("apply_opened_vault_session", () => {
             stores.tab.set_snapshot(open_note.meta.path, {
               scroll_top: 48,
               cursor,
-              code_block_heights: [245],
+              code_block_view_states: [code_block_view_state(245)],
             });
             stores.tab.set_cached_note(open_note.meta.path, open_note);
           }),
@@ -97,7 +98,7 @@ describe("apply_opened_vault_session", () => {
         open_buffer: vi.fn(),
         set_scroll_top: vi.fn(),
         restore_view_state: vi.fn(),
-        set_code_block_heights: vi.fn(),
+        set_code_block_view_states: vi.fn(),
         restore_cursor: vi.fn(),
       },
       note: {
@@ -136,7 +137,7 @@ describe("apply_opened_vault_session", () => {
       "reuse_cache",
       {
         cursor,
-        code_block_heights: [245],
+        code_block_view_states: [code_block_view_state(245)],
       },
     );
     expect(services.editor.set_scroll_top).toHaveBeenCalledWith(48);

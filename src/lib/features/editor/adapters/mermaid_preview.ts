@@ -7,12 +7,16 @@ import type { Mermaid } from "mermaid";
 let mermaid_promise: Promise<Mermaid> | null = null;
 let render_count = 0;
 
+export function is_diagram_language(language: string): boolean {
+  return language.toLowerCase() === "mermaid";
+}
+
 export function render_mermaid_preview(
   language: string,
   content: string,
   apply_preview: (value: null | string | HTMLElement) => void,
 ): null | undefined {
-  if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
+  if (!is_diagram_language(language) || !content.trim()) return null;
 
   // mermaid.render queues calls internally, so the latest edit applies last.
   void load_mermaid()
@@ -31,7 +35,7 @@ export function render_mermaid_preview(
         `otterly-mermaid-${String(render_count)}`,
         content,
       );
-      apply_preview(svg);
+      apply_preview(make_svg_zoomable(svg));
     })
     .catch((error: unknown) => {
       apply_preview(create_mermaid_error(error));
@@ -51,6 +55,21 @@ function load_mermaid(): Promise<Mermaid> {
 // Milkdown has no hook to re-run previews when the color scheme changes.
 function is_dark_color_scheme(): boolean {
   return document.documentElement.getAttribute("data-color-scheme") === "dark";
+}
+
+// Mermaid caps the svg with an inline max-width, which would also cap zoom.
+// We swap it for the natural width as --diagram-width, and editor.css sizes
+// the svg from that and the block's --diagram-zoom.
+export function make_svg_zoomable(svg: string): string {
+  return svg.replace(/^<svg\b[^>]*>/, (tag) => {
+    const width = /viewBox="[\d.-]+[ ,]+[\d.-]+[ ,]+([\d.]+)/.exec(tag)?.[1];
+    if (!width) return tag;
+    const declaration = `--diagram-width: ${width}px;`;
+    const without_max_width = tag.replace(/max-width:\s*[\d.]+px;?\s*/, "");
+    return without_max_width.includes(' style="')
+      ? without_max_width.replace(' style="', ` style="${declaration} `)
+      : without_max_width.replace(/^<svg\b/, `<svg style="${declaration}"`);
+  });
 }
 
 function create_mermaid_error(error: unknown): HTMLElement {
