@@ -703,16 +703,15 @@
                   </Sidebar.Group>
                 </Sidebar.Content>
 
-                <Sidebar.Footer class="p-0">
-                  <button
-                    type="button"
-                    class="SidebarNewNote"
+                <Sidebar.Footer class="border-t border-sidebar-border">
+                  <Button
+                    class="w-full"
                     onclick={() =>
                       void action_registry.execute(ACTION_IDS.note_create)}
                   >
-                    <FilePlus class="SidebarNewNote__icon" />
-                    <span>New note</span>
-                  </button>
+                    <FilePlus />
+                    New note
+                  </Button>
                 </Sidebar.Footer>
 
                 <Sidebar.Rail />
@@ -890,38 +889,6 @@
   :global(.SidebarHeaderIcon) {
     width: var(--size-icon-sm);
     height: var(--size-icon-sm);
-  }
-
-  .SidebarNewNote {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    height: var(--size-touch-lg);
-    padding-inline: var(--space-3);
-    border-block-start: 1px solid var(--sidebar-border);
-    color: var(--sidebar-foreground);
-    font-size: var(--text-sm);
-    text-align: left;
-    transition:
-      background-color var(--duration-fast) var(--ease-default),
-      color var(--duration-fast) var(--ease-default);
-  }
-
-  .SidebarNewNote:hover {
-    background-color: var(--sidebar-accent);
-    color: var(--interactive);
-  }
-
-  .SidebarNewNote:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
-  }
-
-  :global(.SidebarNewNote__icon) {
-    width: var(--size-icon);
-    height: var(--size-icon);
-    flex-shrink: 0;
   }
 
   :global(.StarredGroupLabel) {
