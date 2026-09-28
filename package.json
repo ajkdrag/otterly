@@ -42,6 +42,7 @@
     "formsnap": "^2.0.1",
     "isomorphic-git": "^1.37.1",
     "lucide-static": "^0.563.0",
+    "mermaid": "^12.0.0",
     "svelte-themes": "^2.0.10"
   },
   "devDependencies": {

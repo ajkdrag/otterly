@@ -609,7 +609,8 @@
 }
 
 .ProseMirror .milkdown-code-block .language-button,
-.ProseMirror .milkdown-code-block .copy-button {
+.ProseMirror .milkdown-code-block .copy-button,
+.ProseMirror .milkdown-code-block .preview-toggle-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -630,7 +631,8 @@
 }
 
 .ProseMirror .milkdown-code-block .language-button:hover,
-.ProseMirror .milkdown-code-block .copy-button:hover {
+.ProseMirror .milkdown-code-block .copy-button:hover,
+.ProseMirror .milkdown-code-block .preview-toggle-button:hover {
   background: var(--accent);
   color: var(--accent-foreground);
 }
@@ -686,8 +688,45 @@
   cursor: pointer;
 }
 
-.ProseMirror .milkdown-code-block .clear-icon.hidden {
+.ProseMirror .milkdown-code-block .clear-icon.hidden,
+.ProseMirror .milkdown-code-block .codemirror-host.hidden {
   display: none;
+}
+
+/* The block clips its content, so large diagrams scroll inside the panel. */
+.ProseMirror .milkdown-code-block .preview-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ProseMirror .milkdown-code-block .preview-divider {
+  border-top: 1px solid var(--editor-code-border);
+}
+
+.ProseMirror .milkdown-code-block .preview-label {
+  padding: 0.5rem 0.75rem 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  user-select: none;
+}
+
+.ProseMirror .milkdown-code-block .preview {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.ProseMirror .milkdown-code-block .preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.ProseMirror .milkdown-code-block .preview .mermaid-error {
+  color: var(--destructive);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
 }
 
 .ProseMirror .milkdown-code-block .language-list {

@@ -7,6 +7,15 @@ import { Editor, editorViewCtx } from "@milkdown/kit/core";
 import { create_milkdown_editor_port } from "$lib/features/editor/adapters/milkdown_adapter";
 import type { EditorSession } from "$lib/features/editor/ports";
 
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(() =>
+      Promise.resolve({ svg: '<svg class="test-diagram"></svg>' }),
+    ),
+  },
+}));
+
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
   readonly observed = new Set<Element>();
@@ -116,6 +125,20 @@ describe("Milkdown CodeMirror code blocks", () => {
     cm.dispatch({ changes: { from: cm.state.doc.length, insert: ";" } });
 
     expect(session.get_markdown()).toContain("const x = 1;");
+    session.destroy();
+    root.remove();
+  });
+
+  it("shows a mermaid diagram under the source and keeps the Markdown", async () => {
+    const original = "```mermaid\ngraph TD; A-->B\n```";
+    const { root, session, block } = await open_editor(original);
+    await show_code_mirror(block);
+
+    await vi.waitFor(() => {
+      expect(block.querySelector(".preview .test-diagram")).not.toBeNull();
+    });
+    expect(block.querySelector(".codemirror-host.hidden")).toBeNull();
+    expect(session.get_markdown().trimEnd()).toBe(original);
     session.destroy();
     root.remove();
   });
@@ -640,6 +663,32 @@ describe("Milkdown CodeMirror code blocks", () => {
     await Promise.resolve();
     expect(trigger.dataset.expanded).toBe("false");
     expect(document.activeElement).toBe(trigger);
+    session.destroy();
+    root.remove();
+  });
+
+  it("switches a block back to mermaid from the picker", async () => {
+    const { root, session, block } = await open_editor(
+      "```python\ngraph TD; A-->B\n```",
+    );
+    await show_code_mirror(block);
+    const trigger = block.querySelector<HTMLButtonElement>(".language-button");
+    if (!trigger) throw new Error("Expected language picker trigger");
+    trigger.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const option = block.querySelector<HTMLElement>(
+      '.language-list-item[data-language="mermaid"]',
+    );
+    if (!option) throw new Error("Expected mermaid option");
+    expect(option.textContent).toContain("Mermaid");
+    option.click();
+
+    expect(session.get_markdown()).toContain("```mermaid\n");
+    await vi.waitFor(() => {
+      expect(block.querySelector(".preview .test-diagram")).not.toBeNull();
+    });
     session.destroy();
     root.remove();
   });
