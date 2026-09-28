@@ -7,6 +7,10 @@ export const ACTION_IDS = {
   app_editor_mount: "app.editor.mount",
   app_editor_unmount: "app.editor.unmount",
 
+  editor_zoom_in: "editor.zoom_in",
+  editor_zoom_out: "editor.zoom_out",
+  editor_zoom_reset: "editor.zoom_reset",
+
   note_create: "note.create",
   note_open: "note.open",
   note_open_wiki_link: "note.open_wiki_link",

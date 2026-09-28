@@ -137,7 +137,7 @@ const code_block_theme = CodeMirrorView.theme({
     backgroundColor: "var(--editor-code-bg)",
     color: "var(--editor-code-block-text)",
     fontFamily: "var(--font-mono)",
-    fontSize: "0.8125rem",
+    fontSize: "calc(0.8125rem * var(--editor-zoom))",
   },
   ".cm-content": {
     padding: "0.75rem 0",

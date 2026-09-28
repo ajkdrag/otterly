@@ -8,6 +8,7 @@
 :root {
   /* Runtime-configurable tokens (modified via settings) */
   --editor-font-size: 1rem;
+  --editor-zoom: 1;
   --editor-line-height: 1.85;
   --editor-max-width: min(85ch, 90%);
   --editor-spacing: 1.5rem;
@@ -123,8 +124,10 @@
    PROSEMIRROR BASE STYLES
    ============================================ */
 
+/* Zoom scales the root font size. em and ch based sizes (headings, code,
+   max width) follow it. rem based editor chrome stays put. */
 .ProseMirror {
-  font-size: var(--editor-font-size);
+  font-size: calc(var(--editor-font-size) * var(--editor-zoom));
   line-height: var(--editor-line-height);
   color: var(--editor-text);
   caret-color: var(--caret-color, auto);
@@ -751,7 +754,7 @@
   background: transparent;
   color: inherit;
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--editor-zoom));
   line-height: 1.5;
 }
 
@@ -936,7 +939,7 @@
   margin: calc(var(--editor-spacing) * 0.5) auto;
   padding: 0.25rem 0;
   text-align: center;
-  font-size: var(--editor-font-size);
+  font-size: calc(var(--editor-font-size) * var(--editor-zoom));
   color: var(--editor-text-muted);
   background: transparent;
   border: none;

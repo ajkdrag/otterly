@@ -146,6 +146,15 @@ describe("normalize_event_to_key", () => {
     expect(key).toBe("CmdOrCtrl+Space");
   });
 
+  it("names the + key Plus so it survives splitting on +", () => {
+    const key = normalize_event_to_key(mock_event({ metaKey: true, key: "+" }));
+    expect(key).toBe("CmdOrCtrl+Plus");
+    expect(parse_hotkey_parts(key)).toEqual({
+      modifiers: ["CmdOrCtrl"],
+      base_key: "Plus",
+    });
+  });
+
   it("normalizes arrow keys", () => {
     const key = normalize_event_to_key(
       mock_event({ metaKey: true, altKey: true, key: "ArrowLeft" }),
@@ -188,6 +197,10 @@ describe("format_hotkey_for_display", () => {
   it("replaces Shift with platform symbol", () => {
     const display = format_hotkey_for_display("Shift+F5");
     expect(display).toMatch(/Shift\+F5|⇧\+F5/);
+  });
+
+  it("shows the Plus key as +", () => {
+    expect(format_hotkey_for_display("Alt+Plus")).toMatch(/Alt\+\+|⌥\+\+/);
   });
 });
 

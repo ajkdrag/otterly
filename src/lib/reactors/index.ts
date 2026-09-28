@@ -1,6 +1,7 @@
 import { create_app_close_request_reactor } from "$lib/reactors/app_close_request.reactor.svelte";
 import { create_editor_sync_reactor } from "$lib/reactors/editor_sync.reactor.svelte";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
+import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
 import { create_autosave_reactor } from "$lib/reactors/autosave.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
@@ -76,6 +77,7 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.editor_service,
     ),
     create_editor_width_reactor(context.ui_store),
+    create_editor_zoom_reactor(context.ui_store),
     create_autosave_reactor(
       context.editor_store,
       context.tab_store,

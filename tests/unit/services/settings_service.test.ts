@@ -173,4 +173,24 @@ describe("SettingsService", () => {
     if (result.status !== "success") throw new Error("expected success");
     expect(result.settings.store_attachments_with_note).toBe(true);
   });
+  it("loads editor_zoom from global settings", async () => {
+    const { service } = make_service({
+      vault_get: { editor_zoom: 1.5 },
+      global_get: (key) => (key === "editor_zoom" ? 1.3 : null),
+    });
+
+    const result = await service.load_settings({ ...DEFAULT_EDITOR_SETTINGS });
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.settings.editor_zoom).toBe(1.3);
+  });
+
+  it("saves editor_zoom to the global port", async () => {
+    const { service, settings_port } = make_service({});
+
+    await service.save_editor_zoom(1.2);
+
+    expect(settings_port.set_setting).toHaveBeenCalledWith("editor_zoom", 1.2);
+  });
 });

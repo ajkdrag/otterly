@@ -1,9 +1,11 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
-import type {
-  EditorSettings,
-  SettingsCategory,
+import { step_editor_zoom } from "$lib/features/settings/domain/editor_zoom";
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  type EditorSettings,
+  type SettingsCategory,
 } from "$lib/shared/types/editor_settings";
 
 export function register_settings_actions(input: ActionRegistrationInput) {
@@ -76,6 +78,38 @@ export function register_settings_actions(input: ActionRegistrationInput) {
       hotkey_draft_config: config,
     };
   }
+
+  async function set_editor_zoom(zoom: number) {
+    stores.ui.set_editor_settings({
+      ...stores.ui.editor_settings,
+      editor_zoom: zoom,
+    });
+    await services.settings.save_editor_zoom(zoom);
+  }
+
+  registry.register({
+    id: ACTION_IDS.editor_zoom_in,
+    label: "Zoom In",
+    execute: () =>
+      set_editor_zoom(
+        step_editor_zoom(stores.ui.editor_settings.editor_zoom, 1),
+      ),
+  });
+
+  registry.register({
+    id: ACTION_IDS.editor_zoom_out,
+    label: "Zoom Out",
+    execute: () =>
+      set_editor_zoom(
+        step_editor_zoom(stores.ui.editor_settings.editor_zoom, -1),
+      ),
+  });
+
+  registry.register({
+    id: ACTION_IDS.editor_zoom_reset,
+    label: "Reset Zoom",
+    execute: () => set_editor_zoom(DEFAULT_EDITOR_SETTINGS.editor_zoom),
+  });
 
   registry.register({
     id: ACTION_IDS.settings_open,

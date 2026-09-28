@@ -155,6 +155,15 @@ export class SettingsService {
     }
   }
 
+  // Zoom is saved on every step, outside the settings dialog draft/save flow.
+  async save_editor_zoom(zoom: number): Promise<void> {
+    try {
+      await this.settings_port.set_setting("editor_zoom", zoom);
+    } catch (error) {
+      log.error("Save editor zoom failed", { error: error_message(error) });
+    }
+  }
+
   async load_recent_command_ids(): Promise<string[]> {
     try {
       const stored = await this.settings_port.get_setting<unknown>(

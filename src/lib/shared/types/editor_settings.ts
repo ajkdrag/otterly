@@ -16,6 +16,7 @@ export type EditorSettings = {
   show_vault_dashboard_on_open: boolean;
   max_open_tabs: number;
   editor_max_width_ch: number;
+  editor_zoom: number;
 };
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -28,6 +29,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   show_vault_dashboard_on_open: true,
   max_open_tabs: 5,
   editor_max_width_ch: 85,
+  editor_zoom: 1,
 };
 
 export const SETTINGS_KEY = "editor" as const;
@@ -38,6 +40,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "autosave_enabled",
   "autosave_delay_ms",
   "editor_max_width_ch",
+  "editor_zoom",
 ] as const;
 
 const GLOBAL_ONLY_SET = new Set<string>(GLOBAL_ONLY_SETTING_KEYS);

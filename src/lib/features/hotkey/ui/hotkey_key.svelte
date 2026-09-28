@@ -7,7 +7,10 @@
 
   let { hotkey }: Props = $props();
 
-  const parts = $derived(format_hotkey_for_display(hotkey).split("+"));
+  // Split before formatting. Plus formats to "+", which would break the split.
+  const parts = $derived(
+    hotkey.split("+").map((part) => format_hotkey_for_display(part)),
+  );
 </script>
 
 <span class="HotkeyKey">

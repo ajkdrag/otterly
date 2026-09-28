@@ -30,7 +30,7 @@
     parse_search_query,
     set_search_query_target,
   } from "$lib/features/search/domain/search_query_parser";
-  import { format_hotkey_for_display } from "$lib/features/hotkey";
+  import { format_hotkey_for_display, HotkeyKey } from "$lib/features/hotkey";
   import { ACTION_IDS } from "$lib/app";
   import type { HotkeyConfig } from "$lib/features/hotkey";
   import type { Component } from "svelte";
@@ -337,6 +337,8 @@
         return `${settings.max_open_tabs} tabs`;
       case "editor_max_width_ch":
         return `${settings.editor_max_width_ch} ch`;
+      case "editor_zoom":
+        return `${Math.round(settings.editor_zoom * 100)}%`;
     }
   }
 
@@ -744,9 +746,9 @@
                 <span class="Omnibar__item-icon"><IconComponent /></span>
                 <span class="Omnibar__item-title">{item.command.label}</span>
                 {#if command_key}
-                  <span class="Omnibar__item-shortcut"
-                    >{format_hotkey_for_display(command_key)}</span
-                  >
+                  <span class="Omnibar__item-shortcut">
+                    <HotkeyKey hotkey={command_key} />
+                  </span>
                 {/if}
               </div>
               <div class="Omnibar__item-desc">{item.command.description}</div>
@@ -1069,9 +1071,11 @@
   .Omnibar__item-shortcut {
     margin-left: auto;
     flex-shrink: 0;
-    font-family: var(--font-mono);
+  }
+
+  /* Palette rows are dense, so shrink the shared key caps one step. */
+  .Omnibar__item-shortcut :global(.HotkeyKey__kbd) {
     font-size: var(--text-xs);
-    color: var(--muted-foreground);
   }
 
   :global(.Omnibar__item-row svg) {

@@ -178,4 +178,28 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     description: "Jump to previous search match",
     category: "editing",
   },
+  {
+    action_id: ACTION_IDS.editor_zoom_in,
+    key: "CmdOrCtrl+=",
+    phase: "capture",
+    label: "Zoom In",
+    description: "Make editor text larger",
+    category: "editing",
+  },
+  {
+    action_id: ACTION_IDS.editor_zoom_out,
+    key: "CmdOrCtrl+-",
+    phase: "capture",
+    label: "Zoom Out",
+    description: "Make editor text smaller",
+    category: "editing",
+  },
+  {
+    action_id: ACTION_IDS.editor_zoom_reset,
+    key: "CmdOrCtrl+0",
+    phase: "capture",
+    label: "Reset Zoom",
+    description: "Reset editor zoom to 100%",
+    category: "editing",
+  },
 ];

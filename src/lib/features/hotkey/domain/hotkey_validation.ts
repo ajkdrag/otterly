@@ -85,6 +85,9 @@ export function normalize_event_to_key(event: KeyboardEvent): string {
   let key = event.key;
   if (key === " ") {
     key = "Space";
+  } else if (key === "+") {
+    // "+" separates parts in key strings, so the key itself needs a name.
+    key = "Plus";
   } else if (key.length === 1) {
     key = key.toUpperCase();
   }
@@ -100,6 +103,7 @@ export function format_hotkey_for_display(key: string): string {
   let display = key.replace(/CmdOrCtrl/g, is_mac ? "⌘" : "Ctrl");
   display = display.replace(/Alt/g, is_mac ? "⌥" : "Alt");
   display = display.replace(/Shift/g, is_mac ? "⇧" : "Shift");
+  display = display.replace(/\bPlus\b/g, "+");
 
   return display;
 }
