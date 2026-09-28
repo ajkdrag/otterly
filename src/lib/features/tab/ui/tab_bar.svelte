@@ -12,8 +12,10 @@
   import { ACTION_IDS } from "$lib/app";
   import type { Tab, TabId } from "$lib/features/tab/types/tab";
   import type { NoteMeta } from "$lib/shared/types/note";
+  import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
   const { stores, action_registry } = use_app_context();
+  const reveal_label = reveal_in_file_manager_label();
 
   function find_note_meta(tab: Tab): NoteMeta | null {
     return stores.notes.notes.find((n) => n.path === tab.note_path) ?? null;
@@ -239,6 +241,7 @@
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content>
+              {@const note_meta = find_note_meta(tab)}
               <ContextMenu.Item
                 onSelect={() =>
                   void action_registry.execute(ACTION_IDS.tab_close, tab.id)}
@@ -306,8 +309,18 @@
               >
                 Reveal in File Tree
               </ContextMenu.Item>
+              <!-- Draft tabs have no file on disk yet. -->
+              <ContextMenu.Item
+                disabled={!note_meta}
+                onSelect={() =>
+                  void action_registry.execute(
+                    ACTION_IDS.shell_reveal_in_file_manager,
+                    tab.note_path,
+                  )}
+              >
+                {reveal_label}
+              </ContextMenu.Item>
               <ContextMenu.Separator />
-              {@const note_meta = find_note_meta(tab)}
               <ContextMenu.Item
                 disabled={!note_meta}
                 onSelect={() => {
