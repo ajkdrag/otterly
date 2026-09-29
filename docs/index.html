@@ -5,54 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Otterly is a desktop app for Markdown notes. Write, search, and link notes in a folder you own."
+      content="Otterly is a desktop app for Markdown notes. It works on a folder of plain .md files on your computer."
     />
-    <meta
-      property="og:title"
-      content="Otterly | Markdown notes in your own folder"
-    />
+    <meta property="og:title" content="Otterly | Markdown notes in a folder" />
     <meta
       property="og:description"
-      content="A clean desktop editor with search and links between notes. Your files stay on your computer."
+      content="Write, search, and link Markdown notes. The notes stay as plain files on your disk."
     />
     <meta
       property="og:image"
-      content="https://ajkdrag.github.io/otterly/tour_preview.jpg"
+      content="https://ajkdrag.github.io/otterly/media/workspace.jpg"
     />
     <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#1e1e2e" />
     <link rel="icon" href="./icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    />
     <title>Otterly | Markdown notes in your own folder</title>
     <style>
       :root {
+        /* Match the app's Catppuccin Mocha palette. */
+        --crust: #11111b;
+        --mantle: #181825;
+        --base: #1e1e2e;
+        --surface0: #313244;
+        --surface1: #45475a;
+        --subtext0: #a6adc8;
+        --text: #cdd6f4;
+        --blue: #89b4fa;
+        --lavender: #b4befe;
+        --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
         color-scheme: dark;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #171815;
-        color: #e9e9e3;
       }
 
       * {
         box-sizing: border-box;
       }
-
+      html {
+        scroll-behavior: smooth;
+      }
       body {
-        margin: 0;
         min-width: 320px;
+        margin: 0;
+        background:
+          radial-gradient(
+            ellipse 70% 580px at 77% 0,
+            #30304d 0,
+            transparent 72%
+          ),
+          var(--base);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 18px;
+        line-height: 1.55;
       }
-
       a {
-        color: inherit;
+        color: var(--blue);
+        text-underline-offset: 4px;
       }
-
+      a:hover {
+        color: var(--lavender);
+      }
       a:focus-visible,
       video:focus-visible {
-        outline: 3px solid #a6c7b1;
+        outline: 3px solid var(--blue);
         outline-offset: 4px;
       }
-
+      code,
+      kbd {
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--surface0);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 0.82em;
+        white-space: nowrap;
+      }
       .shell {
-        max-width: 1120px;
+        width: min(100% - 56px, 1200px);
         margin: 0 auto;
-        padding: 0 32px;
       }
 
       header {
@@ -60,154 +96,340 @@
         align-items: center;
         justify-content: space-between;
         gap: 24px;
-        padding-top: 28px;
+        padding: 28px 0;
       }
-
       .brand {
         display: inline-flex;
         align-items: center;
-        gap: 12px;
-        text-decoration: none;
-        font-size: 17px;
-        font-weight: 650;
+        gap: 10px;
+        color: var(--text);
+        font-size: 21px;
+        font-weight: 800;
         letter-spacing: -0.03em;
+        text-decoration: none;
       }
-
+      .brand:hover {
+        color: var(--text);
+      }
       .brand img {
-        width: 36px;
-        height: 36px;
+        width: 32px;
+        height: 32px;
+      }
+      header nav,
+      footer nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        font-size: 15px;
+      }
+      header nav a {
+        color: var(--subtext0);
+        text-decoration: none;
+      }
+      header nav a:hover {
+        color: var(--text);
       }
 
-      .github-link {
-        color: #b3b8b0;
-        font-size: 14px;
-        text-decoration-thickness: 1px;
-        text-underline-offset: 4px;
+      .hero {
+        padding: 76px 0 0;
       }
-
-      main {
-        padding-top: clamp(58px, 8vw, 106px);
-        padding-bottom: 64px;
+      .hero-copy {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+        align-items: end;
+        gap: 56px;
+        margin-bottom: 54px;
       }
-
-      .intro {
-        max-width: 740px;
+      .kicker {
+        margin: 0 0 18px;
+        color: var(--lavender);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
       }
-
-      h1 {
+      .hero h1 {
         margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: clamp(42px, 6vw, 72px);
-        font-weight: 400;
-        letter-spacing: -0.06em;
-        line-height: 1.08;
+        font-size: clamp(56px, 7vw, 86px);
+        font-weight: 800;
+        letter-spacing: -0.055em;
+        line-height: 1.02;
       }
-
-      .intro p {
-        max-width: 570px;
-        margin: 24px 0 0;
-        color: #b9bdb6;
-        font-size: clamp(17px, 2vw, 20px);
-        line-height: 1.6;
+      .hero-side {
+        max-width: 430px;
+        padding-bottom: 5px;
       }
-
+      .subtitle {
+        margin: 0;
+        font-size: clamp(19px, 2vw, 23px);
+        font-weight: 500;
+        line-height: 1.45;
+      }
       .actions {
         display: flex;
-        align-items: center;
         flex-wrap: wrap;
-        gap: 18px;
-        margin-top: 32px;
+        gap: 12px;
+        margin-top: 26px;
       }
-
-      .download {
+      .button {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         min-height: 48px;
         padding: 0 20px;
+        border: 1px solid var(--surface1);
         border-radius: 8px;
-        background: #e6eee7;
-        color: #172018;
-        font-weight: 650;
+        color: var(--text);
+        font-size: 16px;
+        font-weight: 700;
         text-decoration: none;
       }
-
-      .download:hover {
-        background: #fff;
+      .button:hover {
+        border-color: var(--lavender);
+        color: var(--lavender);
       }
-
-      .platforms {
-        color: #949b92;
-        font-size: 14px;
+      .button.primary {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: var(--crust);
       }
-
-      .tour {
-        margin-top: 64px;
+      .button.primary:hover {
+        border-color: var(--lavender);
+        background: var(--lavender);
+        color: var(--crust);
       }
-
-      .tour-label {
+      .meta {
+        margin: 17px 0 0;
+        color: var(--subtext0);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .hero-media {
+        position: relative;
+      }
+      .hero-media::before {
+        position: absolute;
+        z-index: -1;
+        right: 7%;
+        bottom: -34px;
+        left: 7%;
+        height: 90px;
+        border-radius: 50%;
+        background: var(--lavender);
+        content: "";
+        filter: blur(75px);
+        opacity: 0.22;
+      }
+      .hero-media video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border: 1px solid var(--surface1);
+        border-radius: 13px;
+        background: var(--crust);
+        box-shadow: 0 30px 70px rgb(8 8 18 / 45%);
+      }
+      .tour-note {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 14px;
-        color: #adb3aa;
-        font-size: 13px;
+        gap: 20px;
+        margin: 16px 2px 0;
+        color: var(--subtext0);
+        font-family: var(--mono);
+        font-size: 12px;
       }
 
-      video {
+      .row {
+        display: grid;
+        grid-template-columns: minmax(0, 0.77fr) minmax(0, 1.23fr);
+        align-items: center;
+        gap: 62px;
+        padding: 104px 0 24px;
+      }
+      .row.flip {
+        grid-template-columns: minmax(0, 1.23fr) minmax(0, 0.77fr);
+      }
+      .row.flip .copy {
+        order: 2;
+      }
+      .copy {
+        max-width: 450px;
+      }
+      .row h2 {
+        margin: 0 0 16px;
+        font-size: clamp(32px, 3.5vw, 44px);
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.13;
+      }
+      .row p:not(.kicker) {
+        margin: 0;
+        color: var(--subtext0);
+      }
+      .row p + p {
+        margin-top: 12px;
+      }
+      figure {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        margin: 0;
+        border: 0;
+        border-radius: 10px;
+        background: var(--mantle);
+        box-shadow: 0 24px 48px rgb(9 9 19 / 22%);
+      }
+      figure img {
         display: block;
         width: 100%;
         height: auto;
-        aspect-ratio: 16 / 9;
-        border: 1px solid #41443f;
-        border-radius: 12px;
-        background: #0d0e0c;
       }
-
-      .details {
+      .feature-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 32px;
-        margin-top: 52px;
-        padding-top: 28px;
-        border-top: 1px solid #383b35;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+        margin-top: 88px;
+      }
+      .feature-grid .row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 28px;
+        min-width: 0;
+        padding: 34px;
+        border-radius: 18px;
+        background: var(--mantle);
+      }
+      .feature-grid .row .copy {
+        max-width: 520px;
+      }
+      .feature-grid .row h2 {
+        font-size: clamp(28px, 3vw, 36px);
+      }
+      .feature-grid figure {
+        margin-top: auto;
+        box-shadow: none;
+      }
+      .feature-grid figure img {
+        min-height: 220px;
+        object-fit: cover;
       }
 
-      .details h2 {
-        margin: 0 0 8px;
-        font-size: 15px;
-        font-weight: 650;
+      .download {
+        margin: 112px 0 70px;
+        padding: 48px;
+        border-radius: 20px;
+        background: var(--surface0);
       }
-
-      .details p {
-        margin: 0;
-        color: #aab0a7;
-        font-size: 14px;
-        line-height: 1.6;
+      .download h2 {
+        margin: 0 0 10px;
+        font-size: clamp(32px, 4vw, 48px);
+        letter-spacing: -0.04em;
+        line-height: 1.1;
       }
-
+      .download > p {
+        max-width: 620px;
+        margin: 0 0 30px;
+        color: var(--subtext0);
+      }
+      .table-scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 16px;
+      }
+      th {
+        padding: 0 12px 9px 0;
+        color: var(--subtext0);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+      td {
+        padding: 12px 12px 12px 0;
+        border-top: 1px solid var(--surface1);
+        vertical-align: top;
+      }
+      td:first-child {
+        width: 170px;
+        font-weight: 700;
+      }
       footer {
-        padding: 24px 0 36px;
-        border-top: 1px solid #383b35;
-        color: #8b9389;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 0 42px;
+        color: var(--subtext0);
         font-size: 13px;
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 900px) {
+        .hero-copy,
+        .row {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 30px;
+        }
+        .hero {
+          padding-top: 42px;
+        }
+        .hero-copy {
+          margin-bottom: 40px;
+        }
+        .hero-side {
+          max-width: 620px;
+        }
+        .row {
+          padding-top: 80px;
+        }
+        .row.flip .copy {
+          order: 0;
+        }
+      }
+      @media (max-width: 680px) {
         .shell {
-          padding: 0 20px;
+          width: min(100% - 36px, 1200px);
         }
-
-        main {
-          padding-top: 60px;
+        header nav {
+          gap: 16px;
         }
-
-        .tour {
-          margin-top: 48px;
+        header nav .optional {
+          display: none;
         }
-
-        .details {
-          grid-template-columns: 1fr;
-          gap: 22px;
+        .hero h1 {
+          font-size: clamp(52px, 12vw, 76px);
+        }
+        .feature-grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 18px;
+          margin-top: 64px;
+        }
+        .feature-grid .row {
+          padding: 25px;
+        }
+        .feature-grid figure img {
+          min-height: 0;
+        }
+        .download {
+          margin-top: 80px;
+          padding: 30px 24px;
+        }
+        .tour-note span:last-child {
+          display: none;
+        }
+        td:first-child {
+          width: 110px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
         }
       }
     </style>
@@ -219,73 +441,260 @@
           <img src="./icon.png" alt="" />
           Otterly
         </a>
-        <a class="github-link" href="https://github.com/ajkdrag/otterly"
-          >View on GitHub</a
-        >
+        <nav aria-label="Page sections and project links">
+          <a class="optional" href="#write">How it works</a>
+          <a class="optional" href="#download">Download</a>
+          <a href="https://github.com/ajkdrag/otterly">GitHub</a>
+        </nav>
       </header>
 
       <main>
-        <div class="intro">
-          <h1>Your notes, in a folder you own.</h1>
-          <p>
-            Otterly is a desktop app for Markdown notes. Open a folder, write
-            what you need, and find it again later. Your files stay on your
-            computer.
-          </p>
-          <div class="actions">
-            <a
-              class="download"
-              href="https://github.com/ajkdrag/otterly/releases/latest"
+        <section class="hero" aria-labelledby="hero-heading">
+          <div class="hero-copy">
+            <div>
+              <h1 id="hero-heading">Write and find your notes.</h1>
+            </div>
+            <div class="hero-side">
+              <p class="subtitle">
+                Otterly keeps your Markdown files in a folder you choose. You
+                can link notes, search them, and see earlier versions.
+              </p>
+              <div class="actions">
+                <a
+                  class="button primary"
+                  href="https://github.com/ajkdrag/otterly/releases/latest"
+                  >Download Otterly</a
+                >
+                <a class="button" href="#write">See how it works</a>
+              </div>
+              <p class="meta">
+                Free for macOS, Windows, and Linux. No account.
+              </p>
+            </div>
+          </div>
+          <div class="hero-media">
+            <video
+              controls
+              playsinline
+              preload="none"
+              poster="./media/workspace.jpg"
+              aria-label="A short tour of Otterly"
             >
-              Download Otterly
-            </a>
-            <span class="platforms">macOS, Windows, and Linux</span>
+              <source src="./tour.mp4" type="video/mp4" />
+              Your browser can't play this video.
+              <a href="./tour.mp4">Download the tour</a> instead.
+            </video>
+          </div>
+          <p class="tour-note">
+            <span>See the desktop app in 19 seconds.</span>
+            <span>Captured in the desktop app</span>
+          </p>
+        </section>
+
+        <div class="row" id="write">
+          <div class="copy">
+            <p class="kicker">Write</p>
+            <h2>Start typing. Formatting shows up as you go.</h2>
+            <p>
+              Headings, checklists, and tables look finished while you write, so
+              you're never staring at a wall of symbols. Press
+              <kbd>/</kbd> when you want a table or a code block.
+            </p>
+          </div>
+          <figure>
+            <picture>
+              <source
+                media="(prefers-reduced-motion: reduce)"
+                srcset="./media/write_live_still.jpg"
+              />
+              <img
+                src="./media/write_live.gif"
+                width="900"
+                height="400"
+                loading="lazy"
+                alt="Typing a heading and checklist, then checking off the item"
+              />
+            </picture>
+          </figure>
+        </div>
+
+        <div class="feature-grid">
+          <div class="row">
+            <div class="copy">
+              <p class="kicker">Find</p>
+              <h2>Find any note in a couple of keystrokes</h2>
+              <p>
+                Press <kbd>Cmd O</kbd> and type any word you remember. Otterly
+                looks through note titles and everything inside them, so it
+                doesn't matter which folder a note ended up in.
+              </p>
+            </div>
+            <figure>
+              <img
+                src="./media/search_current.jpg"
+                width="1400"
+                height="778"
+                loading="lazy"
+                alt="Search results for launch, including a note title and matching note content"
+              />
+            </figure>
+          </div>
+
+          <div class="row">
+            <div class="copy">
+              <p class="kicker">Connect</p>
+              <h2>Link one idea to the next</h2>
+              <p>
+                Type <code>[[</code> and pick a note to link it. The side panel
+                shows every note that points back, which is handy when an old
+                idea becomes useful again.
+              </p>
+              <p>Rename a note and the links to it keep working.</p>
+            </div>
+            <figure>
+              <picture>
+                <source
+                  media="(prefers-reduced-motion: reduce)"
+                  srcset="./media/links_current.jpg"
+                />
+                <img
+                  src="./media/follow_link.gif"
+                  width="1100"
+                  height="552"
+                  loading="lazy"
+                  alt="Opening a linked note while the backlinks panel stays in view"
+                />
+              </picture>
+            </figure>
           </div>
         </div>
 
-        <section class="tour" aria-label="Otterly desktop tour">
-          <div class="tour-label">
-            <span>See it in action</span>
-            <span>44 seconds</span>
+        <div class="row flip">
+          <div class="copy">
+            <p class="kicker">Undo</p>
+            <h2>Go back to any earlier version</h2>
+            <p>
+              Keep your notes in Git and Otterly shows how each note looked
+              before. About to rewrite something big? Save a checkpoint first
+              and you can always get back to it.
+            </p>
           </div>
-          <video
-            controls
-            playsinline
-            preload="metadata"
-            poster="./tour_preview.jpg"
-          >
-            <source src="./tour.mp4" type="video/mp4" />
-            Your browser cannot play this video.
-            <a href="./tour.mp4">Download the tour</a>.
-          </video>
-        </section>
+          <figure>
+            <img
+              src="./media/history_current.jpg"
+              width="1400"
+              height="778"
+              loading="lazy"
+              alt="The version history for Launch plan with an earlier version open"
+            />
+          </figure>
+        </div>
 
-        <section class="details" aria-label="What you can do">
-          <div>
-            <h2>Write without setup</h2>
-            <p>
-              Headings, lists, code, images, and a clean editor are ready when
-              you open a folder.
-            </p>
+        <div class="feature-grid">
+          <div class="row">
+            <div class="copy">
+              <p class="kicker">Make it yours</p>
+              <h2>Pick a look and the keys you like</h2>
+              <p>
+                Choose a light or dark theme, or build your own with different
+                fonts and colors. Keyboard shortcuts can be changed in settings
+                too.
+              </p>
+            </div>
+            <figure>
+              <img
+                src="./media/themes_current.jpg"
+                width="1400"
+                height="778"
+                loading="lazy"
+                alt="Theme settings showing the Mocha theme and appearance options"
+              />
+            </figure>
           </div>
-          <div>
-            <h2>Find your way back</h2>
-            <p>
-              Search your notes, follow wiki links, and see which notes link to
-              each other.
-            </p>
+
+          <div class="row">
+            <div class="copy">
+              <p class="kicker">Keep your files</p>
+              <h2>Your notes are ordinary files</h2>
+              <p>
+                Each note is a <code>.md</code> file in a folder you picked.
+                Back it up, sync it, or open a note in another app. If you ever
+                stop using Otterly, your notes stay right where they are.
+              </p>
+            </div>
+            <figure>
+              <img
+                src="./media/files_current.jpg"
+                width="1400"
+                height="782"
+                loading="lazy"
+                alt="The vault sidebar listing three Markdown files"
+              />
+            </figure>
           </div>
-          <div>
-            <h2>Keep your files</h2>
-            <p>
-              Every note is a Markdown file. You can open the same folder with
-              other tools.
-            </p>
+        </div>
+
+        <section
+          class="download"
+          id="download"
+          aria-labelledby="download-heading"
+        >
+          <h2 id="download-heading">Download Otterly</h2>
+          <p>
+            It's free and there's nothing to sign up for. Grab the file for your
+            computer from the
+            <a href="https://github.com/ajkdrag/otterly/releases/latest"
+              >latest release</a
+            >. Otterly updates itself after that and asks before it restarts.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Your computer</th>
+                  <th scope="col">Pick this file</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mac</td>
+                  <td>
+                    The <code>.dmg</code>. It works on Apple Silicon and Intel.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Windows</td>
+                  <td><code>setup.exe</code> or <code>.msi</code></td>
+                </tr>
+                <tr>
+                  <td>Linux</td>
+                  <td><code>.AppImage</code> or <code>.deb</code></td>
+                </tr>
+                <tr>
+                  <td>Arch Linux</td>
+                  <td>
+                    <a
+                      href="https://aur.archlinux.org/packages/otterly-appimage"
+                      >otterly-appimage</a
+                    >
+                    on the AUR
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
       </main>
 
-      <footer>Free and open source. No account needed.</footer>
+      <footer>
+        <span>Otterly is free and open source under the MIT license.</span>
+        <nav aria-label="Project links">
+          <a href="https://github.com/ajkdrag/otterly#build-from-source"
+            >Build from source</a
+          >
+          <a href="https://github.com/ajkdrag/otterly/issues">Report a bug</a>
+        </nav>
+      </footer>
     </div>
   </body>
 </html>
