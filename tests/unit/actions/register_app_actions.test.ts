@@ -37,6 +37,14 @@ vi.mock("@tauri-apps/api/window", () => ({
   }),
 }));
 
+function update_prompt_options(): { cancel: { onClick: () => void } } {
+  const call = vi
+    .mocked(toast.info)
+    .mock.calls.find(([message]) => String(message).endsWith("is ready"));
+  if (!call) throw new Error("Expected the update prompt");
+  return call[1] as never;
+}
+
 type HarnessOptions = {
   reset_app_state?: boolean;
 };
@@ -133,6 +141,10 @@ function create_harness(options: HarnessOptions = {}) {
       load_latest_session: vi.fn().mockResolvedValue(null),
       restore_latest_session: vi.fn().mockResolvedValue(undefined),
       save_latest_session: vi.fn().mockResolvedValue(undefined),
+    },
+    updater: {
+      download_update: vi.fn().mockResolvedValue({ status: "up_to_date" }),
+      install_and_relaunch: vi.fn().mockResolvedValue(true),
     },
     tab: {
       mark_conflict: vi.fn(),
@@ -353,6 +365,74 @@ describe("register_app_actions", () => {
     expect(toast.info).toHaveBeenCalledWith(
       "Updates are only available in the desktop app",
     );
+  });
+
+  it("shows the restart prompt when a manual check downloads an update", async () => {
+    const { registry, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    services.updater.download_update.mockResolvedValue({
+      status: "ready",
+      version: "0.5.0",
+    });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(toast.info).toHaveBeenCalledWith(
+      "Otterly v0.5.0 is ready",
+      expect.objectContaining({ id: "update-ready" }),
+    );
+  });
+
+  it("stops background prompts for the session after Later", async () => {
+    const { registry, stores, services } = create_harness();
+    services.updater.download_update.mockResolvedValue({
+      status: "ready",
+      version: "0.5.0",
+    });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+    update_prompt_options().cancel.onClick();
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(stores.ui.update_prompt_dismissed).toBe(true);
+    expect(toast.info).toHaveBeenCalledTimes(1);
+    expect(services.updater.download_update).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet in the background when there is no update", async () => {
+    const { registry } = create_harness();
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("saves the session before installing the update", async () => {
+    const { registry, services } = create_harness();
+    const calls: string[] = [];
+    services.session.save_latest_session.mockImplementation(() => {
+      calls.push("save_session");
+      return Promise.resolve();
+    });
+    services.updater.install_and_relaunch.mockImplementation(() => {
+      calls.push("install");
+      return Promise.resolve(true);
+    });
+
+    await registry.execute(ACTION_IDS.app_restart_to_update);
+
+    expect(calls).toEqual(["save_session", "install"]);
+  });
+
+  it("does not install when saving the session fails", async () => {
+    const { registry, services } = create_harness();
+    services.session.save_latest_session.mockRejectedValue(new Error("disk"));
+
+    await registry.execute(ACTION_IDS.app_restart_to_update);
+
+    expect(services.updater.install_and_relaunch).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 
   it("opens quit confirmation when quit is requested", async () => {

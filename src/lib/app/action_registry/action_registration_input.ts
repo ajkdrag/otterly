@@ -12,6 +12,7 @@ import type { TabService } from "$lib/features/tab";
 import type { GitService } from "$lib/features/git";
 import type { HotkeyService } from "$lib/features/hotkey";
 import type { ThemeService } from "$lib/features/theme";
+import type { UpdaterService } from "$lib/features/updater";
 import type { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import type { VaultStore } from "$lib/features/vault";
 import type { NotesStore } from "$lib/features/note";
@@ -47,6 +48,7 @@ export type ActionRegistrationInput = {
     git: GitService;
     hotkey: HotkeyService;
     theme: ThemeService;
+    updater: UpdaterService;
   };
   default_mount_config: AppMountConfig;
 };

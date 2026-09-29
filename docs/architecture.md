@@ -79,6 +79,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `clipboard` | Copy markdown to clipboard                                    |
 | `shell`     | Open external URLs                                            |
 | `watcher`   | Filesystem watcher start/stop                                 |
+| `updater`   | Background update download, install and relaunch              |
 
 ### Folder structure (first 2 levels)
 

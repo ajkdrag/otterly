@@ -335,6 +335,9 @@ export class UIStore {
     is_quitting: boolean;
   }>({ ...INITIAL_QUIT_CONFIRM });
 
+  // Set when the user picks "Later" on the update prompt. Lasts for the session.
+  update_prompt_dismissed = $state(false);
+
   context_rail_open = $state(false);
   context_rail_tab = $state<ContextRailTab>("links");
 
