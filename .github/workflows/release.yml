@@ -123,10 +123,14 @@ jobs:
         with:
           targets: ${{ matrix.rust_targets }}
 
+      # Restores the dependency cache that rust_cache.yml keeps warm on main.
+      # A tag run can only read caches from itself or main, so saving here
+      # would only fill the cache quota with entries nothing reads again.
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          save-if: ${{ github.event_name == 'push' }}
+          shared-key: ${{ matrix.target_key }}
+          save-if: false
 
       - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-22.04'

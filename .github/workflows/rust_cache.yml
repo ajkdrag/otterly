@@ -1,0 +1,81 @@
+name: Rust cache
+
+# Keeps a warm Rust dependency cache on main for each release target. Release
+# runs start from a tag, and a tag run can only restore caches saved on main.
+# Without this every release compiles all dependencies from scratch.
+#
+# The build here has to match what `tauri build` runs in release.yml (same
+# features, profile and target), or the cached dependencies do not match.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - src-tauri/Cargo.toml
+      - src-tauri/Cargo.lock
+      - .github/workflows/rust_cache.yml
+  schedule:
+    # GitHub evicts caches nobody used for 7 days, and releases are further
+    # apart than that.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: rust-cache
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target_key: darwin-x86_64
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - os: macos-latest
+            target_key: darwin-aarch64
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - os: windows-latest
+            target_key: windows-x86_64
+            rust_targets: ""
+            args: ""
+          - os: ubuntu-22.04
+            target_key: linux-x86_64
+            rust_targets: ""
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: ${{ matrix.target_key }}
+
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            patchelf
+
+      # The app crate embeds the frontend at compile time. rust-cache drops the
+      # app crate itself and keeps only dependencies, so an empty page is enough.
+      - name: Build dependencies
+        shell: bash
+        run: |
+          mkdir -p build
+          echo "<!doctype html>" > build/index.html
+          cd src-tauri
+          cargo build --bins --features tauri/custom-protocol --release ${{ matrix.args }}

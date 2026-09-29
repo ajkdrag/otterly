@@ -20,7 +20,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 anyhow = "1.0.95"
 blake3 = "1.5.5"
-comrak = "0.50.0"
+# Parser only. The default features add a CLI and syntax highlighting (a C
+# regex library) that we never use.
+comrak = { version = "0.50.0", default-features = false }
 mime_guess = "2.0.5"
 notify = "7.0.0"
 serde = { version = "1.0.217", features = ["derive"] }
@@ -35,8 +37,9 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "~2.3"
 tauri-plugin-window-state = "2"
 tokio = { version = "1.43.0", features = ["fs", "rt-multi-thread", "sync"] }
-openssl = { version = "0.10", features = ["vendored"] }
-git2 = "0.19"
+# Local repos only. The default features add HTTPS and SSH transports, which
+# pull in OpenSSL and libssh2 and slow the build down a lot.
+git2 = { version = "0.19", default-features = false }
 walkdir = "2.5.0"
 
 [dev-dependencies]
