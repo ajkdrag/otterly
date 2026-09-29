@@ -93,6 +93,7 @@ function create_setup(
   const callbacks: EditorServiceCallbacks = {
     on_internal_link_click: vi.fn(),
     on_external_link_click: vi.fn(),
+    on_file_link_click: vi.fn(),
     on_image_paste_requested: vi.fn(),
   };
 

@@ -54,6 +54,11 @@ export function create_app_context(input: {
         }),
       on_external_link_click: (url) =>
         void action_registry.execute(ACTION_IDS.shell_open_url, url),
+      on_file_link_click: (file_path) =>
+        void action_registry.execute(
+          ACTION_IDS.shell_open_linked_file,
+          file_path,
+        ),
       on_image_paste_requested: (note_id, note_path, image) =>
         void action_registry.execute(ACTION_IDS.note_request_image_paste, {
           note_id,

@@ -40,6 +40,7 @@
     "@tauri-apps/plugin-process": "~2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.0",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.16",
     "formsnap": "^2.0.1",
     "isomorphic-git": "^1.37.1",
     "lucide-static": "^0.563.0",

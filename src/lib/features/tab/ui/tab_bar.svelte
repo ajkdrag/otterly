@@ -320,6 +320,16 @@
               >
                 {reveal_label}
               </ContextMenu.Item>
+              <ContextMenu.Item
+                disabled={!note_meta}
+                onSelect={() =>
+                  void action_registry.execute(
+                    ACTION_IDS.shell_open_in_default_app,
+                    tab.note_path,
+                  )}
+              >
+                Open in Default App
+              </ContextMenu.Item>
               <ContextMenu.Separator />
               <ContextMenu.Item
                 disabled={!note_meta}

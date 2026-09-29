@@ -49,6 +49,7 @@ export type EditorEventHandlers = {
   on_code_block_view_states_change?: (heights: CodeBlockViewStates) => void;
   on_internal_link_click?: (raw_path: string, base_note_path: string) => void;
   on_external_link_click?: (url: string) => void;
+  on_file_link_click?: (file_path: string) => void;
   on_image_paste_requested?: (payload: PastedImagePayload) => void;
   on_wiki_suggest_query?: (query: string) => void;
 };

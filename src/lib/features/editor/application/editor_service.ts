@@ -31,6 +31,7 @@ function note_name_from_path(path: string): string {
 export type EditorServiceCallbacks = {
   on_internal_link_click: (raw_path: string, base_note_path: string) => void;
   on_external_link_click: (url: string) => void;
+  on_file_link_click: (file_path: string) => void;
   on_image_paste_requested: (
     note_id: NoteId,
     note_path: NotePath,
@@ -308,6 +309,10 @@ export class EditorService {
       on_external_link_click: (url: string) => {
         if (!this.is_generation_current(generation)) return;
         this.callbacks.on_external_link_click(url);
+      },
+      on_file_link_click: (file_path: string) => {
+        if (!this.is_generation_current(generation)) return;
+        this.callbacks.on_file_link_click(file_path);
       },
       on_image_paste_requested: (image: PastedImagePayload) => {
         this.with_active_note_identity(generation, (id, path) => {

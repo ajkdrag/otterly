@@ -1,6 +1,7 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
+import { is_program_file } from "$lib/features/shell";
 import { toast } from "svelte-sonner";
 
 type SidebarView = "explorer" | "dashboard" | "starred";
@@ -51,6 +52,23 @@ export function register_ui_actions(input: ActionRegistrationInput) {
     execute: async (path: unknown) => {
       const ok = await services.shell.open_in_default_app(String(path));
       if (!ok) toast.error("Could not open the item in the default app");
+    },
+  });
+
+  // Clicking a link to a non-note file in the editor, like a pdf.
+  registry.register({
+    id: ACTION_IDS.shell_open_linked_file,
+    label: "Open Linked File",
+    execute: async (path: unknown) => {
+      const file_path = String(path);
+      if (is_program_file(file_path)) {
+        toast.error("Otterly does not run programs from links", {
+          description: `Use ${reveal_in_file_manager_label()} on the file instead.`,
+        });
+        return;
+      }
+      const ok = await services.shell.open_in_default_app(file_path);
+      if (!ok) toast.error("Could not open the linked file");
     },
   });
 

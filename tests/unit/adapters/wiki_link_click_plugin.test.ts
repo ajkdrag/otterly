@@ -58,14 +58,21 @@ describe("create_wiki_link_click_prose_plugin", () => {
   function setup(base_note_path = "folder/current.md") {
     const on_internal_link_click = vi.fn();
     const on_external_link_click = vi.fn();
+    const on_file_link_click = vi.fn();
 
     const plugin = create_wiki_link_click_prose_plugin({
       base_note_path,
       on_internal_link_click,
       on_external_link_click,
+      on_file_link_click,
     });
 
-    return { plugin, on_internal_link_click, on_external_link_click };
+    return {
+      plugin,
+      on_internal_link_click,
+      on_external_link_click,
+      on_file_link_click,
+    };
   }
 
   function invoke_dom_click(
@@ -254,26 +261,39 @@ describe("create_wiki_link_click_prose_plugin", () => {
     });
   });
 
-  describe("rejected hrefs", () => {
-    it("rejects non-md file extensions", () => {
-      const { plugin, on_internal_link_click } = setup();
-      const { event, prevent_default } = create_mouse_event("image.png");
+  describe("file links", () => {
+    it("opens other files relative to the note", () => {
+      const { plugin, on_file_link_click, on_internal_link_click } = setup();
+      const { event, prevent_default } = create_mouse_event("document.pdf");
 
       invoke_dom_click(plugin, event);
 
       expect(prevent_default).toHaveBeenCalled();
+      expect(on_file_link_click).toHaveBeenCalledWith("folder/document.pdf");
       expect(on_internal_link_click).not.toHaveBeenCalled();
     });
 
-    it("rejects pdf files", () => {
-      const { plugin, on_internal_link_click } = setup();
-      const { event } = create_mouse_event("document.pdf");
+    it("resolves parent paths and drops the fragment", () => {
+      const { plugin, on_file_link_click } = setup("a/b/current.md");
+      const { event } = create_mouse_event("../files/My%20Budget.xlsx#Sheet1");
 
       invoke_dom_click(plugin, event);
 
-      expect(on_internal_link_click).not.toHaveBeenCalled();
+      expect(on_file_link_click).toHaveBeenCalledWith("a/files/My Budget.xlsx");
     });
 
+    it("ignores other url schemes like mailto", () => {
+      const { plugin, on_file_link_click, on_internal_link_click } = setup();
+      const { event } = create_mouse_event("mailto:someone@example.com");
+
+      invoke_dom_click(plugin, event);
+
+      expect(on_file_link_click).not.toHaveBeenCalled();
+      expect(on_internal_link_click).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rejected hrefs", () => {
     it("rejects empty href", () => {
       const { plugin, on_internal_link_click } = setup();
       const { event } = create_mouse_event("");

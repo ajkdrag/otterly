@@ -7,6 +7,7 @@ import type {
 } from "@milkdown/kit/prose/model";
 import { linkSchema } from "@milkdown/kit/preset/commonmark";
 import { format_wiki_display } from "$lib/features/editor/domain/wiki_link";
+import { resolve_relative_asset_path } from "$lib/features/note";
 import { dirty_state_plugin_key } from "./dirty_state_plugin";
 import { editor_context_plugin_key } from "./editor_context_plugin";
 
@@ -267,7 +268,13 @@ function is_external_url(href: string): boolean {
   }
 }
 
-function parse_internal_href(href: string): string | null {
+// A note link keeps the note rules: no extension or .md. Any other extension
+// is a file in the vault, like a pdf or a spreadsheet next to the note.
+type LinkTarget = { kind: "note" | "file"; path: string };
+
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
+function parse_internal_href(href: string): LinkTarget | null {
   if (href.trim() === "" || is_external_url(href)) return null;
 
   let path = href;
@@ -287,15 +294,17 @@ function parse_internal_href(href: string): string | null {
   const leaf = slash >= 0 ? path.slice(slash + 1) : path;
   if (leaf === "") return null;
 
-  const has_dot = leaf.includes(".");
-  if (has_dot && !leaf.toLowerCase().endsWith(".md")) return null;
-
-  return path;
+  const is_note = !leaf.includes(".") || leaf.toLowerCase().endsWith(".md");
+  if (is_note) return { kind: "note", path };
+  // mailto: and friends are not vault files, so the click does nothing.
+  if (URL_SCHEME.test(href)) return null;
+  return { kind: "file", path };
 }
 
 export function create_wiki_link_click_prose_plugin(input: {
   on_internal_link_click: (raw_path: string, base_note_path: string) => void;
   on_external_link_click: (url: string) => void;
+  on_file_link_click: (file_path: string) => void;
   base_note_path?: string;
 }) {
   function anchor_href_from_event(event: MouseEvent): string | null {
@@ -325,15 +334,22 @@ export function create_wiki_link_click_prose_plugin(input: {
             return true;
           }
 
-          const raw_path = parse_internal_href(href);
-          if (!raw_path) return true;
+          const target = parse_internal_href(href);
+          if (!target) return true;
 
           const editor_state = view?.state;
           const ctx_state = editor_state
             ? editor_context_plugin_key.getState(editor_state)
             : null;
           const base = ctx_state?.note_path ?? input.base_note_path ?? "";
-          input.on_internal_link_click(raw_path, base);
+          if (target.kind === "file") {
+            // Relative to the note, the same way the editor resolves images.
+            input.on_file_link_click(
+              resolve_relative_asset_path(base, target.path),
+            );
+          } else {
+            input.on_internal_link_click(target.path, base);
+          }
 
           return true;
         },
@@ -353,4 +369,5 @@ export const create_wiki_link_converter_plugin = () =>
 export const create_wiki_link_click_plugin = (input: {
   on_internal_link_click: (raw_path: string, base_note_path: string) => void;
   on_external_link_click: (url: string) => void;
+  on_file_link_click: (file_path: string) => void;
 }) => $prose(() => create_wiki_link_click_prose_plugin(input));

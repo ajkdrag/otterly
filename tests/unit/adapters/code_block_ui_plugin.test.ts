@@ -15,7 +15,24 @@ import {
   replace_code_block_view_states,
 } from "$lib/features/editor/adapters/code_block_ui_plugin";
 import type { CodeBlockViewStates } from "$lib/shared/types/editor";
+import { rerender_mermaid_preview } from "$lib/features/editor/adapters/mermaid_preview";
 import { code_block_view_state } from "../helpers/test_fixtures";
+
+vi.mock("$lib/features/editor/adapters/mermaid_preview", async (original) => ({
+  ...(await original<object>()),
+  rerender_mermaid_preview: vi.fn(),
+}));
+
+// Mimics Milkdown's preview panel, which only diagram blocks get for real.
+function add_diagram_preview(dom: HTMLElement): HTMLElement {
+  const panel = document.createElement("div");
+  panel.className = "preview-panel";
+  const preview = document.createElement("div");
+  preview.className = "preview";
+  panel.appendChild(preview);
+  dom.appendChild(panel);
+  return preview;
+}
 
 function create_schema(): Schema {
   return new Schema({
@@ -331,5 +348,43 @@ describe("diagram bar", () => {
     ]);
     expect(source_height(dom)).toBe("");
     destroy();
+  });
+  it("redraws mounted diagrams when the color scheme changes", async () => {
+    vi.mocked(rerender_mermaid_preview).mockClear();
+    const { dom, destroy } = create_editor({
+      initial_view_states: [null],
+      language: "mermaid",
+    });
+    const preview = add_diagram_preview(dom);
+
+    document.documentElement.dataset.colorScheme = "dark";
+    await vi.waitFor(() => {
+      expect(rerender_mermaid_preview).toHaveBeenCalledWith(
+        "graph TD; A-->B",
+        preview,
+      );
+    });
+
+    // Setting the same scheme again is not a change.
+    vi.mocked(rerender_mermaid_preview).mockClear();
+    document.documentElement.dataset.colorScheme = "dark";
+    await Promise.resolve();
+    expect(rerender_mermaid_preview).not.toHaveBeenCalled();
+
+    destroy();
+    delete document.documentElement.dataset.colorScheme;
+  });
+
+  it("leaves non-diagram blocks alone on a scheme change", async () => {
+    vi.mocked(rerender_mermaid_preview).mockClear();
+    const { dom, destroy } = create_editor({ language: "ts" });
+    add_diagram_preview(dom);
+
+    document.documentElement.dataset.colorScheme = "light";
+    await Promise.resolve();
+
+    expect(rerender_mermaid_preview).not.toHaveBeenCalled();
+    destroy();
+    delete document.documentElement.dataset.colorScheme;
   });
 });

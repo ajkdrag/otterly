@@ -14,7 +14,10 @@ import {
   type CodeBlockViewState,
   type CodeBlockViewStates,
 } from "$lib/shared/types/editor";
-import { is_diagram_language } from "./mermaid_preview";
+import {
+  is_diagram_language,
+  rerender_mermaid_preview,
+} from "./mermaid_preview";
 
 // Owns the UI we add to Milkdown's code blocks: resize handles for the source
 // and the diagram, and for diagram blocks a bar with zoom and a source toggle.
@@ -449,6 +452,35 @@ export function create_code_block_ui_prosemirror_plugin(
         }
       }
 
+      // Diagrams bake the light or dark theme into their svg, so redraw the
+      // mounted ones when the scheme flips. Blocks mounted later render fresh.
+      function rerender_diagrams(): void {
+        const plugin_state = get_code_block_ui_state(view.state);
+        for (const [dom, tracked] of tracked_blocks) {
+          if (!dom.dataset.diagram) continue;
+          if (!plugin_state.positions.includes(tracked.position)) continue;
+          const preview = dom.querySelector<HTMLElement>(
+            ":scope > .preview-panel > .preview",
+          );
+          const content = view.state.doc.nodeAt(tracked.position)?.textContent;
+          if (preview && content?.trim()) {
+            rerender_mermaid_preview(content, preview);
+          }
+        }
+      }
+
+      const color_scheme_observer = new MutationObserver((records) => {
+        const scheme = document.documentElement.dataset.colorScheme ?? null;
+        if (records.some((record) => record.oldValue !== scheme)) {
+          rerender_diagrams();
+        }
+      });
+      color_scheme_observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-color-scheme"],
+        attributeOldValue: true,
+      });
+
       sync_rendered_blocks();
       return {
         update(updated_view) {
@@ -462,6 +494,7 @@ export function create_code_block_ui_prosemirror_plugin(
           }
         },
         destroy() {
+          color_scheme_observer.disconnect();
           for (const tracked of tracked_blocks.values()) tracked.cleanup();
           tracked_blocks.clear();
         },
