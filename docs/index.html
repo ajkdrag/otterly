@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Otterly is a desktop app for Markdown notes. Write, search, and link notes in a folder you own."
+    />
+    <meta
+      property="og:title"
+      content="Otterly | Markdown notes in your own folder"
+    />
+    <meta
+      property="og:description"
+      content="A clean desktop editor with search and links between notes. Your files stay on your computer."
+    />
+    <meta
+      property="og:image"
+      content="https://ajkdrag.github.io/otterly/tour_preview.jpg"
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="./icon.png" />
+    <title>Otterly | Markdown notes in your own folder</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #171815;
+        color: #e9e9e3;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      a:focus-visible,
+      video:focus-visible {
+        outline: 3px solid #a6c7b1;
+        outline-offset: 4px;
+      }
+
+      .shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 32px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding-top: 28px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+      }
+
+      .brand img {
+        width: 36px;
+        height: 36px;
+      }
+
+      .github-link {
+        color: #b3b8b0;
+        font-size: 14px;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 4px;
+      }
+
+      main {
+        padding-top: clamp(58px, 8vw, 106px);
+        padding-bottom: 64px;
+      }
+
+      .intro {
+        max-width: 740px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(42px, 6vw, 72px);
+        font-weight: 400;
+        letter-spacing: -0.06em;
+        line-height: 1.08;
+      }
+
+      .intro p {
+        max-width: 570px;
+        margin: 24px 0 0;
+        color: #b9bdb6;
+        font-size: clamp(17px, 2vw, 20px);
+        line-height: 1.6;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 32px;
+      }
+
+      .download {
+        display: inline-flex;
+        align-items: center;
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 8px;
+        background: #e6eee7;
+        color: #172018;
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      .download:hover {
+        background: #fff;
+      }
+
+      .platforms {
+        color: #949b92;
+        font-size: 14px;
+      }
+
+      .tour {
+        margin-top: 64px;
+      }
+
+      .tour-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+        color: #adb3aa;
+        font-size: 13px;
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        border: 1px solid #41443f;
+        border-radius: 12px;
+        background: #0d0e0c;
+      }
+
+      .details {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 32px;
+        margin-top: 52px;
+        padding-top: 28px;
+        border-top: 1px solid #383b35;
+      }
+
+      .details h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .details p {
+        margin: 0;
+        color: #aab0a7;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      footer {
+        padding: 24px 0 36px;
+        border-top: 1px solid #383b35;
+        color: #8b9389;
+        font-size: 13px;
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          padding: 0 20px;
+        }
+
+        main {
+          padding-top: 60px;
+        }
+
+        .tour {
+          margin-top: 48px;
+        }
+
+        .details {
+          grid-template-columns: 1fr;
+          gap: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <a class="brand" href="./" aria-label="Otterly home">
+          <img src="./icon.png" alt="" />
+          Otterly
+        </a>
+        <a class="github-link" href="https://github.com/ajkdrag/otterly"
+          >View on GitHub</a
+        >
+      </header>
+
+      <main>
+        <div class="intro">
+          <h1>Your notes, in a folder you own.</h1>
+          <p>
+            Otterly is a desktop app for Markdown notes. Open a folder, write
+            what you need, and find it again later. Your files stay on your
+            computer.
+          </p>
+          <div class="actions">
+            <a
+              class="download"
+              href="https://github.com/ajkdrag/otterly/releases/latest"
+            >
+              Download Otterly
+            </a>
+            <span class="platforms">macOS, Windows, and Linux</span>
+          </div>
+        </div>
+
+        <section class="tour" aria-label="Otterly desktop tour">
+          <div class="tour-label">
+            <span>See it in action</span>
+            <span>44 seconds</span>
+          </div>
+          <video
+            controls
+            playsinline
+            preload="metadata"
+            poster="./tour_preview.jpg"
+          >
+            <source src="./tour.mp4" type="video/mp4" />
+            Your browser cannot play this video.
+            <a href="./tour.mp4">Download the tour</a>.
+          </video>
+        </section>
+
+        <section class="details" aria-label="What you can do">
+          <div>
+            <h2>Write without setup</h2>
+            <p>
+              Headings, lists, code, images, and a clean editor are ready when
+              you open a folder.
+            </p>
+          </div>
+          <div>
+            <h2>Find your way back</h2>
+            <p>
+              Search your notes, follow wiki links, and see which notes link to
+              each other.
+            </p>
+          </div>
+          <div>
+            <h2>Keep your files</h2>
+            <p>
+              Every note is a Markdown file. You can open the same folder with
+              other tools.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer>Free and open source. No account needed.</footer>
+    </div>
+  </body>
+</html>

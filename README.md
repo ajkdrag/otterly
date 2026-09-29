@@ -20,8 +20,8 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 ## See it in action
 
 <p>
-  <a href="./assets/readme/tour.mp4">
-    <img src="./assets/readme/tour_preview.jpg" alt="Watch a short tour of the Otterly desktop app" width="760">
+  <a href="https://ajkdrag.github.io/otterly/">
+    <img src="./docs/tour_preview.jpg" alt="Watch a short tour of the Otterly desktop app" width="760">
   </a>
 </p>
 
