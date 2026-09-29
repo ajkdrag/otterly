@@ -19,7 +19,7 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 
 ## See it in action
 
-[Visit the Otterly site](https://ajkdrag.github.io/otterly/) for a 19-second tour of the desktop app and a closer look at its features.
+[Visit the Otterly site](https://ajkdrag.github.io/otterly/) for a short tour of the desktop app and a closer look at its features.
 
 ## Why Otterly
 
