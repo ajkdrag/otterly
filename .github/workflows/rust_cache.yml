@@ -74,6 +74,12 @@ jobs:
       # app crate itself and keeps only dependencies, so an empty page is enough.
       - name: Build dependencies
         shell: bash
+        # tauri build exports this from bundle.macOS.minimumSystemVersion (10.13
+        # by default), and the cc crate reruns C build scripts when it changes.
+        # Keep them equal, or macOS releases rebuild every C dependency. Other
+        # platforms ignore it.
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "10.13"
         run: |
           mkdir -p build
           echo "<!doctype html>" > build/index.html
