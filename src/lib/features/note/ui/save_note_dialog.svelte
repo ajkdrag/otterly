@@ -37,6 +37,8 @@
   }: Props = $props();
 
   let input_el = $state<HTMLInputElement | null>(null);
+  let dialog_ref = $state<HTMLElement | null>(null);
+  let focus_before_open: HTMLElement | null = null;
 
   const display_filename = $derived.by(() => {
     if (!new_path) return "";
@@ -59,6 +61,50 @@
       });
     }
   });
+
+  function remember_focus_before_open() {
+    const active_element = document.activeElement;
+    focus_before_open =
+      active_element instanceof HTMLElement ? active_element : null;
+  }
+
+  function is_focus_empty(active_element: Element | null) {
+    return (
+      active_element === null ||
+      active_element === document.body ||
+      active_element === document.documentElement
+    );
+  }
+
+  // bits-ui restores focus with a plain focus() call, and browsers scroll a
+  // focused contenteditable into view. In the editor that moved the note away
+  // from where the user was reading. We restore focus ourselves with
+  // preventScroll, and back off if a new dialog or tab already took focus.
+  function restore_focus_without_scroll(event: Event) {
+    const target = focus_before_open;
+    focus_before_open = null;
+    const active_element = document.activeElement;
+    const focus_is_in_dialog =
+      active_element instanceof HTMLElement &&
+      dialog_ref?.contains(active_element);
+
+    if (!focus_is_in_dialog && !is_focus_empty(active_element)) {
+      event.preventDefault();
+      return;
+    }
+    if (!target?.isConnected) return;
+
+    event.preventDefault();
+    const closing_dialog = dialog_ref;
+    requestAnimationFrame(() => {
+      const current_focus = document.activeElement;
+      const another_target_has_focus =
+        !is_focus_empty(current_focus) &&
+        !closing_dialog?.contains(current_focus);
+      if (another_target_has_focus) return;
+      target.focus({ preventScroll: true });
+    });
+  }
 
   function update_filename(value: string) {
     const sanitized = sanitize_note_name(value);
@@ -92,7 +138,12 @@
     if (!value && !is_busy) on_cancel();
   }}
 >
-  <Dialog.Content class="max-w-md">
+  <Dialog.Content
+    bind:ref={dialog_ref}
+    class="max-w-md"
+    onOpenAutoFocus={remember_focus_before_open}
+    onCloseAutoFocus={restore_focus_without_scroll}
+  >
     <Dialog.Header>
       <Dialog.Title>{get_title()}</Dialog.Title>
       <Dialog.Description>

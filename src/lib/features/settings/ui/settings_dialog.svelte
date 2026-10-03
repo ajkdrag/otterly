@@ -397,6 +397,41 @@
                 </div>
               </div>
             {/if}
+            <div class="SettingsDialog__row">
+              <div class="SettingsDialog__label-group">
+                <span class="SettingsDialog__label"
+                  >Filename Word Delimiter</span
+                >
+                <span class="SettingsDialog__description"
+                  >Used when a new note's filename is suggested from a heading
+                  on its first line</span
+                >
+              </div>
+              <Select.Root
+                type="single"
+                value={editor_settings.heading_filename_delimiter}
+                onValueChange={(v: string | undefined) => {
+                  if (v === "spaces" || v === "hyphens") {
+                    update("heading_filename_delimiter", v);
+                  }
+                }}
+              >
+                <Select.Trigger
+                  class="w-28"
+                  aria-label="Filename word delimiter"
+                >
+                  <span data-slot="select-value"
+                    >{editor_settings.heading_filename_delimiter === "hyphens"
+                      ? "Hyphens"
+                      : "Spaces"}</span
+                  >
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="spaces">Spaces</Select.Item>
+                  <Select.Item value="hyphens">Hyphens</Select.Item>
+                </Select.Content>
+              </Select.Root>
+            </div>
           </div>
         {:else if active_category === "git"}
           <h2 class="SettingsDialog__content-header">Git</h2>

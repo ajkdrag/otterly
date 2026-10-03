@@ -339,6 +339,10 @@
         return `${settings.editor_max_width_ch} ch`;
       case "editor_zoom":
         return `${Math.round(settings.editor_zoom * 100)}%`;
+      case "heading_filename_delimiter":
+        return settings.heading_filename_delimiter === "hyphens"
+          ? "Hyphens"
+          : "Spaces";
     }
   }
 

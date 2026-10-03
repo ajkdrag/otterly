@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create_milkdown_editor_port } from "$lib/features/editor/adapters/milkdown_adapter";
 import type { EditorSession } from "$lib/features/editor/ports";
+import { heading_filename_from_markdown } from "$lib/features/note/domain/heading_filename";
 
 import { EditorView } from "@milkdown/kit/prose/view";
 
@@ -64,6 +65,28 @@ describe("Milkdown markdown synchronization", () => {
     expect(session.is_dirty()).toBe(false);
     expect(on_dirty_state_change).not.toHaveBeenCalledWith(true);
     expect(session.get_markdown()).toBe(markdown);
+  });
+
+  it("serializes heading edge spaces as character references that filename suggestion reads", async () => {
+    const update_state = vi.spyOn(EditorView.prototype, "updateState");
+    const { session } = await create_session("# Title");
+    session.insert_text_at_cursor("x");
+    const view = update_state.mock.contexts.at(-1) as EditorView | undefined;
+    if (!view) throw new Error("expected the editor view");
+
+    view.dispatch(
+      view.state.tr.insertText(
+        "        The short version.   ",
+        1,
+        view.state.doc.content.size - 1,
+      ),
+    );
+
+    const markdown = session.get_markdown();
+    expect(markdown).toBe("# &#x20;       The short version.   \n");
+    expect(heading_filename_from_markdown(markdown, "hyphens")).toBe(
+      "the-short-version",
+    );
   });
 
   it("reads the live document immediately after an edit", async () => {

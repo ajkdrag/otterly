@@ -6,6 +6,8 @@ export type SettingsCategory =
   | "misc"
   | "hotkeys";
 
+export type HeadingFilenameDelimiter = "spaces" | "hyphens";
+
 export type EditorSettings = {
   attachment_folder: string;
   store_attachments_with_note: boolean;
@@ -17,6 +19,7 @@ export type EditorSettings = {
   max_open_tabs: number;
   editor_max_width_ch: number;
   editor_zoom: number;
+  heading_filename_delimiter: HeadingFilenameDelimiter;
 };
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -30,6 +33,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   max_open_tabs: 5,
   editor_max_width_ch: 85,
   editor_zoom: 1,
+  heading_filename_delimiter: "spaces",
 };
 
 export const SETTINGS_KEY = "editor" as const;
@@ -41,6 +45,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "autosave_delay_ms",
   "editor_max_width_ch",
   "editor_zoom",
+  "heading_filename_delimiter",
 ] as const;
 
 const GLOBAL_ONLY_SET = new Set<string>(GLOBAL_ONLY_SETTING_KEYS);

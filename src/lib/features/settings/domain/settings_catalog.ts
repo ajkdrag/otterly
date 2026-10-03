@@ -93,6 +93,27 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     ],
   },
   {
+    key: "heading_filename_delimiter",
+    label: "Filename Word Delimiter",
+    description:
+      "Use spaces or hyphens between words when a new note's filename is suggested from a heading on its first line",
+    category: "Files",
+    keywords: [
+      "filename",
+      "file name",
+      "delimiter",
+      "separator",
+      "hyphen",
+      "dash",
+      "space",
+      "heading",
+      "title",
+      "save",
+      "draft",
+      "untitled",
+    ],
+  },
+  {
     key: "git_autocommit_enabled",
     label: "Git Auto-commit",
     description: "Automatically commit saved changes to Git",

@@ -19,6 +19,7 @@ import {
   save_and_insert_image,
 } from "$lib/features/note/application/note_action_helpers";
 import { is_draft_note_path } from "$lib/features/note/domain/ensure_open_note";
+import { heading_filename_from_markdown } from "$lib/features/note/domain/heading_filename";
 import type { NoteMeta } from "$lib/shared/types/note";
 import { as_note_path, type NotePath } from "$lib/shared/types/ids";
 import type {
@@ -147,14 +148,21 @@ export function register_note_actions(input: ActionRegistrationInput) {
   }
 
   function open_save_note_dialog(source: "manual" | "tab_close") {
+    // The store copy of the markdown lags typing by the editor's debounce.
+    services.editor.flush();
     const open_note = stores.editor.open_note;
     if (!open_note) {
       return;
     }
     const folder_path = stores.ui.selected_folder_path;
-    const filename = is_draft_note_path(open_note.meta.path)
-      ? `${open_note.meta.title || "Untitled"}.md`
-      : filename_from_path(open_note.meta.path) || "Untitled";
+    let filename = filename_from_path(open_note.meta.path) || "Untitled";
+    if (is_draft_note_path(open_note.meta.path)) {
+      const heading_filename = heading_filename_from_markdown(
+        open_note.markdown,
+        stores.ui.editor_settings.heading_filename_delimiter,
+      );
+      filename = `${heading_filename ?? (open_note.meta.title || "Untitled")}.md`;
+    }
     stores.ui.save_note_dialog = {
       open: true,
       folder_path,

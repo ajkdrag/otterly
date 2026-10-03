@@ -140,6 +140,45 @@ describe("SettingsService", () => {
     );
   });
 
+  it("loads heading_filename_delimiter from the global port and defaults to spaces", async () => {
+    const hyphens = make_service({
+      vault_get: { max_open_tabs: 3 },
+      global_get: (key) =>
+        key === "heading_filename_delimiter" ? "hyphens" : null,
+    });
+    const older_settings = make_service({ vault_get: { max_open_tabs: 3 } });
+
+    const hyphen_result = await hyphens.service.load_settings({
+      ...DEFAULT_EDITOR_SETTINGS,
+    });
+    const default_result = await older_settings.service.load_settings({
+      ...DEFAULT_EDITOR_SETTINGS,
+    });
+
+    if (hyphen_result.status !== "success") throw new Error("expected success");
+    if (default_result.status !== "success")
+      throw new Error("expected success");
+    expect(hyphen_result.settings.heading_filename_delimiter).toBe("hyphens");
+    expect(default_result.settings.heading_filename_delimiter).toBe("spaces");
+  });
+
+  it("saves heading_filename_delimiter to the global port, not the vault", async () => {
+    const { service, vault_settings_port, settings_port } = make_service({});
+
+    await service.save_settings({
+      ...DEFAULT_EDITOR_SETTINGS,
+      heading_filename_delimiter: "hyphens",
+    });
+
+    const saved_vault = vault_settings_port.set_vault_setting.mock
+      .calls[0]?.[2] as Record<string, unknown>;
+    expect(saved_vault).not.toHaveProperty("heading_filename_delimiter");
+    expect(settings_port.set_setting).toHaveBeenCalledWith(
+      "heading_filename_delimiter",
+      "hyphens",
+    );
+  });
+
   it("persists store_attachments_with_note as vault-scoped, not global", async () => {
     const { service, vault_settings_port, settings_port } = make_service({});
 

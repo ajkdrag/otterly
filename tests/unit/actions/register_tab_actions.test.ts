@@ -146,6 +146,83 @@ function create_tab_actions_harness() {
   return { registry, stores, services };
 }
 
+describe("draft save dialog filename suggestion", () => {
+  async function request_draft_save(
+    editor_markdown: string,
+    options: { stale_markdown?: string; hyphens?: boolean } = {},
+  ) {
+    const harness = create_tab_actions_harness();
+    const { registry, stores, services } = harness;
+    const draft = {
+      ...mock_draft_open_note("draft:1:Untitled-1"),
+      markdown: as_markdown_text(options.stale_markdown ?? editor_markdown),
+    };
+    stores.tab.open_tab(draft.meta.path, "Untitled-1");
+    stores.editor.set_open_note(draft);
+    if (options.hyphens) {
+      stores.ui.set_editor_settings({
+        ...stores.ui.editor_settings,
+        heading_filename_delimiter: "hyphens",
+      });
+    }
+    services.editor.flush.mockImplementation(() => {
+      stores.editor.set_markdown(
+        draft.meta.id,
+        as_markdown_text(editor_markdown),
+      );
+      return null;
+    });
+    await registry.execute(ACTION_IDS.note_request_save);
+    return stores.ui.save_note_dialog;
+  }
+
+  it("suggests a lowercased filename from the live editor heading, not the stale store", async () => {
+    const dialog = await request_draft_save("## **Live** Plan/Q3", {
+      stale_markdown: "no heading yet",
+    });
+
+    expect(dialog.open).toBe(true);
+    expect(dialog.new_path).toBe("live plan-q3.md");
+  });
+
+  it("joins heading words with hyphens when the setting asks for it", async () => {
+    const dialog = await request_draft_save("# Weekly Plan", {
+      hyphens: true,
+    });
+
+    expect(dialog.new_path).toBe("weekly-plan.md");
+  });
+
+  it("caps the suggested basename at 80 characters after sanitizing", async () => {
+    const dialog = await request_draft_save(`# ${"a/b ".repeat(40)}`);
+
+    const basename = String(dialog.new_path).replace(/\.md$/u, "");
+    expect(basename.length).toBeLessThanOrEqual(80);
+    expect(basename).toMatch(/^a-b( a-b)*$/u);
+  });
+
+  it.each([
+    ["# &#x20;       The short version.   ", "the short version.md"],
+    ["# Release 1.0.", "release 1.0.md"],
+  ])(
+    "drops serializer edge spaces and terminal periods from %j",
+    async (markdown, expected) => {
+      const dialog = await request_draft_save(markdown);
+
+      expect(dialog.new_path).toBe(expected);
+    },
+  );
+
+  it.each(["\n# Title", "intro\n# Title", "# ###"])(
+    "keeps the Untitled default when the first line is not a usable heading: %j",
+    async (markdown) => {
+      const dialog = await request_draft_save(markdown);
+
+      expect(dialog.new_path).toBe("Untitled-1.md");
+    },
+  );
+});
+
 describe("existing note save completion", () => {
   it.each([
     ACTION_IDS.note_request_save,
