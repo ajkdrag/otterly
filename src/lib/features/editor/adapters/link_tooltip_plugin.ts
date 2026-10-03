@@ -316,13 +316,6 @@ export function create_link_tooltip_plugin() {
         };
         edit_provider.update(editor_view);
 
-        preview_container.addEventListener("mouseenter", () => {
-          hovering_tooltip = true;
-        });
-        preview_container.addEventListener("mouseleave", () => {
-          hovering_tooltip = false;
-        });
-
         const HOVER_DELAY = 50;
         let hover_timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -334,9 +327,27 @@ export function create_link_tooltip_plugin() {
           }, HOVER_DELAY);
         }
 
+        const close_preview_unless_hovered = () => {
+          if (mode === "edit") return;
+          schedule_hover(() => {
+            if (!hovering_tooltip && mode === "preview") reset();
+          });
+        };
+
+        preview_container.addEventListener("mouseenter", () => {
+          hovering_tooltip = true;
+        });
+        // The tooltip sits beside the editor, so leaving it for the sidebar
+        // never fires an editor mouse event. Close from here as well.
+        preview_container.addEventListener("mouseleave", () => {
+          hovering_tooltip = false;
+          close_preview_unless_hovered();
+        });
+
+        // No focus check: hovering a link previews it before the editor has
+        // focus. show() never moves focus or selection.
         const on_mousemove = (event: MouseEvent) => {
           if (mode === "edit") return;
-          if (!editor_view.hasFocus()) return;
 
           schedule_hover(() => {
             const info = find_link_at_event(editor_view, event, link_type);
@@ -359,15 +370,11 @@ export function create_link_tooltip_plugin() {
           });
         };
 
-        const on_mouseleave = () => {
-          if (mode === "edit") return;
-          schedule_hover(() => {
-            if (!hovering_tooltip && mode === "preview") reset();
-          });
-        };
-
         editor_view.dom.addEventListener("mousemove", on_mousemove);
-        editor_view.dom.addEventListener("mouseleave", on_mouseleave);
+        editor_view.dom.addEventListener(
+          "mouseleave",
+          close_preview_unless_hovered,
+        );
 
         return {
           update(view: EditorView) {
@@ -388,7 +395,10 @@ export function create_link_tooltip_plugin() {
               hover_timer = null;
             }
             editor_view.dom.removeEventListener("mousemove", on_mousemove);
-            editor_view.dom.removeEventListener("mouseleave", on_mouseleave);
+            editor_view.dom.removeEventListener(
+              "mouseleave",
+              close_preview_unless_hovered,
+            );
             preview_provider.destroy();
             edit_provider.destroy();
             preview_container.remove();
