@@ -41,6 +41,17 @@
       stores.ui.help_dialog.open,
   );
 
+  // Every bits-ui Dialog.Content is role="dialog" (alertdialog for alerts) while
+  // open. Reading the DOM at event time also covers component-local dialogs
+  // such as Note Details. The omnibar is excluded so we can tell when something
+  // else is in front of it.
+  const OPEN_DIALOG_SELECTOR =
+    '[data-state="open"]:is([role="dialog"], [role="alertdialog"]):not(.Omnibar)';
+
+  const other_dialog_open = () =>
+    any_blocking_dialog_open ||
+    document.querySelector(OPEN_DIALOG_SELECTOR) !== null;
+
   const vault_selection_loading = $derived(
     stores.ui.startup.status === "loading" || stores.ui.change_vault.is_loading,
   );
@@ -48,9 +59,10 @@
   const keyboard = use_keyboard_shortcuts({
     hotkeys_config: () => stores.ui.hotkeys_config,
     is_enabled: () => has_vault,
-    is_blocked: () => any_blocking_dialog_open || omnibar_open,
-    is_omnibar_open: () => omnibar_open,
+    is_blocked: () => omnibar_open || other_dialog_open(),
+    is_omnibar_topmost: () => omnibar_open && !other_dialog_open(),
     is_vault_switcher_open: () => stores.ui.change_vault.open,
+    is_hotkey_recorder_open: () => stores.ui.hotkey_recorder.open,
     has_tabs: () => stores.tab.has_tabs,
     action_registry,
     on_close_vault_switcher: () => {

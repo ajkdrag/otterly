@@ -33,6 +33,7 @@
   import { format_hotkey_for_display, HotkeyKey } from "$lib/features/hotkey";
   import { ACTION_IDS } from "$lib/app";
   import type { HotkeyConfig } from "$lib/features/hotkey";
+  import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
   import type { Component } from "svelte";
 
   const COMMAND_ICONS: Record<CommandIconType, Component> = {
@@ -412,20 +413,21 @@
     // Tab reaches the scope, filter and command controls normally.
     if (event.defaultPrevented || event.target !== input_ref) return;
 
+    const shortcut_step = picker_shortcut_step(event);
+    if (shortcut_step !== null) {
+      event.preventDefault();
+      move_selection(shortcut_step);
+      return;
+    }
+
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        if (visible_items.length > 0) {
-          on_selected_index_change((selected_index + 1) % visible_items.length);
-        }
+        move_selection(1);
         break;
       case "ArrowUp":
         event.preventDefault();
-        if (visible_items.length > 0) {
-          on_selected_index_change(
-            (selected_index - 1 + visible_items.length) % visible_items.length,
-          );
-        }
+        move_selection(-1);
         break;
       case "Enter":
         event.preventDefault();
@@ -434,6 +436,13 @@
         }
         break;
     }
+  }
+
+  function move_selection(step: 1 | -1) {
+    if (visible_items.length === 0) return;
+    on_selected_index_change(
+      (selected_index + step + visible_items.length) % visible_items.length,
+    );
   }
 
   $effect(() => {

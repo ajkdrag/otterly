@@ -24,8 +24,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -53,8 +54,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => false,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -82,8 +84,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => true,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -112,8 +115,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => true,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher,
@@ -143,8 +147,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => true,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -173,8 +178,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -202,8 +208,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -231,8 +238,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => true,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -272,8 +280,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => custom_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -303,8 +312,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => true,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -334,8 +344,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -363,8 +374,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => default_config,
       is_enabled: () => true,
       is_blocked: () => true,
-      is_omnibar_open: () => true,
+      is_omnibar_topmost: () => true,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -399,8 +411,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => customized_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -435,8 +448,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => customized_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -469,8 +483,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => cleared_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -512,8 +527,9 @@ describe("use_keyboard_shortcuts", () => {
       hotkeys_config: () => multi_custom_config,
       is_enabled: () => true,
       is_blocked: () => false,
-      is_omnibar_open: () => false,
+      is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -555,5 +571,215 @@ describe("use_keyboard_shortcuts", () => {
       stopPropagation: vi.fn(),
     } as unknown as KeyboardEvent);
     expect(execute).toHaveBeenCalledWith("ui.toggle_sidebar");
+  });
+});
+
+describe("use_keyboard_shortcuts picker and dialog policy", () => {
+  type Overrides = Partial<Parameters<typeof use_keyboard_shortcuts>[0]>;
+
+  function build(overrides: Overrides = {}) {
+    const { registry, execute } = create_mock_registry();
+    const on_switch_to_tab = vi.fn();
+    const on_close_vault_switcher = vi.fn();
+    const shortcuts = use_keyboard_shortcuts({
+      hotkeys_config: () => default_config,
+      is_enabled: () => true,
+      is_blocked: () => false,
+      is_omnibar_topmost: () => false,
+      is_vault_switcher_open: () => false,
+      is_hotkey_recorder_open: () => false,
+      has_tabs: () => true,
+      action_registry: registry,
+      on_close_vault_switcher,
+      on_select_pinned_vault: vi.fn(),
+      on_switch_to_tab,
+      ...overrides,
+    });
+    return { shortcuts, execute, on_switch_to_tab, on_close_vault_switcher };
+  }
+
+  function press(key: string, overrides: Partial<KeyboardEvent> = {}) {
+    const prevent_default = vi.fn();
+    const stop_propagation = vi.fn();
+    const event = {
+      key,
+      metaKey: true,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      isComposing: false,
+      preventDefault: prevent_default,
+      stopPropagation: stop_propagation,
+      ...overrides,
+    } as unknown as KeyboardEvent;
+    const was_touched = () =>
+      prevent_default.mock.calls.length + stop_propagation.mock.calls.length >
+      0;
+    return { event, was_touched };
+  }
+
+  function binding(
+    action_id: string,
+    key: string,
+    phase: "capture" | "bubble" = "capture",
+  ): HotkeyConfig["bindings"][number] {
+    return {
+      action_id,
+      key,
+      phase,
+      label: action_id,
+      description: action_id,
+      category: "general",
+    };
+  }
+
+  const open_omnibar = {
+    is_omnibar_topmost: () => true,
+    is_blocked: () => true,
+  };
+  const open_vault_switcher = {
+    is_vault_switcher_open: () => true,
+    is_blocked: () => true,
+  };
+
+  it.each([
+    ["omnibar", open_omnibar],
+    ["vault switcher", open_vault_switcher],
+  ])("leaves Cmd+J and Cmd+K to the %s", (_name, picker) => {
+    const { shortcuts, execute } = build(picker);
+
+    for (const key of ["j", "k"]) {
+      const { event, was_touched } = press(key);
+      shortcuts.handle_keydown_capture(event);
+      shortcuts.handle_keydown(event);
+      expect(was_touched()).toBe(false);
+    }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("reserves Ctrl+J and Ctrl+K even when capture or bubble actions are rebound to them", () => {
+    const rebound: HotkeyConfig = {
+      bindings: [
+        binding("a.capture", "CmdOrCtrl+J"),
+        binding("a.bubble", "CmdOrCtrl+K", "bubble"),
+      ],
+    };
+    const { shortcuts, execute } = build({
+      hotkeys_config: () => rebound,
+      is_omnibar_topmost: () => true,
+    });
+
+    const down = press("j", { metaKey: false, ctrlKey: true });
+    shortcuts.handle_keydown_capture(down.event);
+    const up = press("k", { metaKey: false, ctrlKey: true });
+    shortcuts.handle_keydown(up.event);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(down.was_touched()).toBe(false);
+    expect(up.was_touched()).toBe(false);
+  });
+
+  it("does not reserve Alt combos for the picker", () => {
+    const { shortcuts, execute } = build({
+      hotkeys_config: () => ({
+        bindings: [binding("a.alt_j", "CmdOrCtrl+Alt+J")],
+      }),
+      is_omnibar_topmost: () => true,
+    });
+
+    shortcuts.handle_keydown_capture(press("j", { altKey: true }).event);
+
+    expect(execute).toHaveBeenCalledWith("a.alt_j");
+  });
+
+  it("still switches tabs with Cmd+J and Cmd+K outside pickers", () => {
+    const { shortcuts, execute } = build();
+
+    shortcuts.handle_keydown_capture(press("j").event);
+    shortcuts.handle_keydown_capture(press("k").event);
+
+    expect(execute).toHaveBeenNthCalledWith(1, "tab.next");
+    expect(execute).toHaveBeenNthCalledWith(2, "tab.prev");
+  });
+
+  it("does not run tab actions behind the omnibar", () => {
+    const { shortcuts, execute, on_switch_to_tab } = build(open_omnibar);
+
+    shortcuts.handle_keydown_capture(press("w").event);
+    shortcuts.handle_keydown_capture(press("1").event);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(on_switch_to_tab).not.toHaveBeenCalled();
+  });
+
+  it.each(["p", "o"])(
+    "runs palette key %s while the omnibar is open",
+    (key) => {
+      const { shortcuts, execute } = build(open_omnibar);
+
+      shortcuts.handle_keydown_capture(press(key).event);
+
+      expect(execute).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("runs the all-vaults scope shortcut while the omnibar is open", () => {
+    const { shortcuts, execute } = build(open_omnibar);
+
+    shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
+
+    expect(execute).toHaveBeenCalledWith("omnibar.open_all_vaults");
+  });
+
+  it("does not run palette keys when another dialog is in front of the omnibar", () => {
+    const { shortcuts, execute } = build({
+      is_blocked: () => true,
+      is_omnibar_topmost: () => false,
+    });
+
+    shortcuts.handle_keydown_capture(press("p").event);
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("does not switch tabs behind any open dialog", () => {
+    const { shortcuts, execute, on_switch_to_tab } = build({
+      is_blocked: () => true,
+    });
+
+    for (const key of ["j", "k", "`", "2"]) {
+      shortcuts.handle_keydown_capture(press(key).event);
+    }
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(on_switch_to_tab).not.toHaveBeenCalled();
+  });
+
+  it("does not touch keys while the hotkey recorder is open", () => {
+    const { shortcuts, execute, on_close_vault_switcher } = build({
+      is_hotkey_recorder_open: () => true,
+      is_vault_switcher_open: () => true,
+      is_blocked: () => true,
+    });
+
+    for (const key of ["p", "w", "j", "1"]) {
+      const { event, was_touched } = press(key);
+      shortcuts.handle_keydown_capture(event);
+      shortcuts.handle_keydown(event);
+      expect(was_touched()).toBe(false);
+    }
+    expect(execute).not.toHaveBeenCalled();
+    expect(on_close_vault_switcher).not.toHaveBeenCalled();
+  });
+
+  it("ignores keys during IME composition", () => {
+    const { shortcuts, execute, on_switch_to_tab } = build(open_omnibar);
+
+    for (const key of ["j", "p", "1"]) {
+      shortcuts.handle_keydown_capture(press(key, { isComposing: true }).event);
+    }
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(on_switch_to_tab).not.toHaveBeenCalled();
   });
 });

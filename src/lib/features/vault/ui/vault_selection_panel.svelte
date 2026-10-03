@@ -12,6 +12,7 @@
     duplicate_vault_names,
     move_vault_selection,
   } from "$lib/features/vault/domain/vault_switcher";
+  import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
   import { onMount } from "svelte";
   import { Plus, Check, Pin, Trash2, X } from "@lucide/svelte";
 
@@ -129,23 +130,24 @@
     on_select_vault(selected_vault.id);
   }
 
+  function selection_step(event: KeyboardEvent): 1 | -1 | null {
+    if (event.key === "ArrowDown") return 1;
+    if (event.key === "ArrowUp") return -1;
+    // Ctrl/Cmd+J/K are modal-only. The welcome screen reuses this panel.
+    if (is_dialog) return picker_shortcut_step(event);
+    return null;
+  }
+
   function handle_search_keydown(event: KeyboardEvent) {
-    if (event.key === "ArrowDown") {
+    if (event.isComposing) return;
+
+    const step = selection_step(event);
+    if (step !== null) {
       event.preventDefault();
       selected_vault_index = move_vault_selection(
         selected_vault_index,
         visible_vaults.length,
-        1,
-      );
-      scroll_selected_vault_into_view();
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      selected_vault_index = move_vault_selection(
-        selected_vault_index,
-        visible_vaults.length,
-        -1,
+        step,
       );
       scroll_selected_vault_into_view();
       return;

@@ -1,18 +1,29 @@
 import type { HotkeyConfig } from "$lib/features/hotkey";
 import type { ActionRegistry } from "$lib/app";
 import { normalize_event_to_key } from "$lib/features/hotkey";
+import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
+import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
 
 export type KeyboardShortcuts = {
   handle_keydown_capture: (event: KeyboardEvent) => void;
   handle_keydown: (event: KeyboardEvent) => void;
 };
 
+// The only actions that still run while the omnibar blocks everything else.
+const PALETTE_ACTIONS_WHILE_OMNIBAR_OPEN = new Set<string>([
+  ACTION_IDS.omnibar_toggle,
+  ACTION_IDS.omnibar_open,
+  ACTION_IDS.omnibar_open_all_vaults,
+]);
+
 export function use_keyboard_shortcuts(input: {
   hotkeys_config: () => HotkeyConfig;
   is_enabled: () => boolean;
   is_blocked: () => boolean;
-  is_omnibar_open: () => boolean;
+  // True only while the omnibar is the foreground dialog.
+  is_omnibar_topmost: () => boolean;
   is_vault_switcher_open: () => boolean;
+  is_hotkey_recorder_open: () => boolean;
   has_tabs: () => boolean;
   action_registry: ActionRegistry;
   on_close_vault_switcher: () => void;
@@ -23,8 +34,9 @@ export function use_keyboard_shortcuts(input: {
     hotkeys_config,
     is_enabled,
     is_blocked,
-    is_omnibar_open,
+    is_omnibar_topmost,
     is_vault_switcher_open,
+    is_hotkey_recorder_open,
     has_tabs,
     action_registry,
     on_close_vault_switcher,
@@ -58,13 +70,29 @@ export function use_keyboard_shortcuts(input: {
     return Number(event.key) - 1;
   };
 
+  // The recorder reads raw keys itself, and IME composition owns its keys.
+  const is_left_to_focused_widget = (event: KeyboardEvent): boolean =>
+    is_hotkey_recorder_open() || event.isComposing;
+
+  // Ctrl/Cmd+J/K belong to the picker's own handler, whatever they are bound to.
+  const is_picker_navigation = (event: KeyboardEvent): boolean =>
+    (is_omnibar_topmost() || is_vault_switcher_open()) &&
+    picker_shortcut_step(event) !== null;
+
+  const is_palette_action_in_omnibar = (action_id: string): boolean =>
+    is_omnibar_topmost() && PALETTE_ACTIONS_WHILE_OMNIBAR_OPEN.has(action_id);
+
   const handle_keydown_capture = (event: KeyboardEvent) => {
+    if (is_left_to_focused_widget(event)) return;
+
     if (is_mod_combo(event, "w") && is_vault_switcher_open()) {
       event.preventDefault();
       event.stopPropagation();
       on_close_vault_switcher();
       return;
     }
+
+    if (is_picker_navigation(event)) return;
 
     const slot = tab_number_slot(event);
     if (slot !== null) {
@@ -90,13 +118,15 @@ export function use_keyboard_shortcuts(input: {
       event.preventDefault();
       event.stopPropagation();
 
-      if (is_blocked() && !is_omnibar_open()) return;
+      if (is_blocked() && !is_palette_action_in_omnibar(action_id)) return;
 
       void action_registry.execute(action_id);
     }
   };
 
   const handle_keydown = (event: KeyboardEvent) => {
+    if (is_left_to_focused_widget(event)) return;
+    if (is_picker_navigation(event)) return;
     if (!is_enabled()) return;
 
     const { bubble_map } = build_key_maps();
