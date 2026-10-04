@@ -1,6 +1,10 @@
 export type CommandId =
+  | "editor_use_source"
+  | "editor_use_milkdown"
+  | "editor_toggle_diagnostics"
   | "create_new_note"
   | "save_note"
+  | "clean_up_legacy_markdown"
   | "change_vault"
   | "open_settings"
   | "open_theme_settings"

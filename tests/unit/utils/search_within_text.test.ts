@@ -80,3 +80,13 @@ describe("search_within_text", () => {
     expect(search_within_text("hello world", "xyz")).toEqual([]);
   });
 });
+
+it("counts non-overlapping matches consistently with editor highlights", () => {
+  expect(search_within_text("aaa", "aa")).toHaveLength(1);
+});
+it("keeps source offsets valid when earlier characters change length under lowercasing", () => {
+  expect(search_within_text("İ needle", "needle")[0]?.column).toBe(3);
+});
+it("treats regex punctuation as literal text", () => {
+  expect(search_within_text("before [a.*] after", "[a.*]")[0]?.column).toBe(8);
+});

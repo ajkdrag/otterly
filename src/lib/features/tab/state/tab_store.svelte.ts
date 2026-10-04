@@ -45,7 +45,9 @@ function are_cursors_equal(
     left.column === right.column &&
     left.total_lines === right.total_lines &&
     left.total_words === right.total_words &&
+    left.word_count_pending === right.word_count_pending &&
     left.anchor === right.anchor &&
+    left.offset_kind === right.offset_kind &&
     left.head === right.head
   );
 }

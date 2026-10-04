@@ -35,6 +35,61 @@ pub struct NoteWriteArgs {
     pub expected_mtime_ms: Option<i64>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct MarkdownCleanupChange {
+    pub note_id: String,
+    pub expected_mtime_ms: i64,
+    pub original_markdown: String,
+    pub cleaned_markdown: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MarkdownCleanupArgs {
+    pub vault_id: String,
+    pub changes: Vec<MarkdownCleanupChange>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MarkdownCleanupVaultArgs {
+    pub vault_id: String,
+    #[serde(default)]
+    pub skip_note_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkdownCleanupBackupInfo {
+    pub id: String,
+    pub created_at_ms: i64,
+    pub note_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MarkdownCleanupBatchResult {
+    pub backup: MarkdownCleanupBackupInfo,
+    pub updated_notes: Vec<NoteMeta>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MarkdownCleanupRestoreResult {
+    pub backup: MarkdownCleanupBackupInfo,
+    pub restored_notes: Vec<NoteMeta>,
+    pub skipped_note_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MarkdownCleanupBackup {
+    info: MarkdownCleanupBackupInfo,
+    entries: Vec<MarkdownCleanupBackupEntry>,
+    restored_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MarkdownCleanupBackupEntry {
+    note_id: String,
+    original_markdown: String,
+    cleaned_markdown: String,
+}
+
 fn parse_safe_relative_path(path: &str) -> Result<PathBuf, String> {
     let rel = PathBuf::from(path);
     if rel.is_absolute() {
@@ -302,12 +357,17 @@ pub fn read_note_meta(
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    static NEXT_TEMP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let dir = path.parent().ok_or("invalid note path")?;
     std::fs::create_dir_all(dir).map_err(|e| {
         log::error!("Failed to create directory {}: {}", dir.display(), e);
         e.to_string()
     })?;
-    let name = format!("{}.tmp", storage::now_ms());
+    let name = format!(
+        "{}.{}.tmp",
+        storage::now_ms(),
+        NEXT_TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
     let tmp = dir.join(name);
     std::fs::write(&tmp, content.as_bytes()).map_err(|e| {
         log::error!("Failed to write temp file {}: {}", tmp.display(), e);
@@ -350,6 +410,270 @@ pub fn write_note(args: NoteWriteArgs, app: AppHandle) -> Result<i64, String> {
     atomic_write(&abs, &args.markdown)?;
     let (new_mtime, _) = file_meta(&abs)?;
     Ok(new_mtime)
+}
+
+fn cleanup_backup_dir(root: &Path) -> Result<PathBuf, String> {
+    safe_vault_abs_for_write(root, &format!("{}/markdown_cleanup", constants::APP_DIR))
+}
+
+fn cleanup_backup_path(root: &Path, id: &str) -> Result<PathBuf, String> {
+    safe_vault_abs_for_write(
+        root,
+        &format!("{}/markdown_cleanup/{id}.json", constants::APP_DIR),
+    )
+}
+
+fn read_cleanup_backup(path: &Path) -> Result<MarkdownCleanupBackup, String> {
+    let content = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+    serde_json::from_str(&content).map_err(|error| error.to_string())
+}
+
+fn latest_cleanup_backup(root: &Path) -> Result<Option<(PathBuf, MarkdownCleanupBackup)>, String> {
+    let dir = cleanup_backup_dir(root)?;
+    if !dir.exists() {
+        return Ok(None);
+    }
+    let mut backups = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        let backup = read_cleanup_backup(&path)?;
+        if backup.restored_at_ms.is_some() {
+            continue;
+        }
+        backups.push((path, backup));
+    }
+    backups.sort_by(|left, right| {
+        left.1
+            .info
+            .created_at_ms
+            .cmp(&right.1.info.created_at_ms)
+            .then_with(|| left.1.info.id.cmp(&right.1.info.id))
+    });
+    Ok(backups.pop())
+}
+
+#[tauri::command]
+pub fn apply_markdown_cleanup(
+    args: MarkdownCleanupArgs,
+    app: AppHandle,
+) -> Result<MarkdownCleanupBatchResult, String> {
+    let root = storage::vault_path(&app, &args.vault_id)?;
+    apply_markdown_cleanup_in_root(&root, args.changes)
+}
+
+fn apply_markdown_cleanup_in_root(
+    root: &Path,
+    changes: Vec<MarkdownCleanupChange>,
+) -> Result<MarkdownCleanupBatchResult, String> {
+    apply_markdown_cleanup_in_root_with(root, changes, atomic_write)
+}
+
+fn apply_markdown_cleanup_in_root_with(
+    root: &Path,
+    changes: Vec<MarkdownCleanupChange>,
+    mut write_note: impl FnMut(&Path, &str) -> Result<(), String>,
+) -> Result<MarkdownCleanupBatchResult, String> {
+    if changes.is_empty() {
+        return Err("cleanup has no changes".to_string());
+    }
+    let mut seen = HashSet::new();
+    let mut resolved = Vec::with_capacity(changes.len());
+    for change in &changes {
+        if !change.note_id.ends_with(".md")
+            || change
+                .note_id
+                .starts_with(&format!("{}/", constants::APP_DIR))
+            || change
+                .note_id
+                .starts_with(&format!("{}/", constants::GIT_DIR))
+            || !seen.insert(change.note_id.as_str())
+        {
+            return Err("cleanup contains an invalid or duplicate note".to_string());
+        }
+        let path = safe_vault_abs_for_write(root, &change.note_id)?;
+        let current = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let (mtime, _) = file_meta(&path)?;
+        if mtime != change.expected_mtime_ms || current != change.original_markdown {
+            return Err(format!("conflict:cleanup_changed:{}", change.note_id));
+        }
+        resolved.push(path);
+    }
+
+    let created_at_ms = storage::now_ms();
+    static NEXT_BACKUP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = format!(
+        "{}-{}-{}",
+        created_at_ms,
+        std::process::id(),
+        NEXT_BACKUP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    let info = MarkdownCleanupBackupInfo {
+        id: id.clone(),
+        created_at_ms,
+        note_count: changes.len(),
+    };
+    let backup = MarkdownCleanupBackup {
+        info: info.clone(),
+        entries: changes
+            .iter()
+            .map(|change| MarkdownCleanupBackupEntry {
+                note_id: change.note_id.clone(),
+                original_markdown: change.original_markdown.clone(),
+                cleaned_markdown: change.cleaned_markdown.clone(),
+            })
+            .collect(),
+        restored_at_ms: None,
+    };
+    let backup_path = cleanup_backup_path(root, &id)?;
+    let backup_json = serde_json::to_string(&backup).map_err(|error| error.to_string())?;
+    atomic_write(&backup_path, &backup_json)?;
+
+    let mut written: Vec<(PathBuf, String, String)> = Vec::new();
+    for (change, path) in changes.iter().zip(&resolved) {
+        let current = match std::fs::read_to_string(path) {
+            Ok(current) => current,
+            Err(error) => {
+                return Err(abort_cleanup_batch(
+                    &backup_path,
+                    &info.id,
+                    &written,
+                    error.to_string(),
+                ));
+            }
+        };
+        let (mtime, _) = match file_meta(path) {
+            Ok(meta) => meta,
+            Err(error) => {
+                return Err(abort_cleanup_batch(&backup_path, &info.id, &written, error));
+            }
+        };
+        if mtime != change.expected_mtime_ms || current != change.original_markdown {
+            let conflict = format!("conflict:cleanup_changed:{}", change.note_id);
+            return Err(abort_cleanup_batch(
+                &backup_path,
+                &info.id,
+                &written,
+                conflict,
+            ));
+        }
+        if let Err(error) = write_note(path, &change.cleaned_markdown) {
+            return Err(abort_cleanup_batch(&backup_path, &info.id, &written, error));
+        }
+        written.push((
+            path.clone(),
+            change.original_markdown.clone(),
+            change.cleaned_markdown.clone(),
+        ));
+    }
+    let updated_notes = changes
+        .iter()
+        .map(|change| build_note_meta(root, &change.note_id))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(MarkdownCleanupBatchResult {
+        backup: info,
+        updated_notes,
+    })
+}
+
+fn abort_cleanup_batch(
+    backup_path: &Path,
+    backup_id: &str,
+    written: &[(PathBuf, String, String)],
+    reason: String,
+) -> String {
+    if rollback_cleanup_writes(written).is_err() {
+        return format!("{reason}; rollback was incomplete and backup {backup_id} is available");
+    }
+    let _ = std::fs::remove_file(backup_path);
+    reason
+}
+
+fn rollback_cleanup_writes(written: &[(PathBuf, String, String)]) -> Result<(), String> {
+    let mut failure = None;
+    for (path, original, cleaned) in written.iter().rev() {
+        match std::fs::read_to_string(path) {
+            Ok(current) if current == *cleaned => {
+                if let Err(error) = atomic_write(path, original) {
+                    failure = Some(error);
+                }
+            }
+            Ok(_) => failure = Some("note changed during rollback".to_string()),
+            Err(error) => failure = Some(error.to_string()),
+        }
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+#[tauri::command]
+pub fn get_latest_markdown_cleanup_backup(
+    args: MarkdownCleanupVaultArgs,
+    app: AppHandle,
+) -> Result<Option<MarkdownCleanupBackupInfo>, String> {
+    let root = storage::vault_path(&app, &args.vault_id)?;
+    Ok(latest_cleanup_backup(&root)?.map(|(_, backup)| backup.info))
+}
+
+#[tauri::command]
+pub fn restore_latest_markdown_cleanup(
+    args: MarkdownCleanupVaultArgs,
+    app: AppHandle,
+) -> Result<Option<MarkdownCleanupRestoreResult>, String> {
+    let root = storage::vault_path(&app, &args.vault_id)?;
+    restore_latest_cleanup_in_root(&root, args.skip_note_ids)
+}
+
+fn restore_latest_cleanup_in_root(
+    root: &Path,
+    skip_note_ids: Vec<String>,
+) -> Result<Option<MarkdownCleanupRestoreResult>, String> {
+    let Some((backup_path, mut backup)) = latest_cleanup_backup(&root)? else {
+        return Ok(None);
+    };
+    if backup.restored_at_ms.is_some() {
+        return Ok(None);
+    }
+    let mut restored_notes = Vec::new();
+    let mut skipped_note_ids = HashSet::new();
+    let skipped_note_paths = skip_note_ids
+        .iter()
+        .map(|note_id| note_id.to_lowercase())
+        .collect::<HashSet<_>>();
+    for entry in &backup.entries {
+        if skipped_note_paths.contains(&entry.note_id.to_lowercase()) {
+            skipped_note_ids.insert(entry.note_id.clone());
+            continue;
+        }
+        let path = safe_vault_abs_for_write(&root, &entry.note_id)?;
+        let current = match std::fs::read_to_string(&path) {
+            Ok(current) => current,
+            Err(_) => {
+                skipped_note_ids.insert(entry.note_id.clone());
+                continue;
+            }
+        };
+        if current == entry.original_markdown {
+            continue;
+        }
+        if current != entry.cleaned_markdown {
+            skipped_note_ids.insert(entry.note_id.clone());
+            continue;
+        }
+        atomic_write(&path, &entry.original_markdown)?;
+        restored_notes.push(build_note_meta(&root, &entry.note_id)?);
+    }
+    if skipped_note_ids.is_empty() {
+        backup.restored_at_ms = Some(storage::now_ms());
+        let json = serde_json::to_string(&backup).map_err(|error| error.to_string())?;
+        atomic_write(&backup_path, &json)?;
+    }
+    Ok(Some(MarkdownCleanupRestoreResult {
+        backup: backup.info,
+        restored_notes,
+        skipped_note_ids: skipped_note_ids.into_iter().collect(),
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1275,4 +1599,127 @@ pub fn get_folder_stats(
         note_count,
         folder_count,
     })
+}
+
+#[cfg(test)]
+mod markdown_cleanup_tests {
+    use super::*;
+
+    fn write_note(root: &Path, note_id: &str, markdown: &str) -> PathBuf {
+        let path = root.join(note_id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, markdown).unwrap();
+        path
+    }
+
+    fn change(root: &Path, note_id: &str, original: &str, cleaned: &str) -> MarkdownCleanupChange {
+        let path = write_note(root, note_id, original);
+        MarkdownCleanupChange {
+            note_id: note_id.to_string(),
+            expected_mtime_ms: file_meta(&path).unwrap().0,
+            original_markdown: original.to_string(),
+            cleaned_markdown: cleaned.to_string(),
+        }
+    }
+
+    #[test]
+    fn cleanup_writes_a_durable_backup_and_restores_original_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let change = change(root, "one.md", "- one\n\n- two\r\n", "- one\n- two\r\n");
+
+        let applied = apply_markdown_cleanup_in_root(root, vec![change]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("one.md")).unwrap(),
+            "- one\n- two\r\n"
+        );
+        assert!(cleanup_backup_path(root, &applied.backup.id)
+            .unwrap()
+            .exists());
+
+        let restored = restore_latest_cleanup_in_root(root, vec![])
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.restored_notes.len(), 1);
+        assert_eq!(
+            std::fs::read_to_string(root.join("one.md")).unwrap(),
+            "- one\n\n- two\r\n"
+        );
+        assert!(restore_latest_cleanup_in_root(root, vec![])
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn cleanup_preflight_rejects_changed_sources_without_creating_backup() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let stale = change(root, "one.md", "before", "after");
+        std::fs::write(root.join("one.md"), "changed after preview").unwrap();
+
+        let result = apply_markdown_cleanup_in_root(root, vec![stale]);
+
+        assert!(result.unwrap_err().contains("conflict:cleanup_changed"));
+        assert_eq!(
+            std::fs::read_to_string(root.join("one.md")).unwrap(),
+            "changed after preview"
+        );
+        assert!(latest_cleanup_backup(root).unwrap().is_none());
+    }
+
+    #[test]
+    fn restore_skips_open_dirty_notes_and_notes_changed_after_cleanup() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let first = change(root, "First.md", "first old", "first clean");
+        let second = change(root, "second.md", "second old", "second clean");
+        apply_markdown_cleanup_in_root(root, vec![first, second]).unwrap();
+        std::fs::write(root.join("second.md"), "user edit").unwrap();
+
+        let restored = restore_latest_cleanup_in_root(root, vec!["first.md".into()])
+            .unwrap()
+            .unwrap();
+
+        assert!(restored.restored_notes.is_empty());
+        assert_eq!(restored.skipped_note_ids.len(), 2);
+        assert_eq!(
+            std::fs::read_to_string(root.join("First.md")).unwrap(),
+            "first clean"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("second.md")).unwrap(),
+            "user edit"
+        );
+    }
+
+    #[test]
+    fn batch_rechecks_each_note_and_does_not_rollback_over_new_edits() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let first = change(root, "first.md", "first old", "first clean");
+        let second = change(root, "second.md", "second old", "second clean");
+        let mut injected = false;
+
+        let result =
+            apply_markdown_cleanup_in_root_with(root, vec![first, second], |path, content| {
+                atomic_write(path, content)?;
+                if !injected {
+                    injected = true;
+                    std::fs::write(root.join("first.md"), "first user edit").unwrap();
+                    std::fs::write(root.join("second.md"), "second user edit").unwrap();
+                }
+                Ok(())
+            });
+
+        assert!(result.unwrap_err().contains("rollback was incomplete"));
+        assert_eq!(
+            std::fs::read_to_string(root.join("first.md")).unwrap(),
+            "first user edit"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("second.md")).unwrap(),
+            "second user edit"
+        );
+        assert!(latest_cleanup_backup(root).unwrap().is_some());
+    }
 }

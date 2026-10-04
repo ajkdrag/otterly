@@ -12,8 +12,12 @@ const is_performance_logging_enabled =
   import.meta.env.DEV && import.meta.env.MODE !== "test";
 
 export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
+  editor_use_source: ACTION_IDS.editor_use_source,
+  editor_use_milkdown: ACTION_IDS.editor_use_milkdown,
+  editor_toggle_diagnostics: ACTION_IDS.editor_toggle_diagnostics,
   create_new_note: ACTION_IDS.note_create,
   save_note: ACTION_IDS.note_request_save,
+  clean_up_legacy_markdown: ACTION_IDS.note_cleanup_markdown_request,
   change_vault: ACTION_IDS.vault_request_change,
   open_settings: ACTION_IDS.settings_open,
   open_theme_settings: ACTION_IDS.settings_open,

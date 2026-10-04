@@ -11,8 +11,12 @@ export type CursorInfo = {
   column: number;
   total_lines: number;
   total_words: number;
+  word_count_pending?: boolean;
   anchor?: number;
   head?: number;
+  // Older sessions stored ProseMirror positions. Markdown positions count
+  // UTF-16 characters in the editor's LF-normalized document.
+  offset_kind?: "markdown";
 };
 
 // UI state for each code block, in document order. null means defaults.

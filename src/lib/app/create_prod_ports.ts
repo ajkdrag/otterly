@@ -12,7 +12,10 @@ import {
   create_search_tauri_adapter,
   create_workspace_index_tauri_adapter,
 } from "$lib/features/search";
-import { create_milkdown_editor_port } from "$lib/features/editor";
+import {
+  create_codemirror_editor_port,
+  create_switchable_editor_port,
+} from "$lib/features/editor";
 import { create_clipboard_tauri_adapter } from "$lib/features/clipboard";
 import { create_shell_tauri_adapter } from "$lib/features/shell";
 import { create_git_tauri_adapter } from "$lib/features/git";
@@ -44,9 +47,20 @@ export function create_prod_ports(): Ports {
     vault_settings,
     session,
     assets,
-    editor: create_milkdown_editor_port({
-      resolve_asset_url_for_vault: (vault_id, asset_path) =>
-        assets.resolve_asset_url(vault_id, asset_path),
+    editor: create_switchable_editor_port({
+      source: create_codemirror_editor_port({
+        resolve_asset_url_for_vault: (vault_id, asset_path) =>
+          assets.resolve_asset_url(vault_id, asset_path),
+        copy_text: (text) => clipboard.write_text(text),
+      }),
+      milkdown: async () => {
+        const { create_milkdown_editor_port } =
+          await import("$lib/features/editor/adapters/milkdown_adapter");
+        return create_milkdown_editor_port({
+          resolve_asset_url_for_vault: (vault_id, asset_path) =>
+            assets.resolve_asset_url(vault_id, asset_path),
+        });
+      },
     }),
     clipboard,
     shell,

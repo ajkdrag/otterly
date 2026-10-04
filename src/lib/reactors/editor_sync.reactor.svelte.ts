@@ -86,14 +86,16 @@ export function create_editor_sync_reactor(
         last_vault_id: previous_vault_id,
         last_note_id: previous_note_id,
       });
-      const snapshot = tab_store.active_tab
-        ? tab_store.get_snapshot(tab_store.active_tab.id)
-        : null;
+      // Note IO can finish before the action creates or activates its tab.
+      // Restore the opened note's snapshot even while another tab is active.
+      const note_tab = tab_store.find_tab_by_path(open_note.meta.path);
+      const snapshot = note_tab ? tab_store.get_snapshot(note_tab.id) : null;
       editor_service.open_buffer(
         open_note,
         restore_policy,
         to_editor_buffer_view_state(snapshot),
       );
+      editor_service.set_scroll_top(snapshot?.scroll_top ?? 0);
     });
   });
 }

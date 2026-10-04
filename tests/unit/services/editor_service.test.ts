@@ -129,6 +129,75 @@ function session_config_at(
 }
 
 describe("EditorService", () => {
+  it("delegates scroll and cursor restoration to editors that own their viewport", async () => {
+    const session = create_session("alpha");
+    session.get_scroll_top = vi.fn(() => 320);
+    session.set_scroll_top = vi.fn();
+    session.restore_cursor = vi.fn();
+    const { service } = create_setup(() => Promise.resolve(session));
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const cursor: CursorInfo = {
+      line: 1,
+      column: 3,
+      total_lines: 1,
+      total_words: 1,
+      anchor: 2,
+      head: 2,
+      offset_kind: "markdown",
+    };
+    try {
+      await service.mount({
+        root: {} as HTMLDivElement,
+        note: create_open_note("alpha.md", "alpha"),
+      });
+      expect(service.get_scroll_top()).toBe(320);
+      service.set_scroll_top(0);
+      service.restore_cursor(cursor);
+      for (const frame of frames) frame(0);
+      expect(session.set_scroll_top).toHaveBeenCalledWith(0);
+      expect(session.restore_cursor).toHaveBeenCalledWith(cursor);
+      expect(session.set_selection).not.toHaveBeenCalled();
+    } finally {
+      service.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not apply delayed viewport restoration to a different buffer", async () => {
+    const session = create_session("alpha");
+    session.set_scroll_top = vi.fn();
+    session.restore_cursor = vi.fn();
+    const { service } = create_setup(() => Promise.resolve(session));
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    try {
+      await service.mount({
+        root: {} as HTMLDivElement,
+        note: create_open_note("alpha.md", "alpha"),
+      });
+      service.set_scroll_top(240);
+      service.restore_cursor({
+        line: 1,
+        column: 1,
+        total_lines: 1,
+        total_words: 1,
+      });
+      service.open_buffer(create_open_note("beta.md", "beta"));
+      for (const frame of frames) frame(0);
+      expect(session.set_scroll_top).not.toHaveBeenCalled();
+      expect(session.restore_cursor).not.toHaveBeenCalled();
+    } finally {
+      service.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
   it("restores a zero scroll position after a scrolled tab", async () => {
     const session = create_session("# Alpha");
     const { service } = create_setup(() => Promise.resolve(session));
@@ -549,4 +618,53 @@ describe("EditorService", () => {
     expect(op_store.get("editor.mount").status).toBe("error");
     expect(op_store.get("editor.mount").error).toBe("boom");
   });
+});
+
+it("switches the mounted engine without saving and keeps diagnostics opt-in", async () => {
+  const session = create_session("raw source");
+  session.switch_engine = vi.fn(async () => {});
+  session.get_engine = () => "milkdown";
+  session.set_diagnostics_enabled = vi.fn();
+  session.refresh_diagnostics = vi.fn();
+  session.clear_diagnostics = vi.fn();
+  const { service, editor_store } = create_setup(() =>
+    Promise.resolve(session),
+  );
+  const note = create_open_note("a.md", "raw source");
+  editor_store.set_open_note(note);
+  await service.mount({ root: {} as HTMLDivElement, note });
+  expect(session.set_diagnostics_enabled).toHaveBeenLastCalledWith(false);
+  await service.switch_engine("milkdown");
+  expect(session.switch_engine).toHaveBeenCalledWith("milkdown");
+  expect(editor_store.engine).toBe("milkdown");
+  expect(editor_store.open_note?.markdown).toBe("raw source");
+  expect(session.mark_clean).not.toHaveBeenCalled();
+  service.set_diagnostics_open(true);
+  service.refresh_diagnostics();
+  service.clear_diagnostics();
+  expect(session.set_diagnostics_enabled).toHaveBeenLastCalledWith(true);
+  expect(session.refresh_diagnostics).toHaveBeenCalledOnce();
+  expect(session.clear_diagnostics).toHaveBeenCalledOnce();
+  service.set_diagnostics_open(false);
+  expect(editor_store.diagnostics).toBeNull();
+  service.unmount();
+});
+
+it("updates cursor coordinate kind even when numeric positions match", () => {
+  const store = new EditorStore();
+  const cursor = {
+    line: 1,
+    column: 2,
+    total_lines: 1,
+    total_words: 1,
+    anchor: 1,
+    head: 1,
+  };
+  store.set_open_note(create_open_note("a.md", "hello"));
+  store.set_cursor(as_note_path("a.md"), cursor);
+  store.set_cursor(as_note_path("a.md"), {
+    ...cursor,
+    offset_kind: "markdown",
+  });
+  expect(store.cursor?.offset_kind).toBe("markdown");
 });

@@ -4,6 +4,12 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [sveltekit(), tailwindcss()],
+  // Keep standalone editor spikes from replacing the app's optimized modules.
+  cacheDir: "node_modules/.vite/otterly",
+  optimizeDeps: {
+    // Scan the lazy editor before first use so switching does not reload dev windows.
+    entries: ["src/lib/features/editor/adapters/milkdown_adapter.ts"],
+  },
   worker: {
     format: "es",
   },
@@ -11,8 +17,10 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
+    // SvelteKit limits served roots to src; the editor workspace lives beside it.
+    fs: { allow: ["packages"] },
     watch: {
-      ignored: ["**/src-tauri/target/**"],
+      ignored: ["**/src-tauri/target/**", "**/.pnpm-store/**", "**/.codex/**"],
     },
   },
   css: {

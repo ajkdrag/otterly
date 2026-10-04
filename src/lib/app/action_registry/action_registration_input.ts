@@ -1,6 +1,7 @@
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import type { AppMountConfig, VaultService } from "$lib/features/vault";
 import type { NoteService } from "$lib/features/note";
+import type { LegacyMarkdownCleanupService } from "$lib/features/note";
 import type { FolderService } from "$lib/features/folder";
 import type { SettingsService } from "$lib/features/settings";
 import type { SearchService } from "$lib/features/search";
@@ -37,6 +38,7 @@ export type ActionRegistrationInput = {
   services: {
     vault: VaultService;
     note: NoteService;
+    markdown_cleanup: LegacyMarkdownCleanupService;
     folder: FolderService;
     settings: SettingsService;
     search: SearchService;

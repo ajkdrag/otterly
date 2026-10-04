@@ -1,4 +1,10 @@
 import {
+  code_languages,
+  code_block_theme,
+  code_block_highlight,
+  render_code_language,
+} from "./code_editor_config";
+import {
   defaultValueCtx,
   Editor,
   editorViewCtx,
@@ -36,16 +42,8 @@ import {
   codeBlockConfig,
 } from "@milkdown/kit/component/code-block";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
-import { languages } from "@codemirror/language-data";
-import {
-  HighlightStyle,
-  LanguageDescription,
-  LanguageSupport,
-  StreamLanguage,
-  syntaxHighlighting,
-} from "@codemirror/language";
-import { EditorView as CodeMirrorView, keymap } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
+import { syntaxHighlighting } from "@codemirror/language";
+import { keymap } from "@codemirror/view";
 import { history } from "@milkdown/kit/plugin/history";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import {
@@ -109,85 +107,6 @@ import { task_list_enter_plugin } from "./task_list_enter_plugin";
 import { render_mermaid_preview } from "./mermaid_preview";
 
 const log = create_logger("milkdown_adapter");
-const plain_text_support = new LanguageSupport(
-  StreamLanguage.define({
-    token(stream) {
-      stream.skipToEnd();
-      return null;
-    },
-  }),
-);
-const plain_language = LanguageDescription.of({
-  name: "",
-  alias: ["plain", "text"],
-  support: plain_text_support,
-});
-// language-data has no mermaid grammar, so it highlights as plain text. The
-// picker writes the name into the fence, and renderers expect lowercase.
-const mermaid_language = LanguageDescription.of({
-  name: "mermaid",
-  support: plain_text_support,
-});
-const code_languages = [plain_language, mermaid_language, ...languages];
-
-function render_code_language(language: string): string {
-  if (!language) return "Plain";
-  const match = LanguageDescription.matchLanguageName(
-    code_languages,
-    language,
-    false,
-  );
-  if (match === mermaid_language) return "Mermaid";
-  return match ? match.name || "Plain" : language;
-}
-
-const code_block_theme = CodeMirrorView.theme({
-  "&": {
-    backgroundColor: "var(--editor-code-bg)",
-    color: "var(--editor-code-block-text)",
-    fontFamily: "var(--font-mono)",
-    fontSize: "calc(0.8125rem * var(--editor-zoom))",
-  },
-  ".cm-content": {
-    padding: "0.75rem 0",
-    caretColor: "var(--foreground)",
-  },
-  ".cm-line": { padding: "0 0.75rem" },
-  ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.5" },
-  ".cm-cursor": { borderLeftColor: "var(--foreground)" },
-  ".cm-activeLine": { backgroundColor: "transparent" },
-  ".cm-selectionBackground": {
-    backgroundColor: "var(--editor-selection-bg)",
-  },
-  "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-    backgroundColor: "var(--editor-selection-bg)",
-  },
-});
-
-const code_block_highlight = HighlightStyle.define([
-  { tag: tags.comment, color: "var(--syntax-comment)", fontStyle: "italic" },
-  { tag: tags.punctuation, color: "var(--syntax-punctuation)" },
-  {
-    tag: [tags.propertyName, tags.attributeName],
-    color: "var(--syntax-property)",
-  },
-  {
-    tag: [tags.string, tags.special(tags.string)],
-    color: "var(--syntax-string)",
-  },
-  { tag: tags.operator, color: "var(--syntax-operator)" },
-  { tag: tags.keyword, color: "var(--syntax-keyword)" },
-  { tag: tags.function(tags.variableName), color: "var(--syntax-function)" },
-  { tag: tags.variableName, color: "var(--syntax-variable)" },
-  { tag: tags.className, color: "var(--syntax-class)" },
-  { tag: tags.number, color: "var(--syntax-number)" },
-  { tag: tags.bool, color: "var(--syntax-boolean)" },
-  { tag: tags.tagName, color: "var(--syntax-tag)" },
-  { tag: tags.regexp, color: "var(--syntax-regex)" },
-]);
-
-const is_editor_performance_enabled =
-  import.meta.env.DEV && import.meta.env.MODE !== "test";
 
 type EditorPerformanceCase = "empty" | "initial" | "restore";
 
@@ -200,7 +119,7 @@ function report_editor_operation(input: {
   phase_ms?: Record<string, number>;
 }) {
   const started_at = input.started_at;
-  if (!is_editor_performance_enabled || started_at === null) return;
+  if (started_at === null) return;
 
   const work_ms = performance.now() - started_at;
   const metadata = {
@@ -423,6 +342,7 @@ export function create_milkdown_editor_port(args?: {
 
   return {
     start_session: async (config) => {
+      let is_editor_performance_enabled = false;
       const { root, initial_markdown, note_path, vault_id, events } = config;
       const started_at = is_editor_performance_enabled
         ? performance.now()
@@ -870,6 +790,22 @@ export function create_milkdown_editor_port(args?: {
       }
 
       return {
+        set_diagnostics_enabled(enabled: boolean) {
+          is_editor_performance_enabled = enabled;
+        },
+        read_diagnostics() {
+          const selection = editor?.ctx.get(editorViewCtx).state.selection;
+          return {
+            selection: selection
+              ? {
+                  anchor: selection.anchor,
+                  head: selection.head,
+                  coordinates: "ProseMirror document positions",
+                }
+              : null,
+            parser: null,
+          };
+        },
         destroy() {
           if (!editor) return;
           buffer_map.clear();
@@ -1072,9 +1008,7 @@ export function create_milkdown_editor_port(args?: {
               time_phase("view_ms", () => {
                 view.updateState(new_state);
               });
-              current_markdown = normalize_markdown(
-                next_config.initial_markdown,
-              );
+              current_markdown = next_config.initial_markdown;
               is_large_note = is_large_markdown(current_markdown);
               current_code_block_view_states = time_phase("apply_view_ms", () =>
                 apply_editor_view_state(view, {

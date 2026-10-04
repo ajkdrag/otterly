@@ -1,4 +1,10 @@
 import type { NotesPort } from "$lib/features/note/ports";
+import type {
+  MarkdownCleanupBatchResult,
+  MarkdownCleanupChange,
+  MarkdownCleanupBackupInfo,
+  MarkdownCleanupRestoreResult,
+} from "$lib/features/note/ports";
 import { tauri_invoke } from "$lib/shared/adapters/tauri_invoke";
 import type {
   MarkdownText,
@@ -59,6 +65,24 @@ export function create_notes_tauri_adapter(): NotesPort {
         markdown,
         expected_mtime_ms: expected_mtime_ms ?? null,
       });
+    },
+    async apply_markdown_cleanup(vault_id, changes: MarkdownCleanupChange[]) {
+      return await invoke_notes_args<MarkdownCleanupBatchResult>(
+        "apply_markdown_cleanup",
+        { vault_id, changes },
+      );
+    },
+    async get_latest_markdown_cleanup_backup(vault_id) {
+      return await invoke_notes_args<MarkdownCleanupBackupInfo | null>(
+        "get_latest_markdown_cleanup_backup",
+        { vault_id },
+      );
+    },
+    async restore_latest_markdown_cleanup(vault_id, skip_note_ids = []) {
+      return await invoke_notes_args<MarkdownCleanupRestoreResult | null>(
+        "restore_latest_markdown_cleanup",
+        { vault_id, skip_note_ids },
+      );
     },
     async create_note(
       vault_id: VaultId,

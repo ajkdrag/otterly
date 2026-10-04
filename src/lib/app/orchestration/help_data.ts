@@ -11,7 +11,8 @@ export type MarkdownSyntaxEntry = {
 export const EDITOR_SHORTCUTS: EditorShortcut[] = [
   { label: "Bold", key: "CmdOrCtrl+B" },
   { label: "Italic", key: "CmdOrCtrl+I" },
-  { label: "Inline Code", key: "CmdOrCtrl+E" },
+  { label: "Inline Code (selected text)", key: "CmdOrCtrl+E" },
+  { label: "Edit Link", key: "Alt+Enter" },
   { label: "Strikethrough", key: "CmdOrCtrl+Alt+X" },
   { label: "Heading 1", key: "CmdOrCtrl+Alt+1" },
   { label: "Heading 2", key: "CmdOrCtrl+Alt+2" },

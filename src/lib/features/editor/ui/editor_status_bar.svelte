@@ -53,6 +53,13 @@
 
   const line = $derived(cursor_info?.line ?? null);
   const column = $derived(cursor_info?.column ?? null);
+  const words = $derived(
+    !has_note
+      ? "--"
+      : cursor_info?.word_count_pending
+        ? "…"
+        : String(word_count),
+  );
   const is_indexing = $derived(index_progress.status === "indexing");
   const show_index_counts = $derived(
     index_progress.total > 1 || index_progress.indexed > 0,
@@ -108,7 +115,7 @@
     </span>
     <span class="StatusBar__separator" aria-hidden="true"></span>
     <span class="StatusBar__item">
-      {has_note ? word_count : "--"} words
+      {words} words
     </span>
     <span class="StatusBar__separator" aria-hidden="true"></span>
     <span class="StatusBar__item">

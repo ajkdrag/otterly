@@ -184,6 +184,27 @@ export function create_mock_notes_port(): NotesPort & {
       mock._calls.write_note.push(entry);
       return Promise.resolve(Date.now());
     },
+    apply_markdown_cleanup(
+      vault_id: VaultId,
+      changes: import("$lib/features/note/ports").MarkdownCleanupChange[],
+    ) {
+      const backup = {
+        id: "mock-backup",
+        created_at_ms: Date.now(),
+        note_count: changes.length,
+      };
+      const changed_ids = new Set(changes.map((change) => change.note_id));
+      const updated_notes = (mock._mock_notes.get(vault_id) ?? []).filter(
+        (note) => changed_ids.has(note.id),
+      );
+      return Promise.resolve({ backup, updated_notes });
+    },
+    get_latest_markdown_cleanup_backup() {
+      return Promise.resolve(null);
+    },
+    restore_latest_markdown_cleanup() {
+      return Promise.resolve(null);
+    },
     create_note(
       vault_id: VaultId,
       note_path: NotePath,

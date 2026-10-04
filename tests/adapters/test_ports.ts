@@ -7,7 +7,7 @@ import { create_test_session_adapter } from "./test_session_adapter";
 import { create_test_vault_settings_adapter } from "./test_vault_settings_adapter";
 import { create_test_search_adapter } from "./test_search_adapter";
 import type { Ports } from "$lib/app/di/app_ports";
-import { create_milkdown_editor_port } from "$lib/features/editor";
+import { create_codemirror_editor_port } from "$lib/features/editor";
 import { create_test_clipboard_adapter } from "./test_clipboard_adapter";
 import { create_test_shell_adapter } from "./test_shell_adapter";
 import { create_test_git_adapter } from "./test_git_adapter";
@@ -16,6 +16,7 @@ import { create_test_updater_adapter } from "./test_updater_adapter";
 
 export function create_test_ports(): Ports {
   const assets = create_test_assets_adapter();
+  const clipboard = create_test_clipboard_adapter();
 
   return {
     vault: create_test_vault_adapter(),
@@ -26,11 +27,12 @@ export function create_test_ports(): Ports {
     vault_settings: create_test_vault_settings_adapter(),
     session: create_test_session_adapter(),
     assets,
-    editor: create_milkdown_editor_port({
+    editor: create_codemirror_editor_port({
       resolve_asset_url_for_vault: (vault_id, asset_path) =>
         assets.resolve_asset_url(vault_id, asset_path),
+      copy_text: (text) => clipboard.write_text(text),
     }),
-    clipboard: create_test_clipboard_adapter(),
+    clipboard,
     shell: create_test_shell_adapter(),
     git: create_test_git_adapter(),
     watcher: create_test_watcher_adapter(),

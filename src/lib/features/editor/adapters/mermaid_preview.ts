@@ -12,6 +12,22 @@ export function is_diagram_language(language: string): boolean {
   return language.toLowerCase() === "mermaid";
 }
 
+export async function render_mermaid_element(
+  content: string,
+  signal: AbortSignal,
+): Promise<HTMLElement | null> {
+  if (!content.trim() || signal.aborted) return null;
+  try {
+    const svg = await render_mermaid_svg(content);
+    if (signal.aborted) return null;
+    const preview = document.createElement("div");
+    preview.innerHTML = sanitize_svg(svg);
+    return preview;
+  } catch (error) {
+    return signal.aborted ? null : create_mermaid_error(error);
+  }
+}
+
 export function render_mermaid_preview(
   language: string,
   content: string,

@@ -39,9 +39,6 @@ export function register_find_in_file_actions(input: ActionRegistrationInput) {
       query,
       selected_match_index: 0,
     });
-    const markdown = stores.editor.open_note?.markdown ?? "";
-    const matches = services.search.search_within_file(markdown, query);
-    stores.search.set_in_file_matches(matches);
   }
 
   registry.register({

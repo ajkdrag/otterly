@@ -21,7 +21,7 @@ src/
 ├── styles/
 │   ├── design_tokens.css      # Extended design system tokens (accent, spacing, typography)
 │   ├── component_overrides.css # BEM patterns, toast overrides, DialogSection
-│   └── editor.css             # Milkdown/ProseMirror editor styles
+│   └── editor.css             # Editor tokens and legacy Milkdown styles
 ├── lib/types/
 │   └── theme.ts               # Theme type, built-in themes, defaults
 ├── lib/utils/
@@ -40,6 +40,8 @@ src/
 **Important**: Never modify `app.css` directly — it's managed by shadcn-svelte CLI. Extend tokens in `design_tokens.css`.
 
 Theme settings (accent color, fonts, editor typography, element styles) are applied at runtime by `src/lib/reactors/theme.reactor.svelte.ts`, which calls `src/lib/utils/apply_theme.ts`. Themes are global (cross-vault), stored via `SettingsPort`.
+
+The active Markdown editor uses CodeMirror 6. Its shared theme is in `packages/markdown_editor/src/editor_theme.ts`; table and code controls define their styles beside their rendering code. These extensions consume the app's semantic colors and `--editor-*` variables. Keep editor behavior and rendering in the package, and supply app-specific fonts, highlighting, and IO through the editor adapter.
 
 **Design token usage**: Default to shadcn semantic utilities (`bg-card`, `text-foreground`, `border-border`, etc.). Use custom tokens from `design_tokens.css` only when shadcn lacks the specific token (e.g. `--interactive-bg`, `--focus-ring`, `--size-tree-row`).
 

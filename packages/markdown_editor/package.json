@@ -1,0 +1,44 @@
+{
+  "name": "@otterly/markdown-editor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Source-preserving Markdown editing with CodeMirror 6 rich rendering",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@codemirror/commands": "^6.10.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.39.11",
+    "@lezer/markdown": "^1.7.2",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/autocomplete": "^6.20.3"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.10.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.39.11",
+    "@lezer/markdown": "^1.7.2",
+    "typescript": "^5.9.3",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/autocomplete": "^6.20.3"
+  }
+}

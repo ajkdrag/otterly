@@ -5,7 +5,7 @@ import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { register_actions } from "$lib/app/action_registry/register_actions";
 import type { AppMountConfig } from "$lib/features/vault";
 import { VaultService } from "$lib/features/vault";
-import { NoteService } from "$lib/features/note";
+import { NoteService, LegacyMarkdownCleanupService } from "$lib/features/note";
 import { FolderService } from "$lib/features/folder";
 import { SettingsService } from "$lib/features/settings";
 import { SearchService } from "$lib/features/search";
@@ -107,6 +107,23 @@ export function create_app_context(input: {
     },
   );
 
+  const markdown_cleanup_service = new LegacyMarkdownCleanupService(
+    input.ports.notes,
+    input.ports.index,
+    stores.vault,
+    stores.tab,
+    stores.editor,
+    editor_service,
+    stores.notes,
+    now_ms,
+    (path) => {
+      watcher_service.suppress_next(path);
+    },
+    async (path) => {
+      await note_service.open_note(path, false, { force_reload: true });
+    },
+  );
+
   const folder_service = new FolderService(
     input.ports.notes,
     input.ports.index,
@@ -197,6 +214,7 @@ export function create_app_context(input: {
     services: {
       vault: vault_service,
       note: note_service,
+      markdown_cleanup: markdown_cleanup_service,
       folder: folder_service,
       settings: settings_service,
       search: search_service,
@@ -219,6 +237,7 @@ export function create_app_context(input: {
     op_store: stores.op,
     notes_store: stores.notes,
     search_store: stores.search,
+    search_service,
     vault_store: stores.vault,
     tab_store: stores.tab,
     git_store: stores.git,

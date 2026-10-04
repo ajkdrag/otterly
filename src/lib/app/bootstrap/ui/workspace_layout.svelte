@@ -9,7 +9,10 @@
   import { NoteEditor, NoteDetailsDialog } from "$lib/features/note";
   import { TabBar } from "$lib/features/tab";
   import { FindInFileBar } from "$lib/features/search";
-  import { EditorStatusBar } from "$lib/features/editor";
+  import {
+    EditorStatusBar,
+    EditorDiagnosticsPanel,
+  } from "$lib/features/editor";
   import { ContextRail } from "$lib/features/links";
   import { SvelteSet } from "svelte/reactivity";
   import { build_filetree, sort_tree } from "$lib/features/folder";
@@ -774,6 +777,17 @@
               order={3}
             >
               <ContextRail />
+            </Resizable.Pane>
+          {/if}
+          {#if stores.editor.diagnostics_open}
+            <Resizable.Handle withHandle />
+            <Resizable.Pane
+              defaultSize={30}
+              minSize={20}
+              maxSize={55}
+              order={4}
+            >
+              <EditorDiagnosticsPanel />
             </Resizable.Pane>
           {/if}
         </Resizable.PaneGroup>

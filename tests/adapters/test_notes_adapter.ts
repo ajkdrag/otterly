@@ -63,6 +63,9 @@ export function create_test_notes_adapter(): NotesPort {
     NotePath,
     { markdown: MarkdownText; mtime_ms: number }
   >();
+  let cleanup_backup:
+    | import("$lib/features/note/ports").MarkdownCleanupBackupInfo
+    | null = null;
 
   return {
     async list_notes(_vault_id: VaultId): Promise<NoteMeta[]> {
@@ -136,6 +139,31 @@ export function create_test_notes_adapter(): NotesPort {
       const mtime = Date.now();
       user_notes.set(note_path, { markdown, mtime_ms: mtime });
       return Promise.resolve(mtime);
+    },
+    apply_markdown_cleanup(_vault_id, changes) {
+      cleanup_backup = {
+        id: "test-backup",
+        created_at_ms: Date.now(),
+        note_count: changes.length,
+      };
+      const updated_notes: NoteMeta[] = [];
+      for (const change of changes) {
+        const path = as_note_path(change.note_id);
+        const data = {
+          markdown: as_markdown_text(change.cleaned_markdown),
+          mtime_ms: Date.now(),
+        };
+        user_notes.set(path, data);
+        updated_notes.push(derive_note_meta(path, data));
+      }
+      return Promise.resolve({ backup: cleanup_backup, updated_notes });
+    },
+    get_latest_markdown_cleanup_backup() {
+      return Promise.resolve(cleanup_backup);
+    },
+    restore_latest_markdown_cleanup() {
+      cleanup_backup = null;
+      return Promise.resolve(null);
     },
 
     create_note(

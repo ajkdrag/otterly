@@ -10,6 +10,10 @@ import type {
 } from "$lib/shared/types/editor_settings";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import type { NoteMeta } from "$lib/shared/types/note";
+import type {
+  LegacyCleanupPreview,
+  MarkdownCleanupBackupInfo,
+} from "$lib/features/note";
 import type { NoteId, NotePath, VaultId } from "$lib/shared/types/ids";
 import type {
   FolderLoadState,
@@ -128,6 +132,19 @@ const INITIAL_VERSION_HISTORY_DIALOG = {
   open: false,
   note_path: null,
 } as const;
+
+const INITIAL_MARKDOWN_CLEANUP_DIALOG = {
+  open: false,
+  is_loading: false,
+  operation_label: "",
+  error: null as string | null,
+  preview: null as LegacyCleanupPreview | null,
+  backup: null as MarkdownCleanupBackupInfo | null,
+  compact_simple_lists: true,
+  applied_count: 0,
+  restored_count: 0,
+  skipped_restore_count: 0,
+};
 
 const INITIAL_CHECKPOINT_DIALOG = {
   open: false,
@@ -324,6 +341,7 @@ export class UIStore {
     open: boolean;
     note_path: NotePath | null;
   }>({ ...INITIAL_VERSION_HISTORY_DIALOG });
+  markdown_cleanup_dialog = $state({ ...INITIAL_MARKDOWN_CLEANUP_DIALOG });
 
   checkpoint_dialog = $state<{
     open: boolean;
@@ -492,6 +510,7 @@ export class UIStore {
     this.vault_dashboard = { ...INITIAL_VAULT_DASHBOARD };
     this.tab_close_confirm = { ...INITIAL_TAB_CLOSE_CONFIRM };
     this.version_history_dialog = { ...INITIAL_VERSION_HISTORY_DIALOG };
+    this.markdown_cleanup_dialog = { ...INITIAL_MARKDOWN_CLEANUP_DIALOG };
     this.checkpoint_dialog = { ...INITIAL_CHECKPOINT_DIALOG };
     this.quit_confirm = { ...INITIAL_QUIT_CONFIRM };
     this.context_rail_open = false;

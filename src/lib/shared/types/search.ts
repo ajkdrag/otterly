@@ -5,6 +5,10 @@ export type SearchCommandDefinition = {
   id:
     | "create_new_note"
     | "save_note"
+    | "clean_up_legacy_markdown"
+    | "editor_use_source"
+    | "editor_use_milkdown"
+    | "editor_toggle_diagnostics"
     | "change_vault"
     | "open_settings"
     | "open_theme_settings"

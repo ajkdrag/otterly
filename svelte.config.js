@@ -6,6 +6,9 @@ const config = {
     runes: true,
   },
   kit: {
+    alias: {
+      "@otterly/markdown-editor": "./packages/markdown_editor/src/index.ts",
+    },
     adapter: adapter({
       pages: "build",
       assets: "build",

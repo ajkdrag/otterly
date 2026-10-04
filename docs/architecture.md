@@ -2,7 +2,7 @@
 
 ## What is Otterly?
 
-Otterly is a desktop note-taking app built with **Tauri** (Rust backend) and **SvelteKit** (TypeScript frontend, Svelte 5). Notes are stored as local Markdown files organized into vaults. The app provides rich editing (ProseMirror), full-text search (SQLite FTS), wiki-style linking, tabs, git versioning, and theming. All state management lives on the frontend; the Rust backend is a thin IPC layer exposing native capabilities.
+Otterly is a desktop note-taking app built with **Tauri** (Rust backend) and **SvelteKit** (TypeScript frontend, Svelte 5). Notes are stored as local Markdown files organized into vaults. The app provides rich Markdown editing (CodeMirror 6), full-text search (SQLite FTS), wiki-style linking, tabs, git versioning, and theming. All state management lives on the frontend; the Rust backend is a thin IPC layer exposing native capabilities.
 
 ## How is it built?
 
@@ -68,7 +68,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `vault`     | Vault registry, open/close lifecycle, settings, watcher setup |
 | `note`      | Note CRUD, save/rename/delete, image assets                   |
 | `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves         |
-| `editor`    | ProseMirror session, buffer management, markdown sync         |
+| `editor`    | CodeMirror session, buffer management, source sync            |
 | `search`    | Full-text search, omnibar, find-in-file, wiki suggestions     |
 | `tab`       | Tab bar, tab lifecycle, tab caching and persistence           |
 | `git`       | Git init, status, commit, history, checkpoint, restore        |
@@ -107,6 +107,12 @@ tests/
 ### Cross-runtime split
 
 Features exist in both runtimes but stay physically separate: TypeScript in `src/lib/features/<name>/`, Rust in `src-tauri/src/features/<name>/`. Feature names match across runtimes when they represent the same capability. TS calls Rust exclusively through feature adapters (`*_tauri_adapter.ts`) that invoke `@tauri-apps/api` IPC. Rust exposes only `#[tauri::command]` functions — no direct frontend coupling.
+
+## Markdown editor package
+
+`packages/markdown_editor` owns the source model, CodeMirror extensions, and rich editing controls. It has no Svelte, Tauri, or app-store dependencies. The editor adapter supplies link navigation, asset resolution, clipboard conversion, wiki suggestions, and diagram rendering through callbacks.
+
+`EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
 ## Feature anatomy
 
@@ -211,7 +217,7 @@ START
 6. **Components do not import services.** (Enforces the action registry as the only interaction path.)
 7. **Services never import UIStore.** UI orchestration belongs in actions. (Keeps services testable without UI coupling.)
 8. **No global singletons.** Use Svelte context + composition root. (Testable, predictable lifecycle.)
-9. **One truth per concern.** ProseMirror owns live doc content. Domain stores own persisted state. OpStore owns operation status. UIStore owns layout/dialog state. (No competing sources of truth.)
+9. **One truth per concern.** The editor session owns live Markdown source and its undo history. Rich rendering is a projection of that source. Domain stores own persisted state. OpStore owns operation status. UIStore owns layout/dialog state. (No competing sources of truth.)
 10. **Cross-feature imports go through entrypoints.** Import `$lib/features/<name>`, never deep paths like `$lib/features/<name>/state/...`. (Stable public surfaces, refactor-safe internals.)
 
 ### Layering lint

@@ -1,5 +1,10 @@
 import type { VaultId } from "$lib/shared/types/ids";
 import type {
+  EditorEngine,
+  EditorEngineDiagnostics,
+  EditorDiagnosticSnapshot,
+} from "./types/editor_diagnostics";
+import type {
   CodeBlockViewStates,
   CursorInfo,
   EditorBufferViewState,
@@ -17,6 +22,12 @@ export type BufferConfig = {
 export type BufferRestorePolicy = "reuse_cache" | "fresh";
 
 export type EditorSession = {
+  get_engine?: () => EditorEngine;
+  switch_engine?: (engine: EditorEngine) => Promise<void>;
+  set_diagnostics_enabled?: (enabled: boolean) => void;
+  refresh_diagnostics?: () => void;
+  clear_diagnostics?: () => void;
+  read_diagnostics?: () => EditorEngineDiagnostics;
   destroy: () => void;
   set_markdown: (markdown: string) => void;
   get_markdown: () => string;
@@ -25,6 +36,9 @@ export type EditorSession = {
   restore_view_state: (view_state: EditorBufferViewState | null) => void;
   insert_text_at_cursor: (text: string) => void;
   set_selection: (anchor: number, head: number) => void;
+  restore_cursor?: (cursor: CursorInfo) => void;
+  get_scroll_top?: () => number;
+  set_scroll_top?: (value: number) => void;
   mark_clean: (note_path?: string, saved_markdown?: string) => void;
   is_dirty: () => boolean;
   focus: () => void;
@@ -43,6 +57,7 @@ export type EditorSession = {
 };
 
 export type EditorEventHandlers = {
+  on_diagnostics_change?: (snapshot: EditorDiagnosticSnapshot | null) => void;
   on_markdown_change: (markdown: string) => void;
   on_dirty_state_change: (is_dirty: boolean) => void;
   on_cursor_change?: (info: CursorInfo) => void;

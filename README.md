@@ -61,6 +61,8 @@ pnpm tauri build
 Otterly uses a ports-and-adapters architecture so the business logic stays testable and the UI remains replaceable.
 
 - Architecture: [docs/architecture.md](./docs/architecture.md)
+- Reusable Markdown editor: [packages/markdown_editor](./packages/markdown_editor/README.md) (CodeMirror 6, no Svelte or Tauri dependency; not published yet)
+- Editor acceptance contract: [docs/markdown_editor_behavior_spec.md](./docs/markdown_editor_behavior_spec.md)
 - Coding guidelines: [devlog/coding_guidelines.md](./devlog/coding_guidelines.md)
 - Validation:
 

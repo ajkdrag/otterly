@@ -10,6 +10,7 @@
     RenameNoteDialog,
     SaveNoteDialog,
     ImagePasteDialog,
+    LegacyMarkdownCleanupDialog,
   } from "$lib/features/note";
   import {
     DeleteFolderDialog,
@@ -439,6 +440,31 @@
   open={stores.ui.help_dialog.open}
   hotkeys_config={stores.ui.hotkeys_config}
   on_close={() => void action_registry.execute(ACTION_IDS.help_close)}
+/>
+
+<LegacyMarkdownCleanupDialog
+  open={stores.ui.markdown_cleanup_dialog.open}
+  is_loading={stores.ui.markdown_cleanup_dialog.is_loading}
+  operation_label={stores.ui.markdown_cleanup_dialog.operation_label}
+  error={stores.ui.markdown_cleanup_dialog.error}
+  preview={stores.ui.markdown_cleanup_dialog.preview}
+  backup={stores.ui.markdown_cleanup_dialog.backup}
+  compact_simple_lists={stores.ui.markdown_cleanup_dialog.compact_simple_lists}
+  applied_count={stores.ui.markdown_cleanup_dialog.applied_count}
+  restored_count={stores.ui.markdown_cleanup_dialog.restored_count}
+  skipped_restore_count={stores.ui.markdown_cleanup_dialog
+    .skipped_restore_count}
+  on_options={(compact) =>
+    void action_registry.execute(
+      ACTION_IDS.note_cleanup_markdown_options,
+      compact,
+    )}
+  on_apply={() =>
+    void action_registry.execute(ACTION_IDS.note_cleanup_markdown_apply)}
+  on_restore={() =>
+    void action_registry.execute(ACTION_IDS.note_cleanup_markdown_restore)}
+  on_cancel={() =>
+    void action_registry.execute(ACTION_IDS.note_cleanup_markdown_cancel)}
 />
 
 <HotkeyRecorderDialog

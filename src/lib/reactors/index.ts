@@ -35,7 +35,7 @@ import type { TabService } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
 import type { GitService } from "$lib/features/git";
 import type { LinksService } from "$lib/features/links";
-import type { SearchStore } from "$lib/features/search";
+import type { SearchService, SearchStore } from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
@@ -46,6 +46,7 @@ export type ReactorContext = {
   op_store: OpStore;
   notes_store: NotesStore;
   search_store: SearchStore;
+  search_service: SearchService;
   vault_store: VaultStore;
   tab_store: TabStore;
   git_store: GitStore;
@@ -130,7 +131,13 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.ui_store,
       context.settings_service,
     ),
-    create_find_in_file_reactor(context.ui_store, context.editor_service),
+    create_find_in_file_reactor(
+      context.ui_store,
+      context.editor_store,
+      context.search_store,
+      context.editor_service,
+      context.search_service,
+    ),
     create_local_links_sync_reactor(
       context.editor_store,
       context.ui_store,

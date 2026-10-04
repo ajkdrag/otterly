@@ -2,6 +2,43 @@ import type { CommandDefinition } from "$lib/features/search/types/command_palet
 
 export const COMMANDS_REGISTRY: CommandDefinition[] = [
   {
+    id: "editor_use_source",
+    label: "Use source-preserving editor",
+    description: "Use the Markdown source editor in this window",
+    keywords: [
+      "editor",
+      "engine",
+      "source",
+      "codemirror",
+      "switch",
+      "markdown",
+    ],
+    icon: "file-plus",
+  },
+  {
+    id: "editor_use_milkdown",
+    label: "Use Milkdown editor",
+    description:
+      "Use the previous editor in this window; edits use its Markdown serializer",
+    keywords: [
+      "editor",
+      "engine",
+      "milkdown",
+      "previous",
+      "switch",
+      "prosemirror",
+    ],
+    icon: "file-plus",
+  },
+  {
+    id: "editor_toggle_diagnostics",
+    label: "Toggle editor diagnostics",
+    description:
+      "Inspect source, caret, layout and recent input in a local sidebar",
+    keywords: ["editor", "debug", "diagnostics", "caret", "layout", "trace"],
+    icon: "settings",
+  },
+  {
     id: "create_new_note",
     label: "Create new note",
     description: "Create an untitled note in the current folder",
@@ -14,6 +51,13 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     description: "Save the current note",
     keywords: ["save note", "save current note", "write changes"],
     icon: "file-plus",
+  },
+  {
+    id: "clean_up_legacy_markdown",
+    label: "Clean up legacy Markdown…",
+    description: "Preview spacing cleanup for notes in this vault",
+    keywords: ["clean", "cleanup", "markdown", "spacing", "legacy", "br"],
+    icon: "refresh-cw",
   },
   {
     id: "change_vault",
