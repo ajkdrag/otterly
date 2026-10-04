@@ -1,10 +1,15 @@
 import type { NoteId, NotePath } from "$lib/shared/types/ids";
 import type { NoteMeta } from "$lib/shared/types/note";
 import type { FolderContents, FolderStats } from "$lib/shared/types/filetree";
-import { paths_equal_ignore_case } from "$lib/shared/utils/path";
+import {
+  note_name_from_path,
+  paths_equal_ignore_case,
+} from "$lib/shared/utils/path";
 
+// A bare name is a note. A name with an extension is that exact file.
 function normalized_note_path(path: NotePath): NotePath {
-  if (path.endsWith(".md")) return path;
+  const leaf = path.split("/").at(-1) ?? path;
+  if (leaf.includes(".")) return path;
   return `${path}.md` as NotePath;
 }
 
@@ -70,9 +75,7 @@ export class NotesStore {
 
   rename_note(old_path: NotePath, new_path: NotePath) {
     const normalized_new = normalized_note_path(new_path);
-    const parts = normalized_new.split("/");
-    const leaf = parts[parts.length - 1] ?? "";
-    const name = leaf.slice(0, -3);
+    const name = note_name_from_path(normalized_new);
 
     this.notes = this.notes
       .map((note) => {

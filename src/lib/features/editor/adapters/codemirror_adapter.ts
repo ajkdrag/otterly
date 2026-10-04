@@ -1,4 +1,5 @@
 import {
+  Compartment,
   EditorSelection,
   Text,
   type EditorState,
@@ -6,6 +7,7 @@ import {
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
+  LanguageDescription,
   ensureSyntaxTree,
   forceParsing,
   syntaxHighlighting,
@@ -18,10 +20,12 @@ import {
   code_blocks,
   commonmark,
   create_markdown_state,
+  create_text_state,
   find,
   focus_selection,
   frontmatter,
   get_markdown_source,
+  get_editor_mode,
   get_markdown_source_document,
   gfm,
   images,
@@ -29,6 +33,7 @@ import {
   links,
   read_code_block_view_states,
   refresh_code_diagrams,
+  set_editor_mode,
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
   update_find_query,
@@ -43,16 +48,19 @@ import { as_asset_path } from "$lib/shared/types/ids";
 import type {
   CursorInfo,
   EditorBufferViewState,
+  EditorViewMode,
   CodeBlockViewStates,
 } from "$lib/shared/types/editor";
 import { resolve_relative_asset_path } from "$lib/features/note";
 import { count_words } from "$lib/shared/utils/count_words";
+import { is_markdown_path } from "$lib/shared/utils/path";
 import { create_logger } from "$lib/shared/utils/logger";
 import { is_external_url, parse_internal_href } from "../domain/link_target";
 import {
   code_languages,
   code_block_theme,
   code_block_highlight,
+  markdown_source_highlight,
 } from "./code_editor_config";
 import { render_mermaid_element } from "./mermaid_preview";
 import { clipboard_html_to_markdown } from "./html_clipboard";
@@ -67,12 +75,16 @@ type AdapterOptions = {
 type BufferEntry = {
   note_path: string;
   vault_id: VaultId | null;
+  // Markdown notes have a rich and a source view. Other files are text.
+  is_markdown: boolean;
   state: EditorState;
   baseline: Text;
   words: number;
   counted_document: Text | null;
 };
 const log = create_logger("codemirror_adapter");
+// Holds the grammar of a text file. It loads after the buffer opens.
+const text_language = new Compartment();
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -238,6 +250,7 @@ export function create_codemirror_editor_port(
       });
       refresh_word_count();
       publish_cursor();
+      publish_view_mode();
 
       return Promise.resolve<EditorSession>({
         destroy() {
@@ -290,6 +303,15 @@ export function create_codemirror_editor_port(
         is_dirty: () =>
           !get_markdown_source_document(view.state).eq(current.baseline),
         focus: focus_editor,
+        toggle_source_mode() {
+          if (!current.is_markdown) return;
+          set_editor_mode(
+            view,
+            get_editor_mode(view.state) === "rich" ? "source" : "rich",
+          );
+          publish_view_mode();
+          focus_editor();
+        },
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
@@ -317,6 +339,7 @@ export function create_codemirror_editor_port(
             ...read_code_block_view_states(view.state),
           ]);
           publish_cursor();
+          publish_view_mode();
         },
         rename_buffer(old_path, new_path) {
           const old_key = buffer_key(current.vault_id, old_path);
@@ -336,20 +359,57 @@ export function create_codemirror_editor_port(
         vault_id: VaultId | null;
         initial_markdown: string;
       }): BufferEntry {
-        const state = create_markdown_state(input.initial_markdown, {
-          plugins,
-          extensions,
-        });
-        const entry = {
+        const is_markdown = is_markdown_path(input.note_path);
+        const state = is_markdown
+          ? create_markdown_state(input.initial_markdown, {
+              plugins,
+              extensions,
+              source_extensions: syntaxHighlighting(markdown_source_highlight),
+            })
+          : create_text_state(input.initial_markdown, [
+              extensions,
+              text_language.of([]),
+              syntaxHighlighting(code_block_highlight),
+            ]);
+        const entry: BufferEntry = {
           note_path: input.note_path,
           vault_id: input.vault_id,
+          is_markdown,
           state,
           baseline: get_markdown_source_document(state),
           words: 0,
           counted_document: null,
         };
         buffers.set(buffer_key(input.vault_id, input.note_path), entry);
+        if (!is_markdown) load_text_language(entry);
         return entry;
+      }
+
+      function load_text_language(buffer: BufferEntry) {
+        const leaf = buffer.note_path.split("/").at(-1) ?? buffer.note_path;
+        const description = LanguageDescription.matchFilename(
+          code_languages,
+          leaf,
+        );
+        if (!description) return;
+        description
+          .load()
+          .then((support) => {
+            if (destroyed) return;
+            const effects = text_language.reconfigure(support);
+            if (buffer === current) view.dispatch({ effects });
+            else buffer.state = buffer.state.update({ effects }).state;
+          })
+          .catch((error: unknown) => {
+            log.error("Could not load file language", { error, leaf });
+          });
+      }
+
+      function publish_view_mode() {
+        const mode: EditorViewMode = current.is_markdown
+          ? get_editor_mode(current.state)
+          : "text";
+        events.on_view_mode_change?.(mode);
       }
 
       function publish_dirty() {
@@ -366,6 +426,13 @@ export function create_codemirror_editor_port(
         const state = buffer.state;
         const doc = state.doc;
         if (buffer.counted_document === doc) return;
+
+        // Word counting by syntax only makes sense for Markdown.
+        if (!buffer.is_markdown) {
+          buffer.words = count_words(doc.toString());
+          buffer.counted_document = doc;
+          return;
+        }
 
         if (doc.length <= synchronous_word_count_limit) {
           if (

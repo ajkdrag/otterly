@@ -16,6 +16,7 @@ import {
   type ViewUpdate,
   type WidgetType,
 } from "@codemirror/view";
+import { is_rich } from "./editor_mode.js";
 import { block_at, is_block_rendered } from "./block_field.js";
 import {
   is_literal,
@@ -139,6 +140,7 @@ export function inline_rendering(): Extension {
 
 function needs_render(update: ViewUpdate): boolean {
   if (update.docChanged || update.viewportChanged) return true;
+  if (is_rich(update.startState) !== is_rich(update.state)) return true;
   if (syntaxTree(update.startState) !== syntaxTree(update.state)) return true;
   if (update.startState.readOnly !== update.state.readOnly) return true;
   const frozen_before = update.startState.field(reveal_freeze, false)?.frozen;
@@ -362,6 +364,7 @@ function render_view(view: EditorView) {
   const { state } = view;
   const registry = get_registry(state);
   const collector = new RenderCollector(state);
+  if (!is_rich(state)) return collector.finish();
   const visited = new Set<string>();
   const tree = syntaxTree(state);
 

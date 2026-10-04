@@ -14,6 +14,7 @@ const is_performance_logging_enabled =
 export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   create_new_note: ACTION_IDS.note_create,
   save_note: ACTION_IDS.note_request_save,
+  toggle_source_mode: ACTION_IDS.editor_toggle_source_mode,
   clean_up_legacy_markdown: ACTION_IDS.note_cleanup_markdown_request,
   change_vault: ACTION_IDS.vault_request_change,
   open_settings: ACTION_IDS.settings_open,

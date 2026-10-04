@@ -2,9 +2,15 @@
 export {
   create_markdown_state,
   create_markdown_editor,
+  create_text_state,
   markdown_extensions,
   type MarkdownEditorConfig,
 } from "./core/editor.js";
+export {
+  get_editor_mode,
+  set_editor_mode,
+  type EditorMode,
+} from "./core/editor_mode.js";
 export {
   get_markdown_source,
   get_markdown_source_document,

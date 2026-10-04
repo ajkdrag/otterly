@@ -1,6 +1,7 @@
 use crate::features::notes::service::{
-    folder_cache_key, get_or_scan_folder_entries, invalidate_folder_cache, rename_with_temp_path,
-    safe_vault_abs, safe_vault_abs_for_write, safe_vault_rename_target_abs, scan_folder_entries,
+    folder_cache_key, get_or_scan_folder_entries, invalidate_folder_cache, read_text_file,
+    rename_with_temp_path, safe_vault_abs, safe_vault_abs_for_write, safe_vault_rename_target_abs,
+    scan_folder_entries, NOT_TEXT_ERROR,
 };
 use crate::shared::storage;
 use std::path::PathBuf;
@@ -88,23 +89,24 @@ fn scan_folder_entries_filters_and_sorts() {
     std::fs::create_dir_all(root.join("alpha")).expect("dir should be created");
     std::fs::write(root.join("b.md"), "b").expect("file should be created");
     std::fs::write(root.join("a.md"), "a").expect("file should be created");
-    std::fs::write(root.join("readme.txt"), "ignored").expect("file should be created");
+    std::fs::write(root.join("readme.txt"), "shown").expect("file should be created");
+    std::fs::write(root.join(".DS_Store"), "noise").expect("file should be created");
+    std::fs::write(root.join("1791147521383.0.tmp"), "save").expect("file should be created");
 
     let entries = scan_folder_entries(&root).expect("scan should succeed");
-    let names: Vec<String> = entries.iter().map(|entry| entry.name.clone()).collect();
     let dirs_first = entries
         .iter()
         .map(|entry| (entry.name.clone(), entry.is_dir))
         .collect::<Vec<(String, bool)>>();
 
-    assert_eq!(names, vec!["alpha", "zeta", "a.md", "b.md"]);
     assert_eq!(
         dirs_first,
         vec![
             ("alpha".to_string(), true),
             ("zeta".to_string(), true),
             ("a.md".to_string(), false),
-            ("b.md".to_string(), false)
+            ("b.md".to_string(), false),
+            ("readme.txt".to_string(), false)
         ]
     );
     let _ = std::fs::remove_dir_all(&root);
@@ -129,5 +131,22 @@ fn folder_entries_cache_hit_and_invalidation() {
     let third = get_or_scan_folder_entries(&key, &root).expect("scan after invalidate should work");
     assert_eq!(third.len(), 2);
 
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn read_text_file_keeps_text_exact_and_refuses_binary() {
+    let root = mk_temp_dir();
+    let text = root.join("config.yaml");
+    std::fs::write(&text, "a: 1\r\nb: \u{e9}\n").expect("file should be created");
+    assert_eq!(read_text_file(&text).unwrap(), "a: 1\r\nb: \u{e9}\n");
+
+    let with_nul = root.join("image.png");
+    std::fs::write(&with_nul, b"\x89PNG\r\n\x1a\n\0\0").expect("file should be created");
+    assert_eq!(read_text_file(&with_nul).unwrap_err(), NOT_TEXT_ERROR);
+
+    let latin1 = root.join("old.txt");
+    std::fs::write(&latin1, b"caf\xe9").expect("file should be created");
+    assert_eq!(read_text_file(&latin1).unwrap_err(), NOT_TEXT_ERROR);
     let _ = std::fs::remove_dir_all(&root);
 }

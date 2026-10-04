@@ -247,6 +247,10 @@ export class NoteService {
         this.succeed_operation(op_key);
         return { status: "not_found" };
       }
+      if (error_message(error) === "file_not_text") {
+        this.succeed_operation(op_key);
+        return { status: "not_text" };
+      }
 
       const message = this.fail_operation(op_key, "Open note failed", error);
       return { status: "failed", error: message };

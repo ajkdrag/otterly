@@ -12,6 +12,7 @@ export const ACTION_IDS = {
   editor_zoom_in: "editor.zoom_in",
   editor_zoom_out: "editor.zoom_out",
   editor_zoom_reset: "editor.zoom_reset",
+  editor_toggle_source_mode: "editor.toggle_source_mode",
 
   note_create: "note.create",
   note_open: "note.open",

@@ -23,7 +23,6 @@ export type WatcherEventDecision =
   | { action: "refresh_tree" }
   | { action: "clear_and_refresh"; note_path: NotePath }
   | { action: "remove_background_tab_and_refresh"; note_path: NotePath }
-  | { action: "log_only"; path: string }
   | { action: "ignore" };
 
 export function resolve_watcher_event_decision(
@@ -73,8 +72,6 @@ export function resolve_watcher_event_decision(
       }
       return { action: "refresh_tree" };
     }
-    case "asset_changed":
-      return { action: "log_only", path: event.asset_path };
   }
 }
 
@@ -107,12 +104,7 @@ export function create_watcher_reactor(
     }
 
     function handle_event(event: VaultFsEvent) {
-      if (
-        (event.type === "note_changed_externally" ||
-          event.type === "note_added" ||
-          event.type === "note_removed") &&
-        watcher_service.is_suppressed(event.note_path)
-      ) {
+      if (watcher_service.is_suppressed(event.note_path)) {
         log.info("Suppressed self-triggered event", {
           path: event.note_path,
         });
@@ -150,9 +142,6 @@ export function create_watcher_reactor(
         case "remove_background_tab_and_refresh":
           tab_service.remove_tab(decision.note_path);
           debounced_tree_refresh();
-          break;
-        case "log_only":
-          log.info("Asset changed externally", { path: decision.path });
           break;
         case "ignore":
           break;

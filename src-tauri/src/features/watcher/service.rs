@@ -32,10 +32,6 @@ enum VaultFsEvent {
         vault_id: String,
         note_path: String,
     },
-    AssetChanged {
-        vault_id: String,
-        asset_path: String,
-    },
 }
 
 fn rel_path(root: &Path, abs: &Path) -> Option<String> {
@@ -84,28 +80,21 @@ fn set_active_runtime(
     })
 }
 
-fn classify_event(
-    kind: &EventKind,
-    vault_id: &str,
-    rel_path: String,
-    is_markdown: bool,
-) -> Option<VaultFsEvent> {
+// Every file is a note to the frontend now, since the tree shows all of them
+// and the editor opens any text file.
+fn classify_event(kind: &EventKind, vault_id: &str, rel_path: String) -> Option<VaultFsEvent> {
     match kind {
-        EventKind::Create(_) if is_markdown => Some(VaultFsEvent::NoteAdded {
+        EventKind::Create(_) => Some(VaultFsEvent::NoteAdded {
             vault_id: vault_id.to_string(),
             note_path: rel_path,
         }),
-        EventKind::Remove(_) if is_markdown => Some(VaultFsEvent::NoteRemoved {
+        EventKind::Remove(_) => Some(VaultFsEvent::NoteRemoved {
             vault_id: vault_id.to_string(),
             note_path: rel_path,
         }),
-        EventKind::Modify(_) if is_markdown => Some(VaultFsEvent::NoteChangedExternally {
+        EventKind::Modify(_) => Some(VaultFsEvent::NoteChangedExternally {
             vault_id: vault_id.to_string(),
             note_path: rel_path,
-        }),
-        EventKind::Modify(_) => Some(VaultFsEvent::AssetChanged {
-            vault_id: vault_id.to_string(),
-            asset_path: rel_path,
         }),
         _ => None,
     }
@@ -179,10 +168,12 @@ pub fn watch_vault(
                     continue;
                 };
 
-                let ext = abs.extension().and_then(|e| e.to_str()).unwrap_or_default();
-                let is_md = ext == "md";
+                let name = abs.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+                if constants::is_ignored_file(name) {
+                    continue;
+                }
 
-                if let Some(vault_event) = classify_event(kind, &vault_id_clone, rel, is_md) {
+                if let Some(vault_event) = classify_event(kind, &vault_id_clone, rel) {
                     emit(&app_handle, vault_event);
                 }
             }

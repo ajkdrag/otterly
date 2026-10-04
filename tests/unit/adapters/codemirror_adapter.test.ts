@@ -48,6 +48,7 @@ async function open_editor(
   markdown: string,
   resolve_asset_url_for_vault = (_vault: unknown, path: string) =>
     `asset://${path}`,
+  note_path = "alpha.md",
 ) {
   const root = document.createElement("div");
   document.body.append(root);
@@ -57,6 +58,8 @@ async function open_editor(
     on_cursor_change:
       vi.fn<NonNullable<EditorEventHandlers["on_cursor_change"]>>(),
     on_code_block_view_states_change: vi.fn(),
+    on_view_mode_change:
+      vi.fn<NonNullable<EditorEventHandlers["on_view_mode_change"]>>(),
   };
   const port = create_codemirror_editor_port({
     resolve_asset_url_for_vault,
@@ -65,7 +68,7 @@ async function open_editor(
   const session = await port.start_session({
     root,
     initial_markdown: markdown,
-    note_path: "alpha.md",
+    note_path,
     vault_id: as_vault_id("test-vault"),
     events,
   });
@@ -689,5 +692,66 @@ describe("CodeMirror editor port", () => {
     expect(events.on_markdown_change).not.toHaveBeenCalled();
     expect(root.querySelector(".cm-editor")).toBeNull();
     expect(root.style.height).toBe("");
+  });
+
+  it("toggles a note between rich and source views and keeps its history", async () => {
+    const { session, view, events } = await open_editor("# Title\n\ntext");
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("rich");
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "!" } });
+
+    session.toggle_source_mode();
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("source");
+    expect(view.dom.classList).toContain("md-source-mode");
+    source_undo(view);
+    expect(session.get_markdown()).toBe("# Title\n\ntext");
+
+    session.toggle_source_mode();
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("rich");
+  });
+
+  it("remembers the view of each note across buffer switches", async () => {
+    const { session, events } = await open_editor("one");
+    session.toggle_source_mode();
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("rich");
+    session.open_buffer({
+      note_path: "alpha.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "one",
+      restore_policy: "reuse_cache",
+    });
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("source");
+  });
+
+  it("opens a draft note, which has no file name yet, as Markdown", async () => {
+    const { session, view, events } = await open_editor(
+      "# Draft",
+      undefined,
+      "draft:1791147521383:Untitled-8",
+    );
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("rich");
+    expect(view.dom.querySelector(".md-heading")).not.toBeNull();
+    session.toggle_source_mode();
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("source");
+  });
+
+  it("opens a non-Markdown file as text with exact line endings", async () => {
+    const source = "# not a heading\r\nkey: value\r\n";
+    const { session, view, events } = await open_editor(
+      source,
+      undefined,
+      "config.yaml",
+    );
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("text");
+    expect(view.dom.querySelector(".md-heading")).toBeNull();
+    session.toggle_source_mode();
+    expect(events.on_view_mode_change).toHaveBeenLastCalledWith("text");
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 1" } });
+    expect(session.get_markdown()).toBe(`${source}x: 1`);
   });
 });

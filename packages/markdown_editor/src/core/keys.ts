@@ -11,6 +11,7 @@ import {
   markdown_context,
   type LineContainer,
 } from "./context.js";
+import { is_rich } from "./editor_mode.js";
 import { guard } from "./inline_rendering.js";
 import type { Construct, ConstructKeyName } from "./plugin.js";
 import { enter_adjacent_block } from "./surface.js";
@@ -48,23 +49,23 @@ export function context_keymap(): Extension {
         key,
         run: (view: EditorView) => run_construct_key(view, key),
       })),
-      { key: "ArrowDown", run: (view) => enter_adjacent_block(view, 1, true) },
-      { key: "ArrowUp", run: (view) => enter_adjacent_block(view, -1, true) },
-      {
-        key: "ArrowRight",
-        run: (view) => enter_adjacent_block(view, 1, false),
-      },
-      {
-        key: "ArrowLeft",
-        run: (view) => enter_adjacent_block(view, -1, false),
-      },
+      { key: "ArrowDown", run: (view) => enter_block(view, 1, true) },
+      { key: "ArrowUp", run: (view) => enter_block(view, -1, true) },
+      { key: "ArrowRight", run: (view) => enter_block(view, 1, false) },
+      { key: "ArrowLeft", run: (view) => enter_block(view, -1, false) },
     ]),
   );
 }
 
+function enter_block(view: EditorView, direction: 1 | -1, vertical: boolean) {
+  return is_rich(view.state) && enter_adjacent_block(view, direction, vertical);
+}
+
+// Construct keys assume the rendered view, like Backspace removing a hidden
+// heading mark. Source mode edits the text as plain characters instead.
 function run_construct_key(view: EditorView, key: ConstructKeyName): boolean {
   const { state } = view;
-  if (state.readOnly) return false;
+  if (state.readOnly || !is_rich(state)) return false;
   const position = state.selection.main.head;
   let line: LineContainer | null = null;
   for (const { node, construct } of markdown_context(state, position)) {

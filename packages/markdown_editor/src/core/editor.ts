@@ -5,6 +5,7 @@ import {
   drawSelection,
   dropCursor,
   keymap,
+  type KeyBinding,
 } from "@codemirror/view";
 import {
   block_at,
@@ -14,6 +15,7 @@ import {
   mounted_controllers,
   surface_input,
 } from "./block_field.js";
+import { editor_mode_extensions, type EditorMode } from "./editor_mode.js";
 import { editor_theme } from "./editor_theme.js";
 import { inline_rendering } from "./inline_rendering.js";
 import { context_keymap } from "./keys.js";
@@ -35,6 +37,10 @@ export type MarkdownEditorConfig = {
   plugins: readonly MarkdownPlugin[];
   // Extra CodeMirror extensions, added after the plugins.
   extensions?: Extension;
+  // Starts in "rich" when left out. See set_editor_mode.
+  mode?: EditorMode;
+  // Extensions that only run in source mode, such as syntax highlighting.
+  source_extensions?: Extension;
 };
 
 // Create the state for one note. Hosts that keep one state per note cache the
@@ -45,7 +51,29 @@ export function create_markdown_state(
 ): EditorState {
   return create_source_state(source, [
     markdown_extensions(config.plugins),
+    editor_mode_extensions(
+      config.mode ?? "rich",
+      config.source_extensions ?? [],
+    ),
     config.extensions ?? [],
+  ]);
+}
+
+// Plain text with the same line ending handling and undo as a note, for
+// files that are not Markdown. `extensions` adds the language and theme.
+export function create_text_state(
+  source: string,
+  extensions: Extension = [],
+): EditorState {
+  return create_source_state(source, [
+    editor_theme,
+    EditorView.lineWrapping,
+    EditorState.allowMultipleSelections.of(true),
+    drawSelection(),
+    dropCursor(),
+    keymap.of(history_keys),
+    keymap.of(defaultKeymap),
+    extensions,
   ]);
 }
 
@@ -92,19 +120,20 @@ export function markdown_extensions(
       plugin.theme ? EditorView.theme(plugin.theme) : [],
       plugin.extensions ?? [],
     ]),
-    keymap.of([
-      { key: "Mod-z", run: source_undo, preventDefault: true },
-      { key: "Mod-Shift-z", run: source_redo, preventDefault: true },
-      {
-        key: "Mod-y",
-        mac: "Mod-Shift-z",
-        run: source_redo,
-        preventDefault: true,
-      },
-      ...defaultKeymap,
-    ]),
+    keymap.of([...history_keys, ...defaultKeymap]),
   ];
 }
+
+const history_keys: KeyBinding[] = [
+  { key: "Mod-z", run: source_undo, preventDefault: true },
+  { key: "Mod-Shift-z", run: source_redo, preventDefault: true },
+  {
+    key: "Mod-y",
+    mac: "Mod-Shift-z",
+    run: source_redo,
+    preventDefault: true,
+  },
+];
 
 // Compatibility fallback for WebKit. When a click focuses the editor,
 // CodeMirror calls focus({ preventScroll: true }), but WebKit still scrolls

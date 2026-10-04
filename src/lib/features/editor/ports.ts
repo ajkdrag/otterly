@@ -3,6 +3,7 @@ import type {
   CodeBlockViewStates,
   CursorInfo,
   EditorBufferViewState,
+  EditorViewMode,
   PastedImagePayload,
 } from "$lib/shared/types/editor";
 
@@ -31,6 +32,9 @@ export type EditorSession = {
   mark_clean: (note_path?: string, saved_markdown?: string) => void;
   is_dirty: () => boolean;
   focus: () => void;
+  // Switches a Markdown note between its rich and source views. Does nothing
+  // for other files.
+  toggle_source_mode: () => void;
   set_wiki_suggestions?: (
     items: Array<{
       title: string;
@@ -49,6 +53,7 @@ export type EditorEventHandlers = {
   on_markdown_change: (markdown: string) => void;
   on_dirty_state_change: (is_dirty: boolean) => void;
   on_cursor_change?: (info: CursorInfo) => void;
+  on_view_mode_change?: (mode: EditorViewMode) => void;
   on_code_block_view_states_change?: (heights: CodeBlockViewStates) => void;
   on_internal_link_click?: (raw_path: string, base_note_path: string) => void;
   on_external_link_click?: (url: string) => void;

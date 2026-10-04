@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Info, FolderOpen, RefreshCw } from "@lucide/svelte";
+  import { Code, Info, FolderOpen, RefreshCw } from "@lucide/svelte";
   import * as Tooltip from "$lib/components/ui/tooltip/index.js";
   import { GitStatusWidget } from "$lib/features/git";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
-  import type { CursorInfo } from "$lib/shared/types/editor";
+  import type { CursorInfo, EditorViewMode } from "$lib/shared/types/editor";
   import type { IndexProgress } from "$lib/features/search";
   import type { GitSyncStatus } from "$lib/features/git";
 
@@ -12,6 +12,7 @@
     word_count: number;
     line_count: number;
     has_note: boolean;
+    view_mode: EditorViewMode;
     is_dirty: boolean;
     last_saved_at: number | null;
     index_progress: IndexProgress;
@@ -24,6 +25,7 @@
     is_repairing_links: boolean;
     link_repair_message: string | null;
     on_vault_click: () => void;
+    on_view_mode_click: () => void;
     on_info_click: () => void;
     on_git_click: () => void;
     on_sync_click: () => void;
@@ -34,6 +36,7 @@
     word_count,
     line_count,
     has_note,
+    view_mode,
     is_dirty,
     last_saved_at,
     index_progress,
@@ -46,6 +49,7 @@
     is_repairing_links,
     link_repair_message,
     on_vault_click,
+    on_view_mode_click,
     on_info_click,
     on_git_click,
     on_sync_click,
@@ -155,6 +159,19 @@
       <span class="StatusBar__item StatusBar__item--completed">
         <span>Indexed</span>
       </span>
+      <span class="StatusBar__separator" aria-hidden="true"></span>
+    {/if}
+    {#if has_note && view_mode !== "text"}
+      <button
+        type="button"
+        class="StatusBar__vault-action"
+        onclick={on_view_mode_click}
+        aria-pressed={view_mode === "source"}
+        title="Toggle source mode"
+      >
+        <Code />
+        <span>{view_mode === "source" ? "Source" : "Rich"}</span>
+      </button>
       <span class="StatusBar__separator" aria-hidden="true"></span>
     {/if}
     <button

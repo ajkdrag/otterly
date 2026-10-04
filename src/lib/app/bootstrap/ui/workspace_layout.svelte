@@ -33,8 +33,13 @@
     return `starred:${root_path}:${relative_path}`;
   }
 
-  function is_note_path(path: string): boolean {
-    return path.endsWith(".md");
+  // Starred paths do not record whether they are files or folders. Ask the
+  // loaded tree first, and fall back to "has an extension".
+  // @Robustness: An unloaded folder with a dot in its name reads as a file.
+  function is_file_path(path: string): boolean {
+    if (stores.notes.folder_paths.includes(path)) return false;
+    if (stores.notes.notes.some((note) => note.path === path)) return true;
+    return (path.split("/").at(-1) ?? path).includes(".");
   }
 
   function toggle_star_for_selection(payload: {
@@ -96,8 +101,8 @@
     }
 
     const root_paths = [...starred_paths].sort((a, b) => {
-      const a_is_folder = !is_note_path(a);
-      const b_is_folder = !is_note_path(b);
+      const a_is_folder = !is_file_path(a);
+      const b_is_folder = !is_file_path(b);
       if (a_is_folder !== b_is_folder) {
         return a_is_folder ? -1 : 1;
       }
@@ -106,7 +111,7 @@
 
     const result = [];
     for (const root_path of root_paths) {
-      const is_folder = !is_note_path(root_path);
+      const is_folder = !is_file_path(root_path);
 
       if (!is_folder) {
         const note_meta =
@@ -784,6 +789,7 @@
       {word_count}
       {line_count}
       has_note={!!stores.editor.open_note}
+      view_mode={stores.editor.view_mode}
       is_dirty={stores.tab.is_open_note_dirty(stores.editor.open_note)}
       last_saved_at={stores.editor.last_saved_at}
       index_progress={stores.search.index_progress}
@@ -797,6 +803,8 @@
       link_repair_message={stores.op.get("links.repair").message}
       on_vault_click={() =>
         void action_registry.execute(ACTION_IDS.vault_request_change)}
+      on_view_mode_click={() =>
+        void action_registry.execute(ACTION_IDS.editor_toggle_source_mode)}
       on_info_click={() => (details_dialog_open = true)}
       on_git_click={() =>
         void action_registry.execute(ACTION_IDS.git_open_history)}

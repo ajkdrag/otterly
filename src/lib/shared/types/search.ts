@@ -5,6 +5,7 @@ export type SearchCommandDefinition = {
   id:
     | "create_new_note"
     | "save_note"
+    | "toggle_source_mode"
     | "clean_up_legacy_markdown"
     | "change_vault"
     | "open_settings"
@@ -37,7 +38,8 @@ export type SearchCommandDefinition = {
     | "history"
     | "bookmark"
     | "link"
-    | "refresh-cw";
+    | "refresh-cw"
+    | "code";
 };
 
 export type SearchSettingDefinition = {

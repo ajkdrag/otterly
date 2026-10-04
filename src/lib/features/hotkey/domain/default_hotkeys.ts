@@ -179,6 +179,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "editing",
   },
   {
+    action_id: ACTION_IDS.editor_toggle_source_mode,
+    key: "CmdOrCtrl+/",
+    phase: "capture",
+    label: "Toggle Source Mode",
+    description: "Switch the note between rich text and Markdown source",
+    category: "editing",
+  },
+  {
     action_id: ACTION_IDS.editor_zoom_in,
     key: "CmdOrCtrl+=",
     phase: "capture",

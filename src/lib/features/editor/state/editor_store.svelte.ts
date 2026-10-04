@@ -1,4 +1,8 @@
-import type { OpenNoteState, CursorInfo } from "$lib/shared/types/editor";
+import type {
+  CursorInfo,
+  EditorViewMode,
+  OpenNoteState,
+} from "$lib/shared/types/editor";
 import type { NoteId, NotePath } from "$lib/shared/types/ids";
 import { note_name_from_path } from "$lib/shared/utils/path";
 
@@ -54,6 +58,7 @@ export class EditorStore {
   cursor = $state<CursorInfo | null>(null);
   last_saved_at = $state<number | null>(null);
   session_persist_revision = $state(0);
+  view_mode = $state<EditorViewMode>("rich");
 
   private bump_session_persist_revision() {
     this.session_persist_revision += 1;
@@ -190,6 +195,10 @@ export class EditorStore {
     if (are_cursors_equal(this.cursor, cursor)) return;
     this.cursor = cursor;
     this.bump_session_persist_revision();
+  }
+
+  set_view_mode(mode: EditorViewMode) {
+    this.view_mode = mode;
   }
 
   reset() {

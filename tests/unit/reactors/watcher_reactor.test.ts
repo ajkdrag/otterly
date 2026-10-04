@@ -28,10 +28,6 @@ function removed_event(note_path: string): VaultFsEvent {
   return { type: "note_removed", vault_id: VAULT_ID, note_path };
 }
 
-function asset_event(asset_path: string): VaultFsEvent {
-  return { type: "asset_changed", vault_id: VAULT_ID, asset_path };
-}
-
 function bg_tab(is_dirty: boolean): () => BackgroundTabInfo {
   return () => ({ is_dirty });
 }
@@ -213,22 +209,6 @@ describe("watcher_reactor", () => {
       expect(decision).toEqual({
         action: "remove_background_tab_and_refresh",
         note_path: "notes/bg.md",
-      });
-    });
-  });
-
-  describe("asset_changed", () => {
-    it("returns log_only", () => {
-      const decision = resolve_watcher_event_decision(
-        asset_event(".assets/img.png"),
-        VAULT_ID,
-        null,
-        false,
-        NO_BG_TAB,
-      );
-      expect(decision).toEqual({
-        action: "log_only",
-        path: ".assets/img.png",
       });
     });
   });

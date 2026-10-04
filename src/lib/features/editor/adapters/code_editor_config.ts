@@ -84,3 +84,23 @@ export const code_block_highlight = HighlightStyle.define([
   { tag: tags.tagName, color: "var(--syntax-tag)" },
   { tag: tags.regexp, color: "var(--syntax-regex)" },
 ]);
+
+// Source view of a Markdown note. Marks stay muted so the text reads first.
+export const markdown_source_highlight = HighlightStyle.define([
+  {
+    tag: tags.heading,
+    fontWeight: "600",
+    color: "var(--editor-heading-color)",
+  },
+  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: [tags.link, tags.url], color: "var(--syntax-string)" },
+  { tag: tags.monospace, color: "var(--syntax-keyword)" },
+  { tag: tags.quote, color: "var(--muted-foreground)" },
+  {
+    tag: [tags.processingInstruction, tags.contentSeparator, tags.meta],
+    color: "var(--muted-foreground)",
+  },
+  { tag: tags.comment, color: "var(--syntax-comment)" },
+]);

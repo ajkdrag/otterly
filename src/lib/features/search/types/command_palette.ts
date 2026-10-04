@@ -1,6 +1,7 @@
 export type CommandId =
   | "create_new_note"
   | "save_note"
+  | "toggle_source_mode"
   | "clean_up_legacy_markdown"
   | "change_vault"
   | "open_settings"
@@ -31,7 +32,8 @@ export type CommandIcon =
   | "history"
   | "bookmark"
   | "link"
-  | "refresh-cw";
+  | "refresh-cw"
+  | "code";
 
 export type CommandDefinition = {
   id: CommandId;

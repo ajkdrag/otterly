@@ -301,6 +301,12 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 - History lives on the raw document. Use `source_undo` and `source_redo`.
 - Public positions are UTF-16 offsets in the display document.
 
+## Source mode
+
+`set_editor_mode(view, "source")` shows the plain Markdown. The mode is a state field, so the switch keeps the document, selection, and history. In source mode the block field and inline rendering draw nothing, and construct keys and block arrow keys step aside. Blocks are still tracked, so their view states survive the trip back. Pass `source_extensions` (for example a highlighter) to `create_markdown_state`. They sit in a compartment that only holds them in source mode.
+
+`create_text_state(source, extensions)` builds a state for a file that is not Markdown. It has the same line ending handling and undo as a note, without the plugins.
+
 ## Example: callouts
 
 `plugins/callouts` adds `> [!warning] Title` callouts in about 100 lines. A callout is a quote whose first line starts with `[!type]`, so it needs no syntax: it is a second line construct on `Blockquote`.

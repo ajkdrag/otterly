@@ -12,6 +12,10 @@ export type NoteOpenResult =
       status: "not_found";
     }
   | {
+      // A binary or huge file. The editor cannot show it.
+      status: "not_text";
+    }
+  | {
       status: "failed";
       error: string;
     };

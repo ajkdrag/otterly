@@ -27,6 +27,7 @@ import type {
   OpenNoteState,
 } from "$lib/shared/types/editor";
 import {
+  is_markdown_path,
   note_name_from_path,
   parent_folder_path,
 } from "$lib/shared/utils/path";
@@ -288,7 +289,11 @@ export function register_note_actions(input: ActionRegistrationInput) {
       return null;
     }
     const parent = parent_folder_path(note.path);
-    const new_path = build_note_path_from_name(parent, new_name);
+    // The dialog edits a note's name without ".md", and any other file's
+    // full file name.
+    const new_path = is_markdown_path(note.path)
+      ? build_note_path_from_name(parent, new_name)
+      : as_note_path(parent ? `${parent}/${new_name}` : new_name);
     return {
       note,
       new_path,
@@ -390,6 +395,12 @@ export function register_note_actions(input: ActionRegistrationInput) {
         }
         if (result.status === "not_found") {
           toast.error("Note no longer exists");
+        }
+        if (result.status === "not_text") {
+          await registry.execute(
+            ACTION_IDS.shell_open_in_default_app,
+            note_path,
+          );
         }
       },
     });

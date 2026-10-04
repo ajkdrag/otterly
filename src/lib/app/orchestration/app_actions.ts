@@ -282,6 +282,14 @@ export function register_app_actions(input: ActionRegistrationInput) {
   });
 
   registry.register({
+    id: ACTION_IDS.editor_toggle_source_mode,
+    label: "Toggle Source Mode",
+    execute: () => {
+      services.editor.toggle_source_mode();
+    },
+  });
+
+  registry.register({
     id: ACTION_IDS.app_check_for_updates,
     label: "Check for Updates",
     execute: async () => execute_app_check_for_updates(input),

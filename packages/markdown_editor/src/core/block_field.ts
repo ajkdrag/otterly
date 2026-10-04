@@ -15,6 +15,7 @@ import {
   WidgetType,
   type DecorationSet,
 } from "@codemirror/view";
+import { is_rich } from "./editor_mode.js";
 import { line_container, type Layer, type LineContainer } from "./context.js";
 import { get_registry, type BlockConstruct } from "./plugin.js";
 import { reveal_freeze, touches } from "./reveal.js";
@@ -78,6 +79,7 @@ export const block_field = StateField.define<BlockFieldValue>({
     let blocks = value.blocks;
     let changed =
       transaction.startState.readOnly !== state.readOnly ||
+      is_rich(transaction.startState) !== is_rich(state) ||
       syntaxTree(transaction.startState) !== syntaxTree(state);
     if (transaction.docChanged || changed) {
       blocks = find_blocks(state, map_blocks(blocks, transaction));
@@ -517,6 +519,9 @@ function build_decorations(
   blocks: readonly Block[],
   constructing: number | null,
 ): DecorationSet {
+  // Source mode keeps tracking blocks, so their view states survive a switch
+  // back, but draws them as text.
+  if (!is_rich(state)) return Decoration.none;
   const ranges: Range<Decoration>[] = [];
   for (const block of blocks) {
     if (block.from === constructing) continue;

@@ -275,7 +275,12 @@ pub(crate) fn file_meta(path: &Path) -> Result<(i64, i64), String> {
 
 fn build_note_meta(root: &Path, rel_path: &str) -> Result<NoteMeta, String> {
     let abs = safe_vault_abs(root, rel_path)?;
-    let title = extract_title(&abs);
+    // Only a Markdown heading names a note. Other files keep their file name.
+    let title = if is_markdown_file(&abs) {
+        extract_title(&abs)
+    } else {
+        name_from_rel_path(rel_path)
+    };
     let (mtime_ms, size_bytes) = file_meta(&abs)?;
 
     Ok(NoteMeta {
@@ -323,15 +328,37 @@ pub fn list_notes(app: AppHandle, vault_id: String) -> Result<Vec<NoteMeta>, Str
     Ok(out)
 }
 
+pub(crate) fn is_markdown_file(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()) == Some("md")
+}
+
+// The editor opens any text file. Binary or huge files go to the default app,
+// so the caller gets this error instead of a lossy string.
+pub(crate) const NOT_TEXT_ERROR: &str = "file_not_text";
+const MAX_TEXT_FILE_BYTES: u64 = 20 * 1024 * 1024;
+
+// Reads a file the editor can show and save back unchanged: UTF-8 without
+// NUL bytes. NUL is git's binary heuristic too; valid UTF-8 rarely has it.
+// @Incomplete: Other encodings, such as UTF-16 with a BOM, count as binary.
+pub(crate) fn read_text_file(path: &Path) -> Result<String, String> {
+    let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+    if size > MAX_TEXT_FILE_BYTES {
+        return Err(NOT_TEXT_ERROR.to_string());
+    }
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    if bytes.contains(&0) {
+        return Err(NOT_TEXT_ERROR.to_string());
+    }
+    String::from_utf8(bytes).map_err(|_| NOT_TEXT_ERROR.to_string())
+}
+
 #[tauri::command]
 pub fn read_note(app: AppHandle, vault_id: String, note_id: String) -> Result<NoteDoc, String> {
     log::debug!("Reading note vault_id={} note_id={}", vault_id, note_id);
     let root = storage::vault_path(&app, &vault_id)?;
     let abs = safe_vault_abs(&root, &note_id)?;
-    let markdown = std::fs::read_to_string(&abs).map_err(|e| {
-        log::error!("Failed to read note {}: {}", note_id, e);
-        e.to_string()
-    })?;
+    let markdown = read_text_file(&abs)
+        .inspect_err(|e| log::error!("Failed to read note {}: {}", note_id, e))?;
     Ok(NoteDoc {
         meta: build_note_meta(&root, &note_id)?,
         markdown,
@@ -1003,7 +1030,8 @@ pub(crate) fn scan_folder_entries(target: &Path) -> Result<Vec<FolderEntry>, Str
 
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
         let is_dir = file_type.is_dir();
-        if !is_dir && !name.ends_with(".md") {
+        // The tree shows every file except our own noise.
+        if !is_dir && constants::is_ignored_file(&name) {
             continue;
         }
 

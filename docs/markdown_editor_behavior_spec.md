@@ -1245,6 +1245,35 @@ These scenarios apply to the editor package as a framework.
 - **Expected:** That construct's nodes show as source and the error is logged once. Every other construct keeps rendering.
 - **Edge cases/notes:** The same holds for block widgets, static rendering, and key handlers.
 
+## 24. Source mode and other text files
+
+### MODE-001. Source mode shows the raw Markdown
+
+- **Setup/action:** Open a note with headings, emphasis, a table, and a code block. Press Cmd+/ or click "Rich" in the status bar.
+- **Expected:** Every character shows as text in a monospace font with Markdown highlighting. No widgets, hidden marks, or quote wrappers. Toggling again renders the note as before.
+- **Edge cases/notes:** Works for drafts too. Each open note remembers its own view while you switch tabs.
+
+### MODE-002. Switching views keeps the document state
+
+- **Setup/action:** Type in rich mode, switch to source, press Cmd+Z.
+- **Expected:** Undo removes the typing. The selection, dirty state, and code block view states survive the switch.
+
+### MODE-003. Source mode edits plain characters
+
+- **Setup/action:** In source mode, press Enter at the end of a list item, or Backspace right after `# `.
+- **Expected:** Enter inserts a plain newline and Backspace deletes one character. Construct keys only run in rich mode.
+
+### MODE-004. Other text files open as text
+
+- **Setup/action:** Click a non-Markdown file in the vault tree, such as `config.yaml`.
+- **Expected:** It opens in a tab as text with syntax highlighting from its file name. Saving keeps its line endings. There is no rich view to toggle.
+- **Edge cases/notes:** Renaming keeps the exact file name, with no `.md` added. These files stay out of search and wiki links.
+
+### MODE-005. Binary files go to the default app
+
+- **Setup/action:** Click an image, PDF, or any file over 20 MB or not valid UTF-8 in the tree.
+- **Expected:** It opens in the system's default app. No tab opens, and no error shows.
+
 ## Acceptance record for future changes
 
 For each run, record scenario IDs, platform/WebView, app build, fixture identity, and the result. Separate automated state checks, real-browser interaction, and native Tauri computer use. Record failed scenarios and unmeasured combinations alongside passes.

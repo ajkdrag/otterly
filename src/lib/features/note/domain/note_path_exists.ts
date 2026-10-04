@@ -8,7 +8,9 @@ export function note_path_exists(
   note_path: NotePath,
   exclude_path?: NotePath,
 ): boolean {
-  const normalized = note_path.endsWith(".md")
+  // A bare name is a note. A name with an extension is that exact file.
+  const leaf = note_path.split("/").at(-1) ?? note_path;
+  const normalized = leaf.includes(".")
     ? note_path
     : as_note_path(`${note_path}.md`);
   return notes.some(

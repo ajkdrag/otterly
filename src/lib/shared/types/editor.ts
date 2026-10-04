@@ -6,6 +6,10 @@ export type OpenNoteState = NoteDoc & {
   is_dirty: boolean;
 };
 
+// "rich" and "source" are the two views of a Markdown note. "text" is any
+// other file, which only has a source view.
+export type EditorViewMode = "rich" | "source" | "text";
+
 export type CursorInfo = {
   line: number;
   column: number;

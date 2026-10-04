@@ -304,6 +304,11 @@ fn handle_upsert(
     notes_cache: &mut BTreeMap<String, IndexNoteMeta>,
 ) -> Result<(), String> {
     let abs = notes_service::safe_vault_abs(vault_root, note_id)?;
+    // The index only holds notes. Saving or reloading another text file, like
+    // a YAML config, comes through here too.
+    if !notes_service::is_markdown_file(&abs) {
+        return Ok(());
+    }
     let markdown = match std::fs::read_to_string(&abs) {
         Ok(content) => content,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {

@@ -6,6 +6,7 @@ import type {
 import type {
   CodeBlockViewStates,
   EditorBufferViewState,
+  EditorViewMode,
   OpenNoteState,
   CursorInfo,
   PastedImagePayload,
@@ -209,6 +210,10 @@ export class EditorService {
     this.session?.focus();
   }
 
+  toggle_source_mode() {
+    this.session?.toggle_source_mode();
+  }
+
   close_buffer(note_path: NotePath) {
     this.session?.close_buffer(note_path);
   }
@@ -318,6 +323,10 @@ export class EditorService {
         this.with_active_note_id(generation, (id) => {
           this.editor_store.set_cursor(id, cursor);
         });
+      },
+      on_view_mode_change: (mode: EditorViewMode) => {
+        if (!this.is_generation_current(generation)) return;
+        this.editor_store.set_view_mode(mode);
       },
       on_code_block_view_states_change: (heights: CodeBlockViewStates) => {
         if (!this.is_generation_current(generation)) return;

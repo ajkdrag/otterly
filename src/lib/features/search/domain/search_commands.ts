@@ -16,6 +16,13 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "file-plus",
   },
   {
+    id: "toggle_source_mode",
+    label: "Toggle source mode",
+    description: "Switch the note between rich text and Markdown source",
+    keywords: ["source", "raw", "markdown", "rich", "plain", "mode", "toggle"],
+    icon: "code",
+  },
+  {
     id: "clean_up_legacy_markdown",
     label: "Clean up legacy Markdown…",
     description: "Preview spacing cleanup for notes in this vault",
