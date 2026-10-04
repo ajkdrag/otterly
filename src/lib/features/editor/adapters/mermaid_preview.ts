@@ -1,16 +1,11 @@
 import DOMPurify from "dompurify";
 import type { Mermaid } from "mermaid";
 
-// Milkdown's code block calls render_mermaid_preview on every edit and shows
-// the result under the source. It passes the result through its SVG-aware
-// DOMPurify sanitizer before inserting it.
+// Diagram previews for the editor's code blocks. Every result goes through
+// an SVG-aware DOMPurify sanitizer before it reaches the page.
 
 let mermaid_promise: Promise<Mermaid> | null = null;
 let render_count = 0;
-
-export function is_diagram_language(language: string): boolean {
-  return language.toLowerCase() === "mermaid";
-}
 
 export async function render_mermaid_element(
   content: string,
@@ -26,39 +21,6 @@ export async function render_mermaid_element(
   } catch (error) {
     return signal.aborted ? null : create_mermaid_error(error);
   }
-}
-
-export function render_mermaid_preview(
-  language: string,
-  content: string,
-  apply_preview: (value: null | string | HTMLElement) => void,
-): null | undefined {
-  if (!is_diagram_language(language) || !content.trim()) return null;
-
-  // mermaid.render queues calls internally, so the latest edit applies last.
-  void render_mermaid_svg(content)
-    .then(apply_preview)
-    .catch((error: unknown) => {
-      apply_preview(create_mermaid_error(error));
-    });
-
-  // undefined tells Milkdown the preview arrives later via apply_preview.
-  return undefined;
-}
-
-// Milkdown only re-runs previews when a block's text or language changes, so
-// the code block plugin calls this when the color scheme changes. Milkdown's
-// preview panel keeps what we write here until the next edit, which renders
-// with the new scheme anyway. A block that fails to render keeps its error.
-export function rerender_mermaid_preview(
-  content: string,
-  preview: HTMLElement,
-): void {
-  void render_mermaid_svg(content)
-    .then((svg) => {
-      preview.innerHTML = sanitize_svg(svg);
-    })
-    .catch(() => {});
 }
 
 // Mermaid is several MB. Load it on the first mermaid block, not at startup.
@@ -86,9 +48,8 @@ async function render_mermaid_svg(content: string): Promise<string> {
   return make_svg_zoomable(svg);
 }
 
-// Same rules as Milkdown's preview sanitizer (createSvgAwareSanitizer in
-// @milkdown/components), so both paths let the same markup through. Mermaid
-// puts HTML labels in foreignObject, which is only safe inside the svg.
+// Mermaid puts HTML labels in foreignObject, which is only safe inside the
+// svg. These rules allow that and nothing outside it.
 let svg_sanitizer: ReturnType<typeof DOMPurify> | null = null;
 
 function sanitize_svg(svg: string): string {

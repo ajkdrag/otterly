@@ -1,61 +1,121 @@
-export { rich_markdown_rendering } from "./rich_rendering.js";
-export { markdown_editor_theme } from "./editor_theme.js";
-export { markdown_editing_keymap } from "./editing_commands.js";
-export { markdown_language } from "./markdown_language.js";
-export { table_rendering, focus_table_selection } from "./table_rendering.js";
-export {
-  code_block_rendering,
-  focus_code_selection,
-  refresh_code_diagrams,
-  read_code_block_view_states,
-  replace_code_block_view_states,
-  type CodeBlockOptions,
-  type CodeBlockViewState,
-} from "./code_block_rendering.js";
-export {
-  markdown_editor_extensions,
-  type MarkdownEditorOptions,
-} from "./editor_extensions.js";
+// Editor setup and saved source.
 export {
   create_markdown_state,
+  create_markdown_editor,
+  markdown_extensions,
+  type MarkdownEditorConfig,
+} from "./core/editor.js";
+export {
   get_markdown_source,
   get_markdown_source_document,
   insert_markdown_source,
   source_undo,
   source_redo,
-} from "./source_state.js";
+} from "./core/source_state.js";
+
+// Writing plugins.
 export {
-  markdown_clipboard_input,
-  type MarkdownClipboardOptions,
-} from "./clipboard_input.js";
-export { link_tooltip } from "./link_tooltip.js";
-export { link_rendering } from "./link_rendering.js";
+  PluginBuildError,
+  get_registry,
+  type MarkdownPlugin,
+  type Construct,
+  type InlineConstruct,
+  type LineConstruct,
+  type BlockConstruct,
+  type ContainerSpec,
+  type ContainerMatch,
+  type ConstructKeys,
+  type ConstructKeyName,
+  type InsertItem,
+  type StaticContext,
+  type ThemeSpec,
+} from "./core/plugin.js";
 export {
-  image_rendering,
+  line_container,
+  continuation_prefix,
+  sibling_prefix,
+  continues_paragraph,
+  insert_lines,
+  markdown_context,
+  is_literal,
+  is_literal_block,
+  type Layer,
+  type LineContainer,
+  type ContextEntry,
+} from "./core/context.js";
+export { refresh_rendering, type Render } from "./core/inline_rendering.js";
+export { line_selector } from "./core/editor_theme.js";
+export { touches, caret_in, reveal_ranges } from "./core/reveal.js";
+export {
+  BlockWidget,
+  block_at,
+  block_for_dom,
+  get_blocks,
+  wrap_in_layers,
+  edit_block_source,
+  finish_block_construction,
+  refresh_blocks,
+  patch_block_view_state,
+  replace_block_view_states,
+  read_block_view_states,
+  type Block,
+  type BlockController,
+} from "./core/block_field.js";
+export {
+  NestedEditor,
+  focus_selection,
+  leave_block,
+  caret_x,
+  vertical_cursor,
+  surface_highlights,
+  type SourceWindow,
+  type SurfaceHighlight,
+} from "./core/surface.js";
+export { render_static } from "./core/static_render.js";
+export type { KeyContext } from "./core/keys.js";
+
+// Plugins.
+export {
+  commonmark,
+  toggle_bold,
+  toggle_italic,
+  toggle_inline_code,
+  toggle_strikethrough,
+  set_block_style,
+  change_list_indent,
+  delimited_mark,
+} from "./plugins/commonmark/index.js";
+export { gfm } from "./plugins/gfm/index.js";
+export {
+  code_blocks,
+  read_code_block_view_states,
+  set_code_block_view_states,
+  refresh_code_diagrams,
+  type CodeBlockOptions,
+  type CodeBlockViewState,
+} from "./plugins/code_blocks/index.js";
+export { frontmatter } from "./plugins/frontmatter/index.js";
+export { links, type LinkOptions } from "./plugins/links/index.js";
+export {
+  images,
+  image_renderer,
   type ImageRenderingOptions,
-} from "./image_rendering.js";
+} from "./plugins/images/index.js";
 export {
-  markdown_completions,
-  type MarkdownCompletionOptions,
+  wiki_links,
+  type WikiLinkOptions,
   type WikiSuggestion,
-} from "./markdown_completions.js";
+} from "./plugins/wiki_links/index.js";
+export { slash_menu } from "./plugins/menus/slash_menu.js";
 export {
-  markdown_find_highlights,
+  find,
   set_find_query,
   update_find_query,
   get_find_matches,
   get_find_query,
-} from "./find_highlights.js";
+} from "./plugins/find.js";
 export {
-  markdown_format_keymap,
-  toggle_bold,
-  toggle_italic,
-  toggle_strikethrough,
-  toggle_inline_code,
-} from "./format_commands.js";
-
-export {
-  markdown_block_keymap,
-  set_block_style,
-  insert_code_block,
-} from "./block_commands.js";
+  clipboard,
+  type MarkdownClipboardOptions,
+} from "./plugins/clipboard.js";
+export { callouts } from "./plugins/callouts/index.js";

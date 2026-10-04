@@ -20,7 +20,6 @@ import type { TabStore } from "$lib/features/tab";
 import { is_draft_note_path } from "$lib/features/note";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
-import type { EditorEngine } from "../types/editor_diagnostics";
 
 const log = create_logger("editor_service");
 
@@ -210,32 +209,6 @@ export class EditorService {
     this.session?.focus();
   }
 
-  async switch_engine(engine: EditorEngine): Promise<void> {
-    const session = this.session;
-    if (!session?.switch_engine || this.editor_store.engine_switching) return;
-    this.editor_store.set_engine_switching(true);
-    try {
-      await session.switch_engine(engine);
-      if (this.session !== session) return;
-      this.editor_store.set_engine(session.get_engine?.() ?? engine);
-      this.flush();
-    } finally {
-      this.editor_store.set_engine_switching(false);
-    }
-  }
-
-  set_diagnostics_open(open: boolean) {
-    this.editor_store.set_diagnostics_open(open);
-    this.session?.set_diagnostics_enabled?.(open);
-  }
-
-  refresh_diagnostics() {
-    this.session?.refresh_diagnostics?.();
-  }
-  clear_diagnostics() {
-    this.session?.clear_diagnostics?.();
-  }
-
   close_buffer(note_path: NotePath) {
     this.session?.close_buffer(note_path);
   }
@@ -331,10 +304,6 @@ export class EditorService {
 
   private create_session_events(generation: number): EditorSessionEvents {
     const events: EditorSessionEvents = {
-      on_diagnostics_change: (snapshot) => {
-        if (this.is_generation_current(generation))
-          this.editor_store.set_diagnostics(snapshot);
-      },
       on_markdown_change: (markdown: string) => {
         this.with_active_note_id(generation, (id) => {
           this.editor_store.set_markdown(id, as_markdown_text(markdown));
@@ -414,8 +383,6 @@ export class EditorService {
     }
 
     this.session = next_session;
-    this.editor_store.set_engine(next_session.get_engine?.() ?? "source");
-    next_session.set_diagnostics_enabled?.(this.editor_store.diagnostics_open);
   }
 
   private teardown_session() {

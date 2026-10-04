@@ -1,10 +1,5 @@
 import type { VaultId } from "$lib/shared/types/ids";
 import type {
-  EditorEngine,
-  EditorEngineDiagnostics,
-  EditorDiagnosticSnapshot,
-} from "./types/editor_diagnostics";
-import type {
   CodeBlockViewStates,
   CursorInfo,
   EditorBufferViewState,
@@ -22,12 +17,6 @@ export type BufferConfig = {
 export type BufferRestorePolicy = "reuse_cache" | "fresh";
 
 export type EditorSession = {
-  get_engine?: () => EditorEngine;
-  switch_engine?: (engine: EditorEngine) => Promise<void>;
-  set_diagnostics_enabled?: (enabled: boolean) => void;
-  refresh_diagnostics?: () => void;
-  clear_diagnostics?: () => void;
-  read_diagnostics?: () => EditorEngineDiagnostics;
   destroy: () => void;
   set_markdown: (markdown: string) => void;
   get_markdown: () => string;
@@ -57,7 +46,6 @@ export type EditorSession = {
 };
 
 export type EditorEventHandlers = {
-  on_diagnostics_change?: (snapshot: EditorDiagnosticSnapshot | null) => void;
   on_markdown_change: (markdown: string) => void;
   on_dirty_state_change: (is_dirty: boolean) => void;
   on_cursor_change?: (info: CursorInfo) => void;

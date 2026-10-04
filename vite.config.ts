@@ -7,8 +7,10 @@ export default defineConfig({
   // Keep standalone editor spikes from replacing the app's optimized modules.
   cacheDir: "node_modules/.vite/otterly",
   optimizeDeps: {
-    // Scan the lazy editor before first use so switching does not reload dev windows.
-    entries: ["src/lib/features/editor/adapters/milkdown_adapter.ts"],
+    // Code block grammars load through dynamic imports inside language-data.
+    // Prebundle them up front, otherwise the first highlighted block in a dev
+    // window triggers a dependency reload and its import fails.
+    include: ["@codemirror/language-data"],
   },
   worker: {
     format: "es",
@@ -28,6 +30,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "packages/*/tests/**/*.test.ts"],
   },
 });

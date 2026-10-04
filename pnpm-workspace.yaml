@@ -1,6 +1,2 @@
 packages:
   - packages/*
-
-patchedDependencies:
-  "@milkdown/components@7.22.2": patches/@milkdown__components@7.22.2.patch
-  "@milkdown/preset-commonmark@7.22.2": patches/@milkdown__preset-commonmark@7.22.2.patch

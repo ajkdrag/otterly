@@ -13,19 +13,29 @@ import {
   syntaxTreeAvailable,
 } from "@codemirror/language";
 import {
+  callouts,
+  clipboard,
+  code_blocks,
+  commonmark,
   create_markdown_state,
-  focus_code_selection,
-  focus_table_selection,
-  refresh_code_diagrams,
+  find,
+  focus_selection,
+  frontmatter,
   get_markdown_source,
   get_markdown_source_document,
+  gfm,
+  images,
   insert_markdown_source,
-  markdown_editor_extensions,
+  links,
   read_code_block_view_states,
-  replace_code_block_view_states,
+  refresh_code_diagrams,
+  set_code_block_view_states as code_block_view_states_effect,
+  slash_menu,
   update_find_query,
-  type WikiSuggestion,
+  wiki_links,
   type CodeBlockViewState,
+  type MarkdownPlugin,
+  type WikiSuggestion,
 } from "@otterly/markdown-editor";
 import type { EditorPort, EditorSession, BufferConfig } from "../ports";
 import type { AssetPath, VaultId } from "$lib/shared/types/ids";
@@ -91,24 +101,43 @@ export function create_codemirror_editor_port(
       const old_min_height = root.style.minHeight;
       root.style.height = "100%";
       root.style.minHeight = "0";
-      const extensions: Extension = [
-        markdown_editor_extensions({
-          code_languages,
+      const open_link = (target: string) => {
+        if (is_external_url(target)) {
+          events.on_external_link_click?.(target);
+          return;
+        }
+        const link = parse_internal_href(target);
+        if (!link) return;
+        if (link.kind === "file")
+          events.on_file_link_click?.(
+            resolve_relative_asset_path(current.note_path, link.path),
+          );
+        else events.on_internal_link_click?.(link.path, current.note_path);
+      };
+      const plugins: MarkdownPlugin[] = [
+        commonmark(),
+        gfm(),
+        frontmatter(),
+        callouts(),
+        code_blocks({
+          languages: code_languages,
+          copy_code: options.copy_text,
+          code_extensions: [
+            code_block_theme,
+            syntaxHighlighting(code_block_highlight),
+          ],
+          diagram_languages: ["mermaid"],
+          render_diagram: ({ content, signal }) =>
+            render_mermaid_element(content, signal),
+          on_view_states_change: (states) =>
+            events.on_code_block_view_states_change?.([...states]),
+        }),
+        links({
+          open_link,
           copy_link: options.copy_text,
-          link_edit_key: "Alt-Enter",
-          open_link(target) {
-            if (is_external_url(target)) {
-              events.on_external_link_click?.(target);
-              return;
-            }
-            const link = parse_internal_href(target);
-            if (!link) return;
-            if (link.kind === "file")
-              events.on_file_link_click?.(
-                resolve_relative_asset_path(current.note_path, link.path),
-              );
-            else events.on_internal_link_click?.(link.path, current.note_path);
-          },
+          edit_key: "Alt-Enter",
+        }),
+        images({
           resolve_image(source, signal) {
             if (signal.aborted) return "";
             if (/^[a-z][a-z0-9+.-]*:/i.test(source) || !current.vault_id)
@@ -122,6 +151,8 @@ export function create_codemirror_editor_port(
               as_asset_path(path),
             );
           },
+        }),
+        wiki_links({
           query_wiki_links(query, signal) {
             pending_wiki?.([]);
             if (!events.on_wiki_suggest_query || signal.aborted)
@@ -140,6 +171,10 @@ export function create_codemirror_editor_port(
               events.on_wiki_suggest_query?.(query);
             });
           },
+        }),
+        slash_menu(),
+        find(),
+        clipboard({
           html_to_markdown: clipboard_html_to_markdown,
           on_image_paste(file) {
             const buffer = current;
@@ -157,18 +192,16 @@ export function create_codemirror_editor_port(
                 log.error("Could not read pasted image", { error });
               });
           },
-          code_blocks: {
-            copy_code: options.copy_text,
-            code_extensions: [
-              code_block_theme,
-              syntaxHighlighting(code_block_highlight),
-            ],
-            diagram_languages: ["mermaid"],
-            render_diagram: ({ content, signal }) =>
-              render_mermaid_element(content, signal),
-            on_view_states_change: (states) =>
-              events.on_code_block_view_states_change?.([...states]),
-          },
+        }),
+      ];
+      const extensions: Extension = [
+        // CodeMirror catches exceptions from plugins, listeners, and widgets
+        // and only prints them to the console. Send them to the app log.
+        EditorView.exceptionSink.of((exception: unknown) => {
+          log.error("Editor exception", {
+            error: exception,
+            stack: exception instanceof Error ? exception.stack : undefined,
+          });
         }),
         EditorView.updateListener.of((update) => {
           current.state = update.state;
@@ -207,23 +240,6 @@ export function create_codemirror_editor_port(
       publish_cursor();
 
       return Promise.resolve<EditorSession>({
-        read_diagnostics() {
-          const selection = view.state.selection.main;
-          return {
-            selection: {
-              anchor: selection.anchor,
-              head: selection.head,
-              coordinates: "Markdown UTF-16 offsets",
-            },
-            parser: {
-              parsed_to: syntaxTree(view.state).length,
-              document_length: view.state.doc.length,
-              complete: syntaxTreeAvailable(view.state, view.state.doc.length),
-              viewport_from: view.viewport.from,
-              viewport_to: view.viewport.to,
-            },
-          };
-        },
         destroy() {
           if (destroyed) return;
           destroyed = true;
@@ -244,11 +260,11 @@ export function create_codemirror_editor_port(
         },
         insert_text_at_cursor(text) {
           insert_markdown_source(view, text);
-          focus_selection();
+          focus_editor();
         },
         set_selection(anchor, head) {
           set_selection(anchor, head);
-          focus_selection();
+          focus_editor();
         },
         restore_cursor,
         get_scroll_top: () => view.scrollDOM.scrollTop,
@@ -273,7 +289,7 @@ export function create_codemirror_editor_port(
         },
         is_dirty: () =>
           !get_markdown_source_document(view.state).eq(current.baseline),
-        focus: focus_selection,
+        focus: focus_editor,
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
@@ -320,7 +336,10 @@ export function create_codemirror_editor_port(
         vault_id: VaultId | null;
         initial_markdown: string;
       }): BufferEntry {
-        const state = create_markdown_state(input.initial_markdown, extensions);
+        const state = create_markdown_state(input.initial_markdown, {
+          plugins,
+          extensions,
+        });
         const entry = {
           note_path: input.note_path,
           vault_id: input.vault_id,
@@ -430,9 +449,10 @@ export function create_codemirror_editor_port(
         word_count_idle_id = null;
       }
 
-      function focus_selection() {
-        if (!focus_code_selection(view) && !focus_table_selection(view))
-          view.focus();
+      // Focus the code or table surface that owns the selection, or the
+      // prose editor otherwise.
+      function focus_editor() {
+        if (!focus_selection(view)) view.focus();
       }
 
       function publish_cursor() {
@@ -485,12 +505,12 @@ export function create_codemirror_editor_port(
         }
         // Mount restores the cursor after focusing the editor. Move that focus
         // into its code/table widget too, without stealing another control's focus.
-        if (had_focus) focus_selection();
+        if (had_focus) focus_editor();
       }
 
       function set_code_block_view_states(states: CodeBlockViewStates) {
         view.dispatch({
-          effects: replace_code_block_view_states.of(
+          effects: code_block_view_states_effect(
             states.map((state) => state ?? default_code_view),
           ),
         });
@@ -534,19 +554,12 @@ function count_visible_words(
     position = to;
     return false;
   };
-  // Frontmatter is metadata, not body text. An unclosed opening remains prose.
-  if (/^\uFEFF?---[ \t]*$/.test(state.doc.line(1).text)) {
-    for (let line = 2; line <= state.doc.lines; line++) {
-      if (/^(---|\.\.\.)[ \t]*$/.test(state.doc.line(line).text)) {
-        position = state.doc.line(line).to;
-        break;
-      }
-    }
-  }
   tree.iterate({
     enter(node) {
       if (node.to <= position) return false;
       if (node.from < position) return;
+      // Frontmatter is metadata, not body text.
+      if (node.name === "Frontmatter") return omit(node.from, node.to);
       if (node.name === "FencedCode" || node.name === "CodeBlock") {
         const content = node.node
           .getChildren("CodeText")

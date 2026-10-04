@@ -64,6 +64,10 @@
       type="text"
       placeholder="Find in note..."
       aria-label="Find in note"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
       value={query}
       oninput={(e) => {
         on_query_change(e.currentTarget.value);

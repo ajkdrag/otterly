@@ -1,10 +1,6 @@
 import type { OpenNoteState, CursorInfo } from "$lib/shared/types/editor";
 import type { NoteId, NotePath } from "$lib/shared/types/ids";
 import { note_name_from_path } from "$lib/shared/utils/path";
-import type {
-  EditorEngine,
-  EditorDiagnosticSnapshot,
-} from "../types/editor_diagnostics";
 
 function are_cursors_equal(
   left: CursorInfo | null,
@@ -54,24 +50,6 @@ function are_open_notes_equal(
 }
 
 export class EditorStore {
-  engine = $state<EditorEngine>("source");
-  engine_switching = $state(false);
-  diagnostics_open = $state(false);
-  diagnostics = $state<EditorDiagnosticSnapshot | null>(null);
-
-  set_engine(engine: EditorEngine) {
-    this.engine = engine;
-  }
-  set_engine_switching(switching: boolean) {
-    this.engine_switching = switching;
-  }
-  set_diagnostics_open(open: boolean) {
-    this.diagnostics_open = open;
-    if (!open) this.diagnostics = null;
-  }
-  set_diagnostics(snapshot: EditorDiagnosticSnapshot | null) {
-    this.diagnostics = snapshot;
-  }
   open_note = $state<OpenNoteState | null>(null);
   cursor = $state<CursorInfo | null>(null);
   last_saved_at = $state<number | null>(null);

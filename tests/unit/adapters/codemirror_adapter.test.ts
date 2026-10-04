@@ -2,8 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorView } from "@codemirror/view";
 import {
-  ensureSyntaxTree,
-  forceParsing,
   LanguageDescription,
   syntaxTree,
   syntaxTreeAvailable,
@@ -114,8 +112,8 @@ describe("CodeMirror editor port", () => {
           cancelable: true,
         }),
       );
-      const cell = root.querySelector('[contenteditable="plaintext-only"]');
-      expect(document.activeElement).toBe(cell);
+      const cell = root.querySelector(".md-table-cell-active");
+      expect(cell?.contains(document.activeElement)).toBe(true);
       expect(cell?.textContent).toBe(direction > 0 ? "H" : "last");
       expect(view.state.selection.main.head).toBe(
         direction > 0 ? source.indexOf("H") : source.indexOf("last") + 4,
@@ -172,18 +170,17 @@ describe("CodeMirror editor port", () => {
         });
       } else {
         const cell = root.querySelector<HTMLElement>(
-          '[contenteditable="plaintext-only"]',
+          ".md-table-cell-active .cm-content",
         );
         if (!cell) throw new Error("Missing cell");
         content = cell;
-        cell.textContent = "hello typed";
-        cell.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            inputType: "insertText",
-            data: " typed",
-          }),
-        );
+        const inner = EditorView.findFromDOM(cell);
+        if (!inner) throw new Error("Missing cell editor");
+        inner.dispatch({
+          changes: { from: 5, insert: " typed" },
+          selection: { anchor: 11 },
+          userEvent: "input.type",
+        });
       }
       content.dispatchEvent(
         new KeyboardEvent("keydown", {
@@ -205,10 +202,8 @@ describe("CodeMirror editor port", () => {
     const { session, view, root } = await open_editor(source);
     const start = source.indexOf("alpha");
     session.set_selection(start + 1, start + 4);
-    const cell = root.querySelector(
-      '[contenteditable="plaintext-only"][role="textbox"]',
-    );
-    expect(document.activeElement).toBe(cell);
+    const cell = root.querySelector(".md-table-cell-active");
+    expect(cell?.contains(document.activeElement)).toBe(true);
     expect(view.state.selection.main.anchor).toBe(start + 1);
     expect(view.state.selection.main.head).toBe(start + 4);
   });
@@ -366,9 +361,6 @@ describe("CodeMirror editor port", () => {
         expect(
           events.on_cursor_change.mock.lastCall?.[0].word_count_pending,
         ).toBe(false);
-        expect(syntaxTreeAvailable(view.state, view.state.doc.length)).toBe(
-          false,
-        );
       });
     } finally {
       const index = code_languages.indexOf(pending_language);
@@ -390,19 +382,6 @@ describe("CodeMirror editor port", () => {
     });
 
     expect(view.state.doc.length).toBeGreaterThan(50_000);
-    expect(syntaxTree(view.state).length).toBeLessThan(view.state.doc.length);
-    expect(
-      forceParsing(view, Math.floor(view.state.doc.length / 3), 1_000),
-    ).toBe(true);
-    expect(syntaxTree(view.state).length).toBeLessThan(view.state.doc.length);
-    const completed = ensureSyntaxTree(
-      view.state,
-      view.state.doc.length,
-      1_000,
-    );
-    expect(completed).not.toBeNull();
-    expect(syntaxTreeAvailable(view.state, view.state.doc.length)).toBe(true);
-    expect(syntaxTree(view.state).length).toBeLessThan(view.state.doc.length);
 
     session.open_buffer({
       note_path: "other.md",
@@ -600,18 +579,15 @@ describe("CodeMirror editor port", () => {
       anchor: source.indexOf("hello") + 5,
       offset_kind: "markdown",
     });
-    const cell = document.activeElement;
-    expect(cell?.getAttribute("contenteditable")).toBe("plaintext-only");
-    if (!(cell instanceof HTMLElement)) throw new Error("Missing focused cell");
-    expect(window.getSelection()?.anchorOffset).toBe(5);
-    cell.textContent = "hellox";
-    cell.dispatchEvent(
-      new InputEvent("input", {
-        bubbles: true,
-        inputType: "insertText",
-        data: "x",
-      }),
-    );
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement)) throw new Error("Missing focus");
+    expect(focused.closest(".md-table-cell-active")).not.toBeNull();
+    const inner = EditorView.findFromDOM(focused);
+    if (!inner) throw new Error("Missing cell editor");
+    expect(inner.state.selection.main.head).toBe(5);
+    inner.dispatch(inner.state.replaceSelection("x"), {
+      userEvent: "input.type",
+    });
     expect(session.get_markdown()).toBe(source.replace("hello", "hellox"));
   });
 

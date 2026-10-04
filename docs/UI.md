@@ -21,7 +21,7 @@ src/
 ├── styles/
 │   ├── design_tokens.css      # Extended design system tokens (accent, spacing, typography)
 │   ├── component_overrides.css # BEM patterns, toast overrides, DialogSection
-│   └── editor.css             # Editor tokens and legacy Milkdown styles
+│   └── editor.css             # Editor design tokens
 ├── lib/types/
 │   └── theme.ts               # Theme type, built-in themes, defaults
 ├── lib/utils/

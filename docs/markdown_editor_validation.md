@@ -1,5 +1,84 @@
 # Markdown editor migration
 
+## 2026-10-04: plugin framework rewrite
+
+The package was rebuilt as a plugin framework ([design](../packages/markdown_editor/DESIGN.md)). Milkdown, runtime engine switching, and the diagnostics sidebar were removed from the app. The sections below this one describe the previous implementation and stay as history.
+
+Fixed by design in this rewrite:
+
+- Table and code block widgets now come from one state field over whole lines, built from the complete tree, with content equality. The previous table field started mid-line inside quotes and rebuilt on every reparse, which plausibly caused the `tile.length` error and the loss of all rendering after scrolling.
+- Focusing a surface never scrolls the page, and a selection stays at the widget boundary while the surface holds the inner caret.
+- Quote and list prefixes are parsed in one place. Slash commands, Tab, and Enter on lazy lines now keep the quote.
+- A construct that throws only falls back to source for its own nodes.
+- Grammar load errors are logged, and Vite prebundles `@codemirror/language-data`.
+
+### Native pass (macOS, debug app bundle, disposable vault)
+
+Checked by typing character by character, with a zoomed screenshot after each step and the saved bytes compared on disk.
+
+Passed without changes:
+
+- Clicking a table cell no longer moves the page. Typing lands at the caret and autosaves. Hard scrolling up and down keeps all rendering, and the log has no `tile.length` error.
+- Python, TypeScript, JavaScript, and Mermaid blocks highlight and render.
+- Quote walk: continue, list inside the quote, leave the list, slash-insert a code block inside the quote. The saved source is exact.
+- Lists: Enter continues, Tab nests, Enter on an empty item lifts, a second Enter leaves the list with a blank boundary. Ordered lists, tasks, Shift-Enter continuation, and Backspace lifting work.
+- Fences and tables stay source while typed and become widgets on Enter with focus inside. Arrow keys visit blank rows and enter and leave code and tables.
+- Links and wiki links (completion inserts `[[tables]]` once) render when the caret leaves.
+- Enter and Backspace on the blank row above a code block visibly add and remove one row (SPACE-001).
+
+Found and fixed in this pass:
+
+- The prose caret could rest on a rendered table at the start of a note and draw as a tall bar. The core now moves it into the surface.
+- Rows showed through above a virtual table's sticky header. Virtual tables use separate borders.
+- A code block inside a quote looked like a second quote. Block layers now mirror the quote line styles.
+- The slash menu used CodeMirror's default font and colors. Plugin themes now compile with `EditorView.theme`.
+- List markers jumped while typing `-`, `- `, `- a`, and the baseline dropped on the first character. A bare marker stays plain text, `- ` shows the bullet at once, and empty items keep list line metrics.
+- Typing `#` or `# ` showed nothing. An empty heading keeps its marks visible.
+- Task brackets revealed the whole prefix. The bullet now stays until the checkbox exists.
+- A revealed long prefix (`- [ ] `) overlapped the body text. Revealed prefixes draw at natural width.
+- ` ```py ` did not resolve to Python. Fence tokens also match file extensions.
+- The active table header cell dropped its header styling. Focus only adds the outline.
+- A space typed at the end of a table cell was lost as padding. The active cell keeps its activation-time padding.
+- A continued list item had a gap inside it. Item spacing goes after an item's last line.
+
+### Second native pass: nested quotes, callouts, frontmatter, links, find, undo
+
+Passed without changes:
+
+- Callouts typed from `> [!` through title, body, and two Enters out. The label renders once the caret leaves the marker, and the saved source is exact.
+- Frontmatter typed at the top: a lone `---` is a rule, and the closing fence turns the block into frontmatter.
+- A link typed character by character stays source until the caret leaves it. The hover tooltip's edit form changes the text and gives focus back to the editor.
+- Find highlights matches inside code blocks and table cells.
+- Undo walks back through a prose edit and then a cell edit, and focus goes back to the cell.
+
+Found and fixed in this pass:
+
+- A nested quote drew only its innermost bar, so the outer bar vanished. Each quote level now draws a bar, on lines and around block widgets, with one background.
+- The first character typed on an empty quoted line grew the quote by a few pixels. Empty quoted lines keep text line metrics.
+- Prose right after a quote with no blank line (what Backspace lifting leaves) touched the quote. Quotes now set the paragraph gap after themselves.
+- Opening a note could throw `Table block has no table node` and draw an empty table. The block field found the table in a tree it parsed further than the state's stored tree, and the widget read the shorter one. The widget now parses through its block first.
+- Cmd-A painted a table as stripes, because native selection only covers cell text. A fully selected block draws one overlay. A stale native selection left in a cell after Cmd-A no longer paints either.
+- macOS autocorrect offered to capitalize the find query. The find field turns off autocorrect, autocapitalize, and spellcheck.
+
+### Untitled-8: clicks crashed with `tile.length` (root cause, October 5)
+
+A long draft (269 lines, seven tables) threw `null is not an object (evaluating 'tile.length')` on hover and on every click, and the page jumped on the first click. The error came from CodeMirror's `posAtCoords`: its viewport and its drawn DOM disagreed.
+
+How it was found, in the debug bundle on the real draft: unhandled errors now log their stack, editor exceptions go to the app log (`EditorView.exceptionSink`), and temporary probes logged CodeMirror's viewport, DOM tiles, heights, and scroll writes per update.
+
+- The viewport flipped between two regions on every frame and never settled. With the scroll fixed at 8033, document height went 10184, 13961, 10184.
+- CodeMirror estimates undrawn lines from the first short plain-text line it has drawn (`measureTextSize`). Our block spacing was `padding-top` on the first line of a paragraph, so a short paragraph after a table ("Phase 1 (demo):") sampled about 53px instead of 30px. The sampled line changed with the viewport, each change re-estimated the whole document, and clicks landed on a half-drawn view.
+- Fix: no line box carries vertical space. Gaps and quote boxes are CodeMirror block wrappers (`render.wrap`, `render.gap`). A styled line never shows plain text alone, so CodeMirror never samples it. Nested quotes are nested wrappers, and widgets inside a quote sit in its wrapper, so the quote mirroring in `wrap_in_layers` and the multi-bar CSS are gone. List lines use the default line height (was 1.75), and list items are tight: only the blank rows of a loose list separate them (was 0.5rem between items). See "Line boxes" in the package DESIGN.md and the SPACE-009 test.
+- After that, the first click on a cold start with the caret restored inside a table still jumped the page about 1100px. CodeMirror calls `focus({ preventScroll: true })`, and WebKit still scrolls to an off-screen DOM selection at a block widget. The core now puts the DOM selection under the pointer before a click focuses the editor.
+- "Add row" showed "Something went wrong": a table whose shape changed refocused its cell editor inside CodeMirror's update, and the link tooltip's focusin handler dispatched mid-update. The table now refocuses right after the update, unless the action already focused a cell (TABLE-012 test). Empty table rows now keep a text row's height.
+- Found on the way: Enter on the empty quoted row after a quoted list kept the row and added a plain line. The list now steps aside on blank rows and the quote lifts the row (QUOTE-002 test).
+
+Verified natively: no error and no jump on hover or click on cold starts of the real draft with its restored state (caret in the table, scroll 9503), two runs with the final code. The view stays put at rest, and nested quotes, quoted code, callouts, quoted lists, loose and tight lists, setext headings, and first-character typing in quotes and lists look as before.
+
+Known nits left as they are: `**bold*` briefly renders as italic while typed (CommonMark parses it that way); the caret on an empty list item draws slightly taller than text; a restored caret inside a container prefix shows that prefix as source before the editor has focus; a block written right after closing frontmatter with no blank line touches the frontmatter box; a partly selected table shows no selection paint; where a nested quote ends on the same line as its parent, both bottom paddings show.
+
+Automated evidence: 350 package tests plus the app suite (1356 tests in total) pass, with `pnpm check`, `pnpm lint`, and `cargo check` clean.
+
 Status: the reported repair cases were revalidated in the native macOS app on October 4, 2026. The first acceptance pass missed unfinished list markers, empty nested quoted items, restored fence headers, existing-note HTML breaks, and spacing regressions. The repair evidence and remaining performance and platform limits are recorded below.
 
 Otterly now uses the framework-independent `packages/markdown_editor` package through `EditorPort`. The package uses CodeMirror 6 for text editing and adds rich Markdown rendering. It has no Svelte, Tauri, filesystem, or application-store dependency. It is MIT licensed and remains private in this workspace; publishing is a separate step.

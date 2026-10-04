@@ -4,7 +4,7 @@ This is Otterly's acceptance contract for Markdown editing. Use it when changing
 
 The scenarios record requirements from the editor investigation, native typing reviews, current tests, and the original app experience. An expected result is a contract, not a claim that every combination has passed. Current evidence belongs in [the validation report](markdown_editor_validation.md). Prototype comparisons belong in [the preservation investigation](editor_preservation_spike.md).
 
-The source-preservation scenarios apply to the source editor and to any future editor chosen to replace it. The former Milkdown editor remains a comparison baseline: actual editing there intentionally retains its existing serializer behavior and can rewrite unrelated Markdown. That limitation is not a pass for the source-preservation contract. Merely switching into or out of either runtime must still retain the original raw draft and must not write or canonicalize the file.
+The source-preservation scenarios apply to the source editor and to any future editor chosen to replace it. Otterly no longer ships the Milkdown editor or runtime engine switching, so sections 21 and 22 are retired. Their IDs stay reserved.
 
 ## How to use this document
 
@@ -36,9 +36,20 @@ The source flow is:
 - Save and note switching read current source, even before a debounced notification.
 - Async work publishes only into the note, view, and request that still own it.
 
+## Core model
+
+The editor package is a plugin framework. [Its design](../packages/markdown_editor/DESIGN.md) explains the model these scenarios rely on:
+
+- Constructs come in three kinds. Inline and line constructs render from one view plugin over the visible tree. Block constructs render from one state field, always over whole lines, and never depend on parse progress.
+- One function per kind decides when source shows. An empty caret touching an inline node reveals it. An empty caret inside a line's container prefix reveals the prefix. Non-empty selections never reveal.
+- A line's quote and list prefix is parsed in one place (`line_container`). Every editing command and the renderer use it.
+- Construct keys dispatch through context, innermost construct first.
+- Code bodies and active table cells are surfaces: nested editors over a window of the source. The core owns their focus and scrolling.
+- A construct that throws renders its node as source. It never disables the rest of the rendering.
+
 ## Coverage and open checks
 
-The current repository contains automated coverage for source/history, formatting, block commands, markers, lists/quotes, code, tables, links, images, completions, clipboard, find, viewport parsing, adapter lifecycle, and reactor restoration. These tests do not establish every scenario below in every browser.
+The package suites under `packages/markdown_editor/tests` cover source/history, formatting, block commands, lists/quotes, code, tables, frontmatter, links, images, completions, clipboard, find, and the plugin contract. App suites cover the adapter, lifecycle, and reactor restoration. These tests run in jsdom and do not establish geometry, focus, or IME behavior in a real WebView.
 
 | Area                        | Existing evidence                                                                | Remaining acceptance obligation                                                                                 |
 | --------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -230,7 +241,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Drag-select text, then use arrows with Shift and platform modifiers.
 - **Expected:** Native selection extends/collapses according to the active editing surface. Rich navigation handlers do not consume ordinary selection gestures.
-- **Edge cases/notes:** Include table cells and nested code. A single range and multiple ranges may use different paint paths, but both stay legible.
+- **Edge cases/notes:** Include table cells and nested code. A single range and multiple ranges may use different paint paths, but both stay legible. A range covering a whole code or table widget paints the widget as one selected block, not per cell text.
 
 ### NAV-010. Reopening accepts the first character
 
@@ -288,6 +299,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** Recognized breaks produce line breaks in prose while literal contexts stay literal. Open/Save preserves original source.
 - **Edge cases/notes:** Editing an active break reveals its source predictably. Dangerous or unknown HTML is not executed as a consequence of rich rendering.
 
+### SPACE-009. The view settles and clicks land where they point
+
+- **Setup/action:** Open a long note scrolled far down, with short paragraphs right after tables and quotes, lazy quote and list lines, whitespace-only lines, and a setext heading. Restore the caret inside a table, then hover and click a paragraph right away.
+- **Expected:** The view stops moving after the first layout. A click puts the caret under the pointer without scrolling or selecting a range, and nothing throws.
+- **Edge cases/notes:** CodeMirror estimates undrawn lines from a short plain-text line, so such a line must keep the default box: vertical space lives on block wrappers, and styled lines never show plain text alone (see "Line boxes" in the package DESIGN.md).
+
 ## 5. Character-by-character Markdown construction
 
 ### TYPE-001. Bare list markers stay editable
@@ -299,8 +316,8 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 ### TYPE-002. A valid empty prefix remains a typing target
 
 - **Setup/action:** Type a bullet and space, then immediately type body text.
-- **Expected:** The first body character follows the marker. It does not appear before it, disappear, or shift the baseline.
-- **Edge cases/notes:** Run Enter, Tab, and immediate typing as one rapid sequence. The source example "- ab" followed by that sequence becomes "- ab" plus a nested "- c".
+- **Expected:** The bullet appears as soon as the space is typed, with the caret after it. The first body character follows the marker. It does not appear before it, disappear, move the marker, or shift the baseline.
+- **Edge cases/notes:** Run Enter, Tab, and immediate typing as one rapid sequence. The source example "- ab" followed by that sequence becomes "- ab" plus a nested "- c". An empty ATX heading ("#" or "# ") keeps its marks visible until it has text.
 
 ### TYPE-003. Distinguish an unfinished bullet from a Setext heading
 
@@ -311,7 +328,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 ### TYPE-004. Incomplete tasks keep a usable gutter
 
 - **Setup/action:** Type the bullet, opening bracket, space or x, closing bracket, space, and task body separately.
-- **Expected:** Every character stays in order. The bullet is not prematurely hidden before a checkbox exists; the body stays in its text column.
+- **Expected:** Every character stays in order. While the caret touches the brackets, the bullet stays drawn and the brackets show as text in the body column. Once the caret moves past them, the checkbox replaces the bullet. The body stays in its text column throughout.
 - **Edge cases/notes:** Compare "- [ ]" with "- [ ] " and checked variants. Undo each construction stage.
 
 ### TYPE-005. Incomplete formatting stays literal and editable
@@ -324,7 +341,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Type three backticks, a language token, and Enter; repeat after pasting/reopening an unfinished fence header.
 - **Expected:** The header remains editable while being constructed. Enter establishes the code body and moves focus to it before the next character.
-- **Edge cases/notes:** Include empty language, quoted/listed fences, and rapid body typing. No key may land above a newly mounted widget.
+- **Edge cases/notes:** Include empty language, quoted/listed fences, and rapid body typing. No key may land above a newly mounted widget. When the opening fence is unclosed and text follows it, Enter also adds a closing fence, so the rest of the note does not become code.
 
 ### TYPE-007. Table delimiters remain source until Enter
 
@@ -441,7 +458,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 ### QUOTE-008. Quote styling follows source depth
 
 - **Setup/action:** Edit nested quotes and their blank boundaries.
-- **Expected:** Borders, padding, and text columns track the remaining quote levels. Creating/deleting an outside block does not reshape the previous quote unexpectedly.
+- **Expected:** Borders, padding, and text columns track the remaining quote levels: one bar per level, the same on lines and around code or table widgets. Creating/deleting an outside block does not reshape the previous quote unexpectedly.
 - **Edge cases/notes:** Quote-only rows after the final list item must not inherit that item's indentation.
 
 ## 8. Tasks
@@ -518,7 +535,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Use existing heading, bullet, ordered-list, and code-conversion shortcuts.
 - **Expected:** Transform the intended blocks only, preserve surrounding quote prefixes, and retain selection direction.
-- **Edge cases/notes:** Documented shortcuts include Cmd-Alt-1/2/3, Cmd-Alt-7/8, and Cmd-Alt-C. Do not force a heading into an invalid first list paragraph.
+- **Edge cases/notes:** Documented shortcuts include Cmd-Alt-1/2/3, Cmd-Alt-7/8, and Cmd-Alt-C. Shortcuts skip the first paragraph of a list item. That is a carried-over product choice, not a syntax rule. A caret inside inline code still converts its paragraph.
 
 ### FMT-008. Convert visible prose to code without losing text
 
@@ -592,9 +609,9 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### MENU-001. Preserve the command inventory
 
-- **Setup/action:** Type slash on an eligible empty prose line and filter by labels, IDs, or aliases.
-- **Expected:** Offer heading levels 1-6, code, table, bullet, ordered, task, quote, and divider commands with their existing labels, icons, and descriptions.
-- **Edge cases/notes:** Restrict triggering in literal/frontmatter/read-only contexts and inappropriate list positions.
+- **Setup/action:** Type slash at the start of a line's text, including inside a quote or list item, and filter by labels, IDs, or aliases.
+- **Expected:** Offer heading levels 1-6, code, table, bullet, ordered, task, quote, and divider commands with their existing labels, icons, and descriptions, in that order. Commands from other plugins, such as callouts, follow.
+- **Edge cases/notes:** Restrict triggering in literal contexts (code, inline code, frontmatter) and read-only notes. A block inserted inside a quote or list gets the container prefix on every line.
 
 ### MENU-002. Completion consumes acceptance keys
 
@@ -772,9 +789,9 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### TABLE-003. Source editing can leave and return
 
-- **Setup/action:** Reveal/edit an existing table delimiter or header, then move out of the table.
-- **Expected:** Keep its source stable while editing and render it again on leaving. Selection/focus stay at the intended location.
-- **Edge cases/notes:** Source-editing guards belong to the specific table, not any stale active table in the note.
+- **Setup/action:** Choose "Edit Markdown" in an active table's toolbar, edit the delimiter or header, then move out of the table.
+- **Expected:** The table shows its source while the caret stays inside it and renders again on leaving. Selection and focus stay at the intended location.
+- **Edge cases/notes:** A rendered table never reveals source because the caret lands on a hidden row. Source mode belongs to that table only.
 
 ### TABLE-004. Cell edits publish synchronously
 
@@ -882,8 +899,8 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### IMAGE-002. Expose only the selected image's source
 
-- **Setup/action:** Select an image or move into its syntax, then leave.
-- **Expected:** Reveal the intended source and restore the rendered image afterward.
+- **Setup/action:** Move the caret into an image's syntax, then leave.
+- **Expected:** The source shows while an empty caret touches it. The image stays visible after its source the whole time, so the layout does not jump. Leaving hides the source again.
 - **Edge cases/notes:** Task images and linked images remain in the correct parent layout. Literal frontmatter/code stays literal.
 
 ### IMAGE-003. Loading and failure are stable
@@ -1192,109 +1209,41 @@ Cleanup changes file source deliberately. It is separate from rendering, opening
 - **Expected:** Old results cannot update another vault's stores or reopen a note the user has left. Completed disk work remains recoverable in its original vault.
 - **Edge cases/notes:** Check identity after async reads and immediately before cache mutation, buffer closure, and active-note reload.
 
-## 21. Runtime editor switching
+## 21. Runtime editor switching (retired)
 
-These scenarios cover the opt-in runtime comparison requested during this review. A comparison control must preserve ordinary note behavior. Its presence is not permission to rewrite files or discard drafts.
+Otterly ships one editor. ENGINE-001 through ENGINE-008 are retired and their IDs stay reserved.
 
-### ENGINE-001. Choose the engine for this window
+## 22. Opt-in editor diagnostics (retired)
 
-- **Setup/action:** Use the command palette to select the source editor or the former Milkdown editor.
-- **Expected:** Switch the current window's editor runtime visibly and predictably, without restarting the app or changing another window.
-- **Edge cases/notes:** Expose the current choice clearly. Native validation must use the actual selected runtime rather than a mock that merely changes a label.
+The diagnostics sidebar was built for comparing engines and was removed with them. DEBUG-001 through DEBUG-008 are retired and their IDs stay reserved.
 
-### ENGINE-002. Two app windows can compare independently
+## 23. Plugin contract
 
-- **Setup/action:** Open two app instances/windows and choose a different editor in each.
-- **Expected:** Each window retains its own engine selection and usable editing surface. A selection in one does not change the other.
-- **Edge cases/notes:** Shared files still require normal app conflict handling. Per-window runtime selection is not a lock on note storage.
+These scenarios apply to the editor package as a framework.
 
-### ENGINE-003. Mere switching is source-neutral
+### PLUGIN-001. Build errors name the problem
 
-- **Setup/action:** Open an unchanged preservation fixture and switch engines repeatedly without typing.
-- **Expected:** Switching does not write, canonicalize, mark dirty, or normalize the file. The canonical source supplied to the next engine remains exact.
-- **Edge cases/notes:** A target engine that normally serializes on mount must not make that serialization an automatic file write. Compare disk before/after each switch.
+- **Setup/action:** Build an editor with a plugin whose `requires` names a missing plugin, and another with two constructs of the same name.
+- **Expected:** Creating the state throws `PluginBuildError` with the missing or duplicate name. No partially built editor appears.
+- **Edge cases/notes:** `replaces` pointing at a construct that is not installed is also an error.
 
-### ENGINE-004. Carry the live draft into the target
+### PLUGIN-002. Replacing a construct swaps it completely
 
-- **Setup/action:** Edit without saving, then switch runtime.
-- **Expected:** The target shows the current draft and the note stays dirty against its original saved baseline. No debounced notification or stale disk read discards completed input.
-- **Edge cases/notes:** Include active code/table edits, pending formatting, and immediate switching. Preserve other notes' cached drafts too.
+- **Setup/action:** Install a construct with `replaces: "heading"` and open a note with headings.
+- **Expected:** Only the replacement renders headings. The built-in heading styling is gone.
+- **Edge cases/notes:** Keys and insert items follow the replacement too.
 
-### ENGINE-005. Reuse an unchanged target's own state
+### PLUGIN-003. A new construct needs no core changes
 
-- **Setup/action:** Use one engine, switch away without changing its note source, then return.
-- **Expected:** Reuse that engine's valid cached history, selection, scroll, and view state for the same source.
-- **Edge cases/notes:** Do not replace a correct target state simply to make both engines share one selection representation. Histories belong to their editing models.
+- **Setup/action:** Add a plugin with a Lezer extension and an inline or line construct, such as callouts or a highlight mark.
+- **Expected:** It renders, follows the shared reveal rule, takes part in key dispatch by context, and its insert items appear in the slash menu.
+- **Edge cases/notes:** Callouts reuse quote keys: Enter, Backspace, and lifting behave like a plain quote.
 
-### ENGINE-006. Reinitialize a stale target safely
+### PLUGIN-004. A broken construct stays contained
 
-- **Setup/action:** Edit in the alternate engine and return to a target cached for older source.
-- **Expected:** Show the latest draft and initialize a valid target state. Stale history or offsets cannot restore obsolete content or place the caret inside an invalid structural position.
-- **Edge cases/notes:** Never blindly pass ProseMirror structural offsets as Markdown text offsets, or vice versa. Use supported line/column or deliberate mapping when needed.
-
-### ENGINE-007. Switching preserves note lifecycle
-
-- **Setup/action:** Switch engines with several cached notes, then rename, close, reopen, Save, and Undo in the target.
-- **Expected:** Operate on the correct note identity and saved baseline. Target history/focus remains coherent under its documented restoration policy.
-- **Edge cases/notes:** Cross-engine history merging is not implicitly promised. Any deliberate history reset must be documented rather than hidden as draft loss.
-
-### ENGINE-008. Deactivate the previous runtime completely
-
-- **Setup/action:** Switch while the old runtime has async rendering, completion, or listeners pending.
-- **Expected:** The inactive runtime cannot publish input, focus, source, or UI into the active runtime. Only one editor owns the visible editing surface.
-- **Edge cases/notes:** Keeping one hidden session per engine is allowed to retain its history. Repeated switches must not create more sessions or accumulate observers, handlers, timers, or stale host roots. Closing the mounted editor destroys both sessions.
-
-## 22. Opt-in editor diagnostics
-
-Diagnostics exist to investigate real source, selection, and layout problems. They must remain local and must not alter note text. These are acceptance requirements for the requested tool, separate from a claim that every diagnostic view is implemented.
-
-### DEBUG-001. Disabled diagnostics have no runtime work
-
-- **Setup/action:** Launch and edit with diagnostics disabled.
-- **Expected:** No diagnostic sidebar, input tracing, event listeners, polling, or diagnostic timers are installed.
-- **Edge cases/notes:** Closing/disabling a previously opened panel removes its owned work. Normal editor behavior must not depend on instrumentation being enabled.
-
-### DEBUG-002. Open an explicit, resizable sidebar
-
-- **Setup/action:** Enable diagnostics through its app action and resize the sidebar.
-- **Expected:** Show a readable panel beside the active note with usable resizing and clear current-runtime/note context.
-- **Edge cases/notes:** Resizing must not obscure the editor caret or introduce geometry errors. Each window owns its own diagnostic state.
-
-### DEBUG-003. Show source and rendering coverage distinctly
-
-- **Setup/action:** Inspect a partially parsed large note, then scroll to an unseen section.
-- **Expected:** Distinguish source length, installed parse coverage, visible viewport, and rendered widget coverage. A complete source buffer cannot be mistaken for a complete visible parse.
-- **Edge cases/notes:** Explain pending/stale values and timing scope. Diagnostics must not force extra parsing that hides the original performance failure.
-
-### DEBUG-004. Inspect actual caret and focus ownership
-
-- **Setup/action:** Move among prose, code, table cells, blank rows, and resize handles with the panel open.
-- **Expected:** Display source selection, active editing surface, native DOM selection, caret geometry, and relevant scroll positions coherently.
-- **Edge cases/notes:** Report missing geometry honestly rather than inventing coordinates. Refreshing the panel must not move focus or selection.
-
-### DEBUG-005. Trace rapid keys with a bounded event ring
-
-- **Setup/action:** Enable input tracing and run a rapid construction/navigation sequence.
-- **Expected:** Keep an ordered, bounded local record of relevant key/input/selection/scroll events and before/after state.
-- **Edge cases/notes:** Record enough context to identify swallowed or redirected input, but avoid unbounded memory growth. No remote upload or telemetry is implied.
-
-### DEBUG-006. Copy only through an explicit action
-
-- **Setup/action:** Inspect or copy diagnostic information.
-- **Expected:** Viewing does not write to the clipboard or transmit data. An explicit Copy action exports the chosen local record and indicates success/failure.
-- **Edge cases/notes:** Diagnostic output can contain note information, so keep collection/copy scope visible. Copy failure must not affect note editing.
-
-### DEBUG-007. Refresh, Clear, and Close have separate effects
-
-- **Setup/action:** Use each diagnostic control after a recorded sequence.
-- **Expected:** Refresh samples current state; Clear resets the retained trace; Close removes the panel and its active collection resources.
-- **Edge cases/notes:** None of these operations changes source, dirty state, content history, or the saved note.
-
-### DEBUG-008. Diagnostics cannot repair the bug by side effect
-
-- **Setup/action:** Compare the same interaction with tracing on and off.
-- **Expected:** Editing and file results agree. Diagnostic sampling must not insert text, force focus, synthesize keys, or silently change layout/parsing policy.
-- **Edge cases/notes:** Timing instrumentation can affect measurements; disclose that effect. Final acceptance runs with temporary probes removed.
+- **Setup/action:** Install a construct whose `decorate` throws.
+- **Expected:** That construct's nodes show as source and the error is logged once. Every other construct keeps rendering.
+- **Edge cases/notes:** The same holds for block widgets, static rendering, and key handlers.
 
 ## Acceptance record for future changes
 
@@ -1304,11 +1253,7 @@ A source check should name the expected and actual edit span or exact original b
 
 Existing tests are starting points, not a substitute for this contract:
 
-- Source and adapter: cm6_source_state, codemirror_adapter, editor_sync_buffer_restore.
-- Commands and rendering: cm6_editing_commands, cm6_block_commands, cm6_format_commands, cm6_rich_rendering.
-- Rich editing surfaces: cm6_code_block_rendering, cm6_table_rendering, cm6_image_rendering.
-- Links and menus: cm6_link_rendering, cm6_link_tooltip, cm6_markdown_completions.
-- Clipboard and search: cm6_clipboard_input, html_clipboard, cm6_find_highlights, find_in_file_reactor.
-- Parsing and cleanup: cm6_viewport_parsing, legacy_markdown_cleanup, plus app/Rust backup and conflict checks.
+- Package suites in packages/markdown_editor/tests: source_history, lists_and_quotes, formatting, inline_rendering, code_blocks, tables, frontmatter, link_editing, menus, find, clipboard, plugin_api.
+- App suites in tests/unit: codemirror_adapter, editor_service, html_clipboard, mermaid_preview, find_in_file_reactor, legacy_markdown_cleanup, plus app/Rust backup and conflict checks.
 
-All listed frontend suites live under tests/unit. Add regression coverage where a failure can be expressed meaningfully, and retain native acceptance for browser geometry, keyboard focus, and rapid input. Do not mark the entire spec verified because the repository suite passes.
+Add regression coverage where a failure can be expressed meaningfully, and retain native acceptance for browser geometry, keyboard focus, and rapid input. Do not mark the entire spec verified because the repository suite passes.

@@ -53,7 +53,7 @@ function cap_filename_length(filename: string, word_delimiter: string): string {
   return filename.slice(0, boundary > 0 ? boundary : MAX_FILENAME_LENGTH);
 }
 
-// Narrow cleanup of what milkdown writes into headings, not a markdown parser.
+// Narrow cleanup of inline Markdown in a heading, not a Markdown parser.
 // Markup cleanup keeps the contents of code spans literal, and underscores
 // inside a word stay (snake_case). The edge trim still applies afterwards, so
 // "# `__init__`" alone becomes "init".

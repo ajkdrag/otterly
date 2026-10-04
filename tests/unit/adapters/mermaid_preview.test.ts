@@ -5,8 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import mermaid from "mermaid";
 import {
   make_svg_zoomable,
-  render_mermaid_preview,
-  rerender_mermaid_preview,
+  render_mermaid_element,
 } from "$lib/features/editor/adapters/mermaid_preview";
 
 // jsdom can't lay out SVG, so we mock mermaid and test our wiring around it.
@@ -17,83 +16,32 @@ vi.mock("mermaid", () => ({
   },
 }));
 
-function render_preview(language: string, content: string) {
-  const apply_preview = vi.fn();
-  const result = render_mermaid_preview(language, content, apply_preview);
-  return { result, apply_preview };
-}
+const live = () => new AbortController().signal;
 
 afterEach(() => {
   vi.clearAllMocks();
   document.documentElement.removeAttribute("data-color-scheme");
 });
 
-describe("rerender_mermaid_preview", () => {
-  it("redraws the preview with the current scheme and sanitizes it", async () => {
-    document.documentElement.setAttribute("data-color-scheme", "dark");
-    vi.mocked(mermaid.render).mockResolvedValueOnce({
-      svg: '<svg><g onclick="alert(1)">redrawn</g><script>alert(1)</script></svg>',
-    } as never);
-    const preview = document.createElement("div");
-    preview.innerHTML = "<svg>old</svg>";
-
-    rerender_mermaid_preview("graph TD; A-->B", preview);
-
-    await vi.waitFor(() => {
-      expect(preview.textContent).toBe("redrawn");
-    });
-    expect(preview.innerHTML).not.toContain("onclick");
-    expect(preview.innerHTML).not.toContain("script");
-    expect(mermaid.initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ theme: "dark" }),
-    );
-  });
-
-  it("keeps the current preview when the redraw fails", async () => {
-    vi.mocked(mermaid.render).mockRejectedValueOnce(new Error("bad"));
-    const preview = document.createElement("div");
-    preview.innerHTML = "<svg>old</svg>";
-
-    rerender_mermaid_preview("graph TD; A-->", preview);
-
-    await vi.waitFor(() => {
-      expect(mermaid.render).toHaveBeenCalled();
-    });
-    await Promise.resolve();
-    expect(preview.textContent).toBe("old");
-  });
-});
-
-describe("render_mermaid_preview", () => {
-  it("skips other languages and empty mermaid blocks", () => {
-    expect(render_preview("js", "graph TD; A-->B").result).toBeNull();
-    expect(render_preview("mermaid", "  \n").result).toBeNull();
+describe("render_mermaid_element", () => {
+  it("skips empty blocks without loading mermaid", async () => {
+    expect(await render_mermaid_element("  \n", live())).toBeNull();
     expect(mermaid.render).not.toHaveBeenCalled();
   });
 
-  it("renders a mermaid block asynchronously", async () => {
-    const { result, apply_preview } = render_preview(
-      "Mermaid",
-      "graph TD; A-->B",
-    );
-
-    expect(result).toBeUndefined();
-    await vi.waitFor(() => {
-      expect(apply_preview).toHaveBeenCalledWith("<svg>diagram</svg>");
-    });
-    expect(mermaid.render).toHaveBeenCalledWith(
-      expect.any(String),
-      "graph TD; A-->B",
-    );
+  it("returns the sanitized diagram", async () => {
+    vi.mocked(mermaid.render).mockResolvedValueOnce({
+      svg: '<svg><g onclick="alert(1)">drawn</g><script>alert(1)</script></svg>',
+    } as never);
+    const element = await render_mermaid_element("graph TD; A-->B", live());
+    expect(element?.textContent).toBe("drawn");
+    expect(element?.innerHTML).not.toContain("onclick");
+    expect(element?.innerHTML).not.toContain("script");
   });
 
   it("uses strict security and a flat dark theme in dark mode", async () => {
     document.documentElement.setAttribute("data-color-scheme", "dark");
-    const { apply_preview } = render_preview("mermaid", "graph TD; A-->B");
-
-    await vi.waitFor(() => {
-      expect(apply_preview).toHaveBeenCalled();
-    });
+    await render_mermaid_element("graph TD; A-->B", live());
     expect(mermaid.initialize).toHaveBeenCalledWith(
       expect.objectContaining({
         securityLevel: "strict",
@@ -107,15 +55,17 @@ describe("render_mermaid_preview", () => {
     vi.mocked(mermaid.render).mockRejectedValueOnce(
       new Error("<b>Parse error</b>"),
     );
-    const { apply_preview } = render_preview("mermaid", "graph TD; A-->");
+    const element = await render_mermaid_element("graph TD; A-->", live());
+    expect(element?.className).toBe("mermaid-error");
+    expect(element?.textContent).toBe("<b>Parse error</b>");
+    expect(element?.children).toHaveLength(0);
+  });
 
-    await vi.waitFor(() => {
-      expect(apply_preview).toHaveBeenCalled();
-    });
-    const element = apply_preview.mock.calls[0]?.[0] as HTMLElement;
-    expect(element.className).toBe("mermaid-error");
-    expect(element.textContent).toBe("<b>Parse error</b>");
-    expect(element.children).toHaveLength(0);
+  it("drops a result that arrives after the request was aborted", async () => {
+    const request = new AbortController();
+    const pending = render_mermaid_element("graph TD; A-->B", request.signal);
+    request.abort();
+    expect(await pending).toBeNull();
   });
 });
 

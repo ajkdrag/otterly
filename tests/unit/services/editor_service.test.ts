@@ -620,36 +620,6 @@ describe("EditorService", () => {
   });
 });
 
-it("switches the mounted engine without saving and keeps diagnostics opt-in", async () => {
-  const session = create_session("raw source");
-  session.switch_engine = vi.fn(async () => {});
-  session.get_engine = () => "milkdown";
-  session.set_diagnostics_enabled = vi.fn();
-  session.refresh_diagnostics = vi.fn();
-  session.clear_diagnostics = vi.fn();
-  const { service, editor_store } = create_setup(() =>
-    Promise.resolve(session),
-  );
-  const note = create_open_note("a.md", "raw source");
-  editor_store.set_open_note(note);
-  await service.mount({ root: {} as HTMLDivElement, note });
-  expect(session.set_diagnostics_enabled).toHaveBeenLastCalledWith(false);
-  await service.switch_engine("milkdown");
-  expect(session.switch_engine).toHaveBeenCalledWith("milkdown");
-  expect(editor_store.engine).toBe("milkdown");
-  expect(editor_store.open_note?.markdown).toBe("raw source");
-  expect(session.mark_clean).not.toHaveBeenCalled();
-  service.set_diagnostics_open(true);
-  service.refresh_diagnostics();
-  service.clear_diagnostics();
-  expect(session.set_diagnostics_enabled).toHaveBeenLastCalledWith(true);
-  expect(session.refresh_diagnostics).toHaveBeenCalledOnce();
-  expect(session.clear_diagnostics).toHaveBeenCalledOnce();
-  service.set_diagnostics_open(false);
-  expect(editor_store.diagnostics).toBeNull();
-  service.unmount();
-});
-
 it("updates cursor coordinate kind even when numeric positions match", () => {
   const store = new EditorStore();
   const cursor = {

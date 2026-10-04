@@ -110,7 +110,7 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 
 ## Markdown editor package
 
-`packages/markdown_editor` owns the source model, CodeMirror extensions, and rich editing controls. It has no Svelte, Tauri, or app-store dependencies. The editor adapter supplies link navigation, asset resolution, clipboard conversion, wiki suggestions, and diagram rendering through callbacks.
+`packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 

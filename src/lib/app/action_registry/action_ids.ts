@@ -12,12 +12,6 @@ export const ACTION_IDS = {
   editor_zoom_in: "editor.zoom_in",
   editor_zoom_out: "editor.zoom_out",
   editor_zoom_reset: "editor.zoom_reset",
-  editor_use_source: "editor.use_source",
-  editor_use_milkdown: "editor.use_milkdown",
-  editor_toggle_diagnostics: "editor.toggle_diagnostics",
-  editor_refresh_diagnostics: "editor.refresh_diagnostics",
-  editor_clear_diagnostics: "editor.clear_diagnostics",
-  editor_copy_diagnostics: "editor.copy_diagnostics",
 
   note_create: "note.create",
   note_open: "note.open",

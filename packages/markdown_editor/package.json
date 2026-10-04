@@ -3,12 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Source-preserving Markdown editing with CodeMirror 6 rich rendering",
+  "description": "Plugin-driven, source-preserving Markdown editor on CodeMirror 6",
   "license": "MIT",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/test_editor.d.ts",
+      "import": "./dist/testing/test_editor.js"
     }
   },
   "files": [
@@ -21,24 +25,26 @@
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.39.11",
-    "@lezer/markdown": "^1.7.2",
     "@codemirror/search": "^6.7.2",
-    "@codemirror/autocomplete": "^6.20.3"
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/markdown": "^1.7.2"
   },
   "devDependencies": {
-    "@codemirror/commands": "^6.10.1",
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.39.11",
-    "@lezer/markdown": "^1.7.2",
-    "typescript": "^5.9.3",
     "@codemirror/search": "^6.7.2",
-    "@codemirror/autocomplete": "^6.20.3"
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/common": "^1.5.3",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.7.2",
+    "typescript": "^5.9.3"
   }
 }

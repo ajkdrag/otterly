@@ -19,7 +19,10 @@
     const on_error = (event: ErrorEvent) => {
       event.preventDefault();
       if (!event.error) return;
-      log.error("Unhandled error", { error: error_message(event.error) });
+      log.error("Unhandled error", {
+        error: error_message(event.error),
+        stack: event.error instanceof Error ? event.error.stack : undefined,
+      });
       toast.error("Something went wrong");
     };
 
