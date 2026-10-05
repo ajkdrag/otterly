@@ -65,7 +65,8 @@ export function set_editor_mode(view: EditorView, mode: EditorMode) {
   });
 }
 
-const source_theme = [
+// Source mode and text files share this look.
+export const source_theme = [
   EditorView.editorAttributes.of({ class: "md-source-mode" }),
   EditorView.theme({
     "&.md-source-mode > .cm-scroller": {

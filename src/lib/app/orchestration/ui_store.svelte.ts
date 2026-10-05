@@ -353,6 +353,12 @@ export class UIStore {
     is_quitting: boolean;
   }>({ ...INITIAL_QUIT_CONFIRM });
 
+  // Document windows only: closing with unsaved edits asks first.
+  document_close_confirm = $state<{ open: boolean; is_closing: boolean }>({
+    open: false,
+    is_closing: false,
+  });
+
   // Set when the user picks "Later" on the update prompt. Lasts for the session.
   update_prompt_dismissed = $state(false);
 

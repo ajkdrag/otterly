@@ -265,6 +265,37 @@ describe("NoteService", () => {
     expect(op_store.get("note.open:docs/missing.md").status).toBe("error");
   });
 
+  it("reports a binary file as not_text instead of failing", async () => {
+    const vault_store = new VaultStore();
+    const op_store = new OpStore();
+    vault_store.set_vault(create_test_vault());
+    const notes_port = create_mock_notes_port();
+    notes_port.read_note = vi
+      .fn()
+      .mockRejectedValue(
+        new Error("tauri invoke failed: read_note: file_not_text"),
+      );
+    const service = new NoteService(
+      notes_port,
+      create_mock_index_port(),
+      {
+        resolve_asset_url: vi.fn(),
+        write_image_asset: vi.fn(),
+      } as unknown as AssetsPort,
+      vault_store,
+      new NotesStore(),
+      new EditorStore(),
+      op_store,
+      { flush: vi.fn().mockReturnValue(null) } as unknown as EditorService,
+      () => 1,
+    );
+
+    const result = await service.open_note("photo.png", false);
+
+    expect(result.status).toBe("not_text");
+    expect(op_store.get("note.open:photo.png").status).not.toBe("error");
+  });
+
   it("bumps recent note when reopening the active note", async () => {
     const vault_store = new VaultStore();
     const notes_store = new NotesStore();
@@ -770,7 +801,10 @@ describe("NoteService", () => {
     const notes_port = create_mock_notes_port();
     notes_port.write_note = vi
       .fn()
-      .mockRejectedValue(new Error("conflict:mtime_mismatch"));
+      // The exact shape tauri_invoke rejects with.
+      .mockRejectedValue(
+        new Error("tauri invoke failed: write_note: conflict:mtime_mismatch"),
+      );
     const index_port = create_mock_index_port();
     const assets_port = {
       resolve_asset_url: vi.fn(),

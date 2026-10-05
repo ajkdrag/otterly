@@ -11,14 +11,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "dmg",
-      "nsis",
-      "msi",
-      "appimage",
-      "deb"
-    ],
+    "targets": ["app", "dmg", "nsis", "msi", "appimage", "deb"],
     "createUpdaterArtifacts": true,
     "windows": {
       "signCommand": "pwsh -NoProfile -ExecutionPolicy Bypass -File ../scripts/sign_windows.ps1 %1"
@@ -32,7 +25,22 @@
     ],
     "macOS": {
       "signingIdentity": "-"
-    }
+    },
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/otterly.desktop"
+      }
+    },
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown",
+        "description": "Markdown document",
+        "role": "Editor",
+        "mimeType": "text/markdown",
+        "contentTypes": ["net.daringfireball.markdown"]
+      }
+    ]
   },
   "plugins": {
     "updater": {
@@ -46,6 +54,8 @@
     "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
+        "create": false,
         "title": "otterly",
         "width": 1200,
         "height": 820,

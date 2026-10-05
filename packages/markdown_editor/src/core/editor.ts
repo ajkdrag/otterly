@@ -15,7 +15,11 @@ import {
   mounted_controllers,
   surface_input,
 } from "./block_field.js";
-import { editor_mode_extensions, type EditorMode } from "./editor_mode.js";
+import {
+  editor_mode_extensions,
+  source_theme,
+  type EditorMode,
+} from "./editor_mode.js";
 import { editor_theme } from "./editor_theme.js";
 import { inline_rendering } from "./inline_rendering.js";
 import { context_keymap } from "./keys.js";
@@ -67,6 +71,7 @@ export function create_text_state(
 ): EditorState {
   return create_source_state(source, [
     editor_theme,
+    source_theme,
     EditorView.lineWrapping,
     EditorState.allowMultipleSelections.of(true),
     drawSelection(),

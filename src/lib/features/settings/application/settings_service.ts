@@ -2,7 +2,10 @@ import type { VaultSettingsPort } from "$lib/features/vault";
 import type { SettingsPort } from "$lib/features/settings/ports";
 import type { VaultStore } from "$lib/features/vault";
 import type { OpStore } from "$lib/app";
-import type { EditorSettings } from "$lib/shared/types/editor_settings";
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  type EditorSettings,
+} from "$lib/shared/types/editor_settings";
 import type { VaultId } from "$lib/shared/types/ids";
 import type {
   SettingsLoadResult,
@@ -152,6 +155,22 @@ export class SettingsService {
         status: "failed",
         error: message,
       };
+    }
+  }
+
+  // The settings that do not depend on a vault (zoom, width, autosave), for a
+  // window without one. Defaults fill in the rest.
+  async load_global_editor_settings(): Promise<EditorSettings> {
+    try {
+      return await apply_global_only_overrides(
+        { ...DEFAULT_EDITOR_SETTINGS },
+        (key) => this.settings_port.get_setting<unknown>(key),
+      );
+    } catch (error) {
+      log.error("Load global editor settings failed", {
+        error: error_message(error),
+      });
+      return { ...DEFAULT_EDITOR_SETTINGS };
     }
   }
 

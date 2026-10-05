@@ -15,3 +15,6 @@ mod link_rewrite;
 
 #[path = "../../tests/git_service_local_repo.rs"]
 mod git_service_local_repo;
+
+#[path = "../../tests/document_service.rs"]
+mod document_service;

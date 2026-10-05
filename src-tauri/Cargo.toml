@@ -50,3 +50,6 @@ filetime = "0.2"
 opt-level = 2
 lto = "thin"
 codegen-units = 16
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "~2.4.0"

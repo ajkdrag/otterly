@@ -247,7 +247,7 @@ export class NoteService {
         this.succeed_operation(op_key);
         return { status: "not_found" };
       }
-      if (error_message(error) === "file_not_text") {
+      if (error_message(error).includes("file_not_text")) {
         this.succeed_operation(op_key);
         return { status: "not_text" };
       }
@@ -877,7 +877,8 @@ export class NoteService {
   }
 
   private is_mtime_conflict_error(error: unknown): boolean {
-    return error_message(error).startsWith("conflict:mtime_mismatch");
+    // tauri_invoke wraps backend errors as "tauri invoke failed: <cmd>: <error>".
+    return error_message(error).includes("conflict:mtime_mismatch");
   }
 
   private is_note_exists_error(error: unknown): boolean {

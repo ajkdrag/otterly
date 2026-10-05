@@ -176,6 +176,14 @@ export const ACTION_IDS = {
   hotkey_clear_binding: "hotkey.clear_binding",
   hotkey_reset_all: "hotkey.reset_all",
   hotkey_reset_single: "hotkey.reset_single",
+
+  document_editor_mount: "document.editor_mount",
+  document_editor_unmount: "document.editor_unmount",
+  document_reload: "document.reload",
+  document_overwrite: "document.overwrite",
+  document_request_close: "document.request_close",
+  document_confirm_close: "document.confirm_close",
+  document_cancel_close: "document.cancel_close",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

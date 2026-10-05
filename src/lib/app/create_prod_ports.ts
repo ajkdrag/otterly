@@ -18,7 +18,12 @@ import { create_shell_tauri_adapter } from "$lib/features/shell";
 import { create_git_tauri_adapter } from "$lib/features/git";
 import { create_watcher_tauri_adapter } from "$lib/features/watcher";
 import { create_updater_tauri_adapter } from "$lib/features/updater";
+import {
+  create_document_tauri_adapter,
+  document_asset_url,
+} from "$lib/features/document";
 import type { Ports } from "$lib/app/di/app_ports";
+import type { DocumentWindowPorts } from "$lib/app/di/create_document_window_context";
 
 export function create_prod_ports(): Ports {
   const assets = create_assets_tauri_adapter();
@@ -54,5 +59,24 @@ export function create_prod_ports(): Ports {
     git,
     watcher,
     updater,
+  };
+}
+
+export function create_document_window_ports(
+  window_label: string,
+): DocumentWindowPorts {
+  const clipboard = create_clipboard_tauri_adapter();
+  return {
+    settings: create_settings_tauri_adapter(),
+    vault_settings: create_vault_settings_tauri_adapter(),
+    shell: create_shell_tauri_adapter(),
+    document: create_document_tauri_adapter(),
+    editor: create_codemirror_editor_port({
+      // Document buffers have no vault, so this never runs.
+      resolve_asset_url_for_vault: () => "",
+      copy_text: (text) => clipboard.write_text(text),
+      resolve_document_asset_url: (relative_path) =>
+        document_asset_url(window_label, relative_path),
+    }),
   };
 }

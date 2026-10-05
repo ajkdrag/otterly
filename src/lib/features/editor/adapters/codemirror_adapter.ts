@@ -71,6 +71,8 @@ type AdapterOptions = {
     path: AssetPath,
   ) => string | Promise<string>;
   copy_text: (text: string) => Promise<void>;
+  // Outside a vault (a document window), relative images resolve here.
+  resolve_document_asset_url?: (relative_path: string) => string;
 };
 type BufferEntry = {
   note_path: string;
@@ -85,6 +87,16 @@ type BufferEntry = {
 const log = create_logger("codemirror_adapter");
 // Holds the grammar of a text file. It loads after the buffer opens.
 const text_language = new Compartment();
+// CodeMirror re-reads line height and character width only when it thinks
+// they could have changed, such as on a theme change. Zoom and width are CSS
+// variables it cannot see, so we swap between two empty themes to say so.
+// requestMeasure alone is not enough: a short note fills the window at every
+// zoom, so no box changes size and the old metrics stay.
+const metrics_compartment = new Compartment();
+const metrics_themes = [
+  EditorView.theme({ "&": { "--editor-metrics": "0" } }),
+  EditorView.theme({ "&": { "--editor-metrics": "1" } }),
+];
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -152,8 +164,12 @@ export function create_codemirror_editor_port(
         images({
           resolve_image(source, signal) {
             if (signal.aborted) return "";
-            if (/^[a-z][a-z0-9+.-]*:/i.test(source) || !current.vault_id)
-              return source;
+            if (/^[a-z][a-z0-9+.-]*:/i.test(source)) return source;
+            if (!current.vault_id) {
+              return options.resolve_document_asset_url
+                ? options.resolve_document_asset_url(decode_asset_path(source))
+                : source;
+            }
             const path = resolve_relative_asset_path(
               current.note_path,
               decode_asset_path(source),
@@ -206,7 +222,9 @@ export function create_codemirror_editor_port(
           },
         }),
       ];
+      let metrics_theme_index = 0;
       const extensions: Extension = [
+        metrics_compartment.of(metrics_themes[0] ?? []),
         // CodeMirror catches exceptions from plugins, listeners, and widgets
         // and only prints them to the console. Send them to the app log.
         EditorView.exceptionSink.of((exception: unknown) => {
@@ -238,14 +256,31 @@ export function create_codemirror_editor_port(
       const view = new EditorView({ parent: root, state: current.state });
       // Mermaid embeds its colors in the SVG. Cached buffers render again when
       // mounted; the active view needs an explicit refresh when the theme flips.
-      const color_scheme_observer = new MutationObserver((records) => {
+      // Zoom and width are CSS variables on the root's style. See
+      // metrics_compartment.
+      const root_observer = new MutationObserver((records) => {
+        if (destroyed) return;
         const scheme = document.documentElement.dataset.colorScheme ?? null;
-        if (!destroyed && records.some((record) => record.oldValue !== scheme))
+        if (records.some((record) => record.attributeName === "style")) {
+          metrics_theme_index = 1 - metrics_theme_index;
+          view.dispatch({
+            effects: metrics_compartment.reconfigure(
+              metrics_themes[metrics_theme_index] ?? [],
+            ),
+          });
+        }
+        if (
+          records.some(
+            (record) =>
+              record.attributeName === "data-color-scheme" &&
+              record.oldValue !== scheme,
+          )
+        )
           view.dispatch({ effects: refresh_code_diagrams.of(null) });
       });
-      color_scheme_observer.observe(document.documentElement, {
+      root_observer.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: ["data-color-scheme"],
+        attributeFilter: ["data-color-scheme", "style"],
         attributeOldValue: true,
       });
       refresh_word_count();
@@ -256,7 +291,7 @@ export function create_codemirror_editor_port(
         destroy() {
           if (destroyed) return;
           destroyed = true;
-          color_scheme_observer.disconnect();
+          root_observer.disconnect();
           cancel_pending();
           cancel_word_count();
           view.destroy();

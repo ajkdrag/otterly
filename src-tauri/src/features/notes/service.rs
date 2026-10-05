@@ -383,7 +383,7 @@ pub fn read_note_meta(
     build_note_meta(&root, &note_id)
 }
 
-fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
+pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
     static NEXT_TEMP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let dir = path.parent().ok_or("invalid note path")?;
     std::fs::create_dir_all(dir).map_err(|e| {
@@ -400,6 +400,11 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
         log::error!("Failed to write temp file {}: {}", tmp.display(), e);
         e.to_string()
     })?;
+    // The rename replaces the file, so carry its permissions over. Otherwise
+    // saving a script opened from outside a vault drops its executable bit.
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let _ = std::fs::set_permissions(&tmp, metadata.permissions());
+    }
     std::fs::rename(&tmp, path).map_err(|e| {
         log::error!(
             "Failed to rename {} -> {}: {}",

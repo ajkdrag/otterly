@@ -1274,6 +1274,35 @@ These scenarios apply to the editor package as a framework.
 - **Setup/action:** Click an image, PDF, or any file over 20 MB or not valid UTF-8 in the tree.
 - **Expected:** It opens in the system's default app. No tab opens, and no error shows.
 
+## 25. Files opened outside a vault
+
+### WIN-001. A file opened from the OS gets its own window
+
+- **Setup/action:** Double click a `.md` file, use "Open With" > Otterly, or launch `otterly path/to/file.md`.
+- **Expected:** A window titled with the file name shows it. A cold launch shows only that window, not the vault picker. Opening the same file again focuses its window.
+- **Edge cases/notes:** On Windows and Linux a second launch hands the file to the running app. A plain launch with no file shows the vault window.
+
+### WIN-002. Saving keeps the file exact
+
+- **Setup/action:** Edit a CRLF file and wait for autosave, or press Cmd+S.
+- **Expected:** Only the edit changes. Line endings and permissions stay. The title shows "∘" while unsaved.
+- **Edge cases/notes:** Zoom (Cmd+= / Cmd+- / Cmd+0) works and shares the app's saved zoom. The caret and selection follow the new text size, even in a short note.
+
+### WIN-003. Outside edits and conflicts
+
+- **Setup/action:** Change the file in another program, then switch back to its window.
+- **Expected:** A clean window reloads the file. With unsaved edits, a banner offers "Reload from disk" or "Keep my version". Autosave waits for that choice.
+
+### WIN-004. Closing with unsaved edits asks
+
+- **Setup/action:** Type, then press Cmd+W or click the close button before autosave runs.
+- **Expected:** A dialog offers Save, Don't save, or Cancel. Save writes the file and closes the window.
+
+### WIN-005. A document window only reaches its own file
+
+- **Setup/action:** Open a note with relative images and links.
+- **Expected:** Images from the file's folder or below load. Links to other files show a short notice and do not open them. Links to websites open in the browser.
+
 ## Acceptance record for future changes
 
 For each run, record scenario IDs, platform/WebView, app build, fixture identity, and the result. Separate automated state checks, real-browser interaction, and native Tauri computer use. Record failed scenarios and unmeasured combinations alongside passes.

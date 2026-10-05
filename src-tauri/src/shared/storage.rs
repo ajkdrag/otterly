@@ -111,23 +111,25 @@ pub fn vault_path(app: &AppHandle, vault_id: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(path))
 }
 
+// Decodes into bytes first: a non-ASCII name is several escaped bytes that
+// only make sense together as UTF-8.
 fn url_decode(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut chars = input.bytes();
-    while let Some(b) = chars.next() {
+    let mut result = Vec::with_capacity(input.len());
+    let mut bytes = input.bytes();
+    while let Some(b) = bytes.next() {
         if b == b'%' {
-            let hi = chars.next().and_then(|c| (c as char).to_digit(16));
-            let lo = chars.next().and_then(|c| (c as char).to_digit(16));
+            let hi = bytes.next().and_then(|c| (c as char).to_digit(16));
+            let lo = bytes.next().and_then(|c| (c as char).to_digit(16));
             if let (Some(h), Some(l)) = (hi, lo) {
-                result.push((h * 16 + l) as u8 as char);
+                result.push((h * 16 + l) as u8);
             } else {
-                result.push('%');
+                result.push(b'%');
             }
         } else {
-            result.push(b as char);
+            result.push(b);
         }
     }
-    result
+    String::from_utf8_lossy(&result).into_owned()
 }
 
 pub fn handle_asset_request(app: &AppHandle, req: Request<Vec<u8>>) -> Response<Vec<u8>> {
@@ -137,20 +139,25 @@ pub fn handle_asset_request(app: &AppHandle, req: Request<Vec<u8>>) -> Response<
         .trim_start_matches("otterly-asset:")
         .trim_start_matches('/');
 
+    // otterly-asset://vault/<vault id>/<path> for notes, and
+    // otterly-asset://document/<window label>/<path> for a file opened outside
+    // a vault. Both paths are relative and cannot leave their root.
     let parts: Vec<&str> = rel.splitn(3, '/').collect();
-    if parts.len() != 3 || parts[0] != "vault" {
+    if parts.len() != 3 {
         return Response::builder().status(400).body(Vec::new()).unwrap();
     }
-
-    let vault_id = parts[1];
     let asset_rel = url_decode(parts[2]);
-
-    let vault_path = match vault_path(app, vault_id) {
-        Ok(p) => p,
-        Err(_) => return Response::builder().status(404).body(Vec::new()).unwrap(),
+    let resolved = match parts[0] {
+        "vault" => match vault_path(app, parts[1]) {
+            Ok(root) => crate::features::notes::service::safe_vault_abs(&root, &asset_rel),
+            Err(_) => return Response::builder().status(404).body(Vec::new()).unwrap(),
+        },
+        "document" => crate::features::document::service::document_asset_path(
+            app, parts[1], &asset_rel,
+        ),
+        _ => return Response::builder().status(400).body(Vec::new()).unwrap(),
     };
-
-    let abs = match crate::features::notes::service::safe_vault_abs(&vault_path, &asset_rel) {
+    let abs = match resolved {
         Ok(p) => p,
         Err(_) => return Response::builder().status(403).body(Vec::new()).unwrap(),
     };

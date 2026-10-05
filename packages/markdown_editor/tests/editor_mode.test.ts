@@ -68,6 +68,8 @@ describe("plain text files", () => {
       parent,
       state: create_text_state("a: 1\r\nb: 2\r\n"),
     });
+    // Text files look like source mode: monospace, no rendering.
+    expect(view.dom.classList).toContain("md-source-mode");
     view.dispatch({ changes: { from: 4, insert: "0" } });
     expect(get_markdown_source(view.state)).toBe("a: 10\r\nb: 2\r\n");
     source_undo(view);

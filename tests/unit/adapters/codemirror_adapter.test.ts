@@ -234,6 +234,17 @@ describe("CodeMirror editor port", () => {
     expect(render).toHaveBeenCalledTimes(2);
   });
 
+  it("re-reads text metrics when zoom changes the root style", async () => {
+    // A theme change is what makes CodeMirror re-read line heights. Each
+    // theme adds its own class to the editor.
+    const { view } = await open_editor("text");
+    const classes_before = view.dom.className;
+    document.documentElement.style.setProperty("--editor-zoom", "1.4");
+    await Promise.resolve();
+    expect(view.dom.className).not.toBe(classes_before);
+    document.documentElement.style.removeProperty("--editor-zoom");
+  });
+
   it("focuses embedded code after selecting and inserting at source offsets", async () => {
     const { session, root } = await open_editor("```\nhello\n```");
     session.set_selection(5, 8);

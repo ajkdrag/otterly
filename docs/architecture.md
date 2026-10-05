@@ -80,6 +80,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `shell`     | Open external URLs                                            |
 | `watcher`   | Filesystem watcher start/stop                                 |
 | `updater`   | Background update download, install and relaunch              |
+| `document`  | One file opened outside any vault, in its own window          |
 
 ### Folder structure (first 2 levels)
 
@@ -103,6 +104,19 @@ src-tauri/src/
 tests/
 └── unit/                 # Frontend unit tests (stores, services, reactors, adapters, etc.)
 ```
+
+### Windows
+
+The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave), and the `document` feature, and nothing that needs a vault.
+
+The backend keeps a map from window label to file path. `read_document` and `write_document` take no path: they act on the calling window's file. So a document window cannot reach any other file on disk.
+
+How files arrive:
+
+- macOS: `RunEvent::Opened`, for a cold launch and for a running app. `tauri.conf.json` declares the main window with `create: false`, and `RunEvent::Ready` creates it only when no file opened.
+- Windows and Linux: the file is a command-line argument. `tauri-plugin-single-instance` forwards a second launch's arguments to the running process.
+
+File associations live in `tauri.conf.json` (`bundle.fileAssociations`). Linux needs `src-tauri/linux/otterly.desktop`, because the default desktop entry passes no `%F`. macOS also merges `src-tauri/Info.plist`, which declares the Markdown type for older macOS versions.
 
 ### Cross-runtime split
 

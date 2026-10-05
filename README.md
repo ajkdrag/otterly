@@ -34,6 +34,16 @@ Otterly is for people who want both:
 
 If you stop using Otterly, your notes are still just Markdown files in a folder you already own.
 
+## Open Markdown Files With Otterly
+
+Otterly can open any `.md` file, not just notes in a vault. The file opens in its own window. Edits save back to the same file, with its line endings kept.
+
+To make Otterly the default app for Markdown:
+
+- **macOS:** Select a `.md` file in Finder, press Cmd+I, pick Otterly under "Open with", and click "Change All".
+- **Windows:** Right-click a `.md` file, choose "Open with" > "Choose another app", pick Otterly, and tick "Always use this app".
+- **Linux:** Right-click a `.md` file in your file manager, open its properties, and set Otterly as the default for "Markdown". From a terminal: `xdg-mime default otterly.desktop text/markdown`. The desktop file name depends on how you installed Otterly.
+
 ## Build From Source
 
 ### Prerequisites
