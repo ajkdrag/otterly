@@ -299,6 +299,7 @@ class CodeBlockController implements BlockController {
         void this.copy_source();
       });
       copy.className = "md-code-copy";
+      copy.replaceChildren(clipboard_icon());
       toolbar.append(copy);
     }
 
@@ -685,6 +686,29 @@ function create_button(label: string, action: () => void): HTMLButtonElement {
   button.setAttribute("aria-label", label);
   button.addEventListener("click", action);
   return button;
+}
+
+// Lucide "clipboard". The button keeps its aria-label, so the icon is decorative.
+function clipboard_icon(): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  for (const path_data of [
+    "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
+    "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
+  ]) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", path_data);
+    svg.append(path);
+  }
+  return svg;
 }
 
 // About 22px per line plus padding, between 64px and 320px.
