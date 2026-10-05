@@ -24,6 +24,8 @@ export type Theme = {
   font_size: number;
   line_height: number;
   paragraph_spacing: number;
+  heading_spacing_after: number;
+  list_item_spacing: number;
   spacing: ThemeSpacing;
   heading_color: ThemeHeadingColor;
   heading_font_weight: number;
@@ -75,6 +77,8 @@ const SHARED_DEFAULTS: Omit<
   font_size: 1.0,
   line_height: 1.7,
   paragraph_spacing: 1.25,
+  heading_spacing_after: 1,
+  list_item_spacing: 0,
   spacing: "normal",
   heading_color: "inherit",
   heading_font_weight: 500,

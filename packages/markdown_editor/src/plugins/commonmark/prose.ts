@@ -140,7 +140,7 @@ export const heading: LineConstruct = {
       set_gap_after(
         render,
         node.node,
-        `calc(var(--editor-spacing, 1.5rem) * ${String(heading_gap_after[level] ?? 0.5)})`,
+        `calc(var(--editor-spacing, 1.5rem) * ${String(heading_gap_after[level] ?? 0.5)} * var(--editor-heading-spacing-after, 1))`,
       );
     }
   },
@@ -342,9 +342,11 @@ export const list_spacing: LineConstruct = {
     let previous: SyntaxNode | null = null;
     for (let item = node.node.firstChild; item; item = item.nextSibling) {
       if (item.name !== "ListItem") continue;
-      // Items sit at normal line spacing. Only the blank separator rows of a
-      // loose list space them apart.
+      // Items sit at normal line spacing unless the theme sets
+      // --editor-list-item-spacing. The blank separator rows of a loose list
+      // add their own space on top.
       if (previous) {
+        render.wrap(item, "md-list-item-spaced");
         const from = doc.lineAt(previous.to).number + 1;
         const to = doc.lineAt(item.from).number;
         for (let number = from; number < to; number++)

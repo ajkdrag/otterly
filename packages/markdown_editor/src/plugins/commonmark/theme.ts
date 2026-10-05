@@ -52,6 +52,11 @@ export const commonmark_theme: ThemeSpec = {
     lineHeight: "0",
     fontSize: "0",
   },
+  // Space above every item but the first. It sits on the item's wrapper, not
+  // on a line (see "Line boxes" in DESIGN.md).
+  ".md-wrap.md-list-item-spaced": {
+    paddingTop: "var(--editor-list-item-spacing, 0px)",
+  },
   [line_selector(".md-list-line")]: {
     paddingLeft: "calc(var(--md-list-depth, 1) * 1.5rem)",
   },

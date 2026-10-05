@@ -41,6 +41,8 @@ function build_token_entries(theme: Theme): [string, string][] {
     ["--editor-line-height", String(theme.line_height)],
     ["--editor-spacing", SPACING_MAP[theme.spacing] ?? "1.5rem"],
     ["--editor-paragraph-spacing", `${String(theme.paragraph_spacing)}rem`],
+    ["--editor-heading-spacing-after", String(theme.heading_spacing_after)],
+    ["--editor-list-item-spacing", `${String(theme.list_item_spacing)}rem`],
     [
       "--editor-heading-color",
       HEADING_COLOR_MAP[theme.heading_color] ?? "var(--foreground)",

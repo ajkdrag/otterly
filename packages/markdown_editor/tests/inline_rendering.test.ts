@@ -501,6 +501,18 @@ describe("headings and line prefixes", () => {
     expect(quotes("back")[1]).toBe(quotes("inner")[1]);
   });
 
+  test("SPACE-010 every list item but the first gets a wrapper the theme can space", () => {
+    const editor = open("‸- one\n  - nested\n- two\n- three");
+    const spaced = (text: string) =>
+      wrappers_of(line_with(editor, text)).filter((wrapper) =>
+        wrapper.classList.contains("md-list-item-spaced"),
+      );
+    expect(spaced("one")).toHaveLength(0);
+    expect(spaced("nested")).toHaveLength(0);
+    expect(spaced("two")).toHaveLength(1);
+    expect(spaced("three")).toHaveLength(1);
+  });
+
   test("SPACE-003 heading spacing sits on a wrapper around the heading, not on the blank rows around it", () => {
     const editor = open(
       "‸# Title\n\nOpening paragraph.\n\n## Section\n\nFollowing paragraph.",

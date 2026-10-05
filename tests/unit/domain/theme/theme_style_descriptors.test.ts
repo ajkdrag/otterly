@@ -75,6 +75,8 @@ describe("theme_style_descriptors", () => {
       "font_size",
       "line_height",
       "paragraph_spacing",
+      "heading_spacing_after",
+      "list_item_spacing",
       "spacing",
       "editor_text_color",
       "link_color",

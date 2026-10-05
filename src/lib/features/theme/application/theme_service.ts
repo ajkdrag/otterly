@@ -104,6 +104,11 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
     font_size: num(raw.font_size, defaults.font_size),
     line_height: num(raw.line_height, defaults.line_height),
     paragraph_spacing: num(raw.paragraph_spacing, defaults.paragraph_spacing),
+    heading_spacing_after: num(
+      raw.heading_spacing_after,
+      defaults.heading_spacing_after,
+    ),
+    list_item_spacing: num(raw.list_item_spacing, defaults.list_item_spacing),
     spacing: enum_val(
       raw.spacing,
       ["compact", "normal", "spacious"],
