@@ -167,6 +167,45 @@ describe("normalize_event_to_key", () => {
     expect(key).toBe("F12");
   });
 
+  it("reads the letter from the physical key when Option types another character", () => {
+    const option_f = mock_event({
+      metaKey: true,
+      altKey: true,
+      key: "ƒ",
+      code: "KeyF",
+    });
+    expect(normalize_event_to_key(option_f)).toBe("CmdOrCtrl+Alt+F");
+
+    const option_shift_f = mock_event({
+      metaKey: true,
+      altKey: true,
+      shiftKey: true,
+      key: "Ï",
+      code: "KeyF",
+    });
+    expect(normalize_event_to_key(option_shift_f)).toBe(
+      "CmdOrCtrl+Alt+Shift+F",
+    );
+
+    const option_e = mock_event({
+      metaKey: true,
+      altKey: true,
+      key: "Dead",
+      code: "KeyE",
+    });
+    expect(normalize_event_to_key(option_e)).toBe("CmdOrCtrl+Alt+E");
+  });
+
+  it("leaves AltGr characters on Windows alone", () => {
+    const euro = mock_event({
+      ctrlKey: true,
+      altKey: true,
+      key: "€",
+      code: "KeyE",
+    });
+    expect(normalize_event_to_key(euro)).toBe("CmdOrCtrl+Alt+€");
+  });
+
   it("uppercases single letter keys", () => {
     const key = normalize_event_to_key(mock_event({ metaKey: true, key: "k" }));
     expect(key).toBe("CmdOrCtrl+K");
