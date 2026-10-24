@@ -126,6 +126,29 @@ fn snapshot_keeps_the_path_of_a_file_that_is_not_utf8() {
     assert!(snapshot.error.is_some());
 }
 
+#[cfg(unix)]
+#[test]
+fn snapshot_names_the_file_it_can_not_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = TempDir::new().unwrap();
+    let theme = dir.path().join("theme.yaml");
+    std::fs::write(&theme, "name: x").unwrap();
+    std::fs::set_permissions(&theme, std::fs::Permissions::from_mode(0o000)).unwrap();
+    // Root reads it anyway, and then there is no error to check.
+    if std::fs::File::open(&theme).is_ok() {
+        return;
+    }
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(snapshot.path, theme.to_string_lossy());
+    assert!(snapshot.text.is_none());
+    assert!(snapshot
+        .error
+        .unwrap()
+        .starts_with("theme.yaml can't be read"));
+}
+
 fn event(kind: EventKind, names: &[&str]) -> notify::Event {
     let mut event = notify::Event::new(kind);
     for name in names {

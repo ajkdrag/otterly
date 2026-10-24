@@ -153,6 +153,7 @@ line 1: extends must be one of mocha, nordic-light, nordic-dark (got "my-theme")
 line 1: the file must be a mapping of keys to values, like font_size: 1.1
 Found both theme.yaml and theme.json. Delete one.
 theme.yaml is 300 KB. The limit is 256 KB.
+theme.yaml can't be read: Permission denied (os error 13)
 ```
 
 The toast shows the first error plus `(+N more)`. The full list is in Settings > Theme. Otterly stops counting at 20, so a file with more errors shows `20+ errors` in Settings and `(+19 or more)` in the toast.

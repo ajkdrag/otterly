@@ -205,17 +205,19 @@ fn theme_file_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 // None when the file is gone.
 fn read_capped_text(path: &Path) -> Result<Option<String>, String> {
-    let mut file = match File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-    };
-    // The error names the file because the toast shows it without the path.
+    // Every error names the file because the toast shows it without the path.
     let name = path
         .file_name()
         .and_then(OsStr::to_str)
         .unwrap_or("The theme file");
-    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    let cannot_read = |error: std::io::Error| format!("{name} can't be read: {error}");
+
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(cannot_read(error)),
+    };
+    let size = file.metadata().map_err(cannot_read)?.len();
     if size > MAX_THEME_FILE_BYTES {
         return Err(format!(
             "{name} is {} KB. The limit is 256 KB.",
@@ -223,8 +225,13 @@ fn read_capped_text(path: &Path) -> Result<Option<String>, String> {
         ));
     }
     let mut text = String::new();
-    file.read_to_string(&mut text)
-        .map_err(|_| format!("{name} is not UTF-8 text"))?;
+    file.read_to_string(&mut text).map_err(|error| {
+        if error.kind() == ErrorKind::InvalidData {
+            format!("{name} is not UTF-8 text")
+        } else {
+            cannot_read(error)
+        }
+    })?;
     Ok(Some(text))
 }
 
