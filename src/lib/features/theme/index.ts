@@ -1,12 +1,5 @@
-export {
-  register_theme_actions,
-  type ThemeActionInput,
-} from "$lib/features/theme/application/theme_actions";
-export {
-  ThemeService,
-  type ThemeLoadResult,
-  type ThemeFileCreateResult,
-} from "$lib/features/theme/application/theme_service";
+export { register_theme_actions } from "$lib/features/theme/application/theme_actions";
+export { ThemeService } from "$lib/features/theme/application/theme_service";
 export type {
   ThemeFilePort,
   ThemeFileSnapshot,

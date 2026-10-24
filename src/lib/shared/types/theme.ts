@@ -260,6 +260,8 @@ export const FILE_THEME_ID = "file";
 
 export type ThemeFileError = {
   line: number | null;
+  // The key the error is about, or null for a syntax error or an unreadable
+  // file. The UI shows only line and message. Only tests read key today.
   key: string | null;
   message: string;
 };
