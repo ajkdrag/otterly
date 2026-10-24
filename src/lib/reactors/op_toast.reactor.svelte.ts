@@ -6,6 +6,7 @@ const log = create_logger("op_toast_reactor");
 
 type ToastCommand =
   | { kind: "success"; message: string }
+  | { kind: "dismiss"; toast_id: string }
   | {
       kind: "error";
       message: string;
@@ -81,6 +82,13 @@ export function resolve_op_toast_commands(input: {
     ];
   }
 
+  // A fixed file clears its error toast, so it does not read as "still
+  // broken". Every load goes through "pending" first, so the previous status
+  // is never "error" here. Dismissing a toast that is not up does nothing.
+  if (key === "theme.file_load" && current_status === "success") {
+    return [{ kind: "dismiss", toast_id: key }];
+  }
+
   return [];
 }
 
@@ -93,6 +101,10 @@ export function create_op_toast_reactor(op_store: OpStore): () => void {
     for (const command of commands) {
       if (command.kind === "success") {
         toast.success(command.message);
+        continue;
+      }
+      if (command.kind === "dismiss") {
+        toast.dismiss(command.toast_id);
         continue;
       }
 

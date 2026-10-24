@@ -71,7 +71,7 @@ describe("op_toast.reactor", () => {
     ]);
   });
 
-  it("returns no toast when the theme file loads fine", () => {
+  it("dismisses the theme file error toast when the file loads fine", () => {
     const commands = resolve_op_toast_commands({
       key: "theme.file_load",
       previous_status: "pending",
@@ -80,7 +80,9 @@ describe("op_toast.reactor", () => {
       message: null,
     });
 
-    expect(commands).toEqual([]);
+    expect(commands).toEqual([
+      { kind: "dismiss", toast_id: "theme.file_load" },
+    ]);
   });
 
   it("returns no commands when status is unchanged", () => {
