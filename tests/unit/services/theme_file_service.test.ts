@@ -68,6 +68,25 @@ describe("ThemeService theme file", () => {
     });
   });
 
+  it("logs each error as its own line, so commas in a message stay whole", async () => {
+    const { service, port } = create_harness();
+    port._snapshot.text = "extends: nope\nfont_sise: 1\n";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await service.load_theme_file();
+
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledTimes(2);
+    });
+    expect(warn.mock.calls[0]?.[0]).toContain(
+      'Theme file has errors: line 1: extends must be one of mocha, nordic-light, nordic-dark (got "nope")',
+    );
+    expect(warn.mock.calls[1]?.[0]).toContain(
+      'Theme file has errors: line 2: unknown key "font_sise"',
+    );
+    warn.mockRestore();
+  });
+
   it("turns a failed read into an invalid state instead of throwing", async () => {
     const { service, port, op_store } = create_harness();
     port.read_theme_file = () =>

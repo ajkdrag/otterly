@@ -90,6 +90,8 @@ export class ThemeService {
       return this.fail_theme_file_load(snapshot.path, parsed.errors);
     }
     this.op_store.succeed("theme.file_load");
+    // The docs tell agents to look for this line to know an edit applied.
+    log.info("Theme file loaded", { path: snapshot.path });
     return {
       path: snapshot.path,
       status: "valid",
@@ -206,7 +208,11 @@ export class ThemeService {
     errors: ThemeFileError[],
   ): ThemeFileState {
     const messages = errors.map(format_theme_file_error);
-    log.warn("Theme file has errors", { path, errors: messages });
+    // One record per error, so a message with commas stays whole and grep
+    // shows each one. docs/theme_file.md tells agents to look for this text.
+    for (const message of messages) {
+      log.warn(`Theme file has errors: ${message}`);
+    }
     const more =
       messages.length > 1 ? ` (+${String(messages.length - 1)} more)` : "";
     this.op_store.fail("theme.file_load", `${messages[0] ?? ""}${more}`);

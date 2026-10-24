@@ -61,11 +61,34 @@ tokens:
 
 - Otterly waits about 150 ms after the last write, then reloads once. Editors that save through a temp file (vim, VS Code) and agents that write a temp file and rename it are fine. A burst of quick saves (under 150 ms apart) is one reload and one toast.
 - **Valid file:** the "Theme file" theme is updated and Otterly switches to it (and remembers that choice). If Settings is open with unsaved theme edits, the theme is updated but your active theme stays as it is.
-- **File with errors:** the last valid version stays on screen, so the app doesn't jump around while you are mid-edit. The errors show in Settings > Theme (in the "Theme file" card), in a toast, and in the app log.
+- **File with errors:** the last valid version stays on screen, so the app doesn't jump around while you are mid-edit. The errors show in Settings > Theme (in the "Theme file" card), in a toast, and in the app log (see [Checking an edit](#checking-an-edit)).
 - **Deleted file:** Otterly falls back to Mocha. Create the file again and it comes back.
 - **Empty file** (or only comments) is valid and equals Mocha.
 - The file theme is read-only in Settings. To tweak it there, duplicate it.
 - Limits: UTF-8 text, up to 256 KB.
+
+## Checking an edit
+
+When the file has errors, the last valid version stays on screen, so a bad save looks the same as a good one. If you can't see the window (a headless agent, for example), read the end of the app log instead:
+
+| OS      | Log file                                                                |
+| ------- | ----------------------------------------------------------------------- |
+| macOS   | `~/Library/Logs/com.otterly.app/otterly.log`                            |
+| Windows | `%LOCALAPPDATA%\com.otterly.app\logs\otterly.log`                       |
+| Linux   | `~/.local/share/com.otterly.app/logs/otterly.log` (or `$XDG_DATA_HOME`) |
+
+Save, wait a second, then look at the newest lines:
+
+```sh
+grep "Theme file" ~/Library/Logs/com.otterly.app/otterly.log | tail
+```
+
+- `Theme file loaded`: the file is valid and Otterly loaded it.
+- `Theme file has errors: line 3: ...`: one line per error. Nothing was applied. Fix the file and save again.
+
+Every line starts with a timestamp, so compare it with the time of your save. A `loaded` line after the error lines means the fix worked. The log is small (about 40 KB, then it rolls over), so read the tail and not the whole file.
+
+I checked the macOS path against a real build. The Windows and Linux paths come from Tauri's source and I have not checked them on those systems.
 
 ## extends
 
