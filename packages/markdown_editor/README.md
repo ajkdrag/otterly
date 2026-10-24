@@ -62,6 +62,8 @@ Positions in the public API are UTF-16 offsets in the LF-normalized display docu
 | `clipboard(...)`   | Markdown-first paste, HTML conversion through the host, image paste.                |
 | `callouts()`       | `> [!note]` callouts. A small example of a construct plugin.                        |
 
+`vim_mode(...)` is an extension, not a plugin, so it also works on text states. It wraps `@replit/codemirror-vim`. Put it in a compartment to toggle it, and call `apply_vimrc(text)` to load a vimrc. See [the design](DESIGN.md).
+
 ## Writing a plugin
 
 A plugin is a plain object. This one renders `==highlight==`, given a Lezer extension that produces `Highlight` and `HighlightMark` nodes:

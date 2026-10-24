@@ -1,7 +1,7 @@
 import { closeCompletion } from "@codemirror/autocomplete";
 import { Prec, type Extension, type StateCommand } from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
-import { CodeMirror, getCM, vim } from "@replit/codemirror-vim";
+import { CodeMirror, Vim, getCM, vim } from "@replit/codemirror-vim";
 import { reveal_surfaces_at_caret } from "../../core/block_field.js";
 import { source_redo, source_undo } from "../../core/source_state.js";
 
@@ -55,6 +55,26 @@ CodeMirror.commands.undo = (cm) => {
 CodeMirror.commands.redo = (cm) => {
   run_source_history(cm, source_redo);
 };
+
+// The engine copied the original undo and redo into its ex table when it
+// loaded, before the patch above, so :undo and :redo would still run them on
+// the display state. Point them at the patched commands.
+Vim.defineEx("undo", "u", (cm) => {
+  CodeMirror.commands.undo(cm);
+});
+Vim.defineEx("redo", "red", (cm) => {
+  CodeMirror.commands.redo(cm);
+});
+
+// The engine's :unmap also removes built-in keys (:unmap l works). After
+// that, mapclear() splits its keymap at the wrong index and the next vimrc
+// reload breaks every key. apply_vimrc resolves unmaps itself, so :unmap is
+// a vimrc-only command. The engine has no :nunmap, :vunmap and friends.
+Vim.defineEx("unmap", undefined, (cm) => {
+  const message = document.createElement("div");
+  message.textContent = ":unmap only works in the vimrc.";
+  cm.openNotification(message, { bottom: true, duration: 5000 });
+});
 
 // Same caret handling as the package's own history command: Vim expects the
 // caret at the start of the undone change. The engine records that start

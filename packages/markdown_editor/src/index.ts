@@ -131,9 +131,4 @@ export {
   type VimMode,
   type VimModeOptions,
 } from "./plugins/vim/index.js";
-export {
-  apply_vimrc,
-  parse_vimrc,
-  type VimrcCommand,
-  type VimrcProblem,
-} from "./plugins/vim/vimrc.js";
+export { apply_vimrc, type VimrcProblem } from "./plugins/vim/vimrc.js";

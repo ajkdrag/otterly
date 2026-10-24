@@ -115,7 +115,11 @@ const map_contexts: Record<string, MapContext> = {
 function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
   const [, name = "", rest = ""] = /^(\S+)\s*(.*)$/.exec(command.text) ?? [];
   if (name === "set") {
-    const items = rest.split(/\s+/).filter(Boolean);
+    // Vim ends a set line at a " that follows a space, like a comment.
+    const items = rest
+      .replace(/(^|\s)".*$/, "")
+      .split(/\s+/)
+      .filter(Boolean);
     if (!items.length) return problem(command, "set needs an option");
     return { ...command, kind: "set", items };
   }
@@ -149,6 +153,18 @@ function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
   // mapclear() cannot remove them, so a reload would never drop one.
   if (lhs.startsWith(":") && lhs !== ":")
     return problem(command, `Maps of ":" commands are not supported`);
+  const leader = /<(?:local)?leader>/i.exec(lhs);
+  if (leader)
+    return problem(
+      command,
+      `${leader[0]} is not supported, map the keys themselves (for example \\w)`,
+    );
+  const shadowing_key = find_shadowing_key(context, lhs);
+  if (shadowing_key)
+    return problem(
+      command,
+      `Never fires: ${shadowing_key} is already a Vim command`,
+    );
   return {
     ...command,
     kind: "map",
@@ -157,6 +173,37 @@ function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
     lhs,
     rhs,
   };
+}
+
+// A map with no context covers every mode except insert.
+const modes_without_insert: readonly MapContext[] = [
+  "normal",
+  "visual",
+  "operatorPending",
+];
+
+// One-key commands the engine already binds, and the contexts where it does.
+// The engine runs a full match as soon as the key is typed, and a longer map
+// that starts with the same key only counts as a partial match, so it never
+// fires. These are the keys vimrc files use as a leader or a prefix.
+// @Incomplete: Any other one-key command shadows longer maps the same way
+// (nmap jk ... never fires), but we do not keep a list of the engine's keys.
+const shadowing_keys: Record<string, readonly MapContext[]> = {
+  "<Space>": modes_without_insert,
+  "<BS>": modes_without_insert,
+  ",": modes_without_insert,
+  ";": modes_without_insert,
+  "<CR>": ["normal"],
+};
+
+// The first key of lhs when a built-in command shadows a map that is longer
+// than that key in every context the map covers.
+function find_shadowing_key(context: MapContext, lhs: string): string | null {
+  const first_key = /^(?:<(?:[CSMA]-)*\w+>|.)/.exec(lhs)?.[0] ?? "";
+  const shadowed_in = shadowing_keys[first_key];
+  if (!shadowed_in || lhs.length === first_key.length) return null;
+  const covers = context ? [context] : modes_without_insert;
+  return covers.every((mode) => shadowed_in.includes(mode)) ? first_key : null;
 }
 
 // Returns a problem message, or null when the option took the value.

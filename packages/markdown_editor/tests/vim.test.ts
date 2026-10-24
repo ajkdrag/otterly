@@ -82,6 +82,12 @@ function press(view: EditorView, ...keys: string[]) {
   for (const key of keys) Vim.handleKey(cm, key, "user");
 }
 
+function exCommand(view: EditorView, command: string) {
+  const cm = getCM(view);
+  if (!cm) throw new Error("Vim is not running in this view");
+  Vim.handleEx(cm, command);
+}
+
 // Insert mode keys Vim does not take fall through to the editor, which
 // inserts them.
 function type(view: EditorView, text: string) {
@@ -122,6 +128,12 @@ describe("vim mode", () => {
     expect(view.state.doc.toString()).toBe("one\ntwo\nthree");
 
     press(view, "<C-r>");
+    expect(view.state.doc.toString()).toBe("one\nthree");
+
+    exCommand(view, "undo");
+    expect(view.state.doc.toString()).toBe("one\ntwo\nthree");
+
+    exCommand(view, "redo");
     expect(view.state.doc.toString()).toBe("one\nthree");
   });
 
@@ -222,19 +234,63 @@ describe("vim mode", () => {
     expect(table_widget(view)).not.toBeNull();
   });
 
-  test("VIM-011 turning Vim off in visual mode gives plain editing back", () => {
-    const vim = new Compartment();
-    const view = vim_editor("one two", { vim });
-    press(view, "v", "l");
-    expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(true);
-    view.dispatch({ effects: vim.reconfigure([]) });
-    expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(false);
-    expect(view.dom.querySelector(".cm-fat-cursor")).toBeNull();
-    expect(getCM(view)).toBeFalsy();
+  test("VIM-013 a click into a rendered table gives focus back to the editor when it turns into source", async () => {
+    const view = vim_editor(`before\n\n${table}\n\nafter`);
+    view.focus();
+    const cell = view.dom.querySelector<HTMLElement>("[data-row][data-col]");
+    cell?.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      }),
+    );
+    expect(view.hasFocus).toBe(false);
+    window.dispatchEvent(
+      new MouseEvent("mouseup", { bubbles: true, button: 0 }),
+    );
 
-    view.dispatch(view.state.replaceSelection("X"));
-    expect(view.state.doc.toString()).toBe("Xe two");
+    // The reveal freeze ends about 100 ms after the button comes up. jsdom
+    // can be slow to build the table, so the wait is generous.
+    await vi.waitFor(
+      () => {
+        expect(table_widget(view)).toBeNull();
+      },
+      { timeout: 3000 },
+    );
+    await vi.waitFor(
+      () => {
+        expect(view.hasFocus).toBe(true);
+      },
+      { timeout: 3000 },
+    );
   });
+
+  // Insert mode uses the native caret, so the block cursor class is only on
+  // in the other two.
+  test.each([
+    ["visual mode", ["v", "l"], true, "Xe two"],
+    ["insert mode", ["i"], false, "Xone two"],
+    ["a pending operator", ["d"], true, "Xone two"],
+  ])(
+    "VIM-011 turning Vim off in %s gives plain editing back",
+    (_state, keys, has_block_cursor, expected_doc) => {
+      const vim = new Compartment();
+      const view = vim_editor("one two", { vim });
+      press(view, ...keys);
+      expect(getCM(view)).toBeTruthy();
+      expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(
+        has_block_cursor,
+      );
+      view.dispatch({ effects: vim.reconfigure([]) });
+      expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(false);
+      expect(view.dom.querySelector(".cm-fat-cursor")).toBeNull();
+      expect(getCM(view)).toBeFalsy();
+
+      view.dispatch(view.state.replaceSelection("X"));
+      expect(view.state.doc.toString()).toBe(expected_doc);
+    },
+  );
 });
 
 describe("vimrc", () => {
@@ -251,6 +307,13 @@ describe("vimrc", () => {
         "map <C-s> :s/a  b/<CR>",
         "nunmap Y",
         "set nopcre insertModeEscKeysTimeout=300",
+        "nmap <leader>w :w<CR>",
+        "nnoremap <Space>x dd",
+        "vmap ,y y",
+        "map <CR>x dd",
+        "imap <Space>x y",
+        "nmap <Space> x",
+        'set nopcre " use JS regex',
       ].join("\r\n"),
     );
 
@@ -264,6 +327,10 @@ describe("vimrc", () => {
         line: 10,
         items: ["nopcre", "insertModeEscKeysTimeout=300"],
       },
+      { kind: "map", line: 14, context: null, lhs: "<CR>x" },
+      { kind: "map", line: 15, context: "insert", lhs: "<Space>x" },
+      { kind: "map", line: 16, context: "normal", lhs: "<Space>" },
+      { kind: "set", line: 17, items: ["nopcre"] },
     ]);
     expect(commands.slice(0, 3)).toMatchObject([
       { lhs: "jk", rhs: "<Esc>" },
@@ -274,6 +341,9 @@ describe("vimrc", () => {
       [5, "let mapleader = ' '"],
       [6, "nmap j"],
       [7, "vmap <buffer> x y"],
+      [11, "nmap <leader>w :w<CR>"],
+      [12, "nnoremap <Space>x dd"],
+      [13, "vmap ,y y"],
     ]);
   });
 
@@ -319,6 +389,14 @@ describe("vimrc", () => {
     // The built-in l still moves after another reload.
     apply_vimrc("");
     const view = vim_editor("text");
+    press(view, "l");
+    expect(view.state.selection.main.head).toBe(1);
+  });
+
+  test("VIM-014 the :unmap prompt leaves built-in keys alone, so a reload still works", () => {
+    const view = vim_editor("text");
+    exCommand(view, "unmap l");
+    apply_vimrc("imap jk <Esc>");
     press(view, "l");
     expect(view.state.selection.main.head).toBe(1);
   });

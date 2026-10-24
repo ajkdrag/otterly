@@ -6,10 +6,12 @@ import {
   dropCursor,
   keymap,
   type KeyBinding,
+  type ViewUpdate,
 } from "@codemirror/view";
 import {
   block_at,
   block_extensions,
+  block_field,
   controller_for_block,
   is_block_rendered,
   mounted_controllers,
@@ -29,7 +31,7 @@ import {
   construct_registry,
   type MarkdownPlugin,
 } from "./plugin.js";
-import { reveal_freeze_extension } from "./reveal.js";
+import { reveal_freeze, reveal_freeze_extension } from "./reveal.js";
 import {
   create_source_state,
   source_redo,
@@ -182,15 +184,14 @@ const surface_selection_sync = EditorView.updateListener.of((update) => {
   }
   if ((update.focusChanged || update.selectionSet) && update.view.hasFocus)
     move_caret_into_surface(update.view);
+  if (surface_turned_into_source(update)) take_focus_back(update.view);
   if (!update.selectionSet && !update.docChanged) return;
   if (
     update.transactions.some((transaction) =>
       transaction.annotation(surface_input),
     )
-  ) {
-    take_focus_from_revealed_surface(update.view);
+  )
     return;
-  }
   const head = update.state.selection.main.head;
   for (const controller of mounted_controllers(update.view)) {
     if (controller.owns?.(head)) controller.sync_selection?.();
@@ -236,18 +237,37 @@ function move_caret_into_surface(view: EditorView) {
 }
 
 // Under reveal_surfaces_at_caret, a click inside a rendered code block or
-// table still focuses its nested editor, which then moves the outer selection
-// into the block. That reveals the block's source and destroys the nested
-// view, and the focus goes with it. Give focus back to the outer editor, so
-// the next key lands in the source the caret now sits in.
-function take_focus_from_revealed_surface(view: EditorView) {
-  if (!view.state.facet(reveal_surfaces_at_caret)) return;
-  const block = block_at(view.state, view.state.selection.main.head);
-  if (!block || block.construct.reveal !== "surface") return;
-  if (is_block_rendered(view.state, block)) return;
+// table still focuses its nested editor, which moves the outer selection into
+// the block. The block shows its source only once the click is over (the
+// reveal freeze holds it rendered until about 100 ms after the button comes
+// up), and then the nested view is destroyed together with the focus. This
+// finds that moment: the block at the caret was rendered before the update
+// and is source now.
+function surface_turned_into_source(update: ViewUpdate): boolean {
+  const { startState, state } = update;
+  if (!state.facet(reveal_surfaces_at_caret)) return false;
+  const nested_editor_moved_caret = update.transactions.some((transaction) =>
+    transaction.annotation(surface_input),
+  );
+  const click_ended =
+    startState.field(reveal_freeze, false)?.frozen === true &&
+    state.field(reveal_freeze, false)?.frozen === false;
+  if (!nested_editor_moved_caret && !click_ended) return false;
+  const block = block_at(state, state.selection.main.head);
+  if (!block || block.construct.reveal !== "surface") return false;
+  const was_source = startState
+    .field(block_field)
+    .revealed.some((from) => update.changes.mapPos(from, 1) === block.from);
+  return !was_source && state.field(block_field).revealed.includes(block.from);
+}
+
+// Give focus back to the outer editor, so the next key lands in the source
+// the caret now sits in. Skip it when focus is somewhere else on purpose.
+function take_focus_back(view: EditorView) {
   // Focusing dispatches, which cannot happen inside this update.
   queueMicrotask(() => {
-    view.focus();
+    const doc = view.contentDOM.ownerDocument;
+    if (!view.hasFocus && doc.activeElement === doc.body) view.focus();
   });
 }
 
