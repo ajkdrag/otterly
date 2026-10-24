@@ -177,6 +177,9 @@ export const ACTION_IDS = {
   hotkey_reset_all: "hotkey.reset_all",
   hotkey_reset_single: "hotkey.reset_single",
 
+  tags_open_tag: "tags.open_tag",
+  tags_close_tag: "tags.close_tag",
+
   document_editor_mount: "document.editor_mount",
   document_editor_unmount: "document.editor_unmount",
   document_copy_path: "document.copy_path",
