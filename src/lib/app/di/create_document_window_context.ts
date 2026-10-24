@@ -18,7 +18,11 @@ import {
 } from "$lib/features/search";
 import { register_help_actions } from "$lib/app/orchestration/help_actions";
 import { VaultStore } from "$lib/features/vault";
-import { ThemeService, type ThemeFilePort } from "$lib/features/theme";
+import {
+  ThemeService,
+  register_theme_actions,
+  type ThemeFilePort,
+} from "$lib/features/theme";
 import { DEFAULT_HOTKEYS, HotkeyService } from "$lib/features/hotkey";
 import {
   DocumentService,
@@ -29,6 +33,7 @@ import {
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
+import { create_theme_file_reactor } from "$lib/reactors/theme_file.reactor.svelte";
 import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
 import { create_document_autosave_reactor } from "$lib/reactors/document_autosave.reactor.svelte";
@@ -130,9 +135,17 @@ export function create_document_window_context(input: {
     stores: { ui: stores.ui },
     services: { settings: settings_service },
   });
+  // The theme file reactor runs theme.reload_file. The other theme actions
+  // come along and nothing in this window calls them.
+  register_theme_actions({
+    registry: action_registry,
+    stores: { ui: stores.ui },
+    services: { theme: theme_service, clipboard: clipboard_service },
+  });
 
   const cleanups = [
     create_theme_reactor(stores.ui),
+    create_theme_file_reactor(theme_service, action_registry),
     create_editor_zoom_reactor(stores.ui),
     create_editor_width_reactor(stores.ui),
     create_document_autosave_reactor(

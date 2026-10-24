@@ -251,6 +251,7 @@ export function create_app_context(input: {
     git_service,
     links_service,
     watcher_service,
+    theme_service,
     action_registry,
   });
 
