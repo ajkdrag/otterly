@@ -18,7 +18,11 @@ const one_problem = [
 
 function create_harness(results: VimrcLoadResult[]) {
   const registry = new ActionRegistry();
-  const load_vimrc = vi.fn(() => Promise.resolve(results.shift()!));
+  const load_vimrc = vi.fn(() => {
+    const result = results.shift();
+    if (!result) throw new Error("no load result left");
+    return Promise.resolve(result);
+  });
   register_vim_actions({
     registry,
     services: { vim: { load_vimrc } as unknown as VimService },
@@ -42,23 +46,24 @@ describe("vim.load_vimrc", () => {
       problems_found,
       { ...problems_found, status: "unchanged", problems_changed: false },
     ]);
+    const open_settings = vi.fn();
     registry.register({
       id: ACTION_IDS.settings_open,
       label: "Open Settings",
-      execute: vi.fn(),
+      execute: open_settings,
     });
 
     await registry.execute(ACTION_IDS.vim_load_vimrc);
     await registry.execute(ACTION_IDS.vim_load_vimrc);
 
     expect(toast.warning).toHaveBeenCalledOnce();
-    expect(toast.warning).toHaveBeenCalledWith(
-      "vimrc: 1 line not applied",
-      expect.objectContaining({
-        description: 'Line 3: Unsupported command "let"',
-        action: expect.objectContaining({ label: "Show" }),
-      }),
-    );
+    const [message, options] = vi.mocked(toast.warning).mock.calls[0] ?? [];
+    expect(message).toBe("vimrc: 1 line not applied");
+    expect(options?.description).toBe('Line 3: Unsupported command "let"');
+    const show = options?.action as { label: string; onClick: () => void };
+    expect(show.label).toBe("Show");
+    show.onClick();
+    expect(open_settings).toHaveBeenCalledWith("vim");
   });
 
   it("has no Show button where there is no Settings dialog", async () => {

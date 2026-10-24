@@ -41,9 +41,9 @@ export function register_vim_actions(input: VimActionInput) {
           .get_all()
           .some((action) => action.id === ACTION_IDS.settings_open);
         toast.warning(
-          `vimrc: ${count} ${count === 1 ? "line" : "lines"} not applied`,
+          `vimrc: ${String(count)} ${count === 1 ? "line" : "lines"} not applied`,
           {
-            description: `Line ${first_problem.line}: ${first_problem.message}`,
+            description: `Line ${String(first_problem.line)}: ${first_problem.message}`,
             ...(can_show_settings && {
               action: {
                 label: "Show",

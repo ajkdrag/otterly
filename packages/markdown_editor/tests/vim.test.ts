@@ -14,6 +14,7 @@ import { Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
 import { commonmark } from "../src/plugins/commonmark/index";
+import { code_blocks } from "../src/plugins/code_blocks/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
 import { vim_mode, type VimMode } from "../src/plugins/vim/index";
@@ -65,7 +66,7 @@ function vim_editor(
   const view = new EditorView({
     parent,
     state: create_markdown_state(source, {
-      plugins: [commonmark(), gfm(), slash_menu()],
+      plugins: [commonmark(), gfm(), code_blocks(), slash_menu()],
       extensions: options.vim ? options.vim.of(extension) : extension,
     }),
   });
@@ -145,28 +146,6 @@ describe("vim mode", () => {
     expect(modes).toEqual(["normal", "insert", "normal", "visual_line"]);
   });
 
-  test("VIM-007 a caret move that reveals no other block keeps the block decorations", () => {
-    const view = vim_editor(`one\ntwo\n\n${table}\n\nafter`);
-    const decorations = () => view.state.field(block_field).decorations;
-    const move_to_line = (line: number) =>
-      view.dispatch({
-        selection: EditorSelection.cursor(view.state.doc.line(line).from),
-      });
-    const widgets_at_start = decorations();
-
-    move_to_line(2);
-    expect(decorations()).toBe(widgets_at_start);
-
-    move_to_line(5);
-    expect(table_widget(view)).toBeNull();
-    const widgets_in_table = decorations();
-    move_to_line(6);
-    expect(decorations()).toBe(widgets_in_table);
-
-    move_to_line(8);
-    expect(table_widget(view)).not.toBeNull();
-  });
-
   test("VIM-006 Esc closes an open slash menu before it leaves insert mode", async () => {
     const modes: VimMode[] = [];
     const view = vim_editor("", { modes });
@@ -182,6 +161,79 @@ describe("vim mode", () => {
 
     keydown(view, "Escape");
     expect(modes.at(-1)).toBe("normal");
+  });
+
+  test("VIM-007 a caret move that reveals no other block keeps the block decorations", () => {
+    const view = vim_editor(`one\ntwo\n\n${table}\n\nafter`);
+    const decorations = () => view.state.field(block_field).decorations;
+    const move_to_line = (line: number) => {
+      view.dispatch({
+        selection: EditorSelection.cursor(view.state.doc.line(line).from),
+      });
+    };
+    const widgets_at_start = decorations();
+
+    move_to_line(2);
+    expect(decorations()).toBe(widgets_at_start);
+
+    move_to_line(5);
+    expect(table_widget(view)).toBeNull();
+    const widgets_in_table = decorations();
+    move_to_line(6);
+    expect(decorations()).toBe(widgets_in_table);
+
+    move_to_line(8);
+    expect(table_widget(view)).not.toBeNull();
+  });
+
+  test("VIM-008 a note that starts inside a table shows its source until the caret leaves", () => {
+    const view = vim_editor(`${table}\n\nafter`);
+    expect(table_widget(view)).toBeNull();
+
+    press(view, "G");
+    expect(table_widget(view)).not.toBeNull();
+  });
+
+  test("VIM-009 a visual selection over a table keeps the widget, and d deletes the whole table", () => {
+    const view = vim_editor(`before\n\n${table}\n\nafter`);
+    press(view, "3", "G");
+    expect(table_widget(view)).toBeNull();
+
+    press(view, "V", "5", "G");
+    expect(table_widget(view)).not.toBeNull();
+
+    press(view, "d");
+    expect(view.state.doc.toString()).toBe("before\n\n\nafter");
+  });
+
+  test("VIM-010 undo inside a revealed code block restores the source, and the block renders once the caret leaves", () => {
+    const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
+    const view = vim_editor(source);
+    press(view, "4", "G", "A");
+    type(view, " // note");
+    press(view, "<Esc>");
+    expect(view.state.doc.line(4).text).toBe("const a = 1; // note");
+    expect(table_widget(view)).toBeNull();
+
+    press(view, "u");
+    expect(view.state.doc.toString()).toBe(source);
+
+    press(view, "G");
+    expect(table_widget(view)).not.toBeNull();
+  });
+
+  test("VIM-011 turning Vim off in visual mode gives plain editing back", () => {
+    const vim = new Compartment();
+    const view = vim_editor("one two", { vim });
+    press(view, "v", "l");
+    expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(true);
+    view.dispatch({ effects: vim.reconfigure([]) });
+    expect(view.scrollDOM.classList.contains("cm-vimMode")).toBe(false);
+    expect(view.dom.querySelector(".cm-fat-cursor")).toBeNull();
+    expect(getCM(view)).toBeFalsy();
+
+    view.dispatch(view.state.replaceSelection("X"));
+    expect(view.state.doc.toString()).toBe("Xe two");
   });
 });
 
@@ -223,6 +275,16 @@ describe("vimrc", () => {
       [6, "nmap j"],
       [7, "vmap <buffer> x y"],
     ]);
+  });
+
+  test("VIM-012 a UTF-8 byte order mark before the first line is ignored", () => {
+    const { commands, problems } = parse_vimrc(
+      '\ufeff" comment\nimap jk <Esc>',
+    );
+    expect(problems).toEqual([]);
+    expect(commands).toHaveLength(1);
+
+    expect(parse_vimrc("\ufeffimap jk <Esc>").problems).toEqual([]);
   });
 
   test("VIM-005 applies maps and options, and a reload drops what left the file", () => {
