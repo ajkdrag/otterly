@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeService } from "$lib/features/theme/application/theme_service";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
-import { create_mock_theme_file_port } from "../helpers/mock_ports";
+import { create_test_theme_file_adapter } from "../../adapters/test_theme_file_adapter";
 import { FILE_THEME_ID } from "$lib/shared/types/theme";
 
 function create_harness() {
@@ -9,7 +9,7 @@ function create_harness() {
     get_setting: vi.fn().mockResolvedValue(null),
     set_setting: vi.fn().mockResolvedValue(undefined),
   };
-  const port = create_mock_theme_file_port();
+  const port = create_test_theme_file_adapter();
   const op_store = new OpStore();
   const service = new ThemeService(settings, port, op_store, () => 0);
   return { port, op_store, service };

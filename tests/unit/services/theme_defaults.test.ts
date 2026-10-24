@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ThemeService } from "$lib/features/theme/application/theme_service";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
-import { create_mock_theme_file_port } from "../helpers/mock_ports";
+import { create_test_theme_file_adapter } from "../../adapters/test_theme_file_adapter";
 import {
   BUILTIN_MOCHA,
   BUILTIN_NORDIC_DARK,
@@ -22,7 +22,7 @@ function create_theme_service(settings: Record<string, unknown>) {
   };
   return new ThemeService(
     port,
-    create_mock_theme_file_port(),
+    create_test_theme_file_adapter(),
     new OpStore(),
     () => 0,
   );
