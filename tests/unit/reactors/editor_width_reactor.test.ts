@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { tick } from "svelte";
 import { UIStore } from "$lib/app";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
-import { BUILTIN_NORDIC_DARK, create_user_theme } from "$lib/shared/types/theme";
+import {
+  BUILTIN_NORDIC_DARK,
+  create_user_theme,
+} from "$lib/shared/types/theme";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
