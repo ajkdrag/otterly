@@ -18,7 +18,7 @@ import {
 } from "$lib/features/search";
 import { register_help_actions } from "$lib/app/orchestration/help_actions";
 import { VaultStore } from "$lib/features/vault";
-import { ThemeService } from "$lib/features/theme";
+import { ThemeService, type ThemeFilePort } from "$lib/features/theme";
 import { DEFAULT_HOTKEYS, HotkeyService } from "$lib/features/hotkey";
 import {
   DocumentService,
@@ -43,6 +43,7 @@ export type DocumentWindowPorts = {
   clipboard: ClipboardPort;
   document: DocumentPort;
   editor: EditorPort;
+  theme_file: ThemeFilePort;
 };
 
 export type DocumentWindowContext = ReturnType<
@@ -82,6 +83,7 @@ export function create_document_window_context(input: {
   );
   const theme_service = new ThemeService(
     input.ports.settings,
+    input.ports.theme_file,
     stores.op,
     now_ms,
   );
@@ -169,6 +171,7 @@ export function create_document_window_context(input: {
     stores.ui.set_editor_settings(editor_settings);
     stores.ui.set_user_themes(themes.user_themes);
     stores.ui.set_active_theme_id(themes.active_theme_id);
+    stores.ui.set_theme_file(themes.theme_file);
     stores.ui.hotkey_overrides = hotkey_overrides;
     // The vault app's hotkeys, minus everything that needs a vault or tabs.
     // Shortcuts, Help and the keyboard handler all read this filtered list.

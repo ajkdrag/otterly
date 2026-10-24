@@ -1,11 +1,25 @@
 import type { SettingsPort } from "$lib/features/settings";
+import type {
+  ThemeFilePort,
+  ThemeFileSnapshot,
+} from "$lib/features/theme/ports";
 import type { OpStore } from "$lib/app";
-import type { Theme } from "$lib/shared/types/theme";
+import type {
+  Theme,
+  ThemeFileError,
+  ThemeFileState,
+} from "$lib/shared/types/theme";
 import {
   DEFAULT_THEME_ID,
   BUILTIN_NORDIC_DARK,
   create_user_theme,
 } from "$lib/shared/types/theme";
+import {
+  format_theme_file_error,
+  parse_theme_file,
+} from "$lib/features/theme/domain/parse_theme_file";
+import { build_theme_file_schema } from "$lib/features/theme/domain/theme_file_schema";
+import { theme_to_file_text } from "$lib/features/theme/domain/theme_file_text";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -17,35 +31,113 @@ const ACTIVE_THEME_ID_KEY = "active_theme_id";
 export type ThemeLoadResult = {
   user_themes: Theme[];
   active_theme_id: string;
+  theme_file: ThemeFileState;
 };
+
+export type ThemeFileCreateResult =
+  | { status: "created"; path: string }
+  | { status: "failed"; error: string };
 
 export class ThemeService {
   constructor(
     private readonly settings_port: SettingsPort,
+    private readonly theme_file_port: ThemeFilePort,
     private readonly op_store: OpStore,
     private readonly now_ms: () => number,
   ) {}
 
   async load_themes(): Promise<ThemeLoadResult> {
-    this.op_store.start("theme.load", this.now_ms());
+    const [stored, theme_file] = await Promise.all([
+      this.load_stored_themes(),
+      this.load_theme_file(),
+    ]);
+    return { ...stored, theme_file };
+  }
+
+  // Never throws. An invalid file comes back with theme null, because only
+  // the caller knows the last valid file theme worth keeping.
+  async load_theme_file(): Promise<ThemeFileState> {
+    this.op_store.start("theme.file_load", this.now_ms());
+    await this.write_theme_schema();
+
+    let snapshot: ThemeFileSnapshot;
     try {
-      const [stored_themes, stored_id] = await Promise.all([
-        this.settings_port.get_setting<unknown>(THEMES_KEY),
-        this.settings_port.get_setting<unknown>(ACTIVE_THEME_ID_KEY),
-      ]);
-
-      const user_themes = parse_stored_themes(stored_themes);
-      const active_theme_id =
-        typeof stored_id === "string" ? stored_id : DEFAULT_THEME_ID;
-
-      this.op_store.succeed("theme.load");
-      return { user_themes, active_theme_id };
+      snapshot = await this.theme_file_port.read_theme_file();
     } catch (error) {
-      const msg = error_message(error);
-      log.error("Load themes failed", { error: msg });
-      this.op_store.fail("theme.load", msg);
-      return { user_themes: [], active_theme_id: DEFAULT_THEME_ID };
+      return this.fail_theme_file_load(null, [
+        { line: null, key: null, message: error_message(error) },
+      ]);
     }
+
+    if (snapshot.text === null) {
+      this.op_store.succeed("theme.file_load");
+      return {
+        path: snapshot.path,
+        status: "missing",
+        theme: null,
+        errors: [],
+      };
+    }
+
+    // @Robustness: Older WebKitGTK builds do not support light-dark(), so a
+    // file using it (like one created from Mocha) fails there.
+    const parsed = parse_theme_file(snapshot.text, (value) =>
+      CSS.supports("color", value),
+    );
+    if (parsed.status === "invalid") {
+      return this.fail_theme_file_load(snapshot.path, parsed.errors);
+    }
+    this.op_store.succeed("theme.file_load");
+    return {
+      path: snapshot.path,
+      status: "valid",
+      theme: parsed.theme,
+      errors: [],
+    };
+  }
+
+  async create_theme_file_from(theme: Theme): Promise<ThemeFileCreateResult> {
+    try {
+      const path = await this.theme_file_port.create_theme_file(
+        theme_to_file_text(theme),
+      );
+      return { status: "created", path };
+    } catch (error) {
+      const message = error_message(error);
+      log.error("Create theme file failed", { error: message });
+      return { status: "failed", error: message };
+    }
+  }
+
+  async open_theme_file(): Promise<boolean> {
+    try {
+      await this.theme_file_port.open_theme_file();
+      return true;
+    } catch (error) {
+      log.error("Open theme file failed", { error: error_message(error) });
+      return false;
+    }
+  }
+
+  async reveal_theme_file(): Promise<boolean> {
+    try {
+      await this.theme_file_port.reveal_theme_file();
+      return true;
+    } catch (error) {
+      log.error("Reveal theme file failed", { error: error_message(error) });
+      return false;
+    }
+  }
+
+  // Calls on_change after each save of the theme file. Subscribes before
+  // starting the watcher so no change slips through. Returns the unsubscribe.
+  watch_theme_file(on_change: () => void): () => void {
+    const unsubscribe =
+      this.theme_file_port.subscribe_theme_file_changes(on_change);
+    this.theme_file_port.watch_theme_file().catch((error: unknown) => {
+      log.error("Watch theme file failed", { error: error_message(error) });
+    });
+    return unsubscribe;
   }
 
   async save_user_themes(themes: Theme[]): Promise<void> {
@@ -69,6 +161,54 @@ export class ThemeService {
 
   duplicate_theme(name: string, base: Theme): Theme {
     return create_user_theme(name, base);
+  }
+
+  private async load_stored_themes(): Promise<
+    Omit<ThemeLoadResult, "theme_file">
+  > {
+    this.op_store.start("theme.load", this.now_ms());
+    try {
+      const [stored_themes, stored_id] = await Promise.all([
+        this.settings_port.get_setting<unknown>(THEMES_KEY),
+        this.settings_port.get_setting<unknown>(ACTIVE_THEME_ID_KEY),
+      ]);
+
+      const user_themes = parse_stored_themes(stored_themes);
+      const active_theme_id =
+        typeof stored_id === "string" ? stored_id : DEFAULT_THEME_ID;
+
+      this.op_store.succeed("theme.load");
+      return { user_themes, active_theme_id };
+    } catch (error) {
+      const msg = error_message(error);
+      log.error("Load themes failed", { error: msg });
+      this.op_store.fail("theme.load", msg);
+      return { user_themes: [], active_theme_id: DEFAULT_THEME_ID };
+    }
+  }
+
+  // Agents and editors read theme.schema.json next to the file. A failed
+  // write only costs them the schema, so it does not fail the load.
+  private async write_theme_schema(): Promise<void> {
+    const text = `${JSON.stringify(build_theme_file_schema(), null, 2)}\n`;
+    try {
+      await this.theme_file_port.write_theme_schema(text);
+    } catch (error) {
+      log.warn("Write theme schema failed", { error: error_message(error) });
+    }
+  }
+
+  // The op error is the toast text: the first error, plus how many more.
+  private fail_theme_file_load(
+    path: string | null,
+    errors: ThemeFileError[],
+  ): ThemeFileState {
+    const messages = errors.map(format_theme_file_error);
+    log.warn("Theme file has errors", { path, errors: messages });
+    const more =
+      messages.length > 1 ? ` (+${String(messages.length - 1)} more)` : "";
+    this.op_store.fail("theme.file_load", `${messages[0] ?? ""}${more}`);
+    return { path, status: "invalid", theme: null, errors };
   }
 }
 

@@ -13,6 +13,7 @@ import { create_test_shell_adapter } from "./test_shell_adapter";
 import { create_test_git_adapter } from "./test_git_adapter";
 import { create_test_watcher_adapter } from "./test_watcher_adapter";
 import { create_test_updater_adapter } from "./test_updater_adapter";
+import { create_mock_theme_file_port } from "../unit/helpers/mock_ports";
 
 export function create_test_ports(): Ports {
   const assets = create_test_assets_adapter();
@@ -37,5 +38,6 @@ export function create_test_ports(): Ports {
     git: create_test_git_adapter(),
     watcher: create_test_watcher_adapter(),
     updater: create_test_updater_adapter(),
+    theme_file: create_mock_theme_file_port(),
   };
 }

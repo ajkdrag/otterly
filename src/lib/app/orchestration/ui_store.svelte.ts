@@ -1,6 +1,7 @@
-import type { Theme } from "$lib/shared/types/theme";
+import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
 import {
   DEFAULT_THEME_ID,
+  MISSING_THEME_FILE_STATE,
   get_all_themes,
   resolve_theme,
 } from "$lib/shared/types/theme";
@@ -189,8 +190,12 @@ function initial_settings_dialog(settings: EditorSettings) {
 export class UIStore {
   user_themes = $state<Theme[]>([]);
   active_theme_id = $state<string>(DEFAULT_THEME_ID);
+  theme_file = $state<ThemeFileState>({ ...MISSING_THEME_FILE_STATE });
   active_theme = $derived<Theme>(
-    resolve_theme(get_all_themes(this.user_themes), this.active_theme_id),
+    resolve_theme(
+      get_all_themes(this.user_themes, this.theme_file.theme),
+      this.active_theme_id,
+    ),
   );
 
   sidebar_open = $state(true);
@@ -379,6 +384,10 @@ export class UIStore {
 
   set_user_themes(themes: Theme[]) {
     this.user_themes = themes;
+  }
+
+  set_theme_file(theme_file: ThemeFileState) {
+    this.theme_file = theme_file;
   }
 
   toggle_sidebar() {

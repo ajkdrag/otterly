@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ThemeService } from "$lib/features/theme/application/theme_service";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
+import { create_mock_theme_file_port } from "../helpers/mock_ports";
 import {
   BUILTIN_MOCHA,
   BUILTIN_NORDIC_DARK,
@@ -19,7 +20,12 @@ function create_theme_service(settings: Record<string, unknown>) {
       ),
     set_setting: vi.fn().mockResolvedValue(undefined),
   };
-  return new ThemeService(port, new OpStore(), () => 0);
+  return new ThemeService(
+    port,
+    create_mock_theme_file_port(),
+    new OpStore(),
+    () => 0,
+  );
 }
 
 describe("theme defaults", () => {

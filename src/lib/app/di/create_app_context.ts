@@ -180,6 +180,7 @@ export function create_app_context(input: {
 
   const theme_service = new ThemeService(
     input.ports.settings,
+    input.ports.theme_file,
     stores.op,
     now_ms,
   );
