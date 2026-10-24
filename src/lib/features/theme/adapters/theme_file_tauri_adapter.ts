@@ -6,8 +6,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 // Calls invoke, not tauri_invoke. tauri_invoke wraps errors as "tauri invoke
-// failed: <command>: ...", and the backend's messages here (both files exist,
-// file too big) are shown to people as they are. Rust rejects with that string.
+// failed: <command>: ...", and the backend's messages here (like "A theme file
+// already exists") are shown to people as they are. Rust rejects with that
+// string.
 export function create_theme_file_tauri_adapter(): ThemeFilePort {
   return {
     read_theme_file: () => invoke<ThemeFileSnapshot>("read_theme_file"),

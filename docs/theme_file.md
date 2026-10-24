@@ -14,7 +14,7 @@ The file sits next to `settings.json`, in the app config folder. Themes are glob
 
 In that folder:
 
-- `theme.yaml` or `theme.json`: yours. Same keys in both. Having both is an error, so nobody edits a file that gets ignored.
+- `theme.yaml` or `theme.json`: yours. Same keys in both. Having both is an error, so nobody edits a file that gets ignored. Settings > Theme still shows the path in that case, and Reveal opens the folder so you can delete one.
 - `theme.schema.json`: written by Otterly at startup. Don't edit it, point your editor or agent at it.
 
 Dev builds and release builds use the same folder.

@@ -2,14 +2,18 @@
 // takes a path: the backend knows the one folder.
 
 export type ThemeFileSnapshot = {
-  // The existing file, or where theme.yaml goes when there is none.
+  // The existing file, or where theme.yaml goes when there is none. Set even
+  // when the file can't be read, so the person can still find the folder.
   path: string;
-  // null when there is no theme file.
+  // null when there is no theme file or it can't be read.
   text: string | null;
+  // Why the file can't be read: both names exist, over 256 KB, or not UTF-8.
+  error: string | null;
 };
 
 export interface ThemeFilePort {
-  // Fails when both theme.yaml and theme.json exist, or the file is too big.
+  // Problems with the file itself come back in the snapshot. This only
+  // rejects when the backend can't reach the config folder.
   read_theme_file(): Promise<ThemeFileSnapshot>;
   // Fails when a theme file already exists. Returns the new file's path.
   create_theme_file(text: string): Promise<string>;

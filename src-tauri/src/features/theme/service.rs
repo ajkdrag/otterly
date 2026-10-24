@@ -31,31 +31,46 @@ pub struct ThemeFileWatcherState {
 
 #[derive(Debug, Serialize)]
 pub struct ThemeFileSnapshot {
-    // The existing file, or where theme.yaml goes when there is none.
+    // The existing file, or where theme.yaml goes when there is none. Always
+    // set, so the person can find the folder even when the file is unusable.
     pub path: String,
-    // None when there is no theme file.
+    // None when there is no theme file or it can't be read.
     pub text: Option<String>,
+    // Why the file can't be read: both names exist, it is over the size limit
+    // or it is not UTF-8.
+    pub error: Option<String>,
 }
 
+// Err is only for a config folder we can't reach. Problems with the file come
+// back in the snapshot.
 #[tauri::command]
 pub fn read_theme_file(app: AppHandle) -> Result<ThemeFileSnapshot, String> {
-    let dir = theme_file_dir(&app)?;
-    let missing = ThemeFileSnapshot {
-        path: display_path(&dir.join(YAML_FILE_NAME)),
-        text: None,
-    };
-    let Some(path) = pick_theme_file(&dir)? else {
-        return Ok(missing);
+    Ok(read_theme_file_snapshot(&theme_file_dir(&app)?))
+}
+
+pub fn read_theme_file_snapshot(dir: &Path) -> ThemeFileSnapshot {
+    let picked = pick_theme_file(dir);
+    // With both names, theme.yaml is one of the two files that exist.
+    let path = match &picked {
+        Ok(Some(file)) => file.clone(),
+        _ => dir.join(YAML_FILE_NAME),
     };
     // An editor that deletes and rewrites the file can land between the pick
-    // and the read. The next change event reads it again.
-    let Some(text) = read_capped_text(&path)? else {
-        return Ok(missing);
+    // and the read, which comes back as no text and no error. The next change
+    // event reads it again.
+    let read = picked.and_then(|file| match file {
+        Some(file) => read_capped_text(&file),
+        None => Ok(None),
+    });
+    let (text, error) = match read {
+        Ok(text) => (text, None),
+        Err(error) => (None, Some(error)),
     };
-    Ok(ThemeFileSnapshot {
+    ThemeFileSnapshot {
         path: display_path(&path),
-        text: Some(text),
-    })
+        text,
+        error,
+    }
 }
 
 #[tauri::command]
@@ -96,10 +111,19 @@ pub fn open_theme_file(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn reveal_theme_file(app: AppHandle) -> Result<(), String> {
-    let path = existing_theme_file(&app)?;
-    app.opener()
-        .reveal_item_in_dir(path)
-        .map_err(|e| e.to_string())
+    let dir = theme_file_dir(&app)?;
+    // With both names or none there is no one file to select. Show the folder
+    // instead, which is where the person fixes that.
+    match pick_theme_file(&dir) {
+        Ok(Some(path)) => app
+            .opener()
+            .reveal_item_in_dir(path)
+            .map_err(|e| e.to_string()),
+        _ => app
+            .opener()
+            .open_path(display_path(&dir), None::<&str>)
+            .map_err(|e| e.to_string()),
+    }
 }
 
 // Every window calls this. The first call starts the one watcher, later calls
@@ -186,7 +210,7 @@ fn read_capped_text(path: &Path) -> Result<Option<String>, String> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     };
-    // The error carries the file name because the caller gets no path back.
+    // The error names the file because the toast shows it without the path.
     let name = path
         .file_name()
         .and_then(OsStr::to_str)

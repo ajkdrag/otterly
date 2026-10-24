@@ -1,5 +1,6 @@
 use crate::features::theme::service::{
-    debounce_changes, is_theme_file_change, pick_theme_file, start_theme_file_watcher,
+    debounce_changes, is_theme_file_change, pick_theme_file, read_theme_file_snapshot,
+    start_theme_file_watcher,
 };
 use notify::event::{
     AccessKind, AccessMode, CreateKind, DataChange, MetadataKind, ModifyKind, RemoveKind,
@@ -48,6 +49,81 @@ fn both_names_at_once_is_an_error() {
     std::fs::write(dir.path().join("theme.json"), "{}").unwrap();
 
     assert!(pick_theme_file(dir.path()).is_err());
+}
+
+#[test]
+fn snapshot_of_an_empty_folder_points_at_theme_yaml() {
+    let dir = TempDir::new().unwrap();
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(
+        snapshot.path,
+        dir.path().join("theme.yaml").to_string_lossy()
+    );
+    assert!(snapshot.text.is_none());
+    assert!(snapshot.error.is_none());
+}
+
+#[test]
+fn snapshot_reads_the_text_of_theme_json() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.json"), "{}").unwrap();
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(
+        snapshot.path,
+        dir.path().join("theme.json").to_string_lossy()
+    );
+    assert_eq!(snapshot.text.as_deref(), Some("{}"));
+    assert!(snapshot.error.is_none());
+}
+
+#[test]
+fn snapshot_keeps_the_path_when_both_names_exist() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yaml"), "").unwrap();
+    std::fs::write(dir.path().join("theme.json"), "{}").unwrap();
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(
+        snapshot.path,
+        dir.path().join("theme.yaml").to_string_lossy()
+    );
+    assert!(snapshot.text.is_none());
+    assert!(snapshot.error.is_some());
+}
+
+#[test]
+fn snapshot_keeps_the_path_of_a_file_that_is_too_big() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.json"), vec![b' '; 300 * 1024]).unwrap();
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(
+        snapshot.path,
+        dir.path().join("theme.json").to_string_lossy()
+    );
+    assert!(snapshot.text.is_none());
+    assert!(snapshot.error.is_some());
+}
+
+#[test]
+fn snapshot_keeps_the_path_of_a_file_that_is_not_utf8() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yaml"), [0xff, 0xfe, 0x00]).unwrap();
+
+    let snapshot = read_theme_file_snapshot(dir.path());
+
+    assert_eq!(
+        snapshot.path,
+        dir.path().join("theme.yaml").to_string_lossy()
+    );
+    assert!(snapshot.text.is_none());
+    assert!(snapshot.error.is_some());
 }
 
 fn event(kind: EventKind, names: &[&str]) -> notify::Event {

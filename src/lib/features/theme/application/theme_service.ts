@@ -72,6 +72,12 @@ export class ThemeService {
       ]);
     }
 
+    if (snapshot.error !== null) {
+      return this.fail_theme_file_load(snapshot.path, [
+        { line: null, key: null, message: snapshot.error },
+      ]);
+    }
+
     if (snapshot.text === null) {
       this.op_store.succeed("theme.file_load");
       return {

@@ -102,10 +102,33 @@ describe("ThemeService theme file", () => {
     );
   });
 
-  it("turns a failed read into an invalid state instead of throwing", async () => {
+  it("keeps the path when the backend says the file can't be read", async () => {
     const { service, port, op_store } = create_harness();
+    port._snapshot.error = "Found both theme.yaml and theme.json. Delete one.";
+
+    const state = await service.load_theme_file();
+
+    expect(state).toEqual({
+      path: "/config/otterly/theme.yaml",
+      status: "invalid",
+      theme: null,
+      errors: [
+        {
+          line: null,
+          key: null,
+          message: "Found both theme.yaml and theme.json. Delete one.",
+        },
+      ],
+    });
+    expect(op_store.get("theme.file_load").error).toBe(
+      "Found both theme.yaml and theme.json. Delete one.",
+    );
+  });
+
+  it("turns a rejected read into an invalid state without a path", async () => {
+    const { service, port } = create_harness();
     port.read_theme_file = () =>
-      Promise.reject(new Error("Found both theme.yaml and theme.json."));
+      Promise.reject(new Error("Could not create the config folder"));
 
     const state = await service.load_theme_file();
 
@@ -117,13 +140,10 @@ describe("ThemeService theme file", () => {
         {
           line: null,
           key: null,
-          message: "Found both theme.yaml and theme.json.",
+          message: "Could not create the config folder",
         },
       ],
     });
-    expect(op_store.get("theme.file_load").error).toBe(
-      "Found both theme.yaml and theme.json.",
-    );
   });
 
   it("still loads themes when writing the schema fails", async () => {

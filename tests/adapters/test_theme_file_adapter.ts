@@ -11,6 +11,7 @@ export function create_test_theme_file_adapter(): ThemeFilePort & {
     _snapshot: {
       path: "/config/otterly/theme.yaml",
       text: null,
+      error: null,
     } as ThemeFileSnapshot,
     _emit_change() {
       handler?.();
