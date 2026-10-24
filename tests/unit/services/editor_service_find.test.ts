@@ -9,6 +9,10 @@ import type { OpenNoteState } from "$lib/shared/types/editor";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
 import { create_test_vault } from "../helpers/test_fixtures";
 
+function spec(text: string) {
+  return { text, regex: false, case_sensitive: false, whole_word: false };
+}
+
 function create_open_note(note_path: string, markdown: string): OpenNoteState {
   const path = as_note_path(note_path);
   return {
@@ -82,11 +86,11 @@ describe("EditorService update_find_state", () => {
 
     await service.mount({ root, note });
 
-    service.update_find_state("test", 0);
-    expect(session.update_find_state).toHaveBeenCalledWith("test", 0);
+    service.update_find_state(spec("test"), 0);
+    expect(session.update_find_state).toHaveBeenCalledWith(spec("test"), 0);
 
-    service.update_find_state("another", 3);
-    expect(session.update_find_state).toHaveBeenCalledWith("another", 3);
+    service.update_find_state(spec("another"), 3);
+    expect(session.update_find_state).toHaveBeenCalledWith(spec("another"), 3);
   });
 
   it("does not throw when no session exists", () => {
@@ -114,7 +118,7 @@ describe("EditorService update_find_state", () => {
     );
 
     expect(() => {
-      service.update_find_state("test", 0);
+      service.update_find_state(spec("test"), 0);
     }).not.toThrow();
   });
 
@@ -149,10 +153,10 @@ describe("EditorService update_find_state", () => {
 
     await service.mount({ root, note });
 
-    service.update_find_state("test", 0);
-    expect(session.update_find_state).toHaveBeenCalledWith("test", 0);
+    service.update_find_state(spec("test"), 0);
+    expect(session.update_find_state).toHaveBeenCalledWith(spec("test"), 0);
 
-    service.update_find_state("", 0);
-    expect(session.update_find_state).toHaveBeenCalledWith("", 0);
+    service.update_find_state(spec(""), 0);
+    expect(session.update_find_state).toHaveBeenCalledWith(spec(""), 0);
   });
 });

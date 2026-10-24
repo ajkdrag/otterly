@@ -143,8 +143,8 @@ export function mount_reactors(context: ReactorContext): () => void {
       {
         read_buffer_id: () => context.editor_store.open_note?.buffer_id ?? null,
         read_markdown: () => context.editor_store.open_note?.markdown ?? "",
-        update_find_state: (query, selected_index) => {
-          context.editor_service.update_find_state(query, selected_index);
+        update_find_state: (spec, selected_index) => {
+          context.editor_service.update_find_state(spec, selected_index);
         },
       },
       context.search_service,

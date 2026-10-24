@@ -126,6 +126,11 @@ export const ACTION_IDS = {
   find_in_file_set_query: "find_in_file.set_query",
   find_in_file_next: "find_in_file.next",
   find_in_file_prev: "find_in_file.prev",
+  find_in_file_toggle_replace: "find_in_file.toggle_replace",
+  find_in_file_set_options: "find_in_file.set_options",
+  find_in_file_set_replacement: "find_in_file.set_replacement",
+  find_in_file_replace: "find_in_file.replace",
+  find_in_file_replace_all: "find_in_file.replace_all",
 
   vault_find_open: "vault_find.open",
   vault_find_refresh: "vault_find.refresh",

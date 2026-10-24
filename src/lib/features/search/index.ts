@@ -35,7 +35,6 @@ export type {
   CommandDefinition,
 } from "$lib/features/search/types/command_palette";
 export type {
-  FindSpec,
   VaultFindRequest,
   VaultFindMatch,
   VaultFindFile,

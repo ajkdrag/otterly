@@ -4,6 +4,7 @@ import type { OpStore } from "$lib/app";
 import type { CommandDefinition } from "$lib/features/search/types/command_palette";
 import type { SettingDefinition } from "$lib/features/settings";
 import type {
+  FindSpec,
   InFileMatch,
   NoteMatchDetail,
   NoteSearchHit,
@@ -631,8 +632,8 @@ export class SearchService {
       .sort((a, b) => b.score - a.score);
   }
 
-  search_within_file(text: string, query: string): InFileMatch[] {
-    return search_within_text(text, query);
+  search_within_file(text: string, spec: FindSpec): InFileMatch[] {
+    return search_within_text(text, spec);
   }
 
   async search_omnibar(raw_query: string): Promise<OmnibarSearchResult> {

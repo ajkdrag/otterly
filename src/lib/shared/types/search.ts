@@ -95,6 +95,14 @@ export type PlannedWikiSuggestion = {
 
 export type WikiSuggestion = ExistingWikiSuggestion | PlannedWikiSuggestion;
 
+// What find looks for. The editor's find bar and the vault find panel share it.
+export type FindSpec = {
+  text: string;
+  regex: boolean;
+  case_sensitive: boolean;
+  whole_word: boolean;
+};
+
 export type InFileMatch = {
   line: number;
   column: number;

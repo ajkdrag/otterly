@@ -91,7 +91,12 @@ const INITIAL_FIND_IN_FILE = {
   open: false,
   query: "",
   selected_match_index: 0,
-} as const;
+  replace_open: false,
+  replacement: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+};
 
 const INITIAL_VAULT_FIND = {
   query: "",
@@ -316,6 +321,11 @@ export class UIStore {
     open: boolean;
     query: string;
     selected_match_index: number;
+    replace_open: boolean;
+    replacement: string;
+    regex: boolean;
+    case_sensitive: boolean;
+    whole_word: boolean;
   }>({ ...INITIAL_FIND_IN_FILE });
 
   filetree = $state<{

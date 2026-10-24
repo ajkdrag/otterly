@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import type { UIStore } from "$lib/app";
-import type { InFileMatch } from "$lib/shared/types/search";
+import type { FindSpec, InFileMatch } from "$lib/shared/types/search";
 import type { SearchService, SearchStore } from "$lib/features/search";
 
 // The buffer find runs over. The readers must read reactive state, so the
@@ -9,8 +9,24 @@ import type { SearchService, SearchStore } from "$lib/features/search";
 export type FindInFileTarget = {
   read_buffer_id: () => string | null;
   read_markdown: () => string;
-  update_find_state: (query: string, selected_index: number) => void;
+  update_find_state: (spec: FindSpec, selected_index: number) => void;
 };
+
+const NO_FIND: FindSpec = {
+  text: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+};
+
+function read_find_spec(find: UIStore["find_in_file"]): FindSpec {
+  return {
+    text: find.query,
+    regex: find.regex,
+    case_sensitive: find.case_sensitive,
+    whole_word: find.whole_word,
+  };
+}
 
 export function create_find_in_file_reactor(
   ui_store: UIStore,
@@ -20,18 +36,20 @@ export function create_find_in_file_reactor(
 ): () => void {
   let last_buffer_id: string | null = null;
   let last_markdown = "";
-  let last_query = "";
+  let last_spec_key = "";
+  let last_applied_key = "";
   let matches: InFileMatch[] = [];
   return $effect.root(() => {
     $effect(() => {
-      const { open, query } = ui_store.find_in_file;
+      const find = ui_store.find_in_file;
+      const spec = find.open ? read_find_spec(find) : NO_FIND;
+      const spec_key = JSON.stringify(spec);
       const buffer_id = target.read_buffer_id();
       const markdown = target.read_markdown();
-      const active_query = open ? query : "";
-      if (markdown !== last_markdown || active_query !== last_query) {
-        matches = search_service.search_within_file(markdown, active_query);
+      if (markdown !== last_markdown || spec_key !== last_spec_key) {
+        matches = search_service.search_within_file(markdown, spec);
         last_markdown = markdown;
-        last_query = active_query;
+        last_spec_key = spec_key;
       }
       const buffer_changed = buffer_id !== last_buffer_id;
       last_buffer_id = buffer_id;
@@ -42,20 +60,23 @@ export function create_find_in_file_reactor(
         const selected = buffer_changed
           ? 0
           : Math.min(current, Math.max(0, matches.length - 1));
-        if (open && selected !== current)
+        if (find.open && selected !== current)
           ui_store.find_in_file.selected_match_index = selected;
       });
     });
 
     $effect(() => {
-      const { open, query, selected_match_index } = ui_store.find_in_file;
+      const find = ui_store.find_in_file;
       // Cached editor buffers carry their previous find state. Apply the active
       // query again after the editor-sync reactor activates another buffer.
       const buffer_id = target.read_buffer_id();
-      target.update_find_state(
-        open && buffer_id ? query : "",
-        selected_match_index,
-      );
+      const spec = find.open && buffer_id ? read_find_spec(find) : NO_FIND;
+      const key = JSON.stringify([buffer_id, spec, find.selected_match_index]);
+      // Typing a replacement also replaces find_in_file. Applying the same
+      // state again would scroll the editor back to the selected match.
+      if (key === last_applied_key) return;
+      last_applied_key = key;
+      target.update_find_state(spec, find.selected_match_index);
     });
   });
 }

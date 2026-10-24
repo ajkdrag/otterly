@@ -155,9 +155,26 @@ describe("DocumentService", () => {
   it("passes find state to the editor session", async () => {
     const { service, session } = await open();
 
-    service.update_find_state("hello", 1);
+    const spec = {
+      text: "hello",
+      regex: true,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    service.update_find_state(spec, 1);
 
-    expect(session.update_find_state).toHaveBeenCalledWith("hello", 1);
+    expect(session.update_find_state).toHaveBeenCalledWith(spec, 1);
+  });
+
+  it("replaces find matches through the editor session", async () => {
+    const { service, session } = await open();
+    session.replace_find_match = vi.fn(() => 2);
+    session.replace_all_find_matches = vi.fn(() => 5);
+
+    expect(service.replace_find_match("bar")).toBe(2);
+    expect(service.replace_all_find_matches("bar")).toBe(5);
+    expect(session.replace_find_match).toHaveBeenCalledWith("bar");
+    expect(session.replace_all_find_matches).toHaveBeenCalledWith("bar");
   });
 
   it("reveals its file and reports whether that worked", async () => {

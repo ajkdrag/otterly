@@ -1,12 +1,7 @@
+import type { FindSpec } from "$lib/shared/types/search";
+
 // Shapes shared with the Rust vault find (features/search/vault_find.rs).
 // Field names match the serde structs.
-
-export type FindSpec = {
-  text: string;
-  regex: boolean;
-  case_sensitive: boolean;
-  whole_word: boolean;
-};
 
 export type VaultFindRequest = FindSpec & {
   // Comma separated globs. "" means every file.

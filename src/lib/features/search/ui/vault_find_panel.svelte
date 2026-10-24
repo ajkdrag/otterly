@@ -18,7 +18,9 @@
   import { Button } from "$lib/components/ui/button";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
+  import { find_option_for_shortcut } from "$lib/features/search/domain/find_option_shortcut";
   import { parent_folder_path } from "$lib/shared/utils/path";
+  import type { FindOption } from "$lib/features/search/domain/find_option_shortcut";
   import type {
     VaultFindFile,
     VaultFindMatch,
@@ -126,21 +128,12 @@
     return path.slice(path.lastIndexOf("/") + 1);
   }
 
-  function toggle_option(option: "case_sensitive" | "whole_word" | "regex") {
+  function toggle_option(option: FindOption) {
     inputs[option] = !inputs[option];
   }
 
-  // Match on event.code: Option+C types "ç" on macOS, so event.key is useless.
   function handle_option_keys(event: KeyboardEvent): boolean {
-    if (!event.altKey || event.metaKey || event.ctrlKey) return false;
-    const option =
-      event.code === "KeyC"
-        ? "case_sensitive"
-        : event.code === "KeyW"
-          ? "whole_word"
-          : event.code === "KeyR"
-            ? "regex"
-            : null;
+    const option = find_option_for_shortcut(event);
     if (!option) return false;
     event.preventDefault();
     toggle_option(option);
@@ -274,7 +267,7 @@
 </script>
 
 {#snippet option_toggle(
-  option: "case_sensitive" | "whole_word" | "regex",
+  option: FindOption,
   label: string,
   Icon: typeof CaseSensitive,
 )}

@@ -5,6 +5,7 @@ import type {
   DocumentFile,
   DocumentSaveResult,
 } from "$lib/features/document/types/document";
+import type { FindSpec } from "$lib/shared/types/search";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -154,8 +155,16 @@ export class DocumentService {
     this.session?.focus();
   }
 
-  update_find_state(query: string, selected_index: number) {
-    this.session?.update_find_state?.(query, selected_index);
+  update_find_state(spec: FindSpec, selected_index: number) {
+    this.session?.update_find_state?.(spec, selected_index);
+  }
+
+  replace_find_match(replacement: string): number | null {
+    return this.session?.replace_find_match?.(replacement) ?? null;
+  }
+
+  replace_all_find_matches(replacement: string): number {
+    return this.session?.replace_all_find_matches?.(replacement) ?? 0;
   }
 
   // The editor's canonical source, which can be newer than the store's copy.

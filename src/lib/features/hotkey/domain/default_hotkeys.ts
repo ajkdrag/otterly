@@ -59,6 +59,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
+    action_id: ACTION_IDS.find_in_file_toggle_replace,
+    key: "CmdOrCtrl+Alt+F",
+    phase: "capture",
+    label: "Replace in File",
+    description: "Find and replace within the current file",
+    category: "navigation",
+  },
+  {
     action_id: ACTION_IDS.vault_request_change,
     key: "CmdOrCtrl+Shift+O",
     phase: "capture",

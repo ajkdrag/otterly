@@ -151,8 +151,8 @@ export function create_document_window_context(input: {
       {
         read_buffer_id: () => stores.document.file?.path ?? null,
         read_markdown: () => stores.document.markdown,
-        update_find_state: (query, selected_index) => {
-          document_service.update_find_state(query, selected_index);
+        update_find_state: (spec, selected_index) => {
+          document_service.update_find_state(spec, selected_index);
         },
       },
       { search_within_file: search_within_text },
