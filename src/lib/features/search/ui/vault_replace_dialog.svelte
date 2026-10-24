@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Button } from "$lib/components/ui/button";
+  import { plural } from "$lib/shared/utils/plural";
 
   interface Props {
     open: boolean;
@@ -30,16 +31,6 @@
     on_confirm,
     on_cancel,
   }: Props = $props();
-
-  const matches_label = $derived(
-    `${String(match_count)} ${match_count === 1 ? "match" : "matches"}`,
-  );
-  const files_label = $derived(
-    `${String(file_count)} ${file_count === 1 ? "file" : "files"}`,
-  );
-  const unsaved_label = $derived(
-    `${String(unsaved_paths.length)} ${unsaved_paths.length === 1 ? "file has" : "files have"}`,
-  );
 </script>
 
 <Dialog.Root
@@ -52,9 +43,9 @@
     <Dialog.Header>
       <Dialog.Title>Replace all in vault?</Dialog.Title>
       <Dialog.Description>
-        Replace {matches_label} of
+        Replace {plural(match_count, "match", "matches")} of
         <code class="bg-muted rounded-sm px-1 break-all">{query}</code>
-        in {files_label} with
+        in {plural(file_count, "file", "files")} with
         {#if replacement}
           <code class="bg-muted rounded-sm px-1 break-all">{replacement}</code>
         {:else}
@@ -73,7 +64,10 @@
         </li>
       {/if}
       {#if unsaved_paths.length > 0}
-        <li>{unsaved_label} unsaved changes and will be skipped.</li>
+        <li>
+          {plural(unsaved_paths.length, "file", "files")} with unsaved changes will
+          be skipped.
+        </li>
       {/if}
     </ul>
 

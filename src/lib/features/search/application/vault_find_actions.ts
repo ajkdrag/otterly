@@ -8,6 +8,7 @@ import type {
 } from "$lib/features/search/types/vault_find";
 import { as_note_path } from "$lib/shared/types/ids";
 import { paths_equal_ignore_case } from "$lib/shared/utils/path";
+import { plural } from "$lib/shared/utils/plural";
 
 type OpenMatchInput = {
   path: string;
@@ -19,9 +20,6 @@ type OpenMatchInput = {
 };
 
 type ReplaceScope = "match" | "file" | "all";
-
-const plural = (count: number, one: string, many: string) =>
-  `${String(count)} ${count === 1 ? one : many}`;
 
 export function register_vault_find_actions(input: ActionRegistrationInput) {
   const { registry, stores, services } = input;

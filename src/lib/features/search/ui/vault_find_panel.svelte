@@ -20,6 +20,7 @@
   import { ACTION_IDS } from "$lib/app";
   import { find_option_for_shortcut } from "$lib/features/search/domain/find_option_shortcut";
   import { parent_folder_path } from "$lib/shared/utils/path";
+  import { plural } from "$lib/shared/utils/plural";
   import type { FindOption } from "$lib/features/search/domain/find_option_shortcut";
   import type {
     VaultFindFile,
@@ -76,7 +77,7 @@
     if (results.status === "idle" || results.status === "error") return "";
     const matches = results.match_count;
     const files = results.files.length;
-    const counts = `${String(matches)} ${matches === 1 ? "result" : "results"} in ${String(files)} ${files === 1 ? "file" : "files"}`;
+    const counts = `${plural(matches, "result", "results")} in ${plural(files, "file", "files")}`;
     if (results.status === "searching") return `Searching... ${counts}`;
     if (!results.stats) return counts;
     return `${counts} (${String(results.stats.elapsed_ms)} ms)`;

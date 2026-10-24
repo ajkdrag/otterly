@@ -1,11 +1,7 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistry, UIStore } from "$lib/app";
+import type { FindOption } from "$lib/features/search/domain/find_option_shortcut";
 import type { SearchStore } from "$lib/features/search/state/search_store.svelte";
-
-type FindOptions = Pick<
-  UIStore["find_in_file"],
-  "regex" | "case_sensitive" | "whole_word"
->;
 
 // The vault app and the document window both register these, so the input is
 // only what find needs.
@@ -120,14 +116,8 @@ export function register_find_in_file_actions(input: FindInFileActionInput) {
     id: ACTION_IDS.find_in_file_set_options,
     label: "Set Find in File Options",
     execute: (options: unknown) => {
-      const { regex, case_sensitive, whole_word } = {
-        ...stores.ui.find_in_file,
-        ...(options as Partial<FindOptions>),
-      };
       update_find_state({
-        regex,
-        case_sensitive,
-        whole_word,
+        ...(options as Partial<Record<FindOption, boolean>>),
         selected_match_index: 0,
       });
     },

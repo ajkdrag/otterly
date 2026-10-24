@@ -1,4 +1,5 @@
 import { untrack } from "svelte";
+import { literal_find_spec } from "@otterly/markdown-editor";
 import type { UIStore } from "$lib/app";
 import type { FindSpec, InFileMatch } from "$lib/shared/types/search";
 import type { SearchService, SearchStore } from "$lib/features/search";
@@ -12,12 +13,7 @@ export type FindInFileTarget = {
   update_find_state: (spec: FindSpec, selected_index: number) => void;
 };
 
-const NO_FIND: FindSpec = {
-  text: "",
-  regex: false,
-  case_sensitive: false,
-  whole_word: false,
-};
+const NO_FIND = literal_find_spec("");
 
 function read_find_spec(find: UIStore["find_in_file"]): FindSpec {
   return {
