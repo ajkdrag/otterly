@@ -186,6 +186,9 @@ export const ACTION_IDS = {
   document_request_close: "document.request_close",
   document_confirm_close: "document.confirm_close",
   document_cancel_close: "document.cancel_close",
+
+  vim_load_vimrc: "vim.load_vimrc",
+  vim_open_vimrc: "vim.open_vimrc",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

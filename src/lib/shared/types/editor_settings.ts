@@ -20,6 +20,7 @@ export type EditorSettings = {
   editor_max_width_ch: number;
   editor_zoom: number;
   heading_filename_delimiter: HeadingFilenameDelimiter;
+  vim_mode_enabled: boolean;
 };
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -34,6 +35,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   editor_max_width_ch: 85,
   editor_zoom: 1,
   heading_filename_delimiter: "spaces",
+  vim_mode_enabled: false,
 };
 
 export const SETTINGS_KEY = "editor" as const;
@@ -46,6 +48,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "editor_max_width_ch",
   "editor_zoom",
   "heading_filename_delimiter",
+  "vim_mode_enabled",
 ] as const;
 
 const GLOBAL_ONLY_SET = new Set<string>(GLOBAL_ONLY_SETTING_KEYS);
