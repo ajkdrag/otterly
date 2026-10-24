@@ -149,6 +149,7 @@ line 9: token "sidebar" must start with -- and use only letters, digits and dash
 line 10: token --sidebar must be a CSS color (got "#f4efe")
 line 11: token --size-tree-row is set by file_tree_density, use file_tree_density instead
 line 2: duplicate key "font_size"
+line 4: comments like // and /* */ are not allowed. Remove it, or write the file as YAML and start comments with #
 line 1: extends must be one of mocha, nordic-light, nordic-dark (got "my-theme")
 line 1: the file must be a mapping of keys to values, like font_size: 1.1
 Found both theme.yaml and theme.json. Delete one.

@@ -132,6 +132,27 @@ describe("parse_theme_file", () => {
     ]);
   });
 
+  it("says JSON comments are not allowed, not that a strange key is unknown", () => {
+    const errors = parse_errors(
+      '{\n  "name": "x", // warm\n  "accent_hue": 10\n}',
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ line: 2 });
+    expect(errors[0]?.message).toContain("comments like // and /* */");
+    expect(errors[0]?.message).not.toContain("unknown key");
+  });
+
+  it("says the same for a /* */ comment inside tokens", () => {
+    const errors = parse_errors(
+      '{"tokens": {\n  /* surfaces */ "--sidebar": "red"\n}}',
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ line: 2 });
+    expect(errors[0]?.message).toContain("comments like // and /* */");
+  });
+
   it("rejects numbers outside the descriptor range and names the range", () => {
     expect(parse_errors("name: Big\n\nfont_size: 2\n")).toEqual([
       {

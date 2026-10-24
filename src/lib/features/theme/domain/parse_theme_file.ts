@@ -53,6 +53,10 @@ const TREE_ROW_TOKEN = "--size-tree-row";
 // "Inter, sans-serif" would silently match no font at all.
 export const FONT_FAMILY_PATTERN = /^[^",;\\\n\r]+$/;
 const DEFAULT_FILE_THEME_NAME = "Theme file";
+// JSON has no comments. In a { } block YAML folds a // or /* comment into the
+// next key, so it shows up as a key that starts like this. Without a message
+// of its own it reads as an unknown key with a strange name.
+const JSON_COMMENT_START = /^(\/\/|\/\*)/;
 
 const DESCRIPTOR_BY_KEY = new Map<string, ThemeStyleDescriptor>(
   STYLE_DESCRIPTORS.map((desc) => [desc.theme_key, desc]),
@@ -315,7 +319,8 @@ type FileEntry = {
   is_empty: boolean;
 };
 
-// A repeated key is reported on its own line and left out of the result.
+// A repeated key or a JSON comment is reported on its own line and left out
+// of the result.
 function read_entries(
   map: YAMLMap,
   doc: Document,
@@ -328,6 +333,15 @@ function read_entries(
     const key = isScalar(pair.key) ? String(pair.key.value) : String(pair.key);
     const line =
       isNode(pair.key) && pair.key.range ? line_at(pair.key.range[0]) : null;
+    if (JSON_COMMENT_START.test(key)) {
+      errors.push({
+        line,
+        key,
+        message:
+          "comments like // and /* */ are not allowed. Remove it, or write the file as YAML and start comments with #",
+      });
+      continue;
+    }
     if (seen_keys.has(key)) {
       errors.push({ line, key, message: `duplicate key "${key}"` });
       continue;
