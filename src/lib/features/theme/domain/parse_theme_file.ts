@@ -37,7 +37,7 @@ export type ThemeFileParseResult =
   | { status: "invalid"; errors: ThemeFileError[] };
 
 const MAX_ERRORS = 20;
-const TOKEN_NAME_PATTERN = /^--[a-zA-Z0-9-]+$/;
+export const TOKEN_NAME_PATTERN = /^--[a-zA-Z0-9-]+$/;
 const DEFAULT_FILE_THEME_NAME = "Theme file";
 
 const DESCRIPTOR_BY_KEY = new Map<string, ThemeStyleDescriptor>(
