@@ -53,3 +53,10 @@ codegen-units = 16
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "~2.4.0"
+
+# The Dock menu for profiles talks to AppKit directly, because Tauri has no
+# API for it. Tauri already builds these crates.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSCell", "NSMenu", "NSMenuItem", "NSResponder"] }

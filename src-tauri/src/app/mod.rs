@@ -2,11 +2,11 @@ use crate::features;
 use crate::features::document::service::{
     files_from_args, forget_document_window, open_document_windows,
 };
-#[cfg(target_os = "macos")]
-use crate::features::profile::service::webview_data_store_id;
 use crate::features::profile::service::{
     profile_from_launch, profile_identifier, ProfileState, PROFILE_ENV_VAR,
 };
+#[cfg(target_os = "macos")]
+use crate::features::profile::service::{request_profile_dialog, webview_data_store_id};
 use crate::shared;
 use std::path::Path;
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
@@ -92,6 +92,8 @@ pub fn run() {
                 log::error!("{error}. Starting the default profile instead.");
             }
             log::info!("Profile {}", app.state::<ProfileState>().id);
+            #[cfg(target_os = "macos")]
+            features::profile::dock_menu::install_dock_menu(app.handle(), open_profiles_dialog);
 
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = files_from_args(&args, &cwd);
@@ -207,6 +209,14 @@ fn handle_run_event(app: &AppHandle, event: RunEvent) {
         } => show_main_window(app),
         _ => {}
     }
+}
+
+// The Dock's "New Profile…". The main window shows the profiles dialog, and
+// gets created first when it was closed.
+#[cfg(target_os = "macos")]
+fn open_profiles_dialog(app: &AppHandle) {
+    request_profile_dialog(app);
+    show_main_window(app);
 }
 
 fn open_files_or_main_window(app: &AppHandle, files: Vec<std::path::PathBuf>) {
