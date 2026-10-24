@@ -5,6 +5,9 @@ export type DocumentLoadState = "loading" | "ready" | "error";
 
 export class DocumentStore {
   file = $state<DocumentFile | null>(null);
+  // A mirror of the editor text, up to 200 ms behind typing. It is for display
+  // and find only. Save and copy read the editor session, which is current.
+  markdown = $state("");
   load_state = $state<DocumentLoadState>("loading");
   load_error = $state<string | null>(null);
   is_dirty = $state(false);
@@ -19,6 +22,7 @@ export class DocumentStore {
 
   set_loaded(file: DocumentFile) {
     this.file = file;
+    this.markdown = file.text;
     this.load_state = "ready";
     this.load_error = null;
     this.is_dirty = false;
@@ -34,7 +38,8 @@ export class DocumentStore {
     this.is_dirty = is_dirty;
   }
 
-  note_edit() {
+  note_edit(markdown: string) {
+    this.markdown = markdown;
     this.edit_revision += 1;
   }
 

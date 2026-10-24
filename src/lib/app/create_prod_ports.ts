@@ -70,6 +70,7 @@ export function create_document_window_ports(
     settings: create_settings_tauri_adapter(),
     vault_settings: create_vault_settings_tauri_adapter(),
     shell: create_shell_tauri_adapter(),
+    clipboard,
     document: create_document_tauri_adapter(),
     editor: create_codemirror_editor_port({
       // Document buffers have no vault, so this never runs.

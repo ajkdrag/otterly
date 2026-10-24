@@ -1,7 +1,13 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
-import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
+import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
+import type { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 
-export function register_help_actions(input: ActionRegistrationInput) {
+export type HelpActionInput = {
+  registry: ActionRegistry;
+  stores: { ui: UIStore };
+};
+
+export function register_help_actions(input: HelpActionInput) {
   const { registry, stores } = input;
 
   function set_help_open(open: boolean) {

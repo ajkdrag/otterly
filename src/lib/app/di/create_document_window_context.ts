@@ -10,6 +10,13 @@ import {
 } from "$lib/features/settings";
 import type { VaultSettingsPort } from "$lib/features/vault";
 import { ShellService, type ShellPort } from "$lib/features/shell";
+import { ClipboardService, type ClipboardPort } from "$lib/features/clipboard";
+import {
+  SearchStore,
+  register_find_in_file_actions,
+  search_within_text,
+} from "$lib/features/search";
+import { register_help_actions } from "$lib/app/orchestration/help_actions";
 import { VaultStore } from "$lib/features/vault";
 import { ThemeService } from "$lib/features/theme";
 import { DEFAULT_HOTKEYS, HotkeyService } from "$lib/features/hotkey";
@@ -19,6 +26,8 @@ import {
   register_document_actions,
   type DocumentPort,
 } from "$lib/features/document";
+import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
+import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
 import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
@@ -31,6 +40,7 @@ export type DocumentWindowPorts = {
   settings: SettingsPort;
   vault_settings: VaultSettingsPort;
   shell: ShellPort;
+  clipboard: ClipboardPort;
   document: DocumentPort;
   editor: EditorPort;
 };
@@ -51,6 +61,7 @@ export function create_document_window_context(input: {
     ui: new UIStore(),
     op: new OpStore(),
     document: new DocumentStore(),
+    search: new SearchStore(),
   };
   const action_registry = new ActionRegistry();
 
@@ -61,6 +72,11 @@ export function create_document_window_context(input: {
     input.ports.vault_settings,
     input.ports.settings,
     new VaultStore(),
+    stores.op,
+    now_ms,
+  );
+  const clipboard_service = new ClipboardService(
+    input.ports.clipboard,
     stores.op,
     now_ms,
   );
@@ -91,8 +107,21 @@ export function create_document_window_context(input: {
 
   register_document_actions({
     registry: action_registry,
+    stores: { ui: stores.ui, document: stores.document },
+    services: {
+      document: document_service,
+      shell: shell_service,
+      clipboard: clipboard_service,
+    },
+  });
+  register_find_in_file_actions({
+    registry: action_registry,
+    stores: { ui: stores.ui, search: stores.search },
+    services: { editor: document_service },
+  });
+  register_help_actions({
+    registry: action_registry,
     stores: { ui: stores.ui },
-    services: { document: document_service, shell: shell_service },
   });
   register_editor_zoom_actions({
     registry: action_registry,
@@ -115,6 +144,19 @@ export function create_document_window_context(input: {
       action_registry,
     ),
     create_document_window_reactor(stores.document, document_service),
+    create_op_toast_reactor(stores.op),
+    create_find_in_file_reactor(
+      stores.ui,
+      stores.search,
+      {
+        read_buffer_id: () => stores.document.file?.path ?? null,
+        read_markdown: () => stores.document.markdown,
+        update_find_state: (query, selected_index) => {
+          document_service.update_find_state(query, selected_index);
+        },
+      },
+      { search_within_file: search_within_text },
+    ),
   ];
 
   async function start() {
@@ -128,9 +170,21 @@ export function create_document_window_context(input: {
     stores.ui.set_user_themes(themes.user_themes);
     stores.ui.set_active_theme_id(themes.active_theme_id);
     stores.ui.hotkey_overrides = hotkey_overrides;
-    stores.ui.set_hotkeys_config(
-      hotkey_service.merge_config(DEFAULT_HOTKEYS, hotkey_overrides),
+    // The vault app's hotkeys, minus everything that needs a vault or tabs.
+    // Shortcuts, Help and the keyboard handler all read this filtered list.
+    // Every action is registered above, before start() runs.
+    const registered_action_ids = new Set(
+      action_registry.get_all().map((action) => action.id),
     );
+    const hotkeys_config = hotkey_service.merge_config(
+      DEFAULT_HOTKEYS,
+      hotkey_overrides,
+    );
+    stores.ui.set_hotkeys_config({
+      bindings: hotkeys_config.bindings.filter((binding) =>
+        registered_action_ids.has(binding.action_id),
+      ),
+    });
   }
 
   return {

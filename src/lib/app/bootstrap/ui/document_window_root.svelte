@@ -4,6 +4,8 @@
   import { create_document_window_context } from "$lib/app/di/create_document_window_context";
   import { provide_document_window_context } from "$lib/app/context/app_context.svelte";
   import { DocumentWindow } from "$lib/features/document";
+  import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
+  import HelpDialog from "$lib/app/bootstrap/ui/help_dialog.svelte";
 
   let { window_label }: { window_label: string } = $props();
 
@@ -23,3 +25,9 @@
 </script>
 
 <DocumentWindow />
+
+<HelpDialog
+  open={context.stores.ui.help_dialog.open}
+  hotkeys_config={context.stores.ui.hotkeys_config}
+  on_close={() => void context.action_registry.execute(ACTION_IDS.help_close)}
+/>

@@ -24,6 +24,7 @@ function setup(read: DocumentFile | Error = file) {
     get_markdown: () => markdown,
     mark_clean: vi.fn(),
     open_buffer: vi.fn(),
+    update_find_state: vi.fn(),
     toggle_source_mode: vi.fn(),
   } as unknown as EditorSession;
   const editor_port: EditorPort = {
@@ -37,6 +38,7 @@ function setup(read: DocumentFile | Error = file) {
       read instanceof Error ? Promise.reject(read) : Promise.resolve(read),
     ),
     write_document: vi.fn(() => Promise.resolve(200)),
+    reveal_document: vi.fn(() => Promise.resolve()),
   };
   const service = new DocumentService(
     document_port,
@@ -139,5 +141,32 @@ describe("DocumentService", () => {
     );
     expect(store.load_state).toBe("error");
     expect(store.load_error).toMatch(/not text/);
+  });
+
+  it("keeps the store's markdown current for find", async () => {
+    const { store, type } = await open();
+    expect(store.markdown).toBe("# Hello");
+
+    type("# Hello there");
+
+    expect(store.markdown).toBe("# Hello there");
+  });
+
+  it("passes find state to the editor session", async () => {
+    const { service, session } = await open();
+
+    service.update_find_state("hello", 1);
+
+    expect(session.update_find_state).toHaveBeenCalledWith("hello", 1);
+  });
+
+  it("reveals its file and reports whether that worked", async () => {
+    const { service, document_port } = await open();
+    expect(await service.reveal_in_file_manager()).toBe(true);
+
+    vi.mocked(document_port.reveal_document).mockRejectedValueOnce(
+      new Error("tauri invoke failed: reveal_document"),
+    );
+    expect(await service.reveal_in_file_manager()).toBe(false);
   });
 });

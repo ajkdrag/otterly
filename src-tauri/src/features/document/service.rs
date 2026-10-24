@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
 
 // A file the OS asks us to open (double click, "Open With", a second launch
 // with a path) gets its own window, outside any vault. A document window can
@@ -62,6 +63,21 @@ pub fn write_document(
     atomic_write(&path, &text)?;
     let (mtime_ms, _) = file_meta(&path)?;
     Ok(mtime_ms)
+}
+
+// Like read_document, this takes no path: the window can only reveal its own
+// file. The file manager gets the display form, because it may not accept a
+// Windows verbatim path.
+#[tauri::command]
+pub fn reveal_document(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<DocumentState>,
+) -> Result<(), String> {
+    let path = document_path(&state, window.label())?;
+    app.opener()
+        .reveal_item_in_dir(display_path(&path))
+        .map_err(|e| e.to_string())
 }
 
 pub fn open_document_windows(app: &AppHandle, paths: Vec<PathBuf>) {

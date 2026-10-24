@@ -179,6 +179,8 @@ export const ACTION_IDS = {
 
   document_editor_mount: "document.editor_mount",
   document_editor_unmount: "document.editor_unmount",
+  document_copy_path: "document.copy_path",
+  document_reveal_in_file_manager: "document.reveal_in_file_manager",
   document_reload: "document.reload",
   document_overwrite: "document.overwrite",
   document_request_close: "document.request_close",
