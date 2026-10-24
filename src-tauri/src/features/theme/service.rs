@@ -120,17 +120,7 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
     let (changed_tx, changed_rx) = mpsc::channel::<()>();
     let mut watcher = RecommendedWatcher::new(
         move |result: notify::Result<notify::Event>| {
-            let Ok(event) = result else { return };
-            // Linux reports opens and reads, including our own read after
-            // each change, which would loop. A finished write still counts.
-            let is_read = matches!(
-                event.kind,
-                EventKind::Access(kind) if kind != AccessKind::Close(AccessMode::Write)
-            );
-            if is_read {
-                return;
-            }
-            if event.paths.iter().any(|path| is_theme_file(path)) {
+            if result.is_ok_and(|event| is_theme_file_change(&event)) {
                 let _ = changed_tx.send(());
             }
         },
@@ -141,7 +131,9 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
         .watch(&dir, RecursiveMode::NonRecursive)
         .map_err(|e| e.to_string())?;
 
-    emit_changes_debounced(app, changed_rx);
+    debounce_changes(changed_rx, CHANGE_DEBOUNCE, move || {
+        let _ = app.emit(THEME_FILE_CHANGED_EVENT, ());
+    });
     *slot = Some(watcher);
     log::info!("Watching theme file folder {}", dir.display());
     Ok(())
@@ -193,6 +185,19 @@ fn read_capped_text(path: &Path) -> Result<Option<String>, String> {
     Ok(Some(text))
 }
 
+// Atomic saves (a temp file renamed over theme.yaml, or vim moving the old
+// file to theme.yaml~) name theme.yaml in some event, and the temp, swap and
+// backup files never match. So matching on the file name is enough.
+pub fn is_theme_file_change(event: &notify::Event) -> bool {
+    // Linux reports opens and reads, including our own read after each
+    // change, which would loop. A finished write still counts.
+    let is_read = matches!(
+        event.kind,
+        EventKind::Access(kind) if kind != AccessKind::Close(AccessMode::Write)
+    );
+    !is_read && event.paths.iter().any(|path| is_theme_file(path))
+}
+
 fn is_theme_file(path: &Path) -> bool {
     matches!(
         path.file_name().and_then(OsStr::to_str),
@@ -200,14 +205,19 @@ fn is_theme_file(path: &Path) -> bool {
     )
 }
 
-// Saving often takes several events (truncate, write, rename). Wait until
-// they stop for 150 ms, then tell the windows once.
-fn emit_changes_debounced(app: AppHandle, changed_rx: mpsc::Receiver<()>) {
+// Saving often takes several events (truncate, write, rename), and an agent
+// may save many times in a row. Wait until they stop for quiet_period, then
+// call on_settled once.
+pub fn debounce_changes(
+    changed_rx: mpsc::Receiver<()>,
+    quiet_period: Duration,
+    on_settled: impl Fn() + Send + 'static,
+) {
     std::thread::spawn(move || {
         // recv fails once the watcher, which owns the sender, is dropped.
         while changed_rx.recv().is_ok() {
-            while changed_rx.recv_timeout(CHANGE_DEBOUNCE).is_ok() {}
-            let _ = app.emit(THEME_FILE_CHANGED_EVENT, ());
+            while changed_rx.recv_timeout(quiet_period).is_ok() {}
+            on_settled();
         }
     });
 }
