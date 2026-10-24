@@ -189,7 +189,8 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
 // "Later" stops these prompts for the session. The manual check still shows
 // the prompt. Only the default profile checks on its own, because two
 // processes installing one update into the same bundle is asking for trouble.
-// The profile is null until it loads, which counts as not default.
+// So when only another profile runs, nothing checks in the background. The
+// profile is null until it loads, which counts as not default.
 async function execute_app_check_for_updates_in_background(
   input: ActionRegistrationInput,
 ) {
@@ -209,10 +210,16 @@ function show_update_ready_prompt(
   const dismiss = () => {
     input.stores.ui.update_prompt_dismissed = true;
   };
+  // The Windows installer has to replace otterly.exe, so it force-closes every
+  // running profile without letting them save. macOS and Linux keep the others
+  // running on the old version.
+  const closes_all_profiles = globalThis.navigator?.platform?.startsWith("Win");
   // A fixed id replaces an open prompt instead of stacking another one.
   toast.info(`Otterly v${version} is ready`, {
     id: UPDATE_READY_TOAST_ID,
-    description: "Restart to finish updating.",
+    description: closes_all_profiles
+      ? "Restart to finish updating. Installing closes all open Otterly windows, including other profiles."
+      : "Restart to finish updating.",
     duration: Number.POSITIVE_INFINITY,
     action: {
       label: "Restart",

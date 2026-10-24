@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { register_app_actions } from "$lib/app/orchestration/app_actions";
@@ -38,7 +38,10 @@ vi.mock("@tauri-apps/api/window", () => ({
   }),
 }));
 
-function update_prompt_options(): { cancel: { onClick: () => void } } {
+function update_prompt_options(): {
+  description: string;
+  cancel: { onClick: () => void };
+} {
   const call = vi
     .mocked(toast.info)
     .mock.calls.find(([message]) => String(message).endsWith("is ready"));
@@ -220,6 +223,10 @@ describe("register_app_actions", () => {
     const test_window = get_test_window();
     delete test_window.__TAURI__;
     delete test_window.__TAURI_INTERNALS__;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("initializes app state and loads vault UI when vault exists", async () => {
@@ -410,6 +417,38 @@ describe("register_app_actions", () => {
     expect(toast.info).toHaveBeenCalledWith(
       "Otterly v0.5.0 is ready",
       expect.objectContaining({ id: "update-ready" }),
+    );
+  });
+
+  it("warns on Windows that installing closes every profile", async () => {
+    const { registry, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    vi.stubGlobal("navigator", { platform: "Win32" });
+    services.updater.download_update.mockResolvedValue({
+      status: "ready",
+      version: "0.5.0",
+    });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(update_prompt_options().description).toContain(
+      "including other profiles",
+    );
+  });
+
+  it("does not warn about other profiles on macOS", async () => {
+    const { registry, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    services.updater.download_update.mockResolvedValue({
+      status: "ready",
+      version: "0.5.0",
+    });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(update_prompt_options().description).toBe(
+      "Restart to finish updating.",
     );
   });
 
