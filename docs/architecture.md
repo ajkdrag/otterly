@@ -127,9 +127,11 @@ The Windows release also ships a portable zip: `otterly.exe` plus `src-tauri/win
 
 A profile is a separate Otterly process with one vault window. `--profile=<id>` or `OTTERLY_PROFILE` picks it at launch. Ids match `^[a-z0-9][a-z0-9-]{0,31}$`, and a bad one logs an error and starts `default`. Before the Tauri builder runs, `app/mod.rs` rewrites the config identifier to `com.otterly.app.profile-<id>`. Everything Tauri derives from the identifier is then per profile: settings, the vault list, window state, logs, the webview data dir on Windows and Linux, and the single-instance lock. `default` keeps `com.otterly.app`, so existing data stays where it is.
 
-Per profile: the things above, the webview storage on macOS 14+ (`data_store_identifier` on the main and document windows), and the tab session of a vault (`.otterly/sessions/latest.json` for `default`, `latest-<id>.json` for the rest). Per vault, shared by every profile that opens it: the notes, vault settings, `search.db` and git. Two profiles on one vault is the same as Otterly plus another editor on that folder.
+Per profile: the things above, the webview storage on macOS 14+ (`data_store_identifier` on the main and document windows), the tab session of a vault (`.otterly/sessions/latest.json` for `default`, `latest-<id>.json` for the rest), and the recent notes of a vault (the `recent_notes` vault setting for `default`, `recent_notes-<id>` for the rest). Per vault, shared by every profile that opens it: the notes, vault settings, starred notes, `search.db` and git. Two profiles on one vault is the same as Otterly plus another editor on that folder.
 
-A profile exists when its config folder exists, so `list_profiles` reads folder names and there is no registry to keep in sync. `open_profile` starts the executable again with `--profile=<id>`. If that profile already runs, the single-instance plugin hands the new process's arguments to it, and it focuses its window. Only the default profile checks for updates in the background.
+A profile loads a vault's lists once, so writing its whole in-memory list back would undo what another profile saved in between. That is why recent notes are per profile, and why starred notes are saved as a change over the list on disk (`apply_starred_paths_change`, fed by the starred reactor's last saved list). Editor settings are read again when the settings dialog opens, so they stay last-writer-wins.
+
+A profile exists when its config folder exists, so `list_profiles` reads folder names and there is no registry to keep in sync. `open_profile` starts the executable again with `--profile=<id>`. If that profile already runs, the single-instance plugin hands the new process's arguments to it, and it focuses its window. Only the default profile checks for updates in the background (on macOS a plain launch while only another profile runs just activates that profile, so nothing checks then). On Windows, installing an update closes every running profile, because the installer has to replace `otterly.exe`, and the update prompt says so. On macOS and Linux the other profiles keep running the old version until restarted.
 
 The "Profiles…" command opens the dialog. On macOS the Dock menu lists the profiles too. Tauri has no Dock menu API, so `profile/dock_menu.rs` adds `applicationDockMenu:` to tao's app delegate class at runtime. The AppKit callback has no user data pointer, so the menu keeps what it needs in one static (see Accepted deviations). The Windows jump list and Linux desktop actions are left out, because the lists are dynamic and not cheap to keep current.
 
@@ -360,7 +362,7 @@ Backend invariants:
 
 1. All native capabilities are exposed exclusively through `#[tauri::command]` functions
 2. Managed state structs live in the feature's `service.rs` — no global statics
-3. Cross-feature shared code goes in `shared/`, not inside a feature module
+3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, and `profile::service` for `ProfileState`, `session_file_name` and `with_profile_data_store`)
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
 5. Backend holds no domain state between calls (exceptions: `WatcherState` and `SearchDbState` which are explicit lifecycle-managed state, and `ProfileState`, which is launch config plus one flag)
 
