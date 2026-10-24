@@ -111,6 +111,13 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     for (const path of paths) {
       const note_path = as_note_path(path);
       if (active_path && paths_equal_ignore_case(path, active_path)) {
+        // You can type between the write and this reload. Reloading would
+        // throw those edits away, so flag a conflict and let the toast ask.
+        services.editor.flush();
+        if (unsaved_paths().has(path.toLowerCase())) {
+          services.tab.mark_conflict(note_path);
+          continue;
+        }
         await services.note.open_note(note_path, false, {
           force_reload: true,
         });
@@ -124,6 +131,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
   registry.register({
     id: ACTION_IDS.vault_find_open,
     label: "Find in Vault",
+    when: () => stores.vault.vault !== null,
     execute: () => {
       stores.ui.set_sidebar_view("search");
       stores.ui.vault_find.focus_nonce += 1;
@@ -162,7 +170,12 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     label: "Open Find in Vault Match",
     execute: async (raw: unknown) => {
       const match = raw as OpenMatchInput;
-      await registry.execute(ACTION_IDS.note_open, match.path);
+      // Results go stale when a file is renamed or deleted. Cleanup makes the
+      // open say "Note no longer exists" instead of failing without a word.
+      await registry.execute(ACTION_IDS.note_open, {
+        note_path: match.path,
+        cleanup_if_missing: true,
+      });
       // Opening can fail or hand the file to another app. Do not select a
       // range in whatever note is still open then.
       if (stores.editor.open_note?.meta.path !== match.path) return;
