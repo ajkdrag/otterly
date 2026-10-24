@@ -11,7 +11,6 @@ import {
 import {
   block_at,
   block_extensions,
-  block_field,
   controller_for_block,
   is_block_rendered,
   mounted_controllers,
@@ -184,7 +183,7 @@ const surface_selection_sync = EditorView.updateListener.of((update) => {
   }
   if ((update.focusChanged || update.selectionSet) && update.view.hasFocus)
     move_caret_into_surface(update.view);
-  if (surface_turned_into_source(update)) take_focus_back(update.view);
+  if (nested_editor_may_hold_focus(update)) take_focus_back(update.view);
   if (!update.selectionSet && !update.docChanged) return;
   if (
     update.transactions.some((transaction) =>
@@ -236,38 +235,45 @@ function move_caret_into_surface(view: EditorView) {
   });
 }
 
-// Under reveal_surfaces_at_caret, a click inside a rendered code block or
-// table still focuses its nested editor, which moves the outer selection into
-// the block. The block shows its source only once the click is over (the
-// reveal freeze holds it rendered until about 100 ms after the button comes
-// up), and then the nested view is destroyed together with the focus. This
-// finds that moment: the block at the caret was rendered before the update
-// and is source now.
-function surface_turned_into_source(update: ViewUpdate): boolean {
+// Under reveal_surfaces_at_caret the outer view owns every key, so focus must
+// not stay in a nested editor, which has no Vim. A click inside a rendered code
+// block or table still focuses the nested editor. The reveal freeze holds the
+// block rendered until about 100 ms after the button comes up. Then either:
+//  - the caret is empty, the block turns into source, and the nested view is
+//    destroyed together with its focus, or
+//  - the selection is a range (double click, drag), the block stays rendered
+//    (a range never reveals), and the nested editor keeps focus.
+// This finds the moments to check: the freeze just ended, or a nested editor
+// published a selection or edit while no click was in progress.
+function nested_editor_may_hold_focus(update: ViewUpdate): boolean {
   const { startState, state } = update;
   if (!state.facet(reveal_surfaces_at_caret)) return false;
-  const nested_editor_moved_caret = update.transactions.some((transaction) =>
-    transaction.annotation(surface_input),
-  );
+  const frozen = state.field(reveal_freeze, false)?.frozen === true;
   const click_ended =
-    startState.field(reveal_freeze, false)?.frozen === true &&
-    state.field(reveal_freeze, false)?.frozen === false;
-  if (!nested_editor_moved_caret && !click_ended) return false;
-  const block = block_at(state, state.selection.main.head);
-  if (!block || block.construct.reveal !== "surface") return false;
-  const was_source = startState
-    .field(block_field)
-    .revealed.some((from) => update.changes.mapPos(from, 1) === block.from);
-  return !was_source && state.field(block_field).revealed.includes(block.from);
+    startState.field(reveal_freeze, false)?.frozen === true && !frozen;
+  const nested_editor_published =
+    !frozen &&
+    update.transactions.some((transaction) =>
+      transaction.annotation(surface_input),
+    );
+  return click_ended || nested_editor_published;
 }
 
-// Give focus back to the outer editor, so the next key lands in the source
-// the caret now sits in. Skip it when focus is somewhere else on purpose.
+// Give focus back to the outer editor, keeping its selection, so the next key
+// lands where Vim sees it. Focus is on the body when the nested view went away
+// and inside a nested editor when it stayed. Anywhere else it is there on
+// purpose, such as the find bar or Vim's own prompt.
 function take_focus_back(view: EditorView) {
   // Focusing dispatches, which cannot happen inside this update.
   queueMicrotask(() => {
+    if (view.hasFocus) return;
     const doc = view.contentDOM.ownerDocument;
-    if (!view.hasFocus && doc.activeElement === doc.body) view.focus();
+    const nested_editor = doc.activeElement?.closest(".cm-editor");
+    const in_nested_editor =
+      nested_editor &&
+      nested_editor !== view.dom &&
+      view.dom.contains(nested_editor);
+    if (doc.activeElement === doc.body || in_nested_editor) view.focus();
   });
 }
 

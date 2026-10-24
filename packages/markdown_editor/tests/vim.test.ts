@@ -266,6 +266,54 @@ describe("vim mode", () => {
     );
   });
 
+  test.each([
+    {
+      name: "code block",
+      source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
+      editor_selector: ".md-code-source .cm-editor",
+      mouse_target: ".md-code-source .cm-content",
+    },
+    {
+      name: "table cell",
+      source: `before\n\n${table.replace("| 1 |", "| alpha |")}\n\nafter`,
+      editor_selector: ".md-table-cell-active .cm-editor",
+      mouse_target: "[data-row='1'][data-col='0']",
+    },
+  ])(
+    "VIM-015 a mouse range selection in a $name gives focus back to the editor and keeps the block",
+    async ({ source, editor_selector, mouse_target }) => {
+      const view = vim_editor(source);
+      view.focus();
+      view.dom.querySelector<HTMLElement>(mouse_target)?.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      const element = view.dom.querySelector<HTMLElement>(editor_selector);
+      const nested = element ? EditorView.findFromDOM(element) : null;
+      if (!nested) throw new Error("no nested editor to select in");
+      nested.focus();
+      nested.dispatch({ selection: { anchor: 0, head: 3 } });
+      window.dispatchEvent(
+        new MouseEvent("mouseup", { bubbles: true, button: 0 }),
+      );
+
+      await vi.waitFor(
+        () => {
+          expect(view.hasFocus).toBe(true);
+        },
+        { timeout: 3000 },
+      );
+      expect(table_widget(view)).not.toBeNull();
+      expect(view.state.selection.main.empty).toBe(false);
+
+      press(view, "y");
+      expect(view.state.doc.toString()).toBe(source);
+    },
+  );
+
   // Insert mode uses the native caret, so the block cursor class is only on
   // in the other two.
   test.each([
