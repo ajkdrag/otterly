@@ -103,9 +103,7 @@ pub fn reveal_theme_file(app: AppHandle) -> Result<(), String> {
 }
 
 // Every window calls this. The first call starts the one watcher, later calls
-// do nothing, and the event goes to all windows. We watch the folder, not the
-// file: editors and agents often save by writing a temp file and renaming it
-// over the old one, and a watch on the old file would miss that.
+// do nothing, and the event goes to all windows.
 #[tauri::command]
 pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> Result<(), String> {
     let mut slot = state
@@ -117,6 +115,23 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
     }
 
     let dir = theme_file_dir(&app)?;
+    let watcher = start_theme_file_watcher(&dir, CHANGE_DEBOUNCE, move || {
+        let _ = app.emit(THEME_FILE_CHANGED_EVENT, ());
+    })?;
+    *slot = Some(watcher);
+    log::info!("Watching theme file folder {}", dir.display());
+    Ok(())
+}
+
+// Calls on_settled once after each burst of saves of the theme file. We watch
+// the folder, not the file: editors and agents often save by writing a temp
+// file and renaming it over the old one, and a watch on the old file would
+// miss that. The caller keeps the returned watcher alive.
+pub fn start_theme_file_watcher(
+    dir: &Path,
+    quiet_period: Duration,
+    on_settled: impl Fn() + Send + 'static,
+) -> Result<RecommendedWatcher, String> {
     let (changed_tx, changed_rx) = mpsc::channel::<()>();
     let mut watcher = RecommendedWatcher::new(
         move |result: notify::Result<notify::Event>| {
@@ -128,15 +143,11 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
     )
     .map_err(|e| e.to_string())?;
     watcher
-        .watch(&dir, RecursiveMode::NonRecursive)
+        .watch(dir, RecursiveMode::NonRecursive)
         .map_err(|e| e.to_string())?;
 
-    debounce_changes(changed_rx, CHANGE_DEBOUNCE, move || {
-        let _ = app.emit(THEME_FILE_CHANGED_EVENT, ());
-    });
-    *slot = Some(watcher);
-    log::info!("Watching theme file folder {}", dir.display());
-    Ok(())
+    debounce_changes(changed_rx, quiet_period, on_settled);
+    Ok(watcher)
 }
 
 // Both names at once is an error instead of a precedence rule. Someone (or an

@@ -1,7 +1,9 @@
-use crate::features::theme::service::{debounce_changes, is_theme_file_change, pick_theme_file};
+use crate::features::theme::service::{
+    debounce_changes, is_theme_file_change, pick_theme_file, start_theme_file_watcher,
+};
 use notify::event::{AccessKind, AccessMode, CreateKind, ModifyKind, RemoveKind, RenameMode};
 use notify::EventKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
@@ -127,4 +129,88 @@ fn a_burst_of_changes_settles_once() {
     std::thread::sleep(Duration::from_millis(600));
 
     assert_eq!(settled_count.load(Ordering::SeqCst), 2);
+}
+
+// Runs a real watcher over a folder and returns how many times it settled
+// while edit ran. The sleeps are long on purpose: on a loaded machine events
+// arrive late, and a late event would split one save into two.
+fn count_settled_changes(dir: &Path, edit: impl FnOnce()) -> usize {
+    let settled_count = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&settled_count);
+    let _watcher = start_theme_file_watcher(dir, Duration::from_millis(400), move || {
+        counter.fetch_add(1, Ordering::SeqCst);
+    })
+    .unwrap();
+
+    // Some systems replay events from just before the watch started.
+    std::thread::sleep(Duration::from_millis(1000));
+    let before = settled_count.load(Ordering::SeqCst);
+    edit();
+    std::thread::sleep(Duration::from_millis(2000));
+    settled_count.load(Ordering::SeqCst) - before
+}
+
+#[test]
+fn saving_through_a_temp_file_and_rename_reloads_once() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yaml"), "font_size: 1").unwrap();
+
+    let settled = count_settled_changes(dir.path(), || {
+        let temp = dir.path().join("theme.yaml.tmp");
+        std::fs::write(&temp, "font_size: 1.1").unwrap();
+        std::fs::rename(&temp, dir.path().join("theme.yaml")).unwrap();
+    });
+
+    assert_eq!(settled, 1);
+}
+
+#[test]
+fn a_vim_style_save_reloads_once() {
+    let dir = TempDir::new().unwrap();
+    let theme = dir.path().join("theme.yaml");
+    std::fs::write(&theme, "font_size: 1").unwrap();
+
+    let settled = count_settled_changes(dir.path(), || {
+        // Probe file, swap file, backup by rename, new file, backup removed.
+        std::fs::write(dir.path().join("4913"), "").unwrap();
+        std::fs::remove_file(dir.path().join("4913")).unwrap();
+        std::fs::write(dir.path().join(".theme.yaml.swp"), "swap").unwrap();
+        std::fs::rename(&theme, dir.path().join("theme.yaml~")).unwrap();
+        std::fs::write(&theme, "font_size: 1.1").unwrap();
+        std::fs::remove_file(dir.path().join("theme.yaml~")).unwrap();
+        std::fs::remove_file(dir.path().join(".theme.yaml.swp")).unwrap();
+    });
+
+    assert_eq!(settled, 1);
+}
+
+#[test]
+fn ten_quick_saves_reload_once() {
+    let dir = TempDir::new().unwrap();
+    let theme = dir.path().join("theme.yaml");
+    std::fs::write(&theme, "font_size: 1").unwrap();
+
+    let settled = count_settled_changes(dir.path(), || {
+        for step in 0..10 {
+            std::fs::write(&theme, format!("accent_hue: {}", 100 + step)).unwrap();
+            std::thread::sleep(Duration::from_millis(80));
+        }
+    });
+
+    assert_eq!(settled, 1);
+}
+
+#[test]
+fn writing_settings_and_the_schema_does_not_reload() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yaml"), "font_size: 1").unwrap();
+
+    let settled = count_settled_changes(dir.path(), || {
+        let temp = dir.path().join("settings.json.tmp");
+        std::fs::write(&temp, "{}").unwrap();
+        std::fs::rename(&temp, dir.path().join("settings.json")).unwrap();
+        std::fs::write(dir.path().join("theme.schema.json"), "{}").unwrap();
+    });
+
+    assert_eq!(settled, 0);
 }
