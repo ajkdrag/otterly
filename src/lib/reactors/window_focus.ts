@@ -1,4 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { create_logger } from "$lib/shared/utils/logger";
+
+const log = create_logger("window_focus");
 
 // Calls on_focus each time this window gains focus, and returns the function
 // that stops it. This is Tauri's focus event, like document_window.reactor
@@ -16,6 +19,10 @@ export function subscribe_to_window_focus(on_focus: () => void): () => void {
       // before it exists.
       if (unsubscribed) unlisten();
       else stop_listening = unlisten;
+    })
+    .catch((error: unknown) => {
+      // Without the listener the vimrc never reloads on focus. Say so.
+      log.error("Could not watch window focus", { error });
     });
   return () => {
     unsubscribed = true;

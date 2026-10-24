@@ -32,6 +32,25 @@ describe("subscribe_to_window_focus", () => {
     expect(on_focus).toHaveBeenCalledOnce();
   });
 
+  it("logs the error when Tauri cannot register the listener", async () => {
+    const console_error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    on_focus_changed.mockReturnValue(Promise.reject(new Error("no window")));
+
+    const unsubscribe = subscribe_to_window_focus(vi.fn());
+
+    await vi.waitFor(() => {
+      expect(console_error).toHaveBeenCalledWith(
+        expect.stringContaining("Could not watch window focus"),
+      );
+    });
+    expect(() => {
+      unsubscribe();
+    }).not.toThrow();
+    console_error.mockRestore();
+  });
+
   it("stops listening when unsubscribed before Tauri finished registering", async () => {
     const unlisten = vi.fn();
     on_focus_changed.mockReturnValue(Promise.resolve(unlisten));

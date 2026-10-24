@@ -19,7 +19,12 @@ export function register_vim_actions(input: VimActionInput) {
     // A run with no argument (the Reload button) is a manual reload, so it
     // forces. The window focus reactor passes { force: false }.
     execute: async (arg: unknown) => {
-      const force = (arg as { force?: boolean } | null)?.force !== false;
+      const force = !(
+        typeof arg === "object" &&
+        arg !== null &&
+        "force" in arg &&
+        arg.force === false
+      );
       const result = await services.vim.load_vimrc({ force });
       if (result.status === "stale") return;
 
