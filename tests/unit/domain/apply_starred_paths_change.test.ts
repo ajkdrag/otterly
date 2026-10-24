@@ -26,4 +26,22 @@ describe("apply_starred_paths_change", () => {
       apply_starred_paths_change(["old.md", "x.md"], ["old.md"], ["new.md"]),
     ).toEqual(["x.md", "new.md"]);
   });
+
+  it("unstars a path that the file spells with other case or spaces", () => {
+    expect(
+      apply_starred_paths_change(["Docs/A.md", " x.md "], ["docs/a.md"], []),
+    ).toEqual(["x.md"]);
+  });
+
+  it("does not star a path again when the file has it in other case", () => {
+    expect(
+      apply_starred_paths_change(["Docs/A.md"], [], ["docs/a.md"]),
+    ).toEqual(["Docs/A.md"]);
+  });
+
+  it("takes the new spelling when a rename only changes case", () => {
+    expect(apply_starred_paths_change(["a.md"], ["a.md"], ["A.md"])).toEqual([
+      "A.md",
+    ]);
+  });
 });
