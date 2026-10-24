@@ -14,6 +14,7 @@ import type { GitService } from "$lib/features/git";
 import type { HotkeyService } from "$lib/features/hotkey";
 import type { ThemeService } from "$lib/features/theme";
 import type { UpdaterService } from "$lib/features/updater";
+import type { TagsService } from "$lib/features/tags";
 import type { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import type { VaultStore } from "$lib/features/vault";
 import type { NotesStore } from "$lib/features/note";
@@ -51,6 +52,7 @@ export type ActionRegistrationInput = {
     hotkey: HotkeyService;
     theme: ThemeService;
     updater: UpdaterService;
+    tags: TagsService;
   };
   default_mount_config: AppMountConfig;
 };

@@ -14,6 +14,8 @@ import { create_recent_commands_persist_reactor } from "$lib/reactors/recent_com
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
 import { create_backlinks_sync_reactor } from "$lib/reactors/backlinks_sync.reactor.svelte";
 import { create_local_links_sync_reactor } from "$lib/reactors/local_links_sync.reactor.svelte";
+import { create_note_tags_sync_reactor } from "$lib/reactors/note_tags_sync.reactor.svelte";
+import { create_tag_pane_sync_reactor } from "$lib/reactors/tag_pane_sync.reactor.svelte";
 import { create_watcher_reactor } from "$lib/reactors/watcher.reactor.svelte";
 import { create_window_title_reactor } from "$lib/reactors/window_title.reactor.svelte";
 import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reactor.svelte";
@@ -37,6 +39,7 @@ import type { GitService } from "$lib/features/git";
 import type { LinksService } from "$lib/features/links";
 import type { SearchService, SearchStore } from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
+import type { TagsService } from "$lib/features/tags";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
@@ -59,6 +62,7 @@ export type ReactorContext = {
   tab_service: TabService;
   git_service: GitService;
   links_service: LinksService;
+  tags_service: TagsService;
   watcher_service: WatcherService;
   action_registry: ActionRegistry;
 };
@@ -155,6 +159,19 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.search_store,
       context.links_store,
       context.links_service,
+    ),
+    create_note_tags_sync_reactor(
+      context.editor_store,
+      context.ui_store,
+      context.tags_service,
+    ),
+    create_tag_pane_sync_reactor(
+      context.vault_store,
+      context.ui_store,
+      context.search_store,
+      context.editor_store,
+      context.tab_store,
+      context.tags_service,
     ),
     create_window_title_reactor(
       context.vault_store,
