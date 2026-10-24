@@ -80,10 +80,24 @@ Vim.defineEx("redo", "red", (cm) => {
 // reload breaks every key. apply_vimrc resolves unmaps itself, so :unmap is
 // a vimrc-only command. The engine has no :nunmap, :vunmap and friends.
 Vim.defineEx("unmap", undefined, (cm) => {
-  const message = document.createElement("div");
-  message.textContent = ":unmap only works in the vimrc.";
-  cm.openNotification(message, { bottom: true, duration: 5000 });
+  show_notification(cm, ":unmap only works in the vimrc.");
 });
+
+// The engine's :w runs CodeMirror.commands.save, which is not defined here, so
+// it would do nothing at all. Saving belongs to the app.
+// @Incomplete: A host callback could make :w save. Nobody has asked yet.
+Vim.defineEx("write", "w", (cm) => {
+  show_notification(
+    cm,
+    ":w does not save. Press Cmd+S (Ctrl+S on Windows and Linux).",
+  );
+});
+
+function show_notification(cm: CodeMirror, text: string) {
+  const message = document.createElement("div");
+  message.textContent = text;
+  cm.openNotification(message, { bottom: true, duration: 5000 });
+}
 
 // j and k ask findPosV where the screen takes the caret, and the engine
 // follows an answer past the target line (that is meant for folded text).

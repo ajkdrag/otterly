@@ -9,7 +9,8 @@ use tauri::{AppHandle, Manager};
 // a path from the webview.
 
 const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quote are comments.
-" Save this file, then come back to the main window. It reloads on focus.
+" Save this file with Cmd+S (Ctrl+S on Windows and Linux), because :w does not
+" save. Then come back to the main window. It reloads on focus.
 "
 " Supported commands, one per line:
 "   map nmap vmap imap omap and their noremap forms

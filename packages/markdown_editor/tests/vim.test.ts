@@ -421,6 +421,18 @@ describe("vim mode", () => {
   );
 });
 
+describe("ex commands", () => {
+  test("VIM-020 :w says it does not save, and leaves the note alone", () => {
+    const view = vim_editor("text");
+    ex_command(view, "w");
+
+    expect(view.dom.querySelector(".cm-vim-panel")?.textContent).toContain(
+      "Cmd+S",
+    );
+    expect(view.state.doc.toString()).toBe("text");
+  });
+});
+
 describe("vimrc", () => {
   test("VIM-004 parses the supported lines and reports the rest by line", () => {
     const { commands, problems } = parse_vimrc(
