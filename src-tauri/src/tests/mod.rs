@@ -21,3 +21,6 @@ mod document_service;
 
 #[path = "../../tests/portable_install.rs"]
 mod portable_install;
+
+#[path = "../../tests/vault_find.rs"]
+mod vault_find;
