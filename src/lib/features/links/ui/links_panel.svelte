@@ -7,12 +7,8 @@
 
   const { stores, action_registry } = use_app_context();
 
-  // The tags store keeps the previous note's tags until the rail computes the
-  // new ones, so only show tags that belong to the open note.
   const note_tags = $derived(
-    stores.tags.note_tags_path === (stores.editor.open_note?.meta.path ?? null)
-      ? stores.tags.note_tags
-      : [],
+    stores.tags.tags_for_note(stores.editor.open_note?.meta.path ?? null),
   );
 
   const global_status = $derived(stores.links.global_status);

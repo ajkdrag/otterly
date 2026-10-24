@@ -64,6 +64,13 @@ export class TagsStore {
     this.note_tags = tags;
   }
 
+  // The rail computes tags a moment after a note opens, so for that moment the
+  // store still holds the previous note's. Hand out tags only for the path
+  // they were computed for.
+  tags_for_note(note_path: string | null): string[] {
+    return this.note_tags_path === note_path ? this.note_tags : [];
+  }
+
   // The note tags reactor calls this on every keystroke in a file that has no
   // tags (CSS, YAML). Skip the write when there is nothing to clear.
   clear_note_tags() {
