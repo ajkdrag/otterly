@@ -8,7 +8,7 @@
     Search,
   } from "@lucide/svelte";
 
-  type SidebarView = "explorer" | "dashboard" | "starred";
+  type SidebarView = "explorer" | "dashboard" | "starred" | "tags";
 
   type Props = {
     sidebar_open: boolean;

@@ -4,7 +4,7 @@ import type { LinksService } from "$lib/features/links";
 
 const LOCAL_LINKS_DEBOUNCE_MS = 220;
 
-type LocalLinksSyncState = {
+export type LocalLinksSyncState = {
   last_note_path: string | null;
   last_panel_open: boolean;
   last_markdown: string | null;
