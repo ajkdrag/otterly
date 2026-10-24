@@ -187,10 +187,13 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
 }
 
 // "Later" stops these prompts for the session. The manual check still shows
-// the prompt.
+// the prompt. Only the default profile checks on its own, because two
+// processes installing one update into the same bundle is asking for trouble.
+// The profile is null until it loads, which counts as not default.
 async function execute_app_check_for_updates_in_background(
   input: ActionRegistrationInput,
 ) {
+  if (!input.stores.profile.is_default) return;
   if (input.stores.ui.update_prompt_dismissed) return;
   const result = await input.services.updater.download_update();
   if (result.status !== "ready" || input.stores.ui.update_prompt_dismissed) {

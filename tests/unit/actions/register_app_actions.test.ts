@@ -100,6 +100,7 @@ function create_harness(options: HarnessOptions = {}) {
     git: new GitStore(),
     profile: new ProfileStore(),
   };
+  stores.profile.set_current_id("default");
 
   const services = {
     vault: {
@@ -449,6 +450,34 @@ describe("register_app_actions", () => {
 
     expect(stores.ui.update_prompt_dismissed).toBe(true);
     expect(toast.info).toHaveBeenCalledTimes(1);
+    expect(services.updater.download_update).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips the background check in a non-default profile", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.profile.set_current_id("work");
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(services.updater.download_update).not.toHaveBeenCalled();
+  });
+
+  it("skips the background check until the profile is known", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.profile.current_id = null;
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(services.updater.download_update).not.toHaveBeenCalled();
+  });
+
+  it("still checks manually in a non-default profile", async () => {
+    const { registry, stores, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    stores.profile.set_current_id("work");
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
     expect(services.updater.download_update).toHaveBeenCalledTimes(1);
   });
 
