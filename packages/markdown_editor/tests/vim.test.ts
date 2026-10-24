@@ -8,7 +8,7 @@ import {
   test,
   vi,
 } from "vitest";
-import { Compartment, EditorSelection } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
@@ -18,7 +18,11 @@ import { code_blocks } from "../src/plugins/code_blocks/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
 import { vim_mode, type VimMode } from "../src/plugins/vim/index";
-import { apply_vimrc, parse_vimrc } from "../src/plugins/vim/vimrc";
+import {
+  apply_vimrc,
+  built_in_one_key_commands,
+  parse_vimrc,
+} from "../src/plugins/vim/vimrc";
 
 // jsdom has no layout, and the block cursor measures text. j and k also
 // measure the screen to step over hidden text, and with no layout they run to
@@ -82,7 +86,7 @@ function press(view: EditorView, ...keys: string[]) {
   for (const key of keys) Vim.handleKey(cm, key, "user");
 }
 
-function exCommand(view: EditorView, command: string) {
+function ex_command(view: EditorView, command: string) {
   const cm = getCM(view);
   if (!cm) throw new Error("Vim is not running in this view");
   Vim.handleEx(cm, command);
@@ -130,10 +134,10 @@ describe("vim mode", () => {
     press(view, "<C-r>");
     expect(view.state.doc.toString()).toBe("one\nthree");
 
-    exCommand(view, "undo");
+    ex_command(view, "undo");
     expect(view.state.doc.toString()).toBe("one\ntwo\nthree");
 
-    exCommand(view, "redo");
+    ex_command(view, "redo");
     expect(view.state.doc.toString()).toBe("one\nthree");
   });
 
@@ -395,6 +399,42 @@ describe("vimrc", () => {
     ]);
   });
 
+  test("VIM-004 key names are rewritten to the engine's spelling, and unknown ones are problems", () => {
+    const { commands, problems } = parse_vimrc(
+      [
+        "inoremap jk <esc>",
+        "nnoremap <C-J> 3l",
+        "nnoremap Q <cr>",
+        "nmap <m-x> <C-S-J>",
+        "nnoremap <space>x dd",
+        "nnoremap <foo>x dd",
+        "nnoremap X :s/<b>/c/<cr>",
+        "nnoremap Z <Nop>",
+        "nnoremap D x<bogus>",
+        ":nmap gx dd",
+        ":set nopcre",
+        "unmap <c-j>",
+      ].join("\n"),
+    );
+
+    expect(commands).toMatchObject([
+      { line: 1, lhs: "jk", rhs: "<Esc>" },
+      { line: 2, lhs: "<C-j>", rhs: "3l" },
+      { line: 3, lhs: "Q", rhs: "<CR>" },
+      { line: 4, lhs: "<A-x>", rhs: "<C-S-J>" },
+      { line: 7, lhs: "X", rhs: ":s/<b>/c/<CR>" },
+      { line: 8, lhs: "Z", rhs: "" },
+      { line: 10, kind: "map", context: "normal", lhs: "gx" },
+      { line: 11, kind: "set", items: ["nopcre"] },
+      { line: 12, kind: "unmap", lhs: "<C-j>" },
+    ]);
+    expect(problems.map((problem) => [problem.line, problem.message])).toEqual([
+      [5, "Never fires: <Space> is already a Vim command"],
+      [6, "Unknown key <foo>"],
+      [9, "Unknown key <bogus>"],
+    ]);
+  });
+
   test("VIM-012 a UTF-8 byte order mark before the first line is ignored", () => {
     const { commands, problems } = parse_vimrc(
       '\ufeff" comment\nimap jk <Esc>',
@@ -426,6 +466,40 @@ describe("vimrc", () => {
     expect(view.state.doc.toString()).toBe("jktext");
   });
 
+  test("VIM-005 maps written as <esc> and <C-J> still fire", () => {
+    const modes: VimMode[] = [];
+    const view = vim_editor("text here", { modes });
+
+    expect(apply_vimrc("inoremap jk <esc>\nnnoremap <C-J> 3l")).toEqual([]);
+    press(view, "<C-j>");
+    expect(view.state.selection.main.head).toBe(3);
+
+    press(view, "i");
+    type(view, "jk");
+    expect(modes.at(-1)).toBe("normal");
+    expect(view.state.doc.toString()).toBe("text here");
+  });
+
+  test("VIM-005 a plain unmap removes the normal map, and a key that was never mapped is a problem", () => {
+    const view = vim_editor("text");
+
+    expect(apply_vimrc("nnoremap Y x\nunmap Y")).toEqual([]);
+    press(view, "Y");
+    expect(view.state.doc.toString()).toBe("text");
+
+    expect(apply_vimrc("unmap Y").map((problem) => problem.line)).toEqual([1]);
+  });
+
+  test("VIM-005 a reload restores an option that was set under both of its names", () => {
+    const original: unknown = Vim.getOption("langmap");
+
+    expect(apply_vimrc("set langmap=ab\nset lmap=cd")).toEqual([]);
+    expect(Vim.getOption("langmap")).toBe("cd");
+
+    apply_vimrc("");
+    expect(Vim.getOption("langmap")).toBe(original);
+  });
+
   test("VIM-005 options it cannot set and unmaps of built-in keys are problems", () => {
     const problems = apply_vimrc(
       ["set nosuchoption", "set textwidth=72", "set pcre=1", "unmap l"].join(
@@ -443,9 +517,72 @@ describe("vimrc", () => {
 
   test("VIM-014 the :unmap prompt leaves built-in keys alone, so a reload still works", () => {
     const view = vim_editor("text");
-    exCommand(view, "unmap l");
+    ex_command(view, "unmap l");
     apply_vimrc("imap jk <Esc>");
     press(view, "l");
     expect(view.state.selection.main.head).toBe(1);
   });
+});
+
+describe("vimrc shadowing", () => {
+  // Keys that put a fresh editor in each mode before the probe key.
+  const first_keys = {
+    normal: [],
+    visual: ["v"],
+    operatorPending: ["d"],
+  } as const;
+  const printable = Array.from({ length: 94 }, (_, index) =>
+    String.fromCharCode(33 + index),
+  );
+  const named =
+    "Space BS CR Del Tab Esc Left Right Up Down Home End PageUp PageDown Ins"
+      .split(" ")
+      .map((name) => `<${name}>`);
+  const control = Array.from(
+    "abcdefghijklmnopqrstuvwxyz",
+    (letter) => `<C-${letter}>`,
+  );
+  const candidates = [
+    ...new Set([
+      ...printable,
+      ...named,
+      ...control,
+      ...built_in_one_key_commands.keys(),
+    ]),
+  ];
+
+  // The engine runs a one-key command the moment the key is typed. A key
+  // that only starts a longer map waits in the key buffer instead.
+  function runs_at_once(context: keyof typeof first_keys, key: string) {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({ doc: "one two", extensions: vim_mode() }),
+    });
+    try {
+      const cm = getCM(view);
+      if (!cm) throw new Error("Vim is not running in this view");
+      for (const first_key of first_keys[context])
+        Vim.handleKey(cm, first_key, "user");
+      Vim.handleKey(cm, key, "user");
+      return (cm.state.vim?.inputState.keyBuffer.length ?? 0) === 0;
+    } finally {
+      view.destroy();
+    }
+  }
+
+  test.each(["normal", "visual", "operatorPending"] as const)(
+    "VIM-016 the engine runs exactly the listed one-key commands in %s mode",
+    (context) => {
+      for (const key of candidates) Vim.noremap(key + key, "x", "");
+
+      const actual = candidates.filter((key) => runs_at_once(context, key));
+      const listed = candidates.filter((key) =>
+        built_in_one_key_commands.get(key)?.includes(context),
+      );
+      expect(actual).toEqual(listed);
+    },
+    60_000,
+  );
 });

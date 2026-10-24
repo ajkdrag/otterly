@@ -10,8 +10,10 @@ import { Vim } from "@replit/codemirror-vim";
 //
 // Map commands: map nmap vmap imap omap, their noremap forms, and their unmap
 // forms. lhs is the first word and rhs is the rest of the line, as in Vim, so
-// a map line cannot end in a comment. Anything else is a problem, reported
-// with its line number. A bad line never stops the good ones.
+// a map line cannot end in a comment. A leading ":" is fine. Key names such as
+// <esc> and <C-J> are rewritten to the engine's spelling (see canonical_keys).
+// Anything else is a problem, reported with its line number. A bad line never
+// stops the good ones.
 
 export type VimrcProblem = { line: number; text: string; message: string };
 
@@ -50,8 +52,8 @@ export function parse_vimrc(text: string): {
   return { commands, problems };
 }
 
-// Each option's value from before our first apply touched it. The engine is
-// global, so this is too.
+// Each option's value from before our first apply touched it, in the order we
+// touched them. The engine is global, so this is too.
 const original_options = new Map<string, unknown>();
 
 // Applies a whole vimrc to the global engine and returns every line that did
@@ -59,7 +61,11 @@ const original_options = new Map<string, unknown>();
 // options of the previous call, so deleting a line and reloading removes it.
 export function apply_vimrc(text: string): VimrcProblem[] {
   const { commands, problems } = parse_vimrc(text);
-  for (const [name, value] of original_options) Vim.setOption(name, value);
+  // Newest first. langmap and lmap are one option under two names, and the
+  // second name recorded the value the first one had already changed. The
+  // oldest record holds the real original, so it has to be applied last.
+  for (const [name, value] of [...original_options].reverse())
+    Vim.setOption(name, value);
   original_options.clear();
   Vim.mapclear();
 
@@ -75,13 +81,21 @@ export function apply_vimrc(text: string): VimrcProblem[] {
       }
       continue;
     }
-    const key = `${command.context ?? "all"} ${command.lhs}`;
     if (command.kind === "unmap") {
-      if (!maps.delete(key))
+      // Plain :unmap removes normal, visual and operator-pending maps, as
+      // in Vim.
+      const contexts = command.context
+        ? [command.context]
+        : [null, ...modes_without_insert];
+      const removed = contexts.map((context) =>
+        maps.delete(map_key(context, command.lhs)),
+      );
+      if (!removed.includes(true))
         problems.push(problem(command, `No such mapping: ${command.lhs}`));
       continue;
     }
     // A later map of the same keys replaces the earlier one, as in Vim.
+    const key = map_key(command.context, command.lhs);
     maps.delete(key);
     maps.set(key, command);
   }
@@ -104,6 +118,10 @@ export function apply_vimrc(text: string): VimrcProblem[] {
   return problems.sort((left, right) => left.line - right.line);
 }
 
+function map_key(context: MapContext, lhs: string): string {
+  return `${context ?? "all"} ${lhs}`;
+}
+
 const map_contexts: Record<string, MapContext> = {
   "": null,
   n: "normal",
@@ -113,7 +131,8 @@ const map_contexts: Record<string, MapContext> = {
 };
 
 function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
-  const [, name = "", rest = ""] = /^(\S+)\s*(.*)$/.exec(command.text) ?? [];
+  const [, name = "", rest = ""] =
+    /^:?\s*(\S+)\s*(.*)$/.exec(command.text) ?? [];
   if (name === "set") {
     // Vim ends a set line at a " that follows a space, like a comment.
     const items = rest
@@ -142,24 +161,38 @@ function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
 
   if (verb === "unmap") {
     if (!body) return problem(command, `${name} needs a key`);
-    return { ...command, kind: "unmap", context, lhs: body };
+    const lhs = canonical_keys(body);
+    if (lhs.unknown) return problem(command, `Unknown key ${lhs.unknown}`);
+    return { ...command, kind: "unmap", context, lhs: lhs.keys };
   }
   const space = body.search(/\s/);
-  const lhs = space === -1 ? body : body.slice(0, space);
-  const rhs = space === -1 ? "" : body.slice(space).trim();
-  if (!lhs || !rhs)
+  const typed_lhs = space === -1 ? body : body.slice(0, space);
+  const typed_rhs = space === -1 ? "" : body.slice(space).trim();
+  if (!typed_lhs || !typed_rhs)
     return problem(command, `${name} needs a key and a mapping`);
-  // The engine keeps maps of ":" commands outside the keymap, where
-  // mapclear() cannot remove them, so a reload would never drop one.
-  if (lhs.startsWith(":") && lhs !== ":")
-    return problem(command, `Maps of ":" commands are not supported`);
-  const leader = /<(?:local)?leader>/i.exec(lhs);
+  const leader = /<(?:local)?leader>/i.exec(typed_lhs);
   if (leader)
     return problem(
       command,
       `${leader[0]} is not supported, map the keys themselves (for example \\w)`,
     );
-  const shadowing_key = find_shadowing_key(context, lhs);
+
+  const lhs = canonical_keys(typed_lhs);
+  // <Nop> maps a key to nothing. The engine does the same for an empty rhs,
+  // but left in it would be typed as text in insert mode.
+  const rhs = canonical_keys(typed_rhs.replace(/<nop>/gi, ""));
+  // A ":" rhs goes to the ex prompt, which keeps a <name> it does not know as
+  // plain text (:s/<b>/x/). Any other rhs would drop it silently, or type it
+  // as text in insert mode. Write <lt> for a literal "<", as in Vim.
+  const unknown_key =
+    lhs.unknown ?? (typed_rhs.startsWith(":") ? null : rhs.unknown);
+  if (unknown_key) return problem(command, `Unknown key ${unknown_key}`);
+
+  // The engine keeps maps of ":" commands outside the keymap, where
+  // mapclear() cannot remove them, so a reload would never drop one.
+  if (lhs.keys.startsWith(":") && lhs.keys !== ":")
+    return problem(command, `Maps of ":" commands are not supported`);
+  const shadowing_key = find_shadowing_key(context, lhs.keys);
   if (shadowing_key)
     return problem(
       command,
@@ -170,9 +203,81 @@ function parse_line(command: CommandLine): VimrcCommand | VimrcProblem {
     kind: "map",
     context,
     recursive: verb === "map",
-    lhs,
-    rhs,
+    lhs: lhs.keys,
+    rhs: rhs.keys,
   };
+}
+
+// Vim's key names in lowercase, and the spelling the engine compares.
+const key_names = new Map([
+  ["esc", "Esc"],
+  ["escape", "Esc"],
+  ["cr", "CR"],
+  ["return", "CR"],
+  ["enter", "CR"],
+  ["space", "Space"],
+  ["bs", "BS"],
+  ["backspace", "BS"],
+  ["tab", "Tab"],
+  ["del", "Del"],
+  ["delete", "Del"],
+  ["ins", "Ins"],
+  ["insert", "Ins"],
+  ["up", "Up"],
+  ["down", "Down"],
+  ["left", "Left"],
+  ["right", "Right"],
+  ["home", "Home"],
+  ["end", "End"],
+  ["pageup", "PageUp"],
+  ["pagedown", "PageDown"],
+  ["lt", "<"],
+  ["gt", ">"],
+]);
+
+// Vim reads <esc>, <Esc> and <ESC> as one key, and <C-J> as <C-j>. The engine
+// compares the exact spelling of the key it was given, so a map written any
+// other way never fires. This rewrites each <...> token to the engine's
+// spelling, and returns the first token it does not know.
+function canonical_keys(keys: string): {
+  keys: string;
+  unknown: string | null;
+} {
+  let unknown: string | null = null;
+  const rewritten = keys.replace(
+    /<((?:[csam]-)*)([^<>\s]+)>/gi,
+    (token: string, typed_modifiers: string, name: string) => {
+      // The engine writes modifiers in this order, and Vim's M- is Alt.
+      const modifiers = typed_modifiers.toLowerCase();
+      const shift = modifiers.includes("s");
+      const prefix =
+        (modifiers.includes("c") ? "C-" : "") +
+        (/[am]/.test(modifiers) ? "A-" : "") +
+        (shift ? "S-" : "");
+      const key = engine_key_name(name, prefix !== "", shift);
+      if (key === null) {
+        unknown ??= token;
+        return token;
+      }
+      // <lt> and <gt> are the plain characters.
+      return key.length === 1 && !prefix ? key : `<${prefix}${key}>`;
+    },
+  );
+  return { keys: rewritten, unknown };
+}
+
+function engine_key_name(
+  name: string,
+  has_modifier: boolean,
+  shift: boolean,
+): string | null {
+  const lowered = name.toLowerCase();
+  const named = key_names.get(lowered);
+  if (named) return named;
+  if (/^f\d{1,2}$/.test(lowered)) return lowered.toUpperCase();
+  // A letter after C- or A- is lowercase unless S- is there, as in Vim.
+  if (has_modifier && name.length === 1) return shift ? name : lowered;
+  return null;
 }
 
 // A map with no context covers every mode except insert.
@@ -182,25 +287,47 @@ const modes_without_insert: readonly MapContext[] = [
   "operatorPending",
 ];
 
-// One-key commands the engine already binds, and the contexts where it does.
-// The engine runs a full match as soon as the key is typed, and a longer map
-// that starts with the same key only counts as a partial match, so it never
-// fires. These are the keys vimrc files use as a leader or a prefix.
-// @Incomplete: Any other one-key command shadows longer maps the same way
-// (nmap jk ... never fires), but we do not keep a list of the engine's keys.
-const shadowing_keys: Record<string, readonly MapContext[]> = {
-  "<Space>": modes_without_insert,
-  "<BS>": modes_without_insert,
-  ",": modes_without_insert,
-  ";": modes_without_insert,
-  "<CR>": ["normal"],
-};
+// The one-key commands the engine binds, by the modes where each one runs.
+// This is the one-token part of its defaultKeymap in @replit/codemirror-vim,
+// plus <Esc>, which leaves visual mode before any map sees it. The engine
+// runs a full match as soon as the key is typed, and a longer map that starts
+// with the same key only counts as a partial match, so it never fires.
+// VIM-016 asks the engine about every key, so an upgrade that changes this
+// list fails there.
+// @Incomplete: Commands that take a second key (gg, zz, f<char>, q<register>)
+// shadow maps of three or more keys the same way, and insert mode has a few
+// of its own (<C-u>, <C-w>, <C-o>). We do not list those.
+const keys_by_modes: [readonly MapContext[], string][] = [
+  [
+    modes_without_insert,
+    `<Left> <Right> <Up> <Down> <Space> <BS> <Del> <C-Space> <C-BS> <S-Space>
+    <S-BS> <C-n> <C-p> <C-[> <C-c> <C-Esc> <Home> <End> <PageUp> <PageDown>
+    H M L h l j k w W e E b B { } ( ) <C-f> <C-b> <C-d> <C-u> G 0 ^ + - _ $ %
+    ; , | d y c = > < n N x X / ? * # :`,
+  ],
+  [
+    ["normal", "visual"],
+    `s S o O D Y C ~ <C-i> <C-o> <C-e> <C-y> A I v V <C-v> <C-q> J p P R u
+    <C-r> . <C-a> <C-x>`,
+  ],
+  [["normal"], "<CR> <Ins> <C-w> a i"],
+  [["visual"], "U <Esc>"],
+];
+
+export const built_in_one_key_commands: ReadonlyMap<
+  string,
+  readonly MapContext[]
+> = new Map(
+  keys_by_modes.flatMap(([modes, keys]) =>
+    keys.split(/\s+/).map((key) => [key, modes] as const),
+  ),
+);
 
 // The first key of lhs when a built-in command shadows a map that is longer
 // than that key in every context the map covers.
 function find_shadowing_key(context: MapContext, lhs: string): string | null {
-  const first_key = /^(?:<(?:[CSMA]-)*\w+>|.)/.exec(lhs)?.[0] ?? "";
-  const shadowed_in = shadowing_keys[first_key];
+  const first_key = /^(?:<[^<>\s]+>|.)/.exec(lhs)?.[0] ?? "";
+  const shadowed_in = built_in_one_key_commands.get(first_key);
   if (!shadowed_in || lhs.length === first_key.length) return null;
   const covers = context ? [context] : modes_without_insert;
   return covers.every((mode) => shadowed_in.includes(mode)) ? first_key : null;

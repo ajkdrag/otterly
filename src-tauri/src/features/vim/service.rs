@@ -16,9 +16,9 @@ const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quo
 "   unmap nunmap vunmap iunmap ounmap
 "   set option, set option=value, set nooption
 " A map line takes the rest of the line as the mapping, so it cannot end in
-" a comment. <leader> is not supported, and a map that starts with <Space>,
-" <BS>, <CR>, a comma or a semicolon never fires, because those keys already
-" do something. Lines that do not apply are listed in Settings, under Vim.
+" a comment. <leader> is not supported, and a map of two or more keys never
+" fires when its first key already does something (<Space>, <BS>, j, s, a
+" comma and so on). Lines that do not apply are listed in Settings, under Vim.
 "
 " Examples (remove the leading quote to turn one on):
 " imap jk <Esc>
