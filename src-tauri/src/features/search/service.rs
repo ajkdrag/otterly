@@ -939,7 +939,7 @@ pub async fn vault_replace(
                 Ok(replaced) => {
                     if replaced.count > 0 && notes_service::is_markdown_file(Path::new(&file.path))
                     {
-                        refresh_index_after_replace(&app, &vault_id, &file.path);
+                        refresh_index_after_replace(&app, &vault_id, &vault_root, &file.path);
                     }
                     response.replaced.push(replaced);
                 }
@@ -957,13 +957,11 @@ pub async fn vault_replace(
 
 // Waits for the index worker, so links and backlinks are fresh when the
 // response arrives. A failure only leaves the index stale until the next sync.
-fn refresh_index_after_replace(app: &AppHandle, vault_id: &str, note_id: &str) {
-    let result = storage::vault_path(app, vault_id).and_then(|vault_root| {
-        send_write_blocking(app, vault_id, |reply| DbCommand::UpsertNote {
-            vault_root,
-            note_id: note_id.to_string(),
-            reply,
-        })
+fn refresh_index_after_replace(app: &AppHandle, vault_id: &str, vault_root: &Path, note_id: &str) {
+    let result = send_write_blocking(app, vault_id, |reply| DbCommand::UpsertNote {
+        vault_root: vault_root.to_path_buf(),
+        note_id: note_id.to_string(),
+        reply,
     });
     if let Err(e) = result {
         log::warn!("vault replace: index upsert failed for {note_id}: {e}");

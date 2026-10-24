@@ -10,7 +10,7 @@
 // Matching follows ripgrep's line semantics: `\s` and `[^x]` never cross a
 // line, `^` and `$` anchor lines. Empty matches (`^`, `a*`) are ignored.
 
-use crate::shared::constants;
+use crate::shared::{constants, storage};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use ignore::{WalkBuilder, WalkState};
 use mime_guess::mime;
@@ -379,7 +379,12 @@ fn walk_vault(
                 let Some(file_type) = entry.file_type() else {
                     return WalkState::Continue;
                 };
-                let rel_path = relative_path(vault_root, entry.path());
+                let rel_path = storage::normalize_relative_path(
+                    entry
+                        .path()
+                        .strip_prefix(vault_root)
+                        .unwrap_or(entry.path()),
+                );
                 if file_type.is_dir() {
                     return if find.paths.excludes(&rel_path) {
                         WalkState::Skip
@@ -413,14 +418,6 @@ fn walk_vault(
                 WalkState::Continue
             })
         });
-}
-
-fn relative_path(vault_root: &Path, abs: &Path) -> String {
-    let rel = abs.strip_prefix(vault_root).unwrap_or(abs);
-    rel.iter()
-        .map(|part| part.to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 pub fn content_hash(text: &str) -> String {

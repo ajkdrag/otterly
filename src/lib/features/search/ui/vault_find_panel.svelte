@@ -18,6 +18,7 @@
   import { Button } from "$lib/components/ui/button";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
+  import { parent_folder_path } from "$lib/shared/utils/path";
   import type {
     VaultFindFile,
     VaultFindMatch,
@@ -123,11 +124,6 @@
 
   function file_name(path: string) {
     return path.slice(path.lastIndexOf("/") + 1);
-  }
-
-  function folder_of(path: string) {
-    const slash = path.lastIndexOf("/");
-    return slash < 0 ? "" : path.slice(0, slash);
   }
 
   function toggle_option(option: "case_sensitive" | "whole_word" | "regex") {
@@ -559,7 +555,7 @@
                 class="text-muted-foreground min-w-0 flex-1 truncate"
                 title={row.file.path}
               >
-                {folder_of(row.file.path)}
+                {parent_folder_path(row.file.path)}
               </span>
               <span
                 class="bg-secondary text-secondary-foreground rounded-full px-1.5 group-hover:hidden group-aria-selected:hidden"

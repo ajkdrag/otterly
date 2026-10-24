@@ -7,6 +7,7 @@ import type {
   VaultReplaceFile,
 } from "$lib/features/search/types/vault_find";
 import { as_note_path } from "$lib/shared/types/ids";
+import { paths_equal_ignore_case } from "$lib/shared/utils/path";
 
 type OpenMatchInput = {
   path: string;
@@ -106,10 +107,10 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
 
   // The same refresh LinkRepairService does after it rewrites notes.
   async function refresh_written_notes(paths: string[]) {
-    const active_path = stores.editor.open_note?.meta.path.toLowerCase();
+    const active_path = stores.editor.open_note?.meta.path;
     for (const path of paths) {
       const note_path = as_note_path(path);
-      if (path.toLowerCase() === active_path) {
+      if (active_path && paths_equal_ignore_case(path, active_path)) {
         await services.note.open_note(note_path, false, {
           force_reload: true,
         });
