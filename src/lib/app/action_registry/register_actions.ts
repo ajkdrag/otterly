@@ -7,6 +7,7 @@ import { register_settings_actions } from "$lib/features/settings";
 import {
   register_omnibar_actions,
   register_find_in_file_actions,
+  register_vault_find_actions,
 } from "$lib/features/search";
 import { register_ui_actions } from "$lib/app/orchestration/ui_actions";
 import { register_help_actions } from "$lib/app/orchestration/help_actions";
@@ -24,6 +25,7 @@ export function register_actions(input: ActionRegistrationInput) {
   register_omnibar_actions(input);
   register_ui_actions(input);
   register_find_in_file_actions(input);
+  register_vault_find_actions(input);
   register_tab_actions(input);
   register_git_actions(input);
   register_hotkey_actions(input);

@@ -8,7 +8,7 @@ import { VaultService } from "$lib/features/vault";
 import { NoteService, LegacyMarkdownCleanupService } from "$lib/features/note";
 import { FolderService } from "$lib/features/folder";
 import { SettingsService } from "$lib/features/settings";
-import { SearchService } from "$lib/features/search";
+import { SearchService, VaultFindService } from "$lib/features/search";
 import { EditorService } from "$lib/features/editor";
 import { ClipboardService } from "$lib/features/clipboard";
 import { ShellService } from "$lib/features/shell";
@@ -102,6 +102,17 @@ export function create_app_context(input: {
     editor_service,
     now_ms,
     link_repair_service,
+    (path) => {
+      watcher_service.suppress_next(path);
+    },
+  );
+
+  const vault_find_service = new VaultFindService(
+    input.ports.vault_find,
+    stores.vault,
+    stores.search,
+    stores.op,
+    now_ms,
     (path) => {
       watcher_service.suppress_next(path);
     },
@@ -217,6 +228,7 @@ export function create_app_context(input: {
       folder: folder_service,
       settings: settings_service,
       search: search_service,
+      vault_find: vault_find_service,
       editor: editor_service,
       clipboard: clipboard_service,
       shell: shell_service,
@@ -237,6 +249,7 @@ export function create_app_context(input: {
     notes_store: stores.notes,
     search_store: stores.search,
     search_service,
+    vault_find_service,
     vault_store: stores.vault,
     tab_store: stores.tab,
     git_store: stores.git,

@@ -354,6 +354,20 @@ export function create_codemirror_editor_port(
         update_find_state(query, selected_index) {
           update_find_query(view, literal_find_spec(query), selected_index);
         },
+        select_line_range(line_number, column, length) {
+          const document = view.state.doc;
+          if (line_number < 1 || line_number > document.lines) return;
+          const line = document.line(line_number);
+          // Vault find columns skip the BOM. The display document keeps it.
+          const bom =
+            line_number === 1 && line.text.startsWith("\ufeff") ? 1 : 0;
+          const from = Math.min(line.to, line.from + bom + column);
+          const to = Math.min(line.to, from + length);
+          view.dispatch({
+            selection: EditorSelection.single(from, to),
+            effects: EditorView.scrollIntoView(from, { y: "center" }),
+          });
+        },
         open_buffer(next: BufferConfig) {
           cancel_pending();
           cancel_word_count();

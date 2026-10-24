@@ -12,6 +12,7 @@ import { create_session_persist_reactor } from "$lib/reactors/session_persist.re
 import { create_git_autocommit_reactor } from "$lib/reactors/git_autocommit.reactor.svelte";
 import { create_recent_commands_persist_reactor } from "$lib/reactors/recent_commands_persist.reactor.svelte";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
+import { create_vault_find_reactor } from "$lib/reactors/vault_find.reactor.svelte";
 import { create_backlinks_sync_reactor } from "$lib/reactors/backlinks_sync.reactor.svelte";
 import { create_local_links_sync_reactor } from "$lib/reactors/local_links_sync.reactor.svelte";
 import { create_watcher_reactor } from "$lib/reactors/watcher.reactor.svelte";
@@ -35,7 +36,11 @@ import type { TabService } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
 import type { GitService } from "$lib/features/git";
 import type { LinksService } from "$lib/features/links";
-import type { SearchService, SearchStore } from "$lib/features/search";
+import type {
+  SearchService,
+  SearchStore,
+  VaultFindService,
+} from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
@@ -47,6 +52,7 @@ export type ReactorContext = {
   notes_store: NotesStore;
   search_store: SearchStore;
   search_service: SearchService;
+  vault_find_service: VaultFindService;
   vault_store: VaultStore;
   tab_store: TabStore;
   git_store: GitStore;
@@ -142,6 +148,11 @@ export function mount_reactors(context: ReactorContext): () => void {
         },
       },
       context.search_service,
+    ),
+    create_vault_find_reactor(
+      context.ui_store,
+      context.vault_store,
+      context.vault_find_service,
     ),
     create_local_links_sync_reactor(
       context.editor_store,

@@ -47,6 +47,9 @@ export type EditorSession = {
   rename_buffer: (old_note_path: string, new_note_path: string) => void;
   close_buffer: (note_path: string) => void;
   update_find_state?: (query: string, selected_index: number) => void;
+  // Selects `length` UTF-16 units at `column` of a 1-based line and scrolls
+  // it to the center. Columns do not count a leading BOM. Does not focus.
+  select_line_range?: (line: number, column: number, length: number) => void;
 };
 
 export type EditorEventHandlers = {

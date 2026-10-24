@@ -9,6 +9,13 @@ import type {
 } from "$lib/shared/types/search";
 import type { NoteMeta } from "$lib/shared/types/note";
 import type { ExternalLink } from "$lib/features/links";
+import type {
+  VaultFindEvent,
+  VaultFindRequest,
+  VaultFindStartResult,
+  VaultReplaceRequest,
+  VaultReplaceResponse,
+} from "$lib/features/search/types/vault_find";
 
 export type { IndexProgressEvent };
 
@@ -95,4 +102,19 @@ export interface WorkspaceIndexPort {
   subscribe_index_progress(
     callback: (event: IndexProgressEvent) => void,
   ): () => void;
+}
+
+export interface VaultFindPort {
+  // Resolves once the search has started. Results arrive through on_event.
+  // A bad regex or glob resolves as "invalid" instead of throwing.
+  start_find(
+    vault_id: VaultId,
+    request: VaultFindRequest,
+    on_event: (event: VaultFindEvent) => void,
+  ): Promise<VaultFindStartResult>;
+  cancel_find(): Promise<void>;
+  replace(
+    vault_id: VaultId,
+    request: VaultReplaceRequest,
+  ): Promise<VaultReplaceResponse>;
 }

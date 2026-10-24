@@ -4,7 +4,7 @@ import type { NoteService } from "$lib/features/note";
 import type { LegacyMarkdownCleanupService } from "$lib/features/note";
 import type { FolderService } from "$lib/features/folder";
 import type { SettingsService } from "$lib/features/settings";
-import type { SearchService } from "$lib/features/search";
+import type { SearchService, VaultFindService } from "$lib/features/search";
 import type { EditorService } from "$lib/features/editor";
 import type { ClipboardService } from "$lib/features/clipboard";
 import type { ShellService } from "$lib/features/shell";
@@ -42,6 +42,7 @@ export type ActionRegistrationInput = {
     folder: FolderService;
     settings: SettingsService;
     search: SearchService;
+    vault_find: VaultFindService;
     editor: EditorService;
     clipboard: ClipboardService;
     shell: ShellService;

@@ -222,6 +222,23 @@ export class EditorService {
     this.session?.update_find_state?.(query, selected_index);
   }
 
+  // Waits a frame, like restore_cursor, so the editor-sync reactor has
+  // switched to the note that was just opened.
+  select_line_range(
+    line: number,
+    column: number,
+    length: number,
+    focus_editor: boolean,
+  ) {
+    const session = this.session;
+    if (!session) return;
+    requestAnimationFrame(() => {
+      if (this.session !== session) return;
+      session.select_line_range?.(line, column, length);
+      if (focus_editor) session.focus();
+    });
+  }
+
   private next_session_generation(): number {
     this.session_generation += 1;
     return this.session_generation;

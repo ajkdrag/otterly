@@ -30,7 +30,7 @@ import type {
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 type AsyncStatus = "idle" | "loading" | "error";
-type SidebarView = "explorer" | "dashboard" | "starred";
+type SidebarView = "explorer" | "dashboard" | "starred" | "search";
 type ContextRailTab = "links";
 
 const INITIAL_DELETE_NOTE_DIALOG = { open: false, note: null } as const;
@@ -92,6 +92,28 @@ const INITIAL_FIND_IN_FILE = {
   query: "",
   selected_match_index: 0,
 } as const;
+
+const INITIAL_VAULT_FIND = {
+  query: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+  replacement: "",
+  replace_open: false,
+  include: "",
+  exclude: "",
+  filters_open: false,
+  // Bumped to ask the panel to focus and select its find input.
+  focus_nonce: 0,
+};
+
+const INITIAL_VAULT_REPLACE_DIALOG = {
+  open: false,
+  match_count: 0,
+  file_count: 0,
+  // Files with unsaved edits. Replace All leaves them alone.
+  unsaved_paths: [] as string[],
+};
 
 const INITIAL_IMAGE_PASTE_DIALOG = {
   open: false,
@@ -348,6 +370,9 @@ export class UIStore {
     description: string;
   }>({ ...INITIAL_CHECKPOINT_DIALOG });
 
+  vault_find = $state({ ...INITIAL_VAULT_FIND });
+  vault_replace_dialog = $state({ ...INITIAL_VAULT_REPLACE_DIALOG });
+
   quit_confirm = $state<{
     open: boolean;
     is_quitting: boolean;
@@ -518,6 +543,7 @@ export class UIStore {
     this.version_history_dialog = { ...INITIAL_VERSION_HISTORY_DIALOG };
     this.markdown_cleanup_dialog = { ...INITIAL_MARKDOWN_CLEANUP_DIALOG };
     this.checkpoint_dialog = { ...INITIAL_CHECKPOINT_DIALOG };
+    this.vault_replace_dialog = { ...INITIAL_VAULT_REPLACE_DIALOG };
     this.quit_confirm = { ...INITIAL_QUIT_CONFIRM };
     this.context_rail_open = false;
     this.context_rail_tab = "links";

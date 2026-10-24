@@ -2,7 +2,11 @@ import type { AssetsPort, NotesPort } from "$lib/features/note";
 import type { ClipboardPort } from "$lib/features/clipboard";
 import type { EditorPort } from "$lib/features/editor";
 import type { SessionPort } from "$lib/features/session";
-import type { SearchPort, WorkspaceIndexPort } from "$lib/features/search";
+import type {
+  SearchPort,
+  VaultFindPort,
+  WorkspaceIndexPort,
+} from "$lib/features/search";
 import type { SettingsPort } from "$lib/features/settings";
 import type { ShellPort } from "$lib/features/shell";
 import type { GitPort } from "$lib/features/git";
@@ -15,6 +19,7 @@ export type Ports = {
   notes: NotesPort;
   index: WorkspaceIndexPort;
   search: SearchPort;
+  vault_find: VaultFindPort;
   settings: SettingsPort;
   vault_settings: VaultSettingsPort;
   session: SessionPort;
