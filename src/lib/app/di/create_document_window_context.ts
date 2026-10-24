@@ -141,6 +141,8 @@ export function create_document_window_context(input: {
     registry: action_registry,
     stores: { ui: stores.ui },
     services: { theme: theme_service, clipboard: clipboard_service },
+    // The vault app's window saves the switch. See ThemeActionInput.
+    persist_file_switch: false,
   });
 
   const cleanups = [

@@ -28,5 +28,5 @@ export function register_actions(input: ActionRegistrationInput) {
   register_git_actions(input);
   register_hotkey_actions(input);
   register_help_actions(input);
-  register_theme_actions(input);
+  register_theme_actions({ ...input, persist_file_switch: true });
 }

@@ -17,10 +17,15 @@ export type ThemeActionInput = {
   registry: ActionRegistry;
   stores: { ui: UIStore };
   services: { theme: ThemeService; clipboard: ClipboardService };
+  // Only the vault app's window saves the switch to the file theme. Every
+  // window reloads on a file save, so all of them would write settings.json
+  // at once, and set_setting is a read-modify-write that can lose a write. A
+  // document window also can't see a theme draft held by the main window.
+  persist_file_switch: boolean;
 };
 
 export function register_theme_actions(input: ThemeActionInput): void {
-  const { registry, stores, services } = input;
+  const { registry, stores, services, persist_file_switch } = input;
 
   let persisted_user_themes_snapshot: Theme[] | null = null;
   let persisted_active_theme_id: string | null = null;
@@ -218,7 +223,9 @@ export function register_theme_actions(input: ThemeActionInput): void {
       if (stores.ui.theme_has_draft) return;
       if (stores.ui.active_theme_id === FILE_THEME_ID) return;
       stores.ui.set_active_theme_id(FILE_THEME_ID);
-      await services.theme.save_active_theme_id(FILE_THEME_ID);
+      if (persist_file_switch) {
+        await services.theme.save_active_theme_id(FILE_THEME_ID);
+      }
     },
   });
 

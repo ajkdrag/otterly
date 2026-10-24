@@ -46,7 +46,7 @@ function valid_theme_file(theme: Theme): ThemeFileState {
   return { path: THEME_FILE_PATH, status: "valid", theme, errors: [] };
 }
 
-function create_harness() {
+function create_harness({ persist_file_switch = true } = {}) {
   const registry = new ActionRegistry();
   const stores = { ui: new UIStore() };
 
@@ -76,6 +76,7 @@ function create_harness() {
     registry,
     stores,
     services: services as never,
+    persist_file_switch,
   });
 
   return { registry, stores, services };
@@ -204,6 +205,21 @@ describe("register_theme_actions", () => {
       expect(services.theme.save_active_theme_id).toHaveBeenCalledWith(
         FILE_THEME_ID,
       );
+    });
+
+    it("switches without saving the choice in a window that does not persist it", async () => {
+      const { registry, stores, services } = create_harness({
+        persist_file_switch: false,
+      });
+      stores.ui.set_active_theme_id(BUILTIN_NORDIC_DARK.id);
+      services.theme.load_theme_file.mockResolvedValue(
+        valid_theme_file(FILE_THEME),
+      );
+
+      await registry.execute(ACTION_IDS.theme_reload_file);
+
+      expect(stores.ui.active_theme_id).toBe(FILE_THEME_ID);
+      expect(services.theme.save_active_theme_id).not.toHaveBeenCalled();
     });
 
     it("does not switch while the settings dialog has a theme draft", async () => {
