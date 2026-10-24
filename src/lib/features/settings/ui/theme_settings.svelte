@@ -18,7 +18,6 @@
   import {
     parse_hsl,
     format_hsl,
-    shorten_theme_name,
     SANS_FONT_OPTIONS,
     MONO_FONT_OPTIONS,
     COLOR_PRESETS,
@@ -405,13 +404,13 @@
         aria-label="Active theme"
       >
         <span data-slot="select-value"
-          >{shorten_theme_name(active_theme.name)}</span
+          ><span class="truncate">{active_theme.name}</span></span
         >
       </Select.Trigger>
-      <Select.Content>
+      <Select.Content class="max-w-80">
         {#each all_themes as theme (theme.id)}
           <Select.Item value={theme.id}
-            >{shorten_theme_name(theme.name)}</Select.Item
+            ><div class="truncate">{theme.name}</div></Select.Item
           >
         {/each}
       </Select.Content>
