@@ -259,17 +259,44 @@ describe("vim mode", () => {
     expect(table_widget(view)).not.toBeNull();
   });
 
-  test("VIM-009 a visual selection over a table keeps the widget, and d deletes the whole table", () => {
+  test("VIM-009 a visual selection from above a table keeps the widget, and d deletes the whole table", () => {
     const view = vim_editor(`before\n\n${table}\n\nafter`);
-    press(view, "3", "G");
-    expect(table_widget(view)).toBeNull();
-
-    press(view, "V", "5", "G");
+    press(view, "2", "G", "V", "5", "G");
     expect(table_widget(view)).not.toBeNull();
+    expect(table_widget(view)?.classList.contains("md-block-selected")).toBe(
+      true,
+    );
 
     press(view, "d");
-    expect(view.state.doc.toString()).toBe("before\n\n\nafter");
+    expect(view.state.doc.toString()).toBe("before\n\nafter");
   });
+
+  test.each([
+    {
+      name: "code block",
+      source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
+      keys: ["4", "G", "v", "l"],
+    },
+    {
+      name: "table",
+      source: `before\n\n${table}\n\nafter`,
+      keys: ["5", "G", "V"],
+    },
+  ])(
+    "VIM-019 a visual selection inside a $name keeps its source, until it grows past the block",
+    ({ source, keys }) => {
+      const view = vim_editor(source);
+      press(view, ...keys);
+      expect(view.state.selection.main.empty).toBe(false);
+      expect(table_widget(view)).toBeNull();
+
+      press(view, "<Esc>");
+      expect(table_widget(view)).toBeNull();
+
+      press(view, "v", "G");
+      expect(table_widget(view)).not.toBeNull();
+    },
+  );
 
   test("VIM-010 undo inside a revealed code block restores the source, and the block renders once the caret leaves", () => {
     const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
@@ -333,7 +360,7 @@ describe("vim mode", () => {
       mouse_target: "[data-row='1'][data-col='0']",
     },
   ])(
-    "VIM-015 a mouse range selection in a $name gives focus back to the editor and keeps the block",
+    "VIM-015 a mouse range selection in a $name gives focus back to the editor and shows the block as source",
     async ({ source, editor_selector, mouse_target }) => {
       const view = vim_editor(source);
       view.focus();
@@ -359,7 +386,7 @@ describe("vim mode", () => {
         },
         { timeout: 3000 },
       );
-      expect(table_widget(view)).not.toBeNull();
+      expect(table_widget(view)).toBeNull();
       expect(view.state.selection.main.empty).toBe(false);
 
       press(view, "y");

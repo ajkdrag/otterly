@@ -44,9 +44,10 @@ export type Block = {
 export const surface_input = Annotation.define<boolean>();
 
 // When true, surface blocks (code, tables) show their source while an empty
-// caret touches them, the same as "caret" blocks, and the caret never enters
-// a nested editor. Vim turns this on, so one Vim instance edits the whole
-// document instead of losing its keys to a nested view.
+// caret touches them, the same as "caret" blocks, and also while a selection
+// lies inside them. The caret never enters a nested editor. Vim turns this
+// on, so one Vim instance edits the whole document instead of losing its
+// keys to a nested view, and visual mode inside a block keeps the source.
 export const reveal_surfaces_at_caret = Facet.define<boolean, boolean>({
   combine: (values) => values.some(Boolean),
 });
@@ -544,8 +545,7 @@ function build_decorations(
   const ranges: Range<Decoration>[] = [];
   for (const block of blocks) {
     if (block.from === constructing) continue;
-    if (reveals_at_caret(state, block) && touches(state, block.from, block.to))
-      continue;
+    if (shows_source(state, block)) continue;
     if (block.construct.complete && !block.construct.complete(block, state))
       continue;
     const construct = block.construct;
@@ -563,10 +563,7 @@ function revealed_blocks(
   blocks: readonly Block[],
 ): number[] {
   return blocks
-    .filter(
-      (block) =>
-        reveals_at_caret(state, block) && touches(state, block.from, block.to),
-    )
+    .filter((block) => shows_source(state, block))
     .map((block) => block.from);
 }
 
@@ -580,11 +577,22 @@ function same_positions(
   );
 }
 
-function reveals_at_caret(state: EditorState, block: Block): boolean {
-  return (
-    block.construct.reveal === "caret" ||
-    (block.construct.reveal === "surface" &&
-      state.facet(reveal_surfaces_at_caret))
+// A "caret" block shows its source while an empty caret touches it, like an
+// inline construct. A surface block does the same under
+// reveal_surfaces_at_caret, and also while a selection lies inside it, so
+// Vim's visual mode in a code block does not swap the widget back in and move
+// the text. A selection that reaches past the block keeps the widget, which
+// draws as selected. The mouse freeze holds the layout, so it skips the
+// selection check.
+function shows_source(state: EditorState, block: Block): boolean {
+  const { reveal } = block.construct;
+  if (reveal === "surface" && !state.facet(reveal_surfaces_at_caret))
+    return false;
+  if (touches(state, block.from, block.to)) return true;
+  if (reveal === "caret" || state.field(reveal_freeze, false)?.frozen)
+    return false;
+  return state.selection.ranges.some(
+    (range) => range.from >= block.from && range.to <= block.to,
   );
 }
 

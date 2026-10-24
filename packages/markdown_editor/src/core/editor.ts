@@ -238,13 +238,12 @@ function move_caret_into_surface(view: EditorView) {
 // Under reveal_surfaces_at_caret the outer view owns every key, so focus must
 // not stay in a nested editor, which has no Vim. A click inside a rendered code
 // block or table still focuses the nested editor. The reveal freeze holds the
-// block rendered until about 100 ms after the button comes up. Then either:
-//  - the caret is empty, the block turns into source, and the nested view is
-//    destroyed together with its focus, or
-//  - the selection is a range (double click, drag), the block stays rendered
-//    (a range never reveals), and the nested editor keeps focus.
-// This finds the moments to check: the freeze just ended, or a nested editor
-// published a selection or edit while no click was in progress.
+// block rendered until about 100 ms after the button comes up. Then the block
+// turns into source, whether the click left a caret or a range (double click,
+// drag), because a selection inside a block reveals it. The nested view is
+// destroyed together with its focus. This finds the moments to check: the
+// freeze just ended, or a nested editor published a selection or edit while no
+// click was in progress.
 function nested_editor_may_hold_focus(update: ViewUpdate): boolean {
   const { startState, state } = update;
   if (!state.facet(reveal_surfaces_at_caret)) return false;

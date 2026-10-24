@@ -247,15 +247,15 @@ Inactive table cells are static rendered HTML. Only the active cell has a nested
 
 ## Reveal
 
-| Kind            | Rule                                                    |
-| --------------- | ------------------------------------------------------- |
-| inline          | An empty caret is in `[node.from, node.to]`, inclusive. |
-| line prefix     | An empty caret is in `[line start, content start)`.     |
-| block `caret`   | An empty caret touches the block.                       |
-| block `surface` | Only while constructing or after `edit_block_source`.   |
-| block `surface` | With `reveal_surfaces_at_caret`: like a `caret` block.  |
+| Kind            | Rule                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| inline          | An empty caret is in `[node.from, node.to]`, inclusive.                                           |
+| line prefix     | An empty caret is in `[line start, content start)`.                                               |
+| block `caret`   | An empty caret touches the block.                                                                 |
+| block `surface` | Only while constructing or after `edit_block_source`.                                             |
+| block `surface` | With `reveal_surfaces_at_caret`: like a `caret` block, and also while a selection lies inside it. |
 
-Non-empty selections never reveal, so text does not shift while selecting. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer.
+Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret`: it keeps the source, so Vim's visual mode in a code block does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer.
 
 Images draw their widget after the source and keep it visible while the source is revealed, so the caret entering an image does not make the layout jump.
 
@@ -315,7 +315,7 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 
 - `vim()` sits at `Prec.highest`, so Vim keys beat `context_keymap`. All keymaps run from one `Prec.default` DOM handler, the menus' `Prec.highest` keymap included, so Vim sees every key first. A small handler before it closes an open slash or wiki menu on Esc. Enter and the arrows are not Vim keys in insert mode, so they already reach the menu.
 - `u` and `<C-r>` go to `source_undo` and `source_redo`. The plugin patches the engine's `CodeMirror.commands` once at load, which survives a vimrc reload, and points `:undo` and `:redo` at the patched commands, because the engine copied the originals into its ex table. `:unmap` only says it works in the vimrc, because the engine's version removes built-in keys. `u` follows CodeMirror history groups, not insert sessions.
-- It turns on `reveal_surfaces_at_caret`. Code blocks and tables show their source while the caret is in them, so one Vim instance edits the whole document and no key lands in a nested editor. Arrow keys walk into the source instead of calling a surface's `enter`. A click inside a rendered surface still focuses its nested editor. The block keeps its widget until the reveal freeze ends, about 100 ms after the button comes up. Then the core hands focus back to the outer view and keeps the outer selection. A click with an empty caret turns the block into source and destroys the nested view with its focus. A range selection (double click, drag) never reveals, so the block stays rendered and the nested editor still holds focus until the core takes it.
+- It turns on `reveal_surfaces_at_caret`. Code blocks and tables show their source while the caret, or a whole selection, is in them, so one Vim instance edits the whole document and no key lands in a nested editor. `j`, `k` and the up and down arrows step onto the block's nearest line. CodeMirror's vertical motion skips widgets, so the plugin wraps the engine's `findPosV` (what `j` and `k` ask) to answer with the target line when the screen step would jump over a rendered block. The arrow keys do the same in `enter_adjacent_block`. Left and right already land on the block's edge. A click inside a rendered surface still focuses its nested editor. The block keeps its widget until the reveal freeze ends, about 100 ms after the button comes up. Then the block turns into source, for a caret and for a range selection (double click, drag) alike, and the nested view is destroyed with its focus. The core hands focus back to the outer view and keeps the outer selection.
 - `on_mode_change` gets `"normal"` when the extension is built (enable, `setState`) and then every change: `normal`, `insert`, `visual`, `visual_line`, `visual_block`, `replace`.
 - The theme uses host variables (`--primary`, `--muted`, `--font-mono`) for the block cursor and the `/` prompt. The editor root gets `md-vim`. The host reads it to keep Ctrl keys for Vim on macOS (`use_keyboard_shortcuts`). On Windows and Linux the app's Ctrl hotkeys win over Vim's Ctrl keys. The engine leaves Ctrl-v alone in insert mode and lets Ctrl-c copy a selection, so paste and copy should still work there. I read that in its source and have not tried it on Windows or Linux.
 
