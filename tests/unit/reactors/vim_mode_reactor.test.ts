@@ -30,39 +30,52 @@ async function create_reactor() {
     label: "Reload vimrc",
     execute: load_vimrc,
   });
-  cleanups.push(create_vim_mode_reactor(ui, target, registry));
+  const focus_listeners = new Set<() => void>();
+  const focus_window = () => {
+    for (const listener of focus_listeners) listener();
+  };
+  cleanups.push(
+    create_vim_mode_reactor(ui, target, registry, (on_focus) => {
+      focus_listeners.add(on_focus);
+      return () => focus_listeners.delete(on_focus);
+    }),
+  );
   await tick();
   const set_vim = async (vim_mode_enabled: boolean) => {
     ui.set_editor_settings({ ...ui.editor_settings, vim_mode_enabled });
     await tick();
   };
-  return { ui, target, load_vimrc, set_vim };
+  return { ui, target, load_vimrc, set_vim, focus_window, focus_listeners };
 }
 
 describe("vim_mode reactor", () => {
   it("turns Vim on in the editor and loads the vimrc, and loads again on window focus", async () => {
-    const { target, load_vimrc, set_vim } = await create_reactor();
+    const { target, load_vimrc, set_vim, focus_window } =
+      await create_reactor();
     expect(target.set_vim_enabled).toHaveBeenLastCalledWith(false);
     expect(load_vimrc).not.toHaveBeenCalled();
-    window.dispatchEvent(new Event("focus"));
+    focus_window();
     expect(load_vimrc).not.toHaveBeenCalled();
 
     await set_vim(true);
     expect(target.set_vim_enabled).toHaveBeenLastCalledWith(true);
     expect(load_vimrc).toHaveBeenCalledTimes(1);
 
-    window.dispatchEvent(new Event("focus"));
+    focus_window();
     expect(load_vimrc).toHaveBeenCalledTimes(2);
     expect(load_vimrc).toHaveBeenLastCalledWith({ force: false });
   });
 
   it("stops watching focus when Vim turns off", async () => {
-    const { target, load_vimrc, set_vim } = await create_reactor();
+    const { target, load_vimrc, set_vim, focus_window, focus_listeners } =
+      await create_reactor();
     await set_vim(true);
+    expect(focus_listeners.size).toBe(1);
     await set_vim(false);
     expect(target.set_vim_enabled).toHaveBeenLastCalledWith(false);
+    expect(focus_listeners.size).toBe(0);
 
-    window.dispatchEvent(new Event("focus"));
+    focus_window();
     expect(load_vimrc).toHaveBeenCalledTimes(1);
   });
 

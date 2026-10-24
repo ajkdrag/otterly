@@ -19,6 +19,7 @@ import { create_window_title_reactor } from "$lib/reactors/window_title.reactor.
 import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reactor.svelte";
 import { create_update_check_reactor } from "$lib/reactors/update_check.reactor.svelte";
 import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { ConflictToastManager } from "$lib/reactors/conflict_toast";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorStore } from "$lib/features/editor";
@@ -86,6 +87,7 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.ui_store,
       context.editor_service,
       context.action_registry,
+      subscribe_to_window_focus,
     ),
     create_autosave_reactor(
       context.editor_store,

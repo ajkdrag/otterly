@@ -42,6 +42,7 @@ import { create_document_autosave_reactor } from "$lib/reactors/document_autosav
 import { create_document_close_request_reactor } from "$lib/reactors/document_close_request.reactor.svelte";
 import { create_document_window_reactor } from "$lib/reactors/document_window.reactor.svelte";
 import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { toast } from "svelte-sonner";
 
 export type DocumentWindowPorts = {
@@ -167,7 +168,12 @@ export function create_document_window_context(input: {
       action_registry,
     ),
     create_document_window_reactor(stores.document, document_service),
-    create_vim_mode_reactor(stores.ui, document_service, action_registry),
+    create_vim_mode_reactor(
+      stores.ui,
+      document_service,
+      action_registry,
+      subscribe_to_window_focus,
+    ),
     create_op_toast_reactor(stores.op),
     create_find_in_file_reactor(
       stores.ui,
