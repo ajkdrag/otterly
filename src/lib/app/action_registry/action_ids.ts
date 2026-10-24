@@ -137,6 +137,7 @@ export const ACTION_IDS = {
   vault_find_request_replace_all: "vault_find.request_replace_all",
   vault_find_confirm_replace_all: "vault_find.confirm_replace_all",
   vault_find_cancel_replace_all: "vault_find.cancel_replace_all",
+  vault_find_focus_editor: "vault_find.focus_editor",
 
   tab_close: "tab.close",
   tab_close_other: "tab.close_other",

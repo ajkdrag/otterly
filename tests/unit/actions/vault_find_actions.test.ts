@@ -158,12 +158,10 @@ describe("register_vault_find_actions", () => {
 
     expect(services.editor.flush).toHaveBeenCalled();
     expect(replaced_paths(services.vault_find.replace)).toEqual(["clean.md"]);
-    expect(toast.warning).toHaveBeenCalledWith(
+    expect(vi.mocked(toast.warning).mock.calls[0]).toEqual([
       "Replaced 1 match in 1 file",
-      expect.objectContaining({
-        description: expect.stringContaining("2 files"),
-      }),
-    );
+      { description: "2 files skipped: unsaved or changed on disk" },
+    ]);
   });
 
   it("replace all writes nothing when the git checkpoint fails", async () => {

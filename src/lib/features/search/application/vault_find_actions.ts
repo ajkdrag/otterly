@@ -129,6 +129,15 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     },
   });
 
+  // Escape in the panel's find input hands the keyboard back to the editor.
+  registry.register({
+    id: ACTION_IDS.vault_find_focus_editor,
+    label: "Focus Editor",
+    execute: () => {
+      services.editor.focus();
+    },
+  });
+
   registry.register({
     id: ACTION_IDS.vault_find_refresh,
     label: "Refresh Find in Vault",
