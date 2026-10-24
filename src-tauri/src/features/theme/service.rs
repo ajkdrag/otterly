@@ -127,6 +127,9 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
 // the folder, not the file: editors and agents often save by writing a temp
 // file and renaming it over the old one, and a watch on the old file would
 // miss that. The caller keeps the returned watcher alive.
+//
+// @Incomplete: A theme.yaml that is a symlink loads, but writes to the file it
+// points at do not reach this folder, so they do not reload.
 pub fn start_theme_file_watcher(
     dir: &Path,
     quiet_period: Duration,

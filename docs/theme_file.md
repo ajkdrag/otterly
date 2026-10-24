@@ -66,6 +66,7 @@ tokens:
 - **Empty file** (or only comments) is valid and equals Mocha.
 - The file theme is read-only in Settings. To tweak it there, duplicate it.
 - Limits: UTF-8 text, up to 256 KB.
+- A symlinked `theme.yaml` loads fine, but live reload only sees changes to the link itself, not to the file it points at (checked on macOS). Restart Otterly after editing the target, or keep a real file here.
 
 ## Checking an edit
 
