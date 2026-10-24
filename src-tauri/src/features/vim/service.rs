@@ -1,4 +1,5 @@
-use crate::features::document::service::{display_path, open_document_window};
+use crate::features::document::service::open_document_window;
+use crate::shared::paths::display_path;
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,9 @@ const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quo
 "   unmap nunmap vunmap iunmap ounmap
 "   set option, set option=value, set nooption
 " A map line takes the rest of the line as the mapping, so it cannot end in
-" a comment. Lines that do not apply are listed in Settings, under Vim.
+" a comment. <leader> is not supported, and a map that starts with <Space>,
+" <BS>, <CR>, a comma or a semicolon never fires, because those keys already
+" do something. Lines that do not apply are listed in Settings, under Vim.
 "
 " Examples (remove the leading quote to turn one on):
 " imap jk <Esc>
@@ -46,15 +49,18 @@ pub async fn read_vimrc(app: AppHandle) -> Result<VimrcFile, String> {
 #[tauri::command]
 pub async fn open_vimrc(app: AppHandle) -> Result<(), String> {
     let path = vimrc_path(&app)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
     create_starter_vimrc(&path)?;
     open_document_window(&app, &path)
 }
 
+// Creates nothing. read_vimrc runs on every window focus, so only open_vimrc
+// makes the directory.
 fn vimrc_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let dir = dir.join("otterly");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join("vimrc"))
+    Ok(dir.join("otterly").join("vimrc"))
 }
 
 // A missing file is normal (Vim still runs with its defaults). Bytes that are

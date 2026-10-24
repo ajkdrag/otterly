@@ -1,4 +1,5 @@
 use crate::features::notes::service::{atomic_write, file_meta, read_text_file, safe_vault_abs};
+use crate::shared::paths::display_path;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -175,10 +176,4 @@ fn file_name(path: &Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
-}
-
-// canonicalize gives Windows verbatim paths (\\?\C:\...). Show the usual form.
-pub(crate) fn display_path(path: &Path) -> String {
-    let text = path.to_string_lossy();
-    text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
 }
