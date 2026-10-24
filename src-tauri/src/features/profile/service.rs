@@ -185,12 +185,6 @@ pub fn launch_profile(app: &AppHandle, profile_id: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    // The new process would create this folder itself a moment later. Doing it
-    // here means the profile shows up in lists right away.
-    let config_dir = app.path().config_dir().map_err(|e| e.to_string())?;
-    let profile_dir = config_dir.join(profile_identifier(&state.base_identifier, profile_id));
-    std::fs::create_dir_all(&profile_dir).map_err(|e| e.to_string())?;
-
     // Spawning our own executable works the same for the bundle, the Windows
     // and Linux installs, and `tauri dev`. The flag always goes along, even for
     // the default profile, so our own OTTERLY_PROFILE cannot leak into it.
@@ -202,16 +196,38 @@ pub fn launch_profile(app: &AppHandle, profile_id: &str) -> Result<(), String> {
     // an app behind a symlink cannot open profiles, and the error names the
     // link.
     let exe_path = tauri::process::current_binary(&app.env()).map_err(|e| e.to_string())?;
-    let mut child = Command::new(exe_path)
+    let mut command = Command::new(exe_path);
+    command
         .arg(format!("{PROFILE_ARG_PREFIX}{profile_id}"))
-        .env_remove(PROFILE_ENV_VAR)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .env_remove(PROFILE_ENV_VAR);
+    // Its own process group, so Ctrl+C or closing the terminal we were started
+    // from (`tauri dev`, say) does not take every profile down with us.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().map_err(|e| e.to_string())?;
     // A child that forwards to a running profile exits right away. Without the
     // wait it stays a zombie for as long as we run.
     std::thread::spawn(move || {
         let _ = child.wait();
     });
+
+    // A profile exists when its folder does, so this makes it show up in the
+    // lists right away. The new process creates the folder itself too, so a
+    // failure here is only logged. It comes after the spawn because a failed
+    // spawn must not leave an empty folder, which would list as a profile.
+    match app.path().config_dir() {
+        Ok(config_dir) => {
+            let profile_dir =
+                config_dir.join(profile_identifier(&state.base_identifier, profile_id));
+            if let Err(error) = std::fs::create_dir_all(&profile_dir) {
+                log::warn!("Could not create {}: {error}", profile_dir.display());
+            }
+        }
+        Err(error) => log::warn!("No config dir to create profile {profile_id} in: {error}"),
+    }
     log::info!("Launched profile {profile_id}");
     Ok(())
 }
