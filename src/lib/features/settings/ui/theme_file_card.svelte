@@ -25,8 +25,9 @@
 
   const error_count = $derived(theme_file.errors.length);
   // The path is null when the backend could not read the file (too big, not
-  // text, or both theme.yaml and theme.json exist). Open and Reveal stay on,
-  // because the backend finds the file itself.
+  // text, or both theme.yaml and theme.json exist) and no earlier load gave
+  // one. Open and Reveal don't depend on it: they work for a file that is too
+  // big or not text, and fail while both theme.yaml and theme.json exist.
   const has_path = $derived(theme_file.path !== null);
 </script>
 

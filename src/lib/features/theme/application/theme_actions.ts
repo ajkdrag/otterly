@@ -207,11 +207,14 @@ export function register_theme_actions(input: ThemeActionInput): void {
     execute: async () => {
       const loaded = await services.theme.load_theme_file();
       // Keep the last valid theme while the file has errors, so the app does
-      // not jump around while someone is halfway through an edit.
+      // not jump around while someone is halfway through an edit. Keep the
+      // last known path too: a file the backend can't read comes back without
+      // one, and that is when someone wants to copy it for an agent.
       if (loaded.status === "invalid") {
         stores.ui.set_theme_file({
           ...loaded,
           theme: stores.ui.theme_file.theme,
+          path: loaded.path ?? stores.ui.theme_file.path,
         });
         return;
       }

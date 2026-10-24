@@ -263,6 +263,31 @@ describe("register_theme_actions", () => {
       expect(stores.ui.active_theme).toEqual(FILE_THEME);
     });
 
+    it("keeps the last known path when the file can't be read", async () => {
+      const { registry, stores, services } = create_harness();
+      services.theme.load_theme_file.mockResolvedValue(
+        valid_theme_file(FILE_THEME),
+      );
+      await registry.execute(ACTION_IDS.theme_reload_file);
+
+      services.theme.load_theme_file.mockResolvedValue({
+        path: null,
+        status: "invalid",
+        theme: null,
+        errors: [
+          {
+            line: null,
+            key: null,
+            message: "Found both theme.yaml and theme.json.",
+          },
+        ],
+      });
+      await registry.execute(ACTION_IDS.theme_reload_file);
+
+      expect(stores.ui.theme_file.status).toBe("invalid");
+      expect(stores.ui.theme_file.path).toBe(THEME_FILE_PATH);
+    });
+
     it("falls back to Mocha when the active theme file is deleted", async () => {
       const { registry, stores, services } = create_harness();
       services.theme.load_theme_file.mockResolvedValue(
