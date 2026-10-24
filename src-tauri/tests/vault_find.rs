@@ -120,6 +120,37 @@ fn case_sensitive_and_whole_word_narrow_the_matches() {
     );
 }
 
+// The find bar builds the same Unicode word boundary (find.ts word_boundary).
+#[test]
+fn whole_word_uses_unicode_word_boundaries() {
+    let whole_word = |text: &str| FindSpec {
+        whole_word: true,
+        ..literal(text)
+    };
+    assert_eq!(
+        matched_texts("café cafés Café", whole_word("café")),
+        ["café", "Café"]
+    );
+    assert_eq!(
+        matched_texts("привет приветствие", whole_word("привет")),
+        ["привет"]
+    );
+}
+
+// The find bar accepts the same escapes (find.ts allow_punctuation_escapes).
+// Lookaround is the other direction: JS has it, so only the vault find says no.
+#[test]
+fn regex_mode_accepts_escaped_punctuation_but_not_lookaround() {
+    assert_eq!(
+        matched_texts("#todo a-b a_b", regex(r"\#\w+|a\-b|a\_b")),
+        ["#todo", "a-b", "a_b"]
+    );
+    assert!(matches!(
+        FindQuery::compile(&regex(r"foo(?=bar)")),
+        Err(FindError::InvalidQuery(_))
+    ));
+}
+
 #[test]
 fn invalid_and_multiline_queries_are_rejected() {
     assert!(matches!(

@@ -240,6 +240,14 @@ describe("find", () => {
     expect(matched_text(view)).toEqual(["Cat", "cat"]);
   });
 
+  test("FIND-007 whole word uses Unicode word boundaries, as the vault find does", () => {
+    const view = editor("café cafés Café привет приветствие");
+    search(view, { ...literal_find_spec("café"), whole_word: true });
+    expect(matched_text(view)).toEqual(["café", "Café"]);
+    search(view, { ...literal_find_spec("привет"), whole_word: true });
+    expect(matched_text(view)).toEqual(["привет"]);
+  });
+
   test("FIND-007 an invalid regex has no matches, and empty matches are skipped", () => {
     const view = editor("aaa b");
     search(view, regex("(unclosed"));
@@ -248,6 +256,20 @@ describe("find", () => {
     expect(find_regexp({ ...regex("a)|(b"), whole_word: true })).toBeNull();
     search(view, regex("a*"));
     expect(matched_text(view)).toEqual(["aaa"]);
+  });
+
+  test("FIND-007 regex mode accepts escaped punctuation, as the vault find does", () => {
+    const view = editor("#todo a-b a_b x\\-y");
+    search(view, regex("\\#\\w+"));
+    expect(matched_text(view)).toEqual(["#todo"]);
+    search(view, regex("a\\-b|a\\_b"));
+    expect(matched_text(view)).toEqual(["a-b", "a_b"]);
+    search(view, regex("[\\-]"));
+    expect(matched_text(view)).toEqual(["-", "-"]);
+    // An escaped backslash stays one, so this is a backslash and a dash.
+    search(view, regex("\\\\-"));
+    expect(matched_text(view)).toEqual(["\\-"]);
+    expect(find_regexp(regex("\\<"))).toBeNull();
   });
 
   test("FIND-007 regex matches never cross a line", () => {

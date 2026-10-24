@@ -78,7 +78,7 @@ replace_find_match(view, "version $1"); // replaces the selected match and selec
 replace_all_find_matches(view, "version $1"); // returns the count, one undo step
 ```
 
-Matching runs one line at a time, so `\s` never crosses a line. Empty matches are skipped. Regex replacements use Rust's template syntax: `$1`, `${1}`, `$name`, `${name}`, `$0`, and `$$` for a literal `$`. Literal mode inserts the replacement as is. Use `find_regexp(spec)` and `find_matches_in_line` to count matches outside the editor with the same rules. `find_regexp` returns `null` for an empty or invalid spec.
+Matching runs one line at a time, so `\s` never crosses a line. Empty matches are skipped. A backslash before punctuation (`\#`, `\-`) is accepted in regex mode, like in Rust. Regex replacements use Rust's template syntax: `$1`, `${1}`, `$name`, `${name}`, `$0`, and `$$` for a literal `$`. Literal mode inserts the replacement as is. Use `find_regexp(spec)` and `find_matches_in_line` to count matches outside the editor with the same rules. `find_regexp` returns `null` for an empty or invalid spec.
 
 ## Writing a plugin
 

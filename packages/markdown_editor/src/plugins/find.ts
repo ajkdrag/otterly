@@ -70,6 +70,24 @@ export function find(): MarkdownPlugin {
   };
 }
 
+// JS \b only knows ASCII letters, so "café" or "привет" as a whole word would
+// never match here, while Rust's \b is Unicode and finds them. This builds the
+// Unicode \b out of lookarounds, with Rust's definition of a word character.
+// Old WebKit has no lookbehind and keeps the plain \b.
+function supports_lookbehind(): boolean {
+  try {
+    new RegExp("(?<!a)b", "u");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const word_char = "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]";
+const word_boundary = supports_lookbehind()
+  ? `(?:(?<=${word_char})(?!${word_char})|(?<!${word_char})(?=${word_char}))`
+  : "\\b";
+
 // The pattern for a spec, or null for an empty or invalid one. Matching runs
 // one line at a time (`\s` never crosses a line), like the vault find in Rust.
 // Callers that count matches outside the editor should use this too, so the
@@ -78,16 +96,31 @@ export function find_regexp(spec: FindSpec): RegExp | null {
   if (!spec.text || spec.text.includes("\n")) return null;
   const flags = spec.case_sensitive ? "gu" : "giu";
   const source = spec.regex
-    ? spec.text
+    ? allow_punctuation_escapes(spec.text)
     : spec.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   try {
     // Check the bare pattern first: wrapping "a)|(b" for whole word would
     // turn an invalid pattern into a valid one.
     const bare = new RegExp(source, flags);
-    return spec.whole_word ? new RegExp(`\\b(?:${source})\\b`, flags) : bare;
+    return spec.whole_word
+      ? new RegExp(`${word_boundary}(?:${source})${word_boundary}`, flags)
+      : bare;
   } catch {
     return null;
   }
+}
+
+// Rust accepts a backslash before any ASCII punctuation or space (`\#`, `\-`,
+// `\_`). With the u flag JS only accepts it before syntax characters, so those
+// patterns would be "Invalid regex" here and fine in the vault find. Write the
+// character as \xNN instead. `\<` and `\>` stay as they are: Rust reads them
+// as word boundaries, which JS does not have, so they stay invalid here.
+function allow_punctuation_escapes(source: string): string {
+  return source.replace(/\\([\s\S])/g, (whole, char: string) =>
+    /[!"#%&',\-:;=@_`~ ]/.test(char)
+      ? `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`
+      : whole,
+  );
 }
 
 // Yields the non-empty matches of a global pattern in one line. Empty matches

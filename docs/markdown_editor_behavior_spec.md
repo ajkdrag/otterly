@@ -1019,7 +1019,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Search with a `FindSpec` that turns on regex, case-sensitive, or whole-word matching.
 - **Expected:** Matching runs one line at a time, so `\s` and `[^x]` never cross a line and `^`/`$` anchor lines. Offsets stay in UTF-16 display units.
-- **Edge cases/notes:** An empty or invalid pattern has no matches and no error inside the editor. Empty matches (`^`, `a*`) are skipped. Whole word wraps the pattern in `\b(?:...)\b`, so it only checks ASCII word boundaries.
+- **Edge cases/notes:** An empty or invalid pattern has no matches and no error inside the editor. Empty matches (`^`, `a*`) are skipped. A backslash before punctuation (`\#`, `\-`, `\_`) is accepted, as in the Rust regex used by the vault find. Whole word wraps the pattern in a Unicode word boundary on both sides, built from lookarounds so it agrees with Rust's `\b` (`café` and `привет` work). A WebView without lookbehind falls back to the ASCII `\b`.
 
 ### FIND-008. Replace the selected match
 
