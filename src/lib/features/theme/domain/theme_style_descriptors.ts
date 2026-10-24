@@ -131,9 +131,9 @@ export const STYLE_DESCRIPTORS: ThemeStyleDescriptor[] = [
     unit: "rem",
   },
   {
-    id: "ui_density",
-    theme_key: "ui_density",
-    label: "Density",
+    id: "file_tree_density",
+    theme_key: "file_tree_density",
+    label: "File tree density",
     description: "Row height in the file tree",
     category: "interface",
     control: "select",

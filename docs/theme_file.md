@@ -33,7 +33,7 @@ font_size: 1.05
 line_height: 1.8
 editor_max_width_ch: 72 # null or leave it out to use Settings > Layout
 ui_radius: 0.5
-ui_density: compact
+file_tree_density: compact
 link_color: "hsl(25, 60%, 35%)"
 tokens:
   --sidebar: "#f4efe6"
@@ -76,7 +76,7 @@ tokens:
 Every key is optional. `theme.schema.json` lists all of them with types, ranges and descriptions, so validate against that instead of guessing. Unknown keys are errors (it catches typos), and numbers outside the range are errors too, not clamped.
 
 - Base: `name`, `extends`, `color_scheme` (`light` or `dark`)
-- Interface: `accent_hue`, `accent_chroma`, `ui_radius`, `ui_density`, `font_family_sans`, `font_family_mono`
+- Interface: `accent_hue`, `accent_chroma`, `ui_radius`, `file_tree_density`, `font_family_sans`, `font_family_mono`
 - Typography: `font_size`, `line_height`, `paragraph_spacing`, `heading_spacing_after`, `list_item_spacing`, `spacing`, `editor_text_color`, `link_color`
 - Layout: `editor_padding_x`, `editor_padding_y`, `editor_max_width_ch`
 - Headings: `heading_color`, `heading_font_weight`, `heading_1_size` to `heading_6_size`
@@ -91,7 +91,7 @@ Rules worth knowing:
 - Colors take any CSS color: `"#abc"`, `"oklch(0.7 0.1 200)"`, `"light-dark(#fff, #000)"`, `"var(--primary)"`. Typos like `redd` and non-colors like `12px` are errors. `null` clears a color the base theme sets. In YAML, quote colors: an unquoted `#` starts a comment.
 - Fonts are one family name, like `Inter`. Not a CSS stack: `Inter, sans-serif` is an error.
 - `editor_max_width_ch: null` and leaving it out both mean "use the Layout setting". A number overrides the Layout setting while this theme is active.
-- `ui_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized, so use `ui_density` for this. Setting `--size-tree-row` in `tokens` won't resize the rows.
+- `file_tree_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized, so use `file_tree_density` for this. Setting `--size-tree-row` in `tokens` won't resize the rows.
 - `ui_radius` is in rem and sets `--radius`.
 - Older WebKitGTK builds (Linux) may not know `light-dark()`, so a color written with it fails validation there. "Create from current theme" on a copy of Mocha writes a lot of them. I have not verified which WebKitGTK versions are affected. If you hit it, start from `nordic-dark` or `nordic-light`, or use plain colors.
 

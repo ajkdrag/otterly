@@ -10,11 +10,11 @@ export type ThemeBlockquoteStyle = "default" | "minimal" | "accent-bar";
 
 export type ThemeCodeBlockStyle = "default" | "borderless" | "filled";
 
-export type ThemeUiDensity = "compact" | "normal" | "comfortable";
+export type ThemeFileTreeDensity = "compact" | "normal" | "comfortable";
 
 // The file tree is virtualized, so it needs the row height in pixels, not
 // just the --size-tree-row CSS variable.
-export const TREE_ROW_HEIGHT_PX: Record<ThemeUiDensity, number> = {
+export const TREE_ROW_HEIGHT_PX: Record<ThemeFileTreeDensity, number> = {
   compact: 26,
   normal: 30,
   comfortable: 34,
@@ -52,7 +52,7 @@ export type Theme = {
   editor_max_width_ch: number | null;
 
   ui_radius: number;
-  ui_density: ThemeUiDensity;
+  file_tree_density: ThemeFileTreeDensity;
 
   bold_style: ThemeBoldStyle;
   blockquote_style: ThemeBlockquoteStyle;
@@ -107,7 +107,7 @@ const SHARED_DEFAULTS: Omit<
   editor_padding_y: 3,
   editor_max_width_ch: null,
   ui_radius: 0.25,
-  ui_density: "normal",
+  file_tree_density: "normal",
   bold_style: "default",
   blockquote_style: "default",
   code_block_style: "default",

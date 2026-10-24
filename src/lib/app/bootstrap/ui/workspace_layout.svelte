@@ -84,7 +84,7 @@
   );
 
   const tree_row_height_px = $derived(
-    TREE_ROW_HEIGHT_PX[stores.ui.active_theme.ui_density],
+    TREE_ROW_HEIGHT_PX[stores.ui.active_theme.file_tree_density],
   );
 
   const scoped_flat_nodes = $derived.by(() =>

@@ -65,7 +65,10 @@ function build_token_entries(theme: Theme): [string, string][] {
 
     // Interface
     ["--radius", `${String(theme.ui_radius)}rem`],
-    ["--size-tree-row", `${String(TREE_ROW_HEIGHT_PX[theme.ui_density])}px`],
+    [
+      "--size-tree-row",
+      `${String(TREE_ROW_HEIGHT_PX[theme.file_tree_density])}px`,
+    ],
 
     // Code block radius
     [

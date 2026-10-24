@@ -277,10 +277,10 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
     editor_max_width_ch: nullable_num(raw.editor_max_width_ch),
 
     ui_radius: num(raw.ui_radius, defaults.ui_radius),
-    ui_density: enum_val(
-      raw.ui_density,
+    file_tree_density: enum_val(
+      raw.file_tree_density,
       ["compact", "normal", "comfortable"],
-      defaults.ui_density,
+      defaults.file_tree_density,
     ),
 
     bold_style: enum_val(

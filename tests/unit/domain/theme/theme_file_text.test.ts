@@ -48,7 +48,7 @@ describe("theme_to_file_text", () => {
     const light_theme = {
       ...create_user_theme("Desk lamp", BUILTIN_NORDIC_LIGHT),
       font_size: 1.125,
-      ui_density: "comfortable" as const,
+      file_tree_density: "comfortable" as const,
       link_color: "hsl(25, 60%, 35%)",
       token_overrides: {
         ...BUILTIN_NORDIC_LIGHT.token_overrides,

@@ -36,7 +36,7 @@ describe("parse_theme_file", () => {
         "name: Desk lamp",
         "extends: nordic-light",
         "font_size: 1.05",
-        "ui_density: compact",
+        "file_tree_density: compact",
         'link_color: "hsl(25, 60%, 35%)"',
         "tokens:",
         '  --sidebar: "#f4efe6"',
@@ -50,7 +50,7 @@ describe("parse_theme_file", () => {
       name: "Desk lamp",
       is_builtin: true,
       font_size: 1.05,
-      ui_density: "compact",
+      file_tree_density: "compact",
       link_color: "hsl(25, 60%, 35%)",
       token_overrides: {
         ...BUILTIN_NORDIC_LIGHT.token_overrides,
@@ -128,8 +128,8 @@ describe("parse_theme_file", () => {
   });
 
   it("rejects a select value that is not an option", () => {
-    expect(parse_errors("ui_density: dense\n")[0]?.message).toBe(
-      'ui_density must be one of compact, normal, comfortable (got "dense")',
+    expect(parse_errors("file_tree_density: dense\n")[0]?.message).toBe(
+      'file_tree_density must be one of compact, normal, comfortable (got "dense")',
     );
   });
 

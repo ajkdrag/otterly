@@ -84,7 +84,7 @@ describe("theme_style_descriptors", () => {
       "editor_padding_y",
       "editor_max_width_ch",
       "ui_radius",
-      "ui_density",
+      "file_tree_density",
       "heading_color",
       "heading_font_weight",
       "heading_1_size",

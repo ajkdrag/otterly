@@ -126,7 +126,7 @@ describe("apply_theme", () => {
     apply_theme({
       ...BUILTIN_NORDIC_DARK,
       ui_radius: 0.5,
-      ui_density: "compact",
+      file_tree_density: "compact",
     });
     expect(store.get("--radius")).toBe("0.5rem");
     expect(store.get("--size-tree-row")).toBe("26px");
