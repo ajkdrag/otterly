@@ -1,3 +1,4 @@
+use crate::features::document::service::DocumentState;
 use crate::features::notes::service as notes_service;
 use crate::features::search::db as search_db;
 use crate::features::search::link_parser;
@@ -12,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -880,8 +881,8 @@ pub fn vault_find_cancel(state: tauri::State<'_, VaultFindState>) -> Result<(), 
 pub struct VaultReplaceFile {
     pub path: String,
     pub content_hash: String,
-    // Ordinals into the file's match list. None replaces every match.
-    pub match_indexes: Option<Vec<usize>>,
+    // Ordinals into the file's match list.
+    pub match_indexes: Vec<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -907,6 +908,9 @@ pub enum ReplaceSkipReason {
     NotText,
     ReadFailed,
     WriteFailed,
+    // A document window has its own buffer of this file, and its next save
+    // would overwrite the replace.
+    OpenInWindow,
 }
 
 #[derive(Debug, Serialize)]
@@ -933,9 +937,16 @@ pub async fn vault_replace(
     let query = FindQuery::compile(&request.spec).map_err(|e| e.to_string())?;
     let vault_root = storage::vault_path(&app, &vault_id)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let open_documents = app.state::<DocumentState>().open_paths();
         let mut response = VaultReplaceResponse::default();
         for file in &request.files {
-            match replace_vault_file(&vault_root, file, &query, &request.replacement) {
+            match replace_vault_file(
+                &vault_root,
+                file,
+                &query,
+                &request.replacement,
+                &open_documents,
+            ) {
                 Ok(replaced) => {
                     if replaced.count > 0 && notes_service::is_markdown_file(Path::new(&file.path))
                     {
@@ -968,14 +979,28 @@ fn refresh_index_after_replace(app: &AppHandle, vault_id: &str, vault_root: &Pat
     }
 }
 
+fn modified_time(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok()?.modified().ok()
+}
+
+// open_documents are the canonical paths of files that document windows show.
 pub(crate) fn replace_vault_file(
     vault_root: &Path,
     file: &VaultReplaceFile,
     query: &FindQuery,
     replacement: &str,
+    open_documents: &[PathBuf],
 ) -> Result<ReplacedFile, ReplaceSkipReason> {
     let abs = notes_service::safe_vault_abs_for_write(vault_root, &file.path)
         .map_err(|_| ReplaceSkipReason::ReadFailed)?;
+    if abs
+        .canonicalize()
+        .is_ok_and(|canonical| open_documents.contains(&canonical))
+    {
+        return Err(ReplaceSkipReason::OpenInWindow);
+    }
+    // Taken before the read, so a save in between shows up as a changed mtime.
+    let modified_before_read = modified_time(&abs);
     let text = match vault_find::read_searchable_text(&abs) {
         Ok(Some(text)) => text,
         Ok(None) => return Err(ReplaceSkipReason::NotText),
@@ -988,9 +1013,16 @@ pub(crate) fn replace_vault_file(
     if vault_find::content_hash(&text) != file.content_hash {
         return Err(ReplaceSkipReason::Changed);
     }
-    let replaced =
-        vault_find::replace_in_text(&text, query, replacement, file.match_indexes.as_deref());
+    let replaced = vault_find::replace_in_text(&text, query, replacement, &file.match_indexes);
     if replaced.count > 0 {
+        // Autosave can write the note after the hash check, and we would
+        // overwrite that save without noticing.
+        // @Robustness: A save that lands between this check and the rename
+        // (atomic_write writes its temp file first) is still lost. The window
+        // is milliseconds. Closing it needs a lock that write_note shares.
+        if modified_time(&abs) != modified_before_read {
+            return Err(ReplaceSkipReason::Changed);
+        }
         notes_service::atomic_write(&abs, &replaced.text)
             .map_err(|_| ReplaceSkipReason::WriteFailed)?;
     }

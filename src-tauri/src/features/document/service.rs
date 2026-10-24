@@ -19,6 +19,13 @@ pub struct DocumentState {
     windows: Mutex<HashMap<String, PathBuf>>,
 }
 
+impl DocumentState {
+    // Canonical paths of the files that document windows show right now.
+    pub fn open_paths(&self) -> Vec<PathBuf> {
+        lock(self).values().cloned().collect()
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct DocumentFile {
     pub path: String,

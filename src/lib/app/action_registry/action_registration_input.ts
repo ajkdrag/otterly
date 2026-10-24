@@ -11,6 +11,7 @@ import type { ShellService } from "$lib/features/shell";
 import type { SessionService } from "$lib/features/session";
 import type { TabService } from "$lib/features/tab";
 import type { GitService } from "$lib/features/git";
+import type { LinksService } from "$lib/features/links";
 import type { HotkeyService } from "$lib/features/hotkey";
 import type { ThemeService } from "$lib/features/theme";
 import type { UpdaterService } from "$lib/features/updater";
@@ -49,6 +50,7 @@ export type ActionRegistrationInput = {
     session: SessionService;
     tab: TabService;
     git: GitService;
+    links: LinksService;
     hotkey: HotkeyService;
     theme: ThemeService;
     updater: UpdaterService;

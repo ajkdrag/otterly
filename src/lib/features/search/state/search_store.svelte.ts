@@ -55,6 +55,8 @@ export class VaultFindResults {
   stats = $state<VaultFindStats | null>(null);
   error = $state<VaultFindError | null>(null);
   request = $state.raw<VaultFindRequest | null>(null);
+  // Names of the capture groups of `request`, for the replacement preview.
+  group_names = $state.raw<(string | null)[]>([]);
   match_count = $derived(
     this.files.reduce((total, file) => total + file.matches.length, 0),
   );
@@ -73,9 +75,11 @@ export class VaultFindResults {
     this.stats = null;
     this.error = null;
     this.request = request;
+    this.group_names = [];
   }
 
-  add_files(files: VaultFindFile[]) {
+  add_files(files: VaultFindFile[], group_names: (string | null)[]) {
+    this.group_names = group_names;
     const sorted = [...files].sort((left, right) =>
       compare_paths(left.path, right.path),
     );
@@ -120,6 +124,7 @@ export class VaultFindResults {
     this.stats = null;
     this.error = null;
     this.request = null;
+    this.group_names = [];
   }
 }
 

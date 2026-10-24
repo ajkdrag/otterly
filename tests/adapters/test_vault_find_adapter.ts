@@ -6,8 +6,6 @@ export function create_test_vault_find_adapter(): VaultFindPort {
     start_find(_vault_id, _request, on_event) {
       on_event({
         type: "done",
-        searched_files: 0,
-        skipped_files: 0,
         match_count: 0,
         truncated: false,
         elapsed_ms: 0,

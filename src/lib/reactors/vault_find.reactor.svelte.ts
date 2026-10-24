@@ -9,15 +9,16 @@ import {
 const VAULT_FIND_DEBOUNCE_MS = 200;
 
 // Runs the vault find while you type in the panel, and again when another
-// vault opens. An empty query clears the results right away.
+// vault opens. An empty query clears the results right away. The replacement
+// text is not part of the request, so editing it never searches again.
 export function create_vault_find_reactor(
   ui_store: UIStore,
   vault_store: VaultStore,
   vault_find_service: Pick<VaultFindService, "search" | "clear">,
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // Toggling a row with nothing in it does not change the request. Skip
-  // the search then, so results do not flash.
+  // The vault store can hand us a new vault object with the same id. That
+  // is not a new request. Skip the search then, so results do not flash.
   let last_key: string | null = null;
   let last_vault_id: string | null = null;
 

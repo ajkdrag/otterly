@@ -6,6 +6,7 @@ use crate::features::search::vault_find::{
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 fn literal(text: &str) -> FindSpec {
@@ -29,14 +30,14 @@ fn query(spec: FindSpec) -> FindQuery {
 }
 
 fn matched_texts(text: &str, spec: FindSpec) -> Vec<String> {
-    find_in_text(text, &query(spec), None)
+    find_in_text(text, &query(spec))
         .into_iter()
         .map(|m| m.text)
         .collect()
 }
 
 fn positions(text: &str, spec: FindSpec) -> Vec<(usize, usize, usize)> {
-    find_in_text(text, &query(spec), None)
+    find_in_text(text, &query(spec))
         .into_iter()
         .map(|m| (m.line, m.column, m.length))
         .collect()
@@ -50,8 +51,6 @@ fn write_file(root: &Path, rel: &str, content: &[u8]) {
 
 struct FindRun {
     files: Vec<VaultFindFile>,
-    searched_files: usize,
-    skipped_files: usize,
     match_count: usize,
     truncated: bool,
 }
@@ -61,28 +60,21 @@ fn run_find(root: &Path, text: &str, include: &str, exclude: &str) -> FindRun {
         spec: literal(text),
         include: include.to_string(),
         exclude: exclude.to_string(),
-        replacement: None,
     };
     let find = CompiledFind::from_request(&request).expect("request should compile");
     let mut run = FindRun {
         files: Vec::new(),
-        searched_files: 0,
-        skipped_files: 0,
         match_count: 0,
         truncated: false,
     };
     let cancel = AtomicBool::new(false);
     find_in_vault(root, &find, &cancel, |event| match event {
-        VaultFindEvent::Files { files } => run.files.extend(files),
+        VaultFindEvent::Files { files, .. } => run.files.extend(files),
         VaultFindEvent::Done {
-            searched_files,
-            skipped_files,
             match_count,
             truncated,
             ..
         } => {
-            run.searched_files = searched_files;
-            run.skipped_files = skipped_files;
             run.match_count = match_count;
             run.truncated = truncated;
         }
@@ -165,6 +157,21 @@ fn patterns_never_cross_lines_and_anchors_are_per_line() {
 }
 
 #[test]
+fn a_pattern_that_can_cross_lines_scans_a_big_file_in_linear_time() {
+    // `[^|]+\|` can match "\n", so the whole-file prefilter says yes, yet only
+    // the last line has a "|". Retrying from the whole file after every line
+    // that fails made this quadratic.
+    let mut text = "plain note line\n".repeat(20_000);
+    text.push_str("a|b\n");
+
+    let started = Instant::now();
+    let found = positions(&text, regex(r"[^|]+\|"));
+
+    assert_eq!(found, [(20_001, 0, 2)]);
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+#[test]
 fn crlf_and_bom_do_not_shift_columns_or_leak_into_matches() {
     let text = "\u{feff}foo x\r\nbar foo\r\n";
     assert_eq!(positions(text, regex("^foo")), [(1, 0, 3)]);
@@ -183,18 +190,18 @@ fn columns_and_lengths_count_utf16_units() {
 fn empty_matches_are_ignored() {
     assert!(positions("abc\n\nxyz", regex("^")).is_empty());
     assert_eq!(matched_texts("baab", regex("a*")), ["aa"]);
-    let replaced = replace_in_text("baab", &query(regex("a*")), "-", None);
+    let replaced = replace_in_text("baab", &query(regex("a*")), "-", &[0]);
     assert_eq!(replaced.text, "b-b");
 }
 
 #[test]
 fn previews_clip_long_lines_around_the_match() {
     let line = format!("{}needle{}", "x".repeat(100), "y".repeat(300));
-    let found = find_in_text(&line, &query(literal("needle")), Some("pin"));
+    let found = find_in_text(&line, &query(literal("needle")));
     let only = &found[0];
     assert_eq!(only.before, format!("…{}", "x".repeat(60)));
     assert_eq!(only.text, "needle");
-    assert_eq!(only.replacement.as_deref(), Some("pin"));
+    assert!(only.groups.is_empty());
     assert_eq!(
         only.before.chars().count() + only.text.chars().count() + only.after.chars().count(),
         200
@@ -202,19 +209,23 @@ fn previews_clip_long_lines_around_the_match() {
 }
 
 #[test]
-fn regex_previews_expand_capture_groups() {
-    let found = find_in_text(
-        "2026-10-24",
-        &query(regex(r"(?<y>\d{4})-(\d{2})")),
-        Some("$2/${y} $$"),
+fn regex_matches_carry_their_capture_groups_for_the_replacement_preview() {
+    let pattern = query(regex(r"(?<y>\d{4})-(\d{2})(x)?"));
+    let found = find_in_text("2026-10-24", &pattern);
+    assert_eq!(
+        found[0].groups,
+        [Some("2026".to_string()), Some("10".to_string()), None]
     );
-    assert_eq!(found[0].replacement.as_deref(), Some("10/2026 $"));
+    assert_eq!(pattern.group_names(), [Some("y".to_string()), None, None]);
+
+    let literal_found = find_in_text("2026-10", &query(literal("2026")));
+    assert!(literal_found[0].groups.is_empty());
 }
 
 #[test]
 fn replace_keeps_crlf_and_bom_and_only_touches_selected_ordinals() {
     let text = "\u{feff}foo one\r\nfoo two\r\nfoo three\r\n";
-    let replaced = replace_in_text(text, &query(literal("foo")), "bar", Some(&[0, 2]));
+    let replaced = replace_in_text(text, &query(literal("foo")), "bar", &[0, 2]);
     assert_eq!(replaced.count, 2);
     assert_eq!(replaced.text, "\u{feff}bar one\r\nfoo two\r\nbar three\r\n");
     let remaining: Vec<_> = replaced.remaining.iter().map(|m| m.line).collect();
@@ -223,7 +234,7 @@ fn replace_keeps_crlf_and_bom_and_only_touches_selected_ordinals() {
 
 #[test]
 fn literal_replace_inserts_dollar_signs_as_is() {
-    let replaced = replace_in_text("price", &query(literal("price")), "$1 $$", None);
+    let replaced = replace_in_text("price", &query(literal("price")), "$1 $$", &[0]);
     assert_eq!(replaced.text, "$1 $$");
 }
 
@@ -233,7 +244,7 @@ fn regex_replace_expands_captures() {
         "[[old]] and [[other]]",
         &query(regex(r"\[\[(\w+)\]\]")),
         "[[$1-new]]",
-        None,
+        &[0, 1],
     );
     assert_eq!(replaced.text, "[[old-new]] and [[other-new]]");
 }
@@ -281,7 +292,6 @@ fn exclude_globs_prune_folders_and_skip_files() {
 
     let run = run_find(root, "needle", "", "archive, *.txt");
     assert_eq!(found_paths(&run), ["keep.md"]);
-    assert_eq!(run.searched_files, 1);
 }
 
 #[test]
@@ -303,8 +313,6 @@ fn app_folders_temp_files_binaries_and_invalid_utf8_are_skipped() {
         found_paths(&run),
         [".hidden/visible.md", "code.ts", "note.md"]
     );
-    assert_eq!(run.searched_files, 3);
-    assert_eq!(run.skipped_files, 3);
 }
 
 #[test]
@@ -364,9 +372,9 @@ fn results_carry_the_hash_that_replace_checks() {
     let replace = VaultReplaceFile {
         path: "note.md".to_string(),
         content_hash: found.content_hash.clone(),
-        match_indexes: Some(vec![1]),
+        match_indexes: vec![1],
     };
-    let replaced = replace_vault_file(root, &replace, &query(literal("foo")), "bar")
+    let replaced = replace_vault_file(root, &replace, &query(literal("foo")), "bar", &[])
         .expect("replace should succeed");
     assert_eq!(replaced.count, 1);
     assert_eq!(
@@ -386,9 +394,9 @@ fn replace_refuses_a_file_that_changed_since_the_search() {
     let replace = VaultReplaceFile {
         path: "note.md".to_string(),
         content_hash: content_hash("foo"),
-        match_indexes: None,
+        match_indexes: vec![0],
     };
-    let result = replace_vault_file(root, &replace, &query(literal("foo")), "bar");
+    let result = replace_vault_file(root, &replace, &query(literal("foo")), "bar", &[]);
     assert_eq!(result.err(), Some(ReplaceSkipReason::Changed));
     assert_eq!(
         fs::read_to_string(root.join("note.md")).unwrap(),
@@ -399,6 +407,40 @@ fn replace_refuses_a_file_that_changed_since_the_search() {
         path: "gone.md".to_string(),
         ..replace
     };
-    let result = replace_vault_file(root, &missing, &query(literal("foo")), "bar");
+    let result = replace_vault_file(root, &missing, &query(literal("foo")), "bar", &[]);
     assert_eq!(result.err(), Some(ReplaceSkipReason::Missing));
+}
+
+#[test]
+fn replace_skips_a_file_that_a_document_window_has_open() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_file(root, "open.md", b"foo");
+    write_file(root, "closed.md", b"foo");
+    let open_documents = [root.join("open.md").canonicalize().unwrap()];
+    let target = |path: &str| VaultReplaceFile {
+        path: path.to_string(),
+        content_hash: content_hash("foo"),
+        match_indexes: vec![0],
+    };
+
+    let open = replace_vault_file(
+        root,
+        &target("open.md"),
+        &query(literal("foo")),
+        "bar",
+        &open_documents,
+    );
+    assert_eq!(open.err(), Some(ReplaceSkipReason::OpenInWindow));
+    assert_eq!(fs::read_to_string(root.join("open.md")).unwrap(), "foo");
+
+    let closed = replace_vault_file(
+        root,
+        &target("closed.md"),
+        &query(literal("foo")),
+        "bar",
+        &open_documents,
+    );
+    assert!(closed.is_ok());
+    assert_eq!(fs::read_to_string(root.join("closed.md")).unwrap(), "bar");
 }

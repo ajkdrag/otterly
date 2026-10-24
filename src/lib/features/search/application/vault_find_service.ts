@@ -46,7 +46,7 @@ export class VaultFindService {
       const started = await this.port.start_find(vault_id, request, (event) => {
         if (revision !== this.revision) return;
         if (event.type === "files") {
-          results.add_files(event.files);
+          results.add_files(event.files, event.group_names);
           return;
         }
         const { type: _type, ...stats } = event;
@@ -78,11 +78,15 @@ export class VaultFindService {
   }
 
   // Writes straight to disk. Each replaced file's result entry is swapped for
-  // what is left in it. The caller decides which files are safe to write.
+  // what is left in it, unless a newer search took over the results. The
+  // caller decides which files are safe to write.
   async replace(request: VaultReplaceRequest): Promise<VaultReplaceResult> {
     const vault_id = this.vault_store.vault?.id;
     if (!vault_id) return { status: "skipped" };
 
+    // The caller cancelled the running search just before this. A search that
+    // starts while we wait is a newer run, and it rescans the files itself.
+    const revision = this.revision;
     for (const file of request.files) this.suppress_file_write(file.path);
     this.op_store.start(REPLACE_OP_KEY, this.now_ms());
     try {
@@ -90,7 +94,9 @@ export class VaultFindService {
       for (const file of response.replaced) {
         // Again: the watcher's 2 s window may have passed on a big batch.
         if (file.count > 0) this.suppress_file_write(file.path);
-        this.search_store.vault_find.patch_file(file.path, file.remaining);
+        if (revision === this.revision) {
+          this.search_store.vault_find.patch_file(file.path, file.remaining);
+        }
       }
       this.op_store.succeed(REPLACE_OP_KEY);
       return { status: "replaced", response };

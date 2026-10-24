@@ -51,7 +51,7 @@ describe("vault find reactor", () => {
 
     expect(service.search).toHaveBeenCalledOnce();
     expect(service.search).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "foo", replacement: null }),
+      expect.objectContaining({ text: "foo" }),
     );
   });
 

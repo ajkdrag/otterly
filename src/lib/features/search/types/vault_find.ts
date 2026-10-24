@@ -7,8 +7,6 @@ export type VaultFindRequest = FindSpec & {
   // Comma separated globs. "" means every file.
   include: string;
   exclude: string;
-  // Non-null: each match carries its replaced text, for an exact preview.
-  replacement: string | null;
 };
 
 export type VaultFindMatch = {
@@ -23,7 +21,10 @@ export type VaultFindMatch = {
   before: string;
   text: string;
   after: string;
-  replacement: string | null;
+  // Capture groups 1..n, in regex mode only (empty otherwise). Group 0 is
+  // `text`. null is a group that did not take part in the match. The
+  // replacement preview expands $1, ${name} and so on from these.
+  groups: (string | null)[];
 };
 
 export type VaultFindFile = {
@@ -33,15 +34,18 @@ export type VaultFindFile = {
 };
 
 export type VaultFindStats = {
-  searched_files: number;
-  skipped_files: number;
   match_count: number;
   truncated: boolean;
   elapsed_ms: number;
 };
 
 export type VaultFindEvent =
-  | { type: "files"; files: VaultFindFile[] }
+  | {
+      type: "files";
+      files: VaultFindFile[];
+      // Names of capture groups 1..n, aligned with VaultFindMatch.groups.
+      group_names: (string | null)[];
+    }
   | ({ type: "done" } & VaultFindStats);
 
 export type VaultFindError = {
@@ -56,8 +60,8 @@ export type VaultFindStartResult =
 export type VaultReplaceFile = {
   path: string;
   content_hash: string;
-  // null replaces every match in the file.
-  match_indexes: number[] | null;
+  // Ordinals of the matches to replace (VaultFindMatch.index).
+  match_indexes: number[];
 };
 
 export type VaultReplaceRequest = FindSpec & {
@@ -70,7 +74,8 @@ export type VaultReplaceSkipReason =
   | "missing"
   | "not_text"
   | "read_failed"
-  | "write_failed";
+  | "write_failed"
+  | "open_in_window";
 
 export type VaultReplaceResponse = {
   replaced: {

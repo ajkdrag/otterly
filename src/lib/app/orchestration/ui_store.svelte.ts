@@ -114,6 +114,10 @@ const INITIAL_VAULT_FIND = {
 
 const INITIAL_VAULT_REPLACE_DIALOG = {
   open: false,
+  // What the dialog asks about, fixed when it opened. Typing in the panel
+  // afterwards does not change what Replace All writes.
+  query: "",
+  replacement: "",
   match_count: 0,
   file_count: 0,
   // Files with unsaved edits. Replace All leaves them alone.

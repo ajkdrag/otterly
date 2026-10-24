@@ -134,6 +134,7 @@ export const ACTION_IDS = {
 
   vault_find_open: "vault_find.open",
   vault_find_refresh: "vault_find.refresh",
+  vault_find_cancel: "vault_find.cancel",
   vault_find_clear: "vault_find.clear",
   vault_find_open_match: "vault_find.open_match",
   vault_find_dismiss: "vault_find.dismiss",

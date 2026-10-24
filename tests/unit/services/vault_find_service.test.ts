@@ -19,7 +19,6 @@ function request(text: string): VaultFindRequest {
     whole_word: false,
     include: "",
     exclude: "",
-    replacement: null,
   };
 }
 
@@ -35,15 +34,13 @@ function file(path: string, match_count = 1): VaultFindFile {
       before: "",
       text: "foo",
       after: "",
-      replacement: null,
+      groups: [],
     })),
   };
 }
 
 const done: VaultFindEvent = {
   type: "done",
-  searched_files: 3,
-  skipped_files: 0,
   match_count: 3,
   truncated: false,
   elapsed_ms: 5,
@@ -91,8 +88,16 @@ describe("VaultFindService", () => {
     const { service, emitters, results } = create_harness();
     await service.search(request("foo"));
 
-    emitters[0]?.({ type: "files", files: [file("b.md"), file("D/x.md")] });
-    emitters[0]?.({ type: "files", files: [file("a.md"), file("c.md")] });
+    emitters[0]?.({
+      type: "files",
+      files: [file("b.md"), file("D/x.md")],
+      group_names: [],
+    });
+    emitters[0]?.({
+      type: "files",
+      files: [file("a.md"), file("c.md")],
+      group_names: [],
+    });
     emitters[0]?.(done);
 
     expect(results.files.map((f) => f.path)).toEqual([
@@ -102,7 +107,7 @@ describe("VaultFindService", () => {
       "D/x.md",
     ]);
     expect(results.status).toBe("done");
-    expect(results.stats?.searched_files).toBe(3);
+    expect(results.stats?.match_count).toBe(3);
     expect(results.request?.text).toBe("foo");
   });
 
@@ -111,9 +116,9 @@ describe("VaultFindService", () => {
     await service.search(request("old"));
     await service.search(request("new"));
 
-    emitters[0]?.({ type: "files", files: [file("old.md")] });
+    emitters[0]?.({ type: "files", files: [file("old.md")], group_names: [] });
     emitters[0]?.(done);
-    emitters[1]?.({ type: "files", files: [file("new.md")] });
+    emitters[1]?.({ type: "files", files: [file("new.md")], group_names: [] });
 
     expect(results.files.map((f) => f.path)).toEqual(["new.md"]);
     expect(results.status).toBe("searching");
@@ -122,10 +127,10 @@ describe("VaultFindService", () => {
   it("drops events after a cancel and keeps what was found so far", async () => {
     const { service, port, emitters, results } = create_harness();
     await service.search(request("foo"));
-    emitters[0]?.({ type: "files", files: [file("a.md")] });
+    emitters[0]?.({ type: "files", files: [file("a.md")], group_names: [] });
 
     service.cancel();
-    emitters[0]?.({ type: "files", files: [file("b.md")] });
+    emitters[0]?.({ type: "files", files: [file("b.md")], group_names: [] });
     emitters[0]?.(done);
 
     expect(port.cancel_find).toHaveBeenCalled();
@@ -151,11 +156,54 @@ describe("VaultFindService", () => {
     });
   });
 
+  it("replace leaves the results alone when a newer search started meanwhile", async () => {
+    const { service, port, emitters, results } = create_harness();
+    await service.search(request("foo"));
+    emitters[0]?.({
+      type: "files",
+      files: [file("a.md")],
+      group_names: [],
+    });
+    emitters[0]?.(done);
+    let finish_replace: (value: never) => void = () => {};
+    port.replace.mockReturnValue(
+      new Promise((resolve) => {
+        finish_replace = resolve as (value: never) => void;
+      }),
+    );
+
+    const replacing = service.replace({
+      text: "foo",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+      replacement: "bar",
+      files: [{ path: "a.md", content_hash: "hash:a.md", match_indexes: [0] }],
+    });
+    await service.search(request("foo"));
+    emitters[1]?.({
+      type: "files",
+      files: [file("a.md", 2)],
+      group_names: [],
+    });
+    finish_replace({
+      replaced: [{ path: "a.md", count: 1, remaining: null }],
+      skipped: [],
+    } as never);
+    await replacing;
+
+    expect(results.files.map((f) => f.matches.length)).toEqual([2]);
+  });
+
   it("replace suppresses the watcher and swaps each file for what is left", async () => {
     const { service, port, emitters, results, op_store, suppress_file_write } =
       create_harness();
     await service.search(request("foo"));
-    emitters[0]?.({ type: "files", files: [file("a.md", 2), file("b.md")] });
+    emitters[0]?.({
+      type: "files",
+      files: [file("a.md", 2), file("b.md")],
+      group_names: [],
+    });
     emitters[0]?.(done);
     const remaining = { ...file("a.md"), content_hash: "hash:after" };
     port.replace.mockResolvedValue({

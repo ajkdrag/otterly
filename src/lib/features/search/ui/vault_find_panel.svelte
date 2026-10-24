@@ -11,6 +11,7 @@
     Regex,
     Replace,
     ReplaceAll,
+    Square,
     WholeWord,
     X,
   } from "@lucide/svelte";
@@ -19,6 +20,7 @@
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import { find_option_for_shortcut } from "$lib/features/search/domain/find_option_shortcut";
+  import { build_replacement_preview } from "$lib/features/search/domain/replacement_preview";
   import { parent_folder_path } from "$lib/shared/utils/path";
   import { plural } from "$lib/shared/utils/plural";
   import type { FindOption } from "$lib/features/search/domain/find_option_shortcut";
@@ -111,9 +113,11 @@
     return $virtualizer.getVirtualItems();
   });
 
-  // The vault_find.open action bumps the nonce to land you in the input.
+  // The vault_find.open action bumps the nonce to land you in the input. At 0
+  // nothing asked for focus, so mounting this panel with a restored sidebar
+  // view must not take focus from the editor.
   $effect(() => {
-    void inputs.focus_nonce;
+    if (inputs.focus_nonce === 0) return;
     const input = find_input;
     if (!input) return;
     input.focus();
@@ -127,6 +131,25 @@
 
   function file_name(path: string) {
     return path.slice(path.lastIndexOf("/") + 1);
+  }
+
+  // Shown in place of the match while the replace row is open, so an empty
+  // replacement reads as a deletion. It follows the mode that produced the
+  // results, not the toggle, which may have changed since.
+  function replacement_preview(match: VaultFindMatch) {
+    return build_replacement_preview(
+      match,
+      inputs.replacement,
+      results.request?.regex ?? false,
+      results.group_names,
+    );
+  }
+
+  // Replace goes straight to disk. Only a git vault has a checkpoint to go
+  // back to, so say it when there is none.
+  function replace_label(row: ResultRow) {
+    const label = row.kind === "file" ? "Replace in file" : "Replace";
+    return stores.git.enabled ? label : `${label} (cannot be undone)`;
   }
 
   function toggle_option(option: FindOption) {
@@ -445,18 +468,33 @@
       class="text-muted-foreground flex items-center gap-1 px-2 py-1 pl-7 text-xs"
     >
       <span class="min-w-0 flex-1 truncate" role="status">{summary}</span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="size-6"
-        aria-label="Refresh"
-        title="Refresh"
-        onclick={() => {
-          void action_registry.execute(ACTION_IDS.vault_find_refresh);
-        }}
-      >
-        <RefreshCw class="size-3.5" />
-      </Button>
+      {#if results.status === "searching"}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="size-6"
+          aria-label="Stop search"
+          title="Stop search"
+          onclick={() => {
+            void action_registry.execute(ACTION_IDS.vault_find_cancel);
+          }}
+        >
+          <Square class="size-3.5" />
+        </Button>
+      {:else}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="size-6"
+          aria-label="Refresh"
+          title="Refresh"
+          onclick={() => {
+            void action_registry.execute(ACTION_IDS.vault_find_refresh);
+          }}
+        >
+          <RefreshCw class="size-3.5" />
+        </Button>
+      {/if}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -563,11 +601,11 @@
               >
                 <!-- No whitespace between these tags: it would show up in the preview. -->
                 <span class="text-muted-foreground">{row.match.before}</span
-                >{#if row.match.replacement !== null}<del
+                >{#if inputs.replace_open}<del
                     class="bg-destructive/15 text-destructive line-through"
                     >{row.match.text}</del
                   ><ins class="bg-primary/15 text-foreground no-underline"
-                    >{row.match.replacement}</ins
+                    >{replacement_preview(row.match)}</ins
                   >{:else}<mark
                     class="text-foreground rounded-sm bg-(--editor-find-match-bg)"
                     >{row.match.text}</mark
@@ -583,10 +621,8 @@
                 <button
                   type="button"
                   class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-5 items-center justify-center rounded-sm"
-                  aria-label={row.kind === "file"
-                    ? "Replace in file"
-                    : "Replace"}
-                  title={row.kind === "file" ? "Replace in file" : "Replace"}
+                  aria-label={replace_label(row)}
+                  title={replace_label(row)}
                   tabindex="-1"
                   disabled={stores.op.is_pending("vault_find.replace")}
                   onclick={(event) => {

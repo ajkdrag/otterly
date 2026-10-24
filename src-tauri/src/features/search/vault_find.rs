@@ -5,7 +5,7 @@
 //   find_in_vault(&vault_root, &find, &cancel, |event| channel.send(event));
 //
 //   let query = FindQuery::compile(&spec)?;
-//   let replaced = replace_in_text(&text, &query, "bar", Some(&[0, 2]));
+//   let replaced = replace_in_text(&text, &query, "bar", &[0, 2]);
 //
 // Matching follows ripgrep's line semantics: `\s` and `[^x]` never cross a
 // line, `^` and `$` anchor lines. Empty matches (`^`, `a*`) are ignored.
@@ -14,14 +14,14 @@ use crate::shared::{constants, storage};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use ignore::{WalkBuilder, WalkState};
 use mime_guess::mime;
-use regex::{Regex, RegexBuilder};
+use regex::{Captures, Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
@@ -47,7 +47,6 @@ pub struct VaultFindRequest {
     pub spec: FindSpec,
     pub include: String,
     pub exclude: String,
-    pub replacement: Option<String>,
 }
 
 // line is 1-based. column and length are UTF-16 units in the line, which is
@@ -60,7 +59,9 @@ pub struct VaultFindMatch {
     pub before: String,
     pub text: String,
     pub after: String,
-    pub replacement: Option<String>,
+    // Capture groups 1..n for the replacement preview, in regex mode only
+    // (empty otherwise). Group 0 is `text`. Each group is clipped like `text`.
+    pub groups: Vec<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,10 +76,10 @@ pub struct VaultFindFile {
 pub enum VaultFindEvent {
     Files {
         files: Vec<VaultFindFile>,
+        // Names of capture groups 1..n, aligned with VaultFindMatch::groups.
+        group_names: Vec<Option<String>>,
     },
     Done {
-        searched_files: usize,
-        skipped_files: usize,
         match_count: usize,
         truncated: bool,
         elapsed_ms: u64,
@@ -146,22 +147,41 @@ impl FindQuery {
         })
     }
 
+    // Names of capture groups 1..n. Only regex mode has groups.
+    pub fn group_names(&self) -> Vec<Option<String>> {
+        if !self.expand_captures {
+            return Vec::new();
+        }
+        self.regex
+            .capture_names()
+            .skip(1)
+            .map(|name| name.map(str::to_string))
+            .collect()
+    }
+
+    // The frontend expands the replacement template itself, so a preview
+    // needs the groups and nothing else. Clipping each group to the preview
+    // length keeps the first PREVIEW_MAX_CHARS of any expansion exact.
+    fn preview_groups(&self, captures: &Captures) -> Vec<Option<String>> {
+        if !self.expand_captures {
+            return Vec::new();
+        }
+        captures
+            .iter()
+            .skip(1)
+            .map(|group| {
+                group.map(|found| head_chars(found.as_str(), PREVIEW_MAX_CHARS).to_string())
+            })
+            .collect()
+    }
+
     // Regex mode expands $1, ${1}, $name, ${name}, $$ and $0. Literal mode
     // inserts the replacement as is.
-    fn push_replacement(
-        &self,
-        line: &str,
-        match_start: usize,
-        replacement: &str,
-        out: &mut String,
-    ) {
-        if !self.expand_captures {
+    fn push_replacement(&self, site: &MatchSite, replacement: &str, out: &mut String) {
+        if self.expand_captures {
+            site.captures.expand(replacement, out);
+        } else {
             out.push_str(replacement);
-            return;
-        }
-        // captures_at finds the same match again: same regex, same start.
-        if let Some(captures) = self.regex.captures_at(line, match_start) {
-            captures.expand(replacement, out);
         }
     }
 }
@@ -258,7 +278,6 @@ fn split_glob_list(list: &str) -> Vec<&str> {
 pub struct CompiledFind {
     pub query: FindQuery,
     pub paths: PathFilter,
-    pub replacement: Option<String>,
 }
 
 impl CompiledFind {
@@ -266,7 +285,6 @@ impl CompiledFind {
         Ok(CompiledFind {
             query: FindQuery::compile(&request.spec)?,
             paths: PathFilter::compile(&request.include, &request.exclude)?,
-            replacement: request.replacement.clone(),
         })
     }
 }
@@ -282,19 +300,15 @@ pub fn find_in_vault(
     mut emit: impl FnMut(VaultFindEvent),
 ) {
     let started = Instant::now();
-    let searched_files = AtomicUsize::new(0);
-    let skipped_files = AtomicUsize::new(0);
+    let group_names = find.query.group_names();
     let (file_tx, file_rx) = mpsc::channel();
 
     let (match_count, truncated) = std::thread::scope(|scope| {
-        let counters = (&searched_files, &skipped_files);
-        scope.spawn(move || walk_vault(vault_root, find, cancel, counters, file_tx));
-        collect_files(file_rx, cancel, &mut emit)
+        scope.spawn(move || walk_vault(vault_root, find, cancel, file_tx));
+        collect_files(file_rx, cancel, &group_names, &mut emit)
     });
 
     emit(VaultFindEvent::Done {
-        searched_files: searched_files.load(Ordering::Relaxed),
-        skipped_files: skipped_files.load(Ordering::Relaxed),
         match_count,
         truncated,
         elapsed_ms: started.elapsed().as_millis() as u64,
@@ -304,6 +318,7 @@ pub fn find_in_vault(
 fn collect_files(
     file_rx: Receiver<VaultFindFile>,
     cancel: &AtomicBool,
+    group_names: &[Option<String>],
     emit: &mut impl FnMut(VaultFindEvent),
 ) -> (usize, bool) {
     let mut batch = Vec::new();
@@ -337,12 +352,16 @@ fn collect_files(
         if !batch.is_empty() && last_flush.elapsed() >= FLUSH_INTERVAL {
             emit(VaultFindEvent::Files {
                 files: std::mem::take(&mut batch),
+                group_names: group_names.to_vec(),
             });
             last_flush = Instant::now();
         }
     }
     if !batch.is_empty() {
-        emit(VaultFindEvent::Files { files: batch });
+        emit(VaultFindEvent::Files {
+            files: batch,
+            group_names: group_names.to_vec(),
+        });
     }
     (match_count, truncated)
 }
@@ -353,7 +372,6 @@ fn walk_vault(
     vault_root: &Path,
     find: &CompiledFind,
     cancel: &AtomicBool,
-    (searched_files, skipped_files): (&AtomicUsize, &AtomicUsize),
     file_tx: Sender<VaultFindFile>,
 ) {
     WalkBuilder::new(vault_root)
@@ -399,11 +417,9 @@ fn walk_vault(
                     return WalkState::Continue;
                 }
                 let Ok(Some(text)) = read_searchable_text(entry.path()) else {
-                    skipped_files.fetch_add(1, Ordering::Relaxed);
                     return WalkState::Continue;
                 };
-                searched_files.fetch_add(1, Ordering::Relaxed);
-                let matches = find_in_text(&text, &find.query, find.replacement.as_deref());
+                let matches = find_in_text(&text, &find.query);
                 if matches.is_empty() {
                     return WalkState::Continue;
                 }
@@ -474,48 +490,43 @@ struct MatchSite<'t> {
     line: &'t str,
     start: usize,
     end: usize,
+    captures: Captures<'t>,
 }
 
 // Calls on_match for every non-empty match in file order, until it returns
-// false. Like ripgrep, we run the regex over the whole text to find candidate
-// lines fast and then match each candidate line on its own.
+// false. Like ripgrep, one regex pass over the whole text rules out the many
+// files with no match. Then each line is matched on its own. Do not search the
+// whole text again per candidate: `[^x]` and `\s` match "\n", so a candidate
+// can run far past its own line, and retrying after every line that fails
+// rescans the tail each time (quadratic).
 // @Robustness: Lines end at "\n" only. The editor also breaks lines at a lone
 // "\r" (old Mac files), so line numbers drift in such a file.
 fn for_each_match(body: &str, regex: &Regex, mut on_match: impl FnMut(&MatchSite) -> bool) {
-    let mut search_from = 0;
-    let mut line_number = 1;
-    let mut counted_up_to = 0;
-    while search_from <= body.len() {
-        let Some(candidate) = regex.find_at(body, search_from) else {
-            return;
-        };
-        let line_start = body[search_from..candidate.start()]
-            .rfind('\n')
-            .map_or(search_from, |idx| search_from + idx + 1);
-        let line_end = body[line_start..]
-            .find('\n')
-            .map_or(body.len(), |idx| line_start + idx);
-        line_number += body[counted_up_to..line_start].matches('\n').count();
-        counted_up_to = line_start;
-
-        let raw_line = &body[line_start..line_end];
+    if !regex.is_match(body) {
+        return;
+    }
+    let mut line_start = 0;
+    for (line_idx, raw_line) in body.split('\n').enumerate() {
         let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
-        for found in regex.find_iter(line) {
-            if found.is_empty() {
+        for captures in regex.captures_iter(line) {
+            // Group 0 is the whole match and always present.
+            let whole = captures.get(0).expect("group 0 always participates");
+            if whole.is_empty() {
                 continue;
             }
             let site = MatchSite {
-                line_number,
+                line_number: line_idx + 1,
                 line_start,
                 line,
-                start: found.start(),
-                end: found.end(),
+                start: whole.start(),
+                end: whole.end(),
+                captures,
             };
             if !on_match(&site) {
                 return;
             }
         }
-        search_from = line_end + 1;
+        line_start += raw_line.len() + 1;
     }
 }
 
@@ -528,11 +539,7 @@ fn strip_bom(text: &str) -> (&str, &str) {
 
 // Returns at most MAX_MATCHES + 1 matches, so the caller can tell that a file
 // went over the cap.
-pub fn find_in_text(
-    text: &str,
-    query: &FindQuery,
-    replacement: Option<&str>,
-) -> Vec<VaultFindMatch> {
+pub fn find_in_text(text: &str, query: &FindQuery) -> Vec<VaultFindMatch> {
     let (_, body) = strip_bom(text);
     let mut matches = Vec::new();
     // Columns are counted forward from the previous match on the same line,
@@ -549,18 +556,17 @@ pub fn find_in_text(
         column_units += utf16_len(&site.line[column_byte..site.start]);
         column_byte = site.start;
 
-        let replaced = replacement.map(|template| {
-            let mut out = String::new();
-            query.push_replacement(site.line, site.start, template, &mut out);
-            out
-        });
-        matches.push(build_match(site, column_units, replaced));
+        matches.push(build_match(
+            site,
+            column_units,
+            query.preview_groups(&site.captures),
+        ));
         matches.len() <= MAX_MATCHES
     });
     matches
 }
 
-fn build_match(site: &MatchSite, column: usize, replacement: Option<String>) -> VaultFindMatch {
+fn build_match(site: &MatchSite, column: usize, groups: Vec<Option<String>>) -> VaultFindMatch {
     let matched = &site.line[site.start..site.end];
     let before_full = &site.line[..site.start];
     let before_tail = tail_chars(before_full, PREVIEW_BEFORE_CHARS);
@@ -579,7 +585,7 @@ fn build_match(site: &MatchSite, column: usize, replacement: Option<String>) -> 
         before,
         text: text.to_string(),
         after: after.to_string(),
-        replacement: replacement.map(|value| head_chars(&value, PREVIEW_MAX_CHARS).to_string()),
+        groups,
     }
 }
 
@@ -607,22 +613,21 @@ fn tail_chars(text: &str, max_chars: usize) -> &str {
 pub struct ReplacedText {
     pub text: String,
     pub count: usize,
-    // A fresh scan of the new text, with replacement previews.
+    // A fresh scan of the new text.
     pub remaining: Vec<VaultFindMatch>,
 }
 
 // match_indexes are ordinals into find_in_text's list for the same text, so
-// the caller must check the content hash first. None replaces every match.
-// Everything outside the replaced ranges is copied byte for byte, so line
-// endings and the BOM survive.
+// the caller must check the content hash first. Everything outside the
+// replaced ranges is copied byte for byte, so line endings and the BOM
+// survive.
 pub fn replace_in_text(
     text: &str,
     query: &FindQuery,
     replacement: &str,
-    match_indexes: Option<&[usize]>,
+    match_indexes: &[usize],
 ) -> ReplacedText {
-    let selected: Option<HashSet<usize>> =
-        match_indexes.map(|indexes| indexes.iter().copied().collect());
+    let selected: HashSet<usize> = match_indexes.iter().copied().collect();
     let (bom, body) = strip_bom(text);
     let mut out = String::with_capacity(text.len());
     out.push_str(bom);
@@ -630,19 +635,19 @@ pub fn replace_in_text(
     let mut ordinal = 0;
     let mut count = 0;
     for_each_match(body, &query.regex, |site| {
-        let is_selected = selected.as_ref().is_none_or(|set| set.contains(&ordinal));
+        let is_selected = selected.contains(&ordinal);
         ordinal += 1;
         if !is_selected {
             return true;
         }
         out.push_str(&body[copied_up_to..site.line_start + site.start]);
-        query.push_replacement(site.line, site.start, replacement, &mut out);
+        query.push_replacement(site, replacement, &mut out);
         copied_up_to = site.line_start + site.end;
         count += 1;
         true
     });
     out.push_str(&body[copied_up_to..]);
-    let remaining = find_in_text(&out, query, Some(replacement));
+    let remaining = find_in_text(&out, query);
     ReplacedText {
         text: out,
         count,

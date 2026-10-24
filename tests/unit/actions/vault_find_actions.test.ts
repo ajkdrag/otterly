@@ -42,7 +42,7 @@ function file(path: string, match_count = 1): VaultFindFile {
       before: "",
       text: "foo",
       after: "",
-      replacement: null,
+      groups: [],
     })),
   };
 }
@@ -70,7 +70,7 @@ function create_harness(files: VaultFindFile[]) {
           response: {
             replaced: request.files.map((target) => ({
               path: target.path,
-              count: target.match_indexes?.length ?? 1,
+              count: target.match_indexes.length,
               remaining: null,
             })),
             skipped: [],
@@ -85,6 +85,7 @@ function create_harness(files: VaultFindFile[]) {
       select_line_range: vi.fn(),
     },
     tab: { mark_conflict: vi.fn() },
+    links: { load_note_links: vi.fn() },
     note: { open_note: vi.fn().mockResolvedValue({ status: "opened" }) },
     git: {
       create_checkpoint: vi.fn().mockResolvedValue({ status: "created" }),
@@ -101,6 +102,7 @@ function create_harness(files: VaultFindFile[]) {
     },
   });
 
+  stores.ui.vault_find.query = "foo";
   stores.ui.vault_find.replacement = "bar";
   const results = stores.search.vault_find;
   results.start({
@@ -110,12 +112,9 @@ function create_harness(files: VaultFindFile[]) {
     whole_word: false,
     include: "",
     exclude: "",
-    replacement: "bar",
   });
-  results.add_files(files);
+  results.add_files(files, []);
   results.finish({
-    searched_files: files.length,
-    skipped_files: 0,
     match_count: files.length,
     truncated: false,
     elapsed_ms: 1,
@@ -127,6 +126,11 @@ function create_harness(files: VaultFindFile[]) {
 function replaced_paths(replace: { mock: { calls: unknown[][] } }) {
   const request = replace.mock.calls[0]?.[0] as VaultReplaceRequest;
   return request.files.map((target) => target.path);
+}
+
+async function replace_all(registry: ActionRegistry) {
+  await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+  await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
 }
 
 function open_note(stores: { editor: EditorStore }, path: string) {
@@ -161,7 +165,10 @@ describe("register_vault_find_actions", () => {
     expect(replaced_paths(services.vault_find.replace)).toEqual(["clean.md"]);
     expect(vi.mocked(toast.warning).mock.calls[0]).toEqual([
       "Replaced 1 match in 1 file",
-      { description: "2 files skipped: unsaved or changed on disk" },
+      {
+        description:
+          "2 files skipped: unsaved, open in a document window, or changed on disk",
+      },
     ]);
   });
 
@@ -173,7 +180,7 @@ describe("register_vault_find_actions", () => {
       error: "index locked",
     });
 
-    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await replace_all(registry);
 
     expect(services.vault_find.replace).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalled();
@@ -183,7 +190,7 @@ describe("register_vault_find_actions", () => {
     const { registry, stores, services } = create_harness([file("a.md")]);
     stores.git.set_enabled(true);
 
-    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await replace_all(registry);
 
     expect(services.git.create_checkpoint).toHaveBeenCalledWith(
       'replace "foo"',
@@ -202,7 +209,7 @@ describe("register_vault_find_actions", () => {
     open_note(stores, "active.md");
     const invalidate = vi.spyOn(stores.tab, "invalidate_cache_by_path");
 
-    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await replace_all(registry);
 
     expect(services.note.open_note).toHaveBeenCalledWith("active.md", false, {
       force_reload: true,
@@ -234,10 +241,14 @@ describe("register_vault_find_actions", () => {
       file("other.md"),
     ]);
     open_note(stores, "active.md");
-    // Clean when the replace started, dirty by the time the write is done.
-    services.editor.is_dirty.mockReturnValueOnce(false).mockReturnValue(true);
+    // Clean when the dialog opened and when the replace started, dirty by the
+    // time the write is done.
+    services.editor.is_dirty
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
 
-    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await replace_all(registry);
 
     expect(services.tab.mark_conflict).toHaveBeenCalledWith("active.md");
     expect(services.note.open_note).not.toHaveBeenCalled();
@@ -288,6 +299,44 @@ describe("register_vault_find_actions", () => {
       open: false,
       is_replacing: false,
     });
+  });
+
+  it("replace all writes what the dialog showed, not what the panel shows by then", async () => {
+    const { registry, stores, services } = create_harness([file("a.md")]);
+    await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+
+    stores.ui.vault_find.replacement = "other";
+    stores.search.vault_find.start({
+      text: "newer",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+      include: "",
+      exclude: "",
+    });
+    stores.search.vault_find.add_files([file("b.md")], []);
+    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+
+    const request = services.vault_find.replace.mock.calls[0]?.[0];
+    expect(request?.text).toBe("foo");
+    expect(request?.replacement).toBe("bar");
+    expect(replaced_paths(services.vault_find.replace)).toEqual(["a.md"]);
+  });
+
+  it("makes a checkpoint for replace in file but not for a single match", async () => {
+    const { registry, stores, services } = create_harness([file("a.md", 2)]);
+    stores.git.set_enabled(true);
+
+    await registry.execute(ACTION_IDS.vault_find_replace_match, {
+      path: "a.md",
+      match_index: 0,
+    });
+    expect(services.git.create_checkpoint).not.toHaveBeenCalled();
+    expect(services.vault_find.replace).toHaveBeenCalledOnce();
+
+    await registry.execute(ACTION_IDS.vault_find_replace_file, "a.md");
+    expect(services.git.create_checkpoint).toHaveBeenCalledOnce();
+    expect(services.vault_find.replace).toHaveBeenCalledTimes(2);
   });
 
   it("closes the dialog when the checkpoint fails", async () => {

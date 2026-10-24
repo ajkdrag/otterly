@@ -235,6 +235,7 @@ export function create_app_context(input: {
       session: session_service,
       tab: tab_service,
       git: git_service,
+      links: links_service,
       hotkey: hotkey_service,
       theme: theme_service,
       updater: updater_service,

@@ -5,8 +5,7 @@
 
   interface Props {
     open: boolean;
-    // The query the shown results came from. It is what gets replaced, even
-    // if the find box changed a moment ago.
+    // What Replace All will write, fixed when the dialog opened.
     query: string;
     match_count: number;
     file_count: number;

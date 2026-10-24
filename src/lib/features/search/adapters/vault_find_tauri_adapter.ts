@@ -15,7 +15,11 @@ type TauriVaultFindFile = Omit<VaultFindFile, "matches"> & {
 };
 
 type TauriVaultFindEvent =
-  | { type: "files"; files: TauriVaultFindFile[] }
+  | {
+      type: "files";
+      files: TauriVaultFindFile[];
+      group_names: (string | null)[];
+    }
   | ({ type: "done" } & VaultFindStats);
 
 type TauriVaultReplaceResponse = {
@@ -53,7 +57,7 @@ export function create_vault_find_tauri_adapter(): VaultFindPort {
       const channel = new Channel<TauriVaultFindEvent>((event) => {
         on_event(
           event.type === "files"
-            ? { type: "files", files: event.files.map(to_vault_find_file) }
+            ? { ...event, files: event.files.map(to_vault_find_file) }
             : event,
         );
       });

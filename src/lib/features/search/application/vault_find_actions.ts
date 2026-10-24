@@ -4,10 +4,14 @@ import type { ActionRegistrationInput } from "$lib/app/action_registry/action_re
 import { build_vault_find_request } from "$lib/features/search/domain/vault_find_request";
 import type {
   VaultFindFile,
+  VaultFindRequest,
   VaultReplaceFile,
 } from "$lib/features/search/types/vault_find";
 import { as_note_path } from "$lib/shared/types/ids";
-import { paths_equal_ignore_case } from "$lib/shared/utils/path";
+import {
+  is_markdown_path,
+  paths_equal_ignore_case,
+} from "$lib/shared/utils/path";
 import { plural } from "$lib/shared/utils/plural";
 
 type OpenMatchInput = {
@@ -21,9 +25,21 @@ type OpenMatchInput = {
 
 type ReplaceScope = "match" | "file" | "all";
 
+// Everything a replace writes, fixed when the user asked for it. The panel
+// keeps searching while a dialog is open, so a replace must not read the
+// results again later. Content hashes still catch files that changed on disk.
+type ReplacePlan = {
+  request: VaultFindRequest;
+  replacement: string;
+  targets: VaultReplaceFile[];
+};
+
 export function register_vault_find_actions(input: ActionRegistrationInput) {
   const { registry, stores, services } = input;
   const results = stores.search.vault_find;
+  // The plan behind the open Replace All dialog. Too big for UIStore: it
+  // holds every file and match ordinal, and UIStore wraps its state in proxies.
+  let replace_all_plan: ReplacePlan | null = null;
 
   function current_request() {
     return build_vault_find_request(stores.ui.vault_find);
@@ -53,11 +69,45 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     return { path: file.path, content_hash: file.content_hash, match_indexes };
   }
 
+  function close_replace_dialog() {
+    stores.ui.vault_replace_dialog = {
+      ...stores.ui.vault_replace_dialog,
+      open: false,
+      is_replacing: false,
+    };
+  }
+
+  // What a row-level replace does: the shown results, the live replacement.
+  function plan_from_results(targets: VaultReplaceFile[]): ReplacePlan | null {
+    const request = results.request;
+    if (!request) return null;
+    return { request, replacement: stores.ui.vault_find.replacement, targets };
+  }
+
+  // Replace in File and Replace All overwrite saved work, so a git vault gets
+  // a checkpoint first (the undo). A single match skips it, or every click
+  // would add a commit. Returns false when there is no checkpoint, after
+  // telling the user: no checkpoint, no write.
+  async function create_undo_checkpoint(request: VaultFindRequest) {
+    if (!stores.git.enabled) return true;
+    const checkpoint = await services.git.create_checkpoint(
+      `replace "${request.text}"`,
+    );
+    if (checkpoint.status === "created" || checkpoint.status === "skipped") {
+      return true;
+    }
+    const reason =
+      checkpoint.status === "failed" ? checkpoint.error : "no repository";
+    toast.error(`Nothing replaced: git checkpoint failed (${reason})`);
+    return false;
+  }
+
   // Panel replace writes to disk, not into editor buffers. Files with unsaved
   // edits are skipped, so we never write over them or behind their buffer.
-  async function run_replace(targets: VaultReplaceFile[], scope: ReplaceScope) {
-    const request = results.request;
-    if (!request || targets.length === 0) return;
+  async function run_replace(plan: ReplacePlan, scope: ReplaceScope) {
+    const { request, replacement, targets } = plan;
+    if (targets.length === 0) return;
+    if (scope !== "match" && !(await create_undo_checkpoint(request))) return;
 
     services.editor.flush();
     const unsaved = unsaved_paths();
@@ -76,7 +126,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
       regex: request.regex,
       case_sensitive: request.case_sensitive,
       whole_word: request.whole_word,
-      replacement: stores.ui.vault_find.replacement,
+      replacement,
       files,
     });
     if (result.status === "skipped") return;
@@ -87,9 +137,17 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
 
     const written = result.response.replaced.filter((file) => file.count > 0);
     await refresh_written_notes(written.map((file) => file.path));
+    // Rust re-indexed the written notes before it answered, so the link panels
+    // of the open note can load the new links now.
+    const active_path = stores.editor.open_note?.meta.path;
+    if (active_path && written.some((file) => is_markdown_path(file.path))) {
+      void services.links.load_note_links(active_path);
+    }
     // The service already swapped in what is left of each file. Replace All
-    // runs the search again, so the list shows only what still matches.
-    if (scope === "all") void services.vault_find.search(request);
+    // runs the search again, so the list shows only what still matches. It
+    // uses the panel's inputs as they are now, not the replaced request.
+    const current = current_request();
+    if (scope === "all" && current) void services.vault_find.search(current);
 
     const match_count = written.reduce((total, file) => total + file.count, 0);
     const summary = `Replaced ${plural(match_count, "match", "matches")} in ${plural(written.length, "file", "files")}`;
@@ -99,7 +157,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
       return;
     }
     toast.warning(summary, {
-      description: `${plural(skipped_count, "file", "files")} skipped: unsaved or changed on disk`,
+      description: `${plural(skipped_count, "file", "files")} skipped: unsaved, open in a document window, or changed on disk`,
     });
   }
 
@@ -151,6 +209,14 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     execute: async () => {
       const request = current_request();
       if (request) await services.vault_find.search(request);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.vault_find_cancel,
+    label: "Stop Find in Vault",
+    execute: () => {
+      services.vault_find.cancel();
     },
   });
 
@@ -207,8 +273,9 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
         match_index: number;
       };
       const file = find_file(path);
-      if (file)
-        await run_replace([replace_target(file, [match_index])], "match");
+      const plan =
+        file && plan_from_results([replace_target(file, [match_index])]);
+      if (plan) await run_replace(plan, "match");
     },
   });
 
@@ -217,7 +284,8 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     label: "Replace in File",
     execute: async (path: unknown) => {
       const file = find_file(String(path));
-      if (file) await run_replace([replace_target(file)], "file");
+      const plan = file && plan_from_results([replace_target(file)]);
+      if (plan) await run_replace(plan, "file");
     },
   });
 
@@ -225,11 +293,20 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.vault_find_request_replace_all,
     label: "Replace All in Vault",
     execute: () => {
-      if (!results.can_replace_all) return;
+      const request = results.request;
+      if (!request || !results.can_replace_all) return;
       if (stores.ui.vault_replace_dialog.is_replacing) return;
+      const replacement = stores.ui.vault_find.replacement;
+      replace_all_plan = {
+        request,
+        replacement,
+        targets: results.files.map((file) => replace_target(file)),
+      };
       const unsaved = unsaved_paths();
       stores.ui.vault_replace_dialog = {
         open: true,
+        query: request.text,
+        replacement,
         match_count: results.match_count,
         file_count: results.files.length,
         unsaved_paths: results.files
@@ -245,10 +322,8 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     label: "Cancel Replace All in Vault",
     execute: () => {
       if (stores.ui.vault_replace_dialog.is_replacing) return;
-      stores.ui.vault_replace_dialog = {
-        ...stores.ui.vault_replace_dialog,
-        open: false,
-      };
+      replace_all_plan = null;
+      close_replace_dialog();
     },
   });
 
@@ -259,42 +334,22 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     label: "Confirm Replace All in Vault",
     execute: async () => {
       if (stores.ui.vault_replace_dialog.is_replacing) return;
+      const plan = replace_all_plan;
+      replace_all_plan = null;
+      if (!plan) {
+        toast.error("Results changed, run Replace All again");
+        close_replace_dialog();
+        return;
+      }
       stores.ui.vault_replace_dialog = {
         ...stores.ui.vault_replace_dialog,
         is_replacing: true,
       };
       try {
-        await checkpoint_and_replace_all();
+        await run_replace(plan, "all");
       } finally {
-        stores.ui.vault_replace_dialog = {
-          ...stores.ui.vault_replace_dialog,
-          open: false,
-          is_replacing: false,
-        };
+        close_replace_dialog();
       }
     },
   });
-
-  async function checkpoint_and_replace_all() {
-    const request = results.request;
-    if (!request || !results.can_replace_all) return;
-
-    // The checkpoint is the undo for Replace All. No checkpoint, no write.
-    if (stores.git.enabled) {
-      const checkpoint = await services.git.create_checkpoint(
-        `replace "${request.text}"`,
-      );
-      if (checkpoint.status !== "created" && checkpoint.status !== "skipped") {
-        const reason =
-          checkpoint.status === "failed" ? checkpoint.error : "no repository";
-        toast.error(`Nothing replaced: git checkpoint failed (${reason})`);
-        return;
-      }
-    }
-
-    await run_replace(
-      results.files.map((file) => replace_target(file)),
-      "all",
-    );
-  }
 }
