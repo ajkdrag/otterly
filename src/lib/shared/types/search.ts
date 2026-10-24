@@ -13,6 +13,7 @@ export type SearchCommandDefinition = {
     | "open_hotkeys"
     | "toggle_sidebar"
     | "find_in_note"
+    | "find_in_vault"
     | "open_help"
     | "next_tab"
     | "previous_tab"
@@ -39,7 +40,8 @@ export type SearchCommandDefinition = {
     | "bookmark"
     | "link"
     | "refresh-cw"
-    | "code";
+    | "code"
+    | "text-search";
 };
 
 export type SearchSettingDefinition = {

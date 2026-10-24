@@ -225,7 +225,7 @@ describe("HotkeyService", () => {
       );
 
       expect(open_notes?.key).toBe("CmdOrCtrl+Shift+O");
-      expect(search_all?.key).toBe("CmdOrCtrl+Shift+F");
+      expect(search_all?.key).toBe("CmdOrCtrl+Alt+Shift+F");
     });
 
     it("each binding has a unique action_id in merged config", () => {

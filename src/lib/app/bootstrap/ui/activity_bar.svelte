@@ -6,6 +6,7 @@
     Star,
     CircleHelp,
     Search,
+    TextSearch,
   } from "@lucide/svelte";
 
   type SidebarView = "explorer" | "dashboard" | "starred" | "search";
@@ -14,6 +15,7 @@
     sidebar_open: boolean;
     active_view: SidebarView;
     on_open_explorer: () => void;
+    on_open_search: () => void;
     on_open_dashboard: () => void;
     on_open_starred: () => void;
     on_open_commands: () => void;
@@ -25,6 +27,7 @@
     sidebar_open,
     active_view,
     on_open_explorer,
+    on_open_search,
     on_open_dashboard,
     on_open_starred,
     on_open_commands,
@@ -56,6 +59,19 @@
       title="Explorer"
     >
       <Files class="ActivityBar__icon" />
+    </button>
+
+    <button
+      type="button"
+      class="ActivityBar__button"
+      class:ActivityBar__button--active={sidebar_open &&
+        active_view === "search"}
+      onclick={on_open_search}
+      aria-pressed={sidebar_open && active_view === "search"}
+      aria-label="Find in vault"
+      title="Find in vault"
+    >
+      <TextSearch class="ActivityBar__icon" />
     </button>
 
     <button

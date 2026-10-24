@@ -726,9 +726,19 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
   it("runs the all-vaults scope shortcut while the omnibar is open", () => {
     const { shortcuts, execute } = build(open_omnibar);
 
-    shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
+    shortcuts.handle_keydown_capture(
+      press("f", { shiftKey: true, altKey: true }).event,
+    );
 
     expect(execute).toHaveBeenCalledWith("omnibar.open_all_vaults");
+  });
+
+  it("keeps find in vault behind the omnibar", () => {
+    const { shortcuts, execute } = build(open_omnibar);
+
+    shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
+
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("does not run palette keys when another dialog is in front of the omnibar", () => {

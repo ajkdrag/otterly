@@ -83,8 +83,16 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
-    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    action_id: ACTION_IDS.vault_find_open,
     key: "CmdOrCtrl+Shift+F",
+    phase: "capture",
+    label: "Find in Vault",
+    description: "Search and replace across every file in the vault",
+    category: "navigation",
+  },
+  {
+    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    key: "CmdOrCtrl+Alt+Shift+F",
     phase: "capture",
     label: "Search All Vaults",
     description: "Search notes across all vaults",
