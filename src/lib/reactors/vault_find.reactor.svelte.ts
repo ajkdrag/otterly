@@ -19,6 +19,7 @@ export function create_vault_find_reactor(
   // Toggling a row with nothing in it does not change the request. Skip
   // the search then, so results do not flash.
   let last_key: string | null = null;
+  let last_vault_id: string | null = null;
 
   function cancel_pending() {
     if (!timer) return;
@@ -32,7 +33,9 @@ export function create_vault_find_reactor(
       const request = build_vault_find_request(ui_store.vault_find);
       const key = JSON.stringify([vault_id, request]);
       if (key === last_key) return;
+      const vault_changed = vault_id !== last_vault_id;
       last_key = key;
+      last_vault_id = vault_id;
       cancel_pending();
 
       if (!vault_id || !request) {
@@ -40,6 +43,13 @@ export function create_vault_find_reactor(
           vault_find_service.clear();
         });
         return;
+      }
+      // The old vault's walk must not keep streaming files into the new
+      // vault's results while the debounce waits.
+      if (vault_changed) {
+        untrack(() => {
+          vault_find_service.clear();
+        });
       }
       timer = setTimeout(() => {
         timer = null;
