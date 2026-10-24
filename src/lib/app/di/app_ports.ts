@@ -9,6 +9,7 @@ import type { GitPort } from "$lib/features/git";
 import type { VaultPort, VaultSettingsPort } from "$lib/features/vault";
 import type { WatcherPort } from "$lib/features/watcher";
 import type { UpdaterPort } from "$lib/features/updater";
+import type { VimEnginePort, VimrcPort } from "$lib/features/vim";
 
 export type Ports = {
   vault: VaultPort;
@@ -25,4 +26,6 @@ export type Ports = {
   git: GitPort;
   watcher: WatcherPort;
   updater: UpdaterPort;
+  vimrc: VimrcPort;
+  vim_engine: VimEnginePort;
 };

@@ -19,6 +19,10 @@ import { create_git_tauri_adapter } from "$lib/features/git";
 import { create_watcher_tauri_adapter } from "$lib/features/watcher";
 import { create_updater_tauri_adapter } from "$lib/features/updater";
 import {
+  create_vim_engine_adapter,
+  create_vimrc_tauri_adapter,
+} from "$lib/features/vim";
+import {
   create_document_tauri_adapter,
   document_asset_url,
 } from "$lib/features/document";
@@ -39,6 +43,8 @@ export function create_prod_ports(): Ports {
   const git = create_git_tauri_adapter();
   const watcher = create_watcher_tauri_adapter();
   const updater = create_updater_tauri_adapter();
+  const vimrc = create_vimrc_tauri_adapter();
+  const vim_engine = create_vim_engine_adapter();
 
   return {
     vault,
@@ -59,6 +65,8 @@ export function create_prod_ports(): Ports {
     git,
     watcher,
     updater,
+    vimrc,
+    vim_engine,
   };
 }
 
@@ -72,6 +80,8 @@ export function create_document_window_ports(
     shell: create_shell_tauri_adapter(),
     clipboard,
     document: create_document_tauri_adapter(),
+    vimrc: create_vimrc_tauri_adapter(),
+    vim_engine: create_vim_engine_adapter(),
     editor: create_codemirror_editor_port({
       // Document buffers have no vault, so this never runs.
       resolve_asset_url_for_vault: () => "",

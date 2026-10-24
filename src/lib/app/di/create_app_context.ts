@@ -20,6 +20,7 @@ import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
+import { VimService } from "$lib/features/vim";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -184,6 +185,13 @@ export function create_app_context(input: {
     now_ms,
   );
 
+  const vim_service = new VimService(
+    input.ports.vimrc,
+    input.ports.vim_engine,
+    stores.vim,
+    stores.op,
+  );
+
   const vault_service = new VaultService(
     input.ports.vault,
     input.ports.notes,
@@ -226,6 +234,7 @@ export function create_app_context(input: {
       hotkey: hotkey_service,
       theme: theme_service,
       updater: updater_service,
+      vim: vim_service,
     },
     default_mount_config: input.default_mount_config,
   });

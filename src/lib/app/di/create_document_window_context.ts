@@ -26,6 +26,13 @@ import {
   register_document_actions,
   type DocumentPort,
 } from "$lib/features/document";
+import {
+  VimService,
+  VimStore,
+  register_vim_actions,
+  type VimEnginePort,
+  type VimrcPort,
+} from "$lib/features/vim";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
@@ -34,6 +41,7 @@ import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.
 import { create_document_autosave_reactor } from "$lib/reactors/document_autosave.reactor.svelte";
 import { create_document_close_request_reactor } from "$lib/reactors/document_close_request.reactor.svelte";
 import { create_document_window_reactor } from "$lib/reactors/document_window.reactor.svelte";
+import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
 import { toast } from "svelte-sonner";
 
 export type DocumentWindowPorts = {
@@ -43,6 +51,8 @@ export type DocumentWindowPorts = {
   clipboard: ClipboardPort;
   document: DocumentPort;
   editor: EditorPort;
+  vimrc: VimrcPort;
+  vim_engine: VimEnginePort;
 };
 
 export type DocumentWindowContext = ReturnType<
@@ -62,6 +72,7 @@ export function create_document_window_context(input: {
     op: new OpStore(),
     document: new DocumentStore(),
     search: new SearchStore(),
+    vim: new VimStore(),
   };
   const action_registry = new ActionRegistry();
 
@@ -105,6 +116,13 @@ export function create_document_window_context(input: {
     },
   );
 
+  const vim_service = new VimService(
+    input.ports.vimrc,
+    input.ports.vim_engine,
+    stores.vim,
+    stores.op,
+  );
+
   register_document_actions({
     registry: action_registry,
     stores: { ui: stores.ui, document: stores.document },
@@ -113,6 +131,10 @@ export function create_document_window_context(input: {
       shell: shell_service,
       clipboard: clipboard_service,
     },
+  });
+  register_vim_actions({
+    registry: action_registry,
+    services: { vim: vim_service },
   });
   register_find_in_file_actions({
     registry: action_registry,
@@ -144,6 +166,7 @@ export function create_document_window_context(input: {
       action_registry,
     ),
     create_document_window_reactor(stores.document, document_service),
+    create_vim_mode_reactor(stores.ui, document_service, action_registry),
     create_op_toast_reactor(stores.op),
     create_find_in_file_reactor(
       stores.ui,
