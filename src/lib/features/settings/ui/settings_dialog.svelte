@@ -12,7 +12,9 @@
   import GitBranchIcon from "@lucide/svelte/icons/git-branch";
   import SlidersIcon from "@lucide/svelte/icons/sliders-horizontal";
   import KeyboardIcon from "@lucide/svelte/icons/keyboard";
+  import TerminalIcon from "@lucide/svelte/icons/square-terminal";
   import { HotkeysPanel } from "$lib/features/hotkey";
+  import { VimSettings, type VimrcStatus } from "$lib/features/vim";
   import ThemeSettings from "$lib/features/settings/ui/theme_settings.svelte";
   import type {
     EditorSettings,
@@ -33,6 +35,9 @@
     hotkeys_config: HotkeyConfig;
     user_themes: Theme[];
     active_theme: Theme;
+    vimrc: VimrcStatus | null;
+    vimrc_error: string | null;
+    is_loading_vimrc: boolean;
     on_update_settings: (settings: EditorSettings) => void;
     on_category_change: (category: SettingsCategory) => void;
     on_save: () => void;
@@ -47,6 +52,8 @@
     on_theme_rename: (id: string, name: string) => void;
     on_theme_delete: (theme_id: string) => void;
     on_theme_update: (theme: Theme) => void;
+    on_open_vimrc: () => void;
+    on_reload_vimrc: () => void;
   };
 
   let {
@@ -59,6 +66,9 @@
     hotkeys_config,
     user_themes,
     active_theme,
+    vimrc,
+    vimrc_error,
+    is_loading_vimrc,
     on_update_settings,
     on_category_change,
     on_save,
@@ -73,6 +83,8 @@
     on_theme_rename,
     on_theme_delete,
     on_theme_update,
+    on_open_vimrc,
+    on_reload_vimrc,
   }: Props = $props();
 
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
@@ -103,6 +115,7 @@
     { id: "files", label: "Files", icon: FolderIcon },
     { id: "git", label: "Git", icon: GitBranchIcon },
     { id: "misc", label: "Misc", icon: SlidersIcon },
+    { id: "vim", label: "Vim", icon: TerminalIcon },
     { id: "hotkeys", label: "Hotkeys", icon: KeyboardIcon },
   ];
 
@@ -475,6 +488,20 @@
               />
             </div>
           </div>
+        {:else if active_category === "vim"}
+          <h2 class="SettingsDialog__content-header">Vim</h2>
+
+          <VimSettings
+            enabled={editor_settings.vim_mode_enabled}
+            {vimrc}
+            load_error={vimrc_error}
+            is_loading={is_loading_vimrc}
+            on_toggle={(enabled: boolean) => {
+              update("vim_mode_enabled", enabled);
+            }}
+            {on_open_vimrc}
+            {on_reload_vimrc}
+          />
         {:else if active_category === "hotkeys"}
           <h2 class="SettingsDialog__content-header">Hotkeys</h2>
 

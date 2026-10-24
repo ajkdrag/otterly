@@ -33,9 +33,11 @@ pub struct VimrcFile {
 #[tauri::command]
 pub async fn read_vimrc(app: AppHandle) -> Result<VimrcFile, String> {
     let path = vimrc_path(&app)?;
-    let text = read_vimrc_text(&path)?;
+    let shown_path = display_path(&path);
+    // The path goes in the error so the user knows which file to fix.
+    let text = read_vimrc_text(&path).map_err(|e| format!("{shown_path}: {e}"))?;
     Ok(VimrcFile {
-        path: display_path(&path),
+        path: shown_path,
         text,
     })
 }

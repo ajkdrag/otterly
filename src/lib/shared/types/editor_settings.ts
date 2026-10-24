@@ -4,6 +4,7 @@ export type SettingsCategory =
   | "files"
   | "git"
   | "misc"
+  | "vim"
   | "hotkeys";
 
 export type HeadingFilenameDelimiter = "spaces" | "hyphens";
