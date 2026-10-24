@@ -4,6 +4,7 @@ pub mod notes;
 pub mod search;
 pub mod settings;
 pub mod shell;
+pub mod updater;
 pub mod vault;
 pub mod vault_session;
 pub mod vault_settings;

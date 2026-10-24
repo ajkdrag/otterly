@@ -1,4 +1,5 @@
 import type { UpdaterPort } from "$lib/features/updater/ports";
+import { tauri_invoke } from "$lib/shared/adapters/tauri_invoke";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
@@ -7,6 +8,7 @@ export function create_updater_tauri_adapter(): UpdaterPort {
   let downloaded_update: Update | null = null;
 
   return {
+    is_portable_install: () => tauri_invoke<boolean>("is_portable_install"),
     async download_update() {
       const update = await check();
       if (!update) return null;
