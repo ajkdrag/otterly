@@ -74,7 +74,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `git`       | Git init, status, commit, history, checkpoint, restore        |
 | `settings`  | App and vault settings read/write                             |
 | `hotkey`    | Custom hotkey editing and persistence                         |
-| `theme`     | Theme CRUD, switching, custom theme editing                   |
+| `theme`     | Theme CRUD, switching, editing, theme file + live reload      |
 | `links`     | Backlinks, local links, link repair on rename                 |
 | `clipboard` | Copy markdown to clipboard                                    |
 | `shell`     | Open external URLs                                            |
@@ -350,7 +350,7 @@ Backend invariants:
 2. Managed state structs live in the feature's `service.rs` — no global statics
 3. Cross-feature shared code goes in `shared/`, not inside a feature module
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
-5. Backend holds no domain state between calls (exceptions: `WatcherState` and `SearchDbState` which are explicit lifecycle-managed state)
+5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState` which are explicit lifecycle-managed state)
 
 ## Validation checklist
 
