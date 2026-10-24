@@ -94,8 +94,8 @@ pub async fn set_vault_setting(
     lock: State<'_, VaultSettingsLock>,
 ) -> Result<(), String> {
     log::debug!("Setting vault setting vault_id={} key={}", vault_id, key);
-    // The lock guards no data, so a panic in another save leaves nothing to
-    // distrust. Take the guard anyway.
+    // The mutex holds no data, so a panic in an earlier save leaves nothing
+    // broken. A poisoned lock is safe to take.
     let _guard = lock
         .0
         .lock()
