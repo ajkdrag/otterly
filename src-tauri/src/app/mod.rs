@@ -140,6 +140,7 @@ pub fn run() {
             features::theme::service::open_theme_file,
             features::theme::service::reveal_theme_file,
             features::theme::service::watch_theme_file,
+            features::theme::service::claim_theme_file_log,
             features::vault_session::service::load_latest_vault_session,
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,

@@ -98,7 +98,9 @@ export class ThemeService {
     }
     this.op_store.succeed("theme.file_load");
     // The docs tell agents to look for this line to know an edit applied.
-    log.info("Theme file loaded", { path: snapshot.path });
+    void this.log_from_one_window(() => {
+      log.info("Theme file loaded", { path: snapshot.path });
+    });
     return {
       path: snapshot.path,
       status: "valid",
@@ -209,6 +211,17 @@ export class ThemeService {
     }
   }
 
+  // Every window reloads the theme file on a change and gets the same result.
+  // The backend lets the first window to ask write the log, so the log has
+  // one line per error however many windows are open.
+  private async log_from_one_window(write_log: () => void): Promise<void> {
+    // If asking fails, log anyway. A repeated line beats a missing one.
+    const is_first_window = await this.theme_file_port
+      .claim_theme_file_log()
+      .catch(() => true);
+    if (is_first_window) write_log();
+  }
+
   // The op error is the toast text: the first error, plus how many more.
   private fail_theme_file_load(
     path: string | null,
@@ -217,9 +230,11 @@ export class ThemeService {
     const messages = errors.map(format_theme_file_error);
     // One record per error, so a message with commas stays whole and grep
     // shows each one. docs/theme_file.md tells agents to look for this text.
-    for (const message of messages) {
-      log.warn(`Theme file has errors: ${message}`);
-    }
+    void this.log_from_one_window(() => {
+      for (const message of messages) {
+        log.warn(`Theme file has errors: ${message}`);
+      }
+    });
     const rest = String(messages.length - 1);
     const at_least = may_have_more_theme_file_errors(errors) ? " or" : "";
     const more = messages.length > 1 ? ` (+${rest}${at_least} more)` : "";

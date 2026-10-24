@@ -18,6 +18,7 @@ export function create_theme_file_tauri_adapter(): ThemeFilePort {
     open_theme_file: () => invoke<undefined>("open_theme_file"),
     reveal_theme_file: () => invoke<undefined>("reveal_theme_file"),
     watch_theme_file: () => invoke<undefined>("watch_theme_file"),
+    claim_theme_file_log: () => invoke<boolean>("claim_theme_file_log"),
     subscribe_theme_file_changes: subscribe_theme_file_changes,
   };
 }

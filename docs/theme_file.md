@@ -87,6 +87,8 @@ grep "Theme file" ~/Library/Logs/com.otterly.app/otterly.log | tail
 - `Theme file loaded`: the file is valid and Otterly loaded it.
 - `Theme file has errors: line 3: ...`: one line per error. Nothing was applied. Fix the file and save again.
 
+With several windows open (a vault and some document windows), only one of them writes these lines for each save. You get one line per error, not one per window.
+
 Every line starts with a timestamp, so compare it with the time of your save. A `loaded` line after the error lines means the fix worked. The log is small (about 40 KB, then it rolls over), so read the tail and not the whole file.
 
 I checked the macOS path against a real build. The Windows and Linux paths come from Tauri's source and I have not checked them on those systems.

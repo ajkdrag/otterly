@@ -22,5 +22,9 @@ export interface ThemeFilePort {
   reveal_theme_file(): Promise<void>;
   // Starts the one backend watcher. Every window may call it.
   watch_theme_file(): Promise<void>;
+  // Every window reloads the theme file after a change. This is true for the
+  // first window to ask after a change and false for the rest, so only one
+  // window writes the result to the app log.
+  claim_theme_file_log(): Promise<boolean>;
   subscribe_theme_file_changes(callback: () => void): () => void;
 }

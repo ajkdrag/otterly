@@ -6,6 +6,7 @@ use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -22,11 +23,35 @@ const MAX_THEME_FILE_BYTES: u64 = 256 * 1024;
 const THEME_FILE_CHANGED_EVENT: &str = "theme_file_changed";
 const CHANGE_DEBOUNCE: Duration = Duration::from_millis(150);
 
-#[derive(Default)]
 pub struct ThemeFileWatcherState {
     // Lives for the whole app. Dropping it would stop the watch and end the
     // debounce thread.
     watcher: Mutex<Option<RecommendedWatcher>>,
+    // Every window reloads the theme file after a change and wants to log the
+    // result. This lets the first one do it. Starts true so the first window
+    // to start logs its load.
+    log_is_unclaimed: AtomicBool,
+}
+
+impl Default for ThemeFileWatcherState {
+    fn default() -> Self {
+        Self {
+            watcher: Mutex::new(None),
+            log_is_unclaimed: AtomicBool::new(true),
+        }
+    }
+}
+
+impl ThemeFileWatcherState {
+    // True for the first caller after each change, false for the rest. A
+    // window that starts later, with no change in between, does not log.
+    pub fn claim_log(&self) -> bool {
+        self.log_is_unclaimed.swap(false, Ordering::SeqCst)
+    }
+
+    pub fn reset_log_claim(&self) {
+        self.log_is_unclaimed.store(true, Ordering::SeqCst);
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -126,6 +151,14 @@ pub fn reveal_theme_file(app: AppHandle) -> Result<(), String> {
     }
 }
 
+// Windows ask before they log what a reload found. Only the first one to ask
+// after a change gets true, so the log has one line per error however many
+// windows are open.
+#[tauri::command]
+pub fn claim_theme_file_log(state: State<ThemeFileWatcherState>) -> bool {
+    state.claim_log()
+}
+
 // Every window calls this. The first call starts the one watcher, later calls
 // do nothing, and the event goes to all windows.
 #[tauri::command]
@@ -140,6 +173,7 @@ pub fn watch_theme_file(app: AppHandle, state: State<ThemeFileWatcherState>) -> 
 
     let dir = theme_file_dir(&app)?;
     let watcher = start_theme_file_watcher(&dir, CHANGE_DEBOUNCE, move || {
+        app.state::<ThemeFileWatcherState>().reset_log_claim();
         let _ = app.emit(THEME_FILE_CHANGED_EVENT, ());
     })?;
     *slot = Some(watcher);

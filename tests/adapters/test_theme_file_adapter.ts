@@ -34,6 +34,9 @@ export function create_test_theme_file_adapter(): ThemeFilePort & {
     watch_theme_file() {
       return Promise.resolve();
     },
+    claim_theme_file_log() {
+      return Promise.resolve(true);
+    },
     subscribe_theme_file_changes(callback: () => void) {
       handler = callback;
       return () => {

@@ -102,6 +102,32 @@ describe("ThemeService theme file", () => {
     );
   });
 
+  it("leaves the log to the first window that asks", async () => {
+    const { service, port } = create_harness();
+    port._snapshot.text = "font_sise: 1\n";
+    port.claim_theme_file_log = () => Promise.resolve(false);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const state = await service.load_theme_file();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(state.status).toBe("invalid");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("logs anyway when asking for the log claim fails", async () => {
+    const { service, port } = create_harness();
+    port._snapshot.text = "font_sise: 1\n";
+    port.claim_theme_file_log = () => Promise.reject(new Error("no ipc"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await service.load_theme_file();
+
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("keeps the path when the backend says the file can't be read", async () => {
     const { service, port, op_store } = create_harness();
     port._snapshot.error = "Found both theme.yaml and theme.json. Delete one.";

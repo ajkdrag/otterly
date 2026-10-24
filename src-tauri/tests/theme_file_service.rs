@@ -1,6 +1,6 @@
 use crate::features::theme::service::{
     debounce_changes, is_theme_file_change, pick_theme_file, read_theme_file_snapshot,
-    start_theme_file_watcher,
+    start_theme_file_watcher, ThemeFileWatcherState,
 };
 use notify::event::{
     AccessKind, AccessMode, CreateKind, DataChange, MetadataKind, ModifyKind, RemoveKind,
@@ -147,6 +147,19 @@ fn snapshot_names_the_file_it_can_not_read() {
         .error
         .unwrap()
         .starts_with("theme.yaml can't be read"));
+}
+
+#[test]
+fn only_the_first_window_after_a_change_claims_the_log() {
+    let state = ThemeFileWatcherState::default();
+
+    assert!(state.claim_log());
+    assert!(!state.claim_log());
+
+    state.reset_log_claim();
+
+    assert!(state.claim_log());
+    assert!(!state.claim_log());
 }
 
 fn event(kind: EventKind, names: &[&str]) -> notify::Event {
