@@ -16,7 +16,12 @@ const one_problem = [
   { line: 3, text: "let x = 1", message: 'Unsupported command "let"' },
 ];
 
-function create_harness(results: VimrcLoadResult[]) {
+const on_focus = { force: false };
+
+function create_harness(
+  results: VimrcLoadResult[],
+  has_settings_dialog = true,
+) {
   const registry = new ActionRegistry();
   const load_vimrc = vi.fn(() => {
     const result = results.shift();
@@ -26,6 +31,7 @@ function create_harness(results: VimrcLoadResult[]) {
   register_vim_actions({
     registry,
     services: { vim: { load_vimrc } as unknown as VimService },
+    has_settings_dialog,
   });
   return { registry, load_vimrc };
 }
@@ -53,8 +59,8 @@ describe("vim.load_vimrc", () => {
       execute: open_settings,
     });
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
 
     expect(toast.warning).toHaveBeenCalledOnce();
     const [message, options] = vi.mocked(toast.warning).mock.calls[0] ?? [];
@@ -67,13 +73,28 @@ describe("vim.load_vimrc", () => {
   });
 
   it("has no Show button where there is no Settings dialog", async () => {
-    const { registry } = create_harness([problems_found]);
+    const { registry } = create_harness([problems_found], false);
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
 
     expect(vi.mocked(toast.warning).mock.calls[0]?.[1]).not.toHaveProperty(
       "action",
     );
+  });
+
+  it("reloads by force when run with no argument, like the command palette does", async () => {
+    const clean = { problems: [], problems_changed: false };
+    const { registry, load_vimrc } = create_harness([
+      { status: "applied", ...clean },
+      { status: "applied", ...clean },
+    ]);
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    expect(load_vimrc).toHaveBeenLastCalledWith({ force: true });
+    expect(toast.success).toHaveBeenCalledOnce();
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+    expect(load_vimrc).toHaveBeenLastCalledWith({ force: false });
   });
 
   it("says applied only for a forced reload of an existing, clean vimrc", async () => {
@@ -84,13 +105,13 @@ describe("vim.load_vimrc", () => {
       { status: "missing", ...clean },
     ]);
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
     expect(toast.success).not.toHaveBeenCalled();
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc, { force: true });
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
     expect(toast.success).toHaveBeenCalledOnce();
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc, { force: true });
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
     expect(toast.success).toHaveBeenCalledOnce();
   });
 
@@ -98,18 +119,18 @@ describe("vim.load_vimrc", () => {
     const failed = { status: "failed", error: "not valid UTF-8" } as const;
     const { registry } = create_harness([failed, failed, failed]);
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
-    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
     expect(toast.error).toHaveBeenCalledOnce();
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc, { force: true });
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
     expect(toast.error).toHaveBeenCalledTimes(2);
   });
 
   it("stays quiet when a newer load took over", async () => {
     const { registry } = create_harness([{ status: "stale" }]);
 
-    await registry.execute(ACTION_IDS.vim_load_vimrc, { force: true });
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
 
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();

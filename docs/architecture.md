@@ -131,7 +131,7 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 
 `packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
 
-Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The `vim_mode` reactor pushes the setting into the editor and reloads the vimrc on window focus. The vimrc is `<app_config_dir>/otterly/vimrc`, a subset of maps, unmaps, and `set` (see the package design). Lines that do not apply are listed in Settings under Vim.
+Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The `vim_mode` reactor pushes the setting into the editor and reloads the vimrc on window focus. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, a subset of maps, unmaps, and `set` (see the package design). Lines that do not apply are listed in Settings under Vim.
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -344,7 +344,7 @@ The backend is a Tauri native process. Its sole job is exposing native capabilit
 | ----------- | ---------------------------------------------------------------------------- |
 | `app/`      | Composition root: registers plugins, managed state, and all command handlers |
 | `features/` | One sub-module per capability. Each owns command handlers and managed state  |
-| `shared/`   | Vault registry persistence, constants, asset request handler                 |
+| `shared/`   | Vault registry persistence, constants, path display, asset request handler   |
 
 Stateful services (watcher, search index) use Tauri's `.manage()` system. State structs live in each feature's `service.rs` and are registered in `app/mod.rs`. Commands receive state via Tauri DI: `fn watch_vault(state: tauri::State<'_, WatcherState>, ...)`.
 

@@ -70,9 +70,23 @@ export function use_keyboard_shortcuts(input: {
     return Number(event.key) - 1;
   };
 
-  // The recorder reads raw keys itself, and IME composition owns its keys.
+  // On macOS the app's hotkeys are Cmd keys, but normalize_event_to_key also
+  // reads Ctrl as CmdOrCtrl. Ctrl+F, Ctrl+O, Ctrl+W and the like are Vim keys
+  // inside the Vim editor, so Ctrl goes to Vim there. On Windows and Linux
+  // CmdOrCtrl is Ctrl, so the app hotkey wins.
+  const is_ctrl_key_for_vim = (event: KeyboardEvent): boolean => {
+    if (!event.ctrlKey || event.metaKey) return false;
+    if (typeof navigator === "undefined" || !navigator.platform.includes("Mac"))
+      return false;
+    return (event.target as Element | null)?.closest?.(".md-vim") != null;
+  };
+
+  // The recorder reads raw keys itself, IME composition owns its keys, and
+  // the Vim editor owns Ctrl keys on macOS.
   const is_left_to_focused_widget = (event: KeyboardEvent): boolean =>
-    is_hotkey_recorder_open() || event.isComposing;
+    is_hotkey_recorder_open() ||
+    event.isComposing ||
+    is_ctrl_key_for_vim(event);
 
   // Ctrl/Cmd+J/K belong to the picker's own handler, whatever they are bound to.
   const is_picker_navigation = (event: KeyboardEvent): boolean =>

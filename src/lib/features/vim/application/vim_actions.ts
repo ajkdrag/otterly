@@ -7,10 +7,11 @@ import { toast } from "svelte-sonner";
 export type VimActionInput = {
   registry: ActionRegistry;
   services: { vim: VimService };
+  has_settings_dialog: boolean;
 };
 
 export function register_vim_actions(input: VimActionInput) {
-  const { registry, services } = input;
+  const { registry, services, has_settings_dialog } = input;
   // A vimrc that stays unreadable would repeat its error on every window
   // focus, so only a new error toasts. A manual reload always does.
   let last_read_error: string | null = null;
@@ -18,8 +19,10 @@ export function register_vim_actions(input: VimActionInput) {
   registry.register({
     id: ACTION_IDS.vim_load_vimrc,
     label: "Reload vimrc",
+    // The palette runs this with no argument, so a manual reload is the
+    // default. The window focus reactor passes { force: false }.
     execute: async (arg: unknown) => {
-      const force = (arg as { force?: boolean } | null)?.force === true;
+      const force = (arg as { force?: boolean } | null)?.force !== false;
       const result = await services.vim.load_vimrc({ force });
       if (result.status === "stale") return;
 
@@ -37,14 +40,11 @@ export function register_vim_actions(input: VimActionInput) {
       const [first_problem] = result.problems;
       if (first_problem && result.problems_changed) {
         const count = result.problems.length;
-        const can_show_settings = registry
-          .get_all()
-          .some((action) => action.id === ACTION_IDS.settings_open);
         toast.warning(
           `vimrc: ${String(count)} ${count === 1 ? "line" : "lines"} not applied`,
           {
             description: `Line ${String(first_problem.line)}: ${first_problem.message}`,
-            ...(can_show_settings && {
+            ...(has_settings_dialog && {
               action: {
                 label: "Show",
                 onClick: () =>

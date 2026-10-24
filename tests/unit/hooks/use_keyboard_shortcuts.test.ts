@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
@@ -781,5 +781,54 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
 
     expect(execute).not.toHaveBeenCalled();
     expect(on_switch_to_tab).not.toHaveBeenCalled();
+  });
+
+  describe("Ctrl keys in the Vim editor", () => {
+    const in_vim_editor = {
+      closest: (selector: string) => (selector === ".md-vim" ? {} : null),
+    } as unknown as EventTarget;
+    const ctrl = { metaKey: false, ctrlKey: true };
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("go to Vim on macOS, while Cmd keys stay app hotkeys", () => {
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      const { shortcuts, execute, on_switch_to_tab } = build();
+
+      for (const key of ["f", "o", "p", "w", "j", "1"]) {
+        const { event, was_touched } = press(key, {
+          ...ctrl,
+          target: in_vim_editor,
+        });
+        shortcuts.handle_keydown_capture(event);
+        shortcuts.handle_keydown(event);
+        expect(was_touched()).toBe(false);
+      }
+      expect(execute).not.toHaveBeenCalled();
+      expect(on_switch_to_tab).not.toHaveBeenCalled();
+
+      shortcuts.handle_keydown_capture(
+        press("f", { target: in_vim_editor }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
+    it("stay app hotkeys outside the Vim editor on macOS, and everywhere elsewhere", () => {
+      const { shortcuts, execute } = build();
+
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      shortcuts.handle_keydown_capture(
+        press("f", { ...ctrl, target: { closest: () => null } as never }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+
+      vi.stubGlobal("navigator", { platform: "Win32" });
+      shortcuts.handle_keydown_capture(
+        press("f", { ...ctrl, target: in_vim_editor }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
   });
 });

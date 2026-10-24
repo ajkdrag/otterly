@@ -14,7 +14,7 @@ export function create_vim_mode_reactor(
   action_registry: ActionRegistry,
 ): () => void {
   const load_vimrc = () => {
-    void action_registry.execute(ACTION_IDS.vim_load_vimrc);
+    void action_registry.execute(ACTION_IDS.vim_load_vimrc, { force: false });
   };
   return $effect.root(() => {
     // Saving settings replaces the whole object. Only this flag matters here,

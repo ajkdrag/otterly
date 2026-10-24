@@ -311,7 +311,7 @@
     void action_registry.execute(ACTION_IDS.theme_update, theme)}
   on_open_vimrc={() => void action_registry.execute(ACTION_IDS.vim_open_vimrc)}
   on_reload_vimrc={() =>
-    void action_registry.execute(ACTION_IDS.vim_load_vimrc, { force: true })}
+    void action_registry.execute(ACTION_IDS.vim_load_vimrc)}
 />
 
 <CreateFolderDialog

@@ -135,6 +135,7 @@ export function create_document_window_context(input: {
   register_vim_actions({
     registry: action_registry,
     services: { vim: vim_service },
+    has_settings_dialog: false,
   });
   register_find_in_file_actions({
     registry: action_registry,

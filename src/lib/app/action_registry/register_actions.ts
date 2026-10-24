@@ -30,5 +30,5 @@ export function register_actions(input: ActionRegistrationInput) {
   register_hotkey_actions(input);
   register_help_actions(input);
   register_theme_actions(input);
-  register_vim_actions(input);
+  register_vim_actions({ ...input, has_settings_dialog: true });
 }

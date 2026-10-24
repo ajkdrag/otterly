@@ -53,6 +53,7 @@ describe("vim_mode reactor", () => {
 
     window.dispatchEvent(new Event("focus"));
     expect(load_vimrc).toHaveBeenCalledTimes(2);
+    expect(load_vimrc).toHaveBeenLastCalledWith({ force: false });
   });
 
   it("stops watching focus when Vim turns off", async () => {
