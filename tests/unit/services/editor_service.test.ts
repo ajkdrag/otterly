@@ -543,6 +543,38 @@ describe("EditorService", () => {
     expect(service.is_mounted()).toBe(false);
   });
 
+  it("starts the session with the current Vim setting", async () => {
+    const session = create_session("# Alpha");
+    const { service, editor_store, session_configs } = create_setup(() =>
+      Promise.resolve(session),
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+
+    service.set_vim_enabled(true);
+    await service.mount({ root: {} as HTMLDivElement, note });
+
+    expect(session_config_at(session_configs, 0).vim_enabled).toBe(true);
+  });
+
+  it("passes on a Vim setting that arrives while the session starts", async () => {
+    const deferred = create_deferred<EditorSession>();
+    const session = create_session("# Alpha");
+    const { service, editor_store, session_configs } = create_setup(
+      () => deferred.promise,
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+
+    const mount_promise = service.mount({ root: {} as HTMLDivElement, note });
+    service.set_vim_enabled(true);
+    deferred.resolve(session);
+    await mount_promise;
+
+    expect(session_config_at(session_configs, 0).vim_enabled).toBe(false);
+    expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
   it("flushes session markdown and syncs editor store", async () => {
     const session = create_session("# Original");
     const { service, editor_store } = create_setup(() =>

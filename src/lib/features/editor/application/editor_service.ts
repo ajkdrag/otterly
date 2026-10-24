@@ -405,6 +405,9 @@ export class EditorService {
     }
 
     this.session = next_session;
+    // The setting may have changed while the session started, before
+    // this.session could take the call. It does nothing if they match.
+    next_session.set_vim_enabled(this.vim_enabled);
   }
 
   private teardown_session() {

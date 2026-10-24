@@ -14,7 +14,10 @@ const file: DocumentFile = {
   mtime_ms: 100,
 };
 
-function setup(read: DocumentFile | Error = file) {
+function setup(
+  read: DocumentFile | Error = file,
+  session_start_gate: Promise<void> = Promise.resolve(),
+) {
   const store = new DocumentStore();
   let events: EditorEventHandlers | null = null;
   let markdown = file.text;
@@ -26,11 +29,15 @@ function setup(read: DocumentFile | Error = file) {
     open_buffer: vi.fn(),
     update_find_state: vi.fn(),
     toggle_source_mode: vi.fn(),
+    set_vim_enabled: vi.fn(),
   } as unknown as EditorSession;
+  const session_configs: EditorSessionConfig[] = [];
   const editor_port: EditorPort = {
-    start_session: vi.fn((config: EditorSessionConfig) => {
+    start_session: vi.fn(async (config: EditorSessionConfig) => {
       events = config.events;
-      return Promise.resolve(session);
+      session_configs.push(config);
+      await session_start_gate;
+      return session;
     }),
   };
   const document_port: DocumentPort = {
@@ -54,6 +61,7 @@ function setup(read: DocumentFile | Error = file) {
     store,
     service,
     session,
+    session_configs,
     document_port,
     type: (text: string) => {
       markdown = text;
@@ -72,6 +80,33 @@ async function open(read?: DocumentFile | Error) {
 }
 
 describe("DocumentService", () => {
+  it("starts the editor with the current Vim setting", async () => {
+    const { service, session_configs } = setup();
+    await service.load();
+
+    service.set_vim_enabled(true);
+    await service.mount_editor({} as HTMLElement);
+
+    expect(session_configs[0]?.vim_enabled).toBe(true);
+  });
+
+  it("passes on a Vim setting that arrives while the editor starts", async () => {
+    let finish_start: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      finish_start = resolve;
+    });
+    const { service, session, session_configs } = setup(file, gate);
+    await service.load();
+
+    const mounting = service.mount_editor({} as HTMLElement);
+    service.set_vim_enabled(true);
+    finish_start();
+    await mounting;
+
+    expect(session_configs[0]?.vim_enabled).toBe(false);
+    expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
   it("saves the edited text against the mtime it read", async () => {
     const { service, store, session, document_port, type } = await open();
     type("# Hello there");

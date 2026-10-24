@@ -76,6 +76,9 @@ export class DocumentService {
         },
       },
     });
+    // The setting may have changed while the editor started, before
+    // this.session could take the call. It does nothing if they match.
+    this.session.set_vim_enabled(this.vim_enabled);
     this.session.focus();
   }
 
