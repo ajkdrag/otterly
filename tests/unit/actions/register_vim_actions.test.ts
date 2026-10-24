@@ -82,7 +82,7 @@ describe("vim.load_vimrc", () => {
     );
   });
 
-  it("reloads by force when run with no argument, like the command palette does", async () => {
+  it("reloads by force when run with no argument, like the Reload button does", async () => {
     const clean = { problems: [], problems_changed: false };
     const { registry, load_vimrc } = create_harness([
       { status: "applied", ...clean },

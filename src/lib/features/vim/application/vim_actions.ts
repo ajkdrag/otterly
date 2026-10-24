@@ -19,8 +19,8 @@ export function register_vim_actions(input: VimActionInput) {
   registry.register({
     id: ACTION_IDS.vim_load_vimrc,
     label: "Reload vimrc",
-    // The palette runs this with no argument, so a manual reload is the
-    // default. The window focus reactor passes { force: false }.
+    // A run with no argument (the Reload button) is a manual reload, so it
+    // forces. The window focus reactor passes { force: false }.
     execute: async (arg: unknown) => {
       const force = (arg as { force?: boolean } | null)?.force !== false;
       const result = await services.vim.load_vimrc({ force });
