@@ -4,6 +4,4 @@ export { ProfileService } from "$lib/features/profile/application/profile_servic
 export { register_profile_actions } from "$lib/features/profile/application/profile_actions";
 export { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 export { DEFAULT_PROFILE_ID } from "$lib/features/profile/types/profile";
-export { normalize_profile_name } from "$lib/features/profile/domain/profile_name";
-export type { ProfileNameResult } from "$lib/features/profile/domain/profile_name";
 export { default as ProfileDialog } from "$lib/features/profile/ui/profile_dialog.svelte";

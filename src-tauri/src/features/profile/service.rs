@@ -196,12 +196,12 @@ pub fn launch_profile(app: &AppHandle, profile_id: &str) -> Result<(), String> {
     // the default profile, so our own OTTERLY_PROFILE cannot leak into it.
     //
     // current_binary gives the .AppImage file when we run from one, because
-    // the executable inside an AppImage sits on a temporary mount. It refuses
-    // a path with symlinks on macOS, where current_exe is fine, hence the
-    // fallback.
-    let exe_path = tauri::process::current_binary(&app.env())
-        .or_else(|_| std::env::current_exe())
-        .map_err(|e| e.to_string())?;
+    // the executable inside an AppImage sits on a temporary mount. On macOS it
+    // refuses a path that goes through a symlink, because we would run
+    // whatever the link points at (Tauri's own restart has the same guard). So
+    // an app behind a symlink cannot open profiles, and the error names the
+    // link.
+    let exe_path = tauri::process::current_binary(&app.env()).map_err(|e| e.to_string())?;
     let mut child = Command::new(exe_path)
         .arg(format!("{PROFILE_ARG_PREFIX}{profile_id}"))
         .env_remove(PROFILE_ENV_VAR)
