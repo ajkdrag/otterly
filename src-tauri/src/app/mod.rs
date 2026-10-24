@@ -73,6 +73,7 @@ pub fn run() {
         .manage(features::watcher::service::WatcherState::default())
         .manage(features::document::service::DocumentState::default())
         .manage(features::search::service::SearchDbState::default())
+        .manage(features::vault_settings::service::VaultSettingsLock::default())
         .manage(ProfileState::new(profile_id, base_identifier))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
