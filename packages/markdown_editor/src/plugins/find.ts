@@ -167,12 +167,11 @@ export function replace_find_match(
   const find = view.state.field(find_state, false);
   const match = find?.matches[find.selected_index];
   if (!find || !match || view.state.readOnly) return false;
-  const insert = replacement_text(
+  const insert = replacement_builder(
     view.state.doc,
     find.spec,
-    match,
     replacement,
-  );
+  )(match);
   view.dispatch({
     changes: { from: match.from, to: match.to, insert },
     effects: select_match_from.of(match.from + insert.length),
@@ -193,10 +192,15 @@ export function replace_all_find_matches(
 ): number {
   const find = view.state.field(find_state, false);
   if (!find || find.matches.length === 0 || view.state.readOnly) return 0;
+  const replacement_for = replacement_builder(
+    view.state.doc,
+    find.spec,
+    replacement,
+  );
   const changes = find.matches.map((match) => ({
     from: match.from,
     to: match.to,
-    insert: replacement_text(view.state.doc, find.spec, match, replacement),
+    insert: replacement_for(match),
   }));
   view.dispatch({
     changes,
@@ -208,22 +212,23 @@ export function replace_all_find_matches(
   return changes.length;
 }
 
-function replacement_text(
+// Returns the inserted text for each match. Regex mode runs the pattern again
+// at the match start to get its groups. A sticky copy matches exactly there,
+// and leftmost-first gives the same match.
+function replacement_builder(
   document: Text,
   spec: FindSpec,
-  match: FindMatch,
   replacement: string,
-): string {
-  if (!spec.regex) return replacement;
-  const pattern = find_regexp(spec);
-  if (!pattern) return replacement;
-  // Run the pattern again at the match start to get its groups. A sticky
-  // copy matches exactly there, and leftmost-first gives the same match.
+): (match: FindMatch) => string {
+  const pattern = spec.regex ? find_regexp(spec) : null;
+  if (!pattern) return () => replacement;
   const sticky = new RegExp(pattern.source, pattern.flags.replace("g", "y"));
-  const line = document.lineAt(match.from);
-  sticky.lastIndex = match.from - line.from;
-  const found = sticky.exec(line.text);
-  return found ? expand_replacement(replacement, found) : replacement;
+  return (match) => {
+    const line = document.lineAt(match.from);
+    sticky.lastIndex = match.from - line.from;
+    const found = sticky.exec(line.text);
+    return found ? expand_replacement(replacement, found) : replacement;
+  };
 }
 
 // Both functions return the same array for an unchanged find state, which
