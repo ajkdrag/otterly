@@ -54,6 +54,31 @@ To make Otterly the default app for Markdown:
 - **Windows:** Right-click a `.md` file, choose "Open with" > "Choose another app", pick Otterly, and tick "Always use this app".
 - **Linux:** Right-click a `.md` file in your file manager, open its properties, and set Otterly as the default for "Markdown". From a terminal: `xdg-mime default otterly.desktop text/markdown`. The desktop file name depends on how you installed Otterly.
 
+## Profiles
+
+A profile is a separate Otterly with its own settings, vault list, window size and tabs. Use one to keep work and personal notes apart, or to get a second window on the same vault.
+
+- In the app: run "Profiles…" from the command palette, then pick a profile or type a new name. On macOS the Dock menu lists them too. Opening a profile that already runs just brings its window to the front.
+- From a terminal: `otterly --profile=work`, or `OTTERLY_PROFILE=work otterly`. The flag wins when both are set. Write it with `=`, because `--profile work` is not read as a profile.
+- A profile name is up to 32 lowercase letters, digits and dashes. A bad name is logged and Otterly starts the default profile.
+- `default` is what you get without a flag. `--profile=default` is the same thing, and it keeps all the data you had before profiles existed.
+- Each profile is its own app instance, so you get one Dock or taskbar icon per running profile. The window title ends with the profile name, like `notes — My Vault (work)`.
+- Two profiles can open the same vault. The notes, the search index and the git history are shared. The open tabs are kept per profile. Treat it like having the vault open in Otterly and another editor.
+- Only the default profile checks for updates in the background. "Check for Updates" works in any profile, but a running profile keeps the old version until you restart it.
+- A `.md` file opened from the file manager goes to the default profile on Windows and Linux. On macOS the system picks a running Otterly, and I have not checked which.
+- On macOS before 14, profiles share the webview storage, so a profile may flash the wrong theme for a moment on start.
+- The Windows jump list and Linux desktop actions do not list profiles. Use the command palette or the flag.
+
+Profile data lives in a folder named after the profile in the same place as the default one:
+
+| Platform | Folder                                                         |
+| -------- | -------------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/com.otterly.app.profile-<name>` |
+| Windows  | `%APPDATA%\com.otterly.app.profile-<name>`                     |
+| Linux    | `~/.config/com.otterly.app.profile-<name>`                     |
+
+To delete a profile, quit it and delete that folder. That is also what removes it from the list. Its tabs stay in each vault as `.otterly/sessions/latest-<name>.json`. Delete those too if you want it all gone.
+
 ## Build From Source
 
 ### Prerequisites

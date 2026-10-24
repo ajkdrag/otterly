@@ -81,6 +81,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `watcher`   | Filesystem watcher start/stop                                 |
 | `updater`   | Background update download, install and relaunch              |
 | `document`  | One file opened outside any vault, in its own window          |
+| `profile`   | Current profile, opening other profiles, profiles dialog      |
 
 ### Folder structure (first 2 levels)
 
@@ -121,6 +122,16 @@ How files arrive:
 File associations live in `tauri.conf.json` (`bundle.fileAssociations`). Linux needs `src-tauri/linux/otterly.desktop`, because the default desktop entry passes no `%F`. macOS also merges `src-tauri/Info.plist`, which declares the Markdown type for older macOS versions.
 
 The Windows release also ships a portable zip: `otterly.exe` plus `src-tauri/windows/portable.txt`, built by `release.yml`. It is the same binary as the installed app. `is_portable_install` checks for `portable.txt` next to the exe, and `UpdaterService` then skips the update, because the updater would run the NSIS installer. Settings still live in the user profile.
+
+#### Profiles
+
+A profile is a separate Otterly process with one vault window. `--profile=<id>` or `OTTERLY_PROFILE` picks it at launch. Ids match `^[a-z0-9][a-z0-9-]{0,31}$`, and a bad one logs an error and starts `default`. Before the Tauri builder runs, `app/mod.rs` rewrites the config identifier to `com.otterly.app.profile-<id>`. Everything Tauri derives from the identifier is then per profile: settings, the vault list, window state, logs, the webview data dir on Windows and Linux, and the single-instance lock. `default` keeps `com.otterly.app`, so existing data stays where it is.
+
+Per profile: the things above, the webview storage on macOS 14+ (`data_store_identifier` on the main and document windows), and the tab session of a vault (`.otterly/sessions/latest.json` for `default`, `latest-<id>.json` for the rest). Per vault, shared by every profile that opens it: the notes, vault settings, `search.db` and git. Two profiles on one vault is the same as Otterly plus another editor on that folder.
+
+A profile exists when its config folder exists, so `list_profiles` reads folder names and there is no registry to keep in sync. `open_profile` starts the executable again with `--profile=<id>`. If that profile already runs, the single-instance plugin hands the new process's arguments to it, and it focuses its window. Only the default profile checks for updates in the background.
+
+The "Profiles…" command opens the dialog. On macOS the Dock menu lists the profiles too. Tauri has no Dock menu API, so `profile/dock_menu.rs` adds `applicationDockMenu:` to tao's app delegate class at runtime. The AppKit callback has no user data pointer, so the menu keeps what it needs in one static (see Accepted deviations). The Windows jump list and Linux desktop actions are left out, because the lists are dynamic and not cheap to keep current.
 
 ### Cross-runtime split
 
@@ -297,6 +308,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **VaultService lifecycle state**: Stores `active_open_revision` and `index_progress_unsubscribe` for "latest vault-open intent wins" cancellation.
 - **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
+- **Dock menu static** (`profile/dock_menu.rs`, macOS only): one `OnceLock` holds the `AppHandle` and the menu target, because the AppKit callback carries no context.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
 
 ## Worked example: rename note
@@ -350,7 +362,7 @@ Backend invariants:
 2. Managed state structs live in the feature's `service.rs` — no global statics
 3. Cross-feature shared code goes in `shared/`, not inside a feature module
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
-5. Backend holds no domain state between calls (exceptions: `WatcherState` and `SearchDbState` which are explicit lifecycle-managed state)
+5. Backend holds no domain state between calls (exceptions: `WatcherState` and `SearchDbState` which are explicit lifecycle-managed state, and `ProfileState`, which is launch config plus one flag)
 
 ## Validation checklist
 
