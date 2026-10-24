@@ -123,6 +123,11 @@ impl FindQuery {
             regex::escape(&spec.text)
         };
         let pattern = if spec.whole_word {
+            // Check the bare pattern first: wrapping "a)|(b" would turn an
+            // invalid pattern into a valid one.
+            if spec.regex {
+                Regex::new(&pattern).map_err(|error| FindError::InvalidQuery(error.to_string()))?;
+            }
             format!(r"\b(?:{pattern})\b")
         } else {
             pattern
@@ -477,6 +482,8 @@ struct MatchSite<'t> {
 // Calls on_match for every non-empty match in file order, until it returns
 // false. Like ripgrep, we run the regex over the whole text to find candidate
 // lines fast and then match each candidate line on its own.
+// @Robustness: Lines end at "\n" only. The editor also breaks lines at a lone
+// "\r" (old Mac files), so line numbers drift in such a file.
 fn for_each_match(body: &str, regex: &Regex, mut on_match: impl FnMut(&MatchSite) -> bool) {
     let mut search_from = 0;
     let mut line_number = 1;

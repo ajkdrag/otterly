@@ -134,6 +134,14 @@ fn invalid_and_multiline_queries_are_rejected() {
         FindQuery::compile(&regex("(unclosed")),
         Err(FindError::InvalidQuery(_))
     ));
+    let whole_word_injection = FindSpec {
+        whole_word: true,
+        ..regex("a)|(b")
+    };
+    assert!(matches!(
+        FindQuery::compile(&whole_word_injection),
+        Err(FindError::InvalidQuery(_))
+    ));
     assert!(matches!(
         FindQuery::compile(&literal("two\nlines")),
         Err(FindError::InvalidQuery(_))
