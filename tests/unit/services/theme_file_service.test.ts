@@ -22,6 +22,7 @@ describe("ThemeService theme file", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("reports a missing file without an error", async () => {
@@ -84,7 +85,6 @@ describe("ThemeService theme file", () => {
     expect(warn.mock.calls[1]?.[0]).toContain(
       'Theme file has errors: line 2: unknown key "font_sise"',
     );
-    warn.mockRestore();
   });
 
   it("turns a failed read into an invalid state instead of throwing", async () => {

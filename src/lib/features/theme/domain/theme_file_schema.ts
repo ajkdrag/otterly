@@ -9,9 +9,10 @@ import {
 } from "$lib/features/theme/domain/parse_theme_file";
 
 // theme.schema.json, written next to the theme file so editors and agents can
-// check a file before saving it. It covers everything parse_theme_file checks
-// except color syntax. Draft-07 because yaml-language-server and most editors
-// handle it best.
+// check a file before saving it. It covers what parse_theme_file checks except
+// color syntax (fields and color tokens) and the --size-tree-row token, which
+// the tokens description only warns about. Draft-07 because
+// yaml-language-server and most editors handle it best.
 
 export const THEME_FILE_DOC_URL =
   "https://github.com/ajkdrag/otterly/blob/main/docs/theme_file.md";
