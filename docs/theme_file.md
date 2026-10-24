@@ -60,7 +60,7 @@ tokens:
 ## What happens when you save
 
 - Otterly waits about 150 ms after the last write, then reloads once. Editors that save through a temp file (vim, VS Code) and agents that write a temp file and rename it are fine. A burst of quick saves (under 150 ms apart) is one reload and one toast.
-- **Valid file:** the "Theme file" theme is updated and Otterly switches to it (and remembers that choice). If Settings is open with unsaved theme edits, the theme is updated but your active theme stays as it is.
+- **Valid file:** the "Theme file" theme is updated and Otterly switches to it (and remembers that choice, but only while the vault window is open: with only a document window open, the switch lasts until you quit). If Settings is open with unsaved theme edits, the theme is updated but your active theme stays as it is.
 - **File with errors:** the last valid version stays on screen, so the app doesn't jump around while you are mid-edit. The errors show in Settings > Theme (in the "Theme file" card), in a toast, and in the app log (see [Checking an edit](#checking-an-edit)).
 - **Deleted file:** Otterly falls back to Mocha. Create the file again and it comes back.
 - **Empty file** (or only comments) is valid and equals Mocha.

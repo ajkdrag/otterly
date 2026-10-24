@@ -21,6 +21,12 @@ export type ThemeActionInput = {
   // window reloads on a file save, so all of them would write settings.json
   // at once, and set_setting is a read-modify-write that can lose a write. A
   // document window also can't see a theme draft held by the main window.
+  //
+  // @Incomplete: On macOS a file opened from Finder can leave only a document
+  // window open. An edit of the theme file then switches that window, but the
+  // choice is not saved and the next launch has the old theme. Fixing it
+  // means asking the backend whether the `main` window is open, and saving
+  // from the document window when it is not.
   persist_file_switch: boolean;
 };
 
