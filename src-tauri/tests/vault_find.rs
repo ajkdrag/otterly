@@ -391,6 +391,41 @@ fn hitting_the_match_cap_truncates_the_results() {
     assert_eq!(total, MAX_MATCHES);
 }
 
+// Thousands of notes, so the results cross many 50 ms batches and come from
+// all of ignore's worker threads. Every hit must arrive exactly once.
+#[test]
+fn a_vault_of_several_thousand_notes_streams_every_hit() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    let filler = "A line of plain note text that does not match.\n".repeat(40);
+    let note_count = 5_000;
+    for idx in 0..note_count {
+        let body = if idx % 10 == 0 {
+            format!("{filler}the needle is here, and a Needle again\n")
+        } else {
+            filler.clone()
+        };
+        write_file(
+            root,
+            &format!("folder_{}/note_{idx}.md", idx % 50),
+            body.as_bytes(),
+        );
+    }
+
+    let started = Instant::now();
+    let run = run_find(root, "needle", "", "");
+
+    assert!(started.elapsed() < Duration::from_secs(20));
+    assert_eq!(run.files.len(), note_count / 10);
+    assert_eq!(run.match_count, note_count / 10 * 2);
+    assert!(!run.truncated);
+    assert!(run.files.iter().all(|file| file.matches.len() == 2));
+    assert!(run
+        .files
+        .windows(2)
+        .all(|pair| pair[0].path != pair[1].path));
+}
+
 #[test]
 fn results_carry_the_hash_that_replace_checks() {
     let tmp = TempDir::new().unwrap();
