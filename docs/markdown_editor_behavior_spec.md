@@ -1031,7 +1031,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Replace every match of the active query.
 - **Expected:** One transaction, so one `source_undo` restores the whole note. The saved source keeps its original line endings.
-- **Edge cases/notes:** Returns the number of replaced matches. The match list is empty afterward unless the replacement matches the query again.
+- **Edge cases/notes:** Returns the number of replaced matches. The match list is empty afterward unless the replacement matches the query again. With no match left the selected index stays 0, so undoing the replace selects the first match again.
 
 ## 18. Note, vault, and session lifecycle
 

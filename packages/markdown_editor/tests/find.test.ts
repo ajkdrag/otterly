@@ -301,6 +301,7 @@ describe("find", () => {
     expect(matches(view)).toEqual([]);
     source_undo(view.view);
     expect(view.saved()).toBe(source);
+    expect(selected_text(view)).toBe("a1");
   });
 
   test("FIND-009 replace all keeps CRLF line endings in the saved source", () => {

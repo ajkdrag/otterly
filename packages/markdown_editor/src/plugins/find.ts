@@ -334,9 +334,11 @@ const find_state = StateField.define<FindState>({
       selected_index = next >= 0 ? next : 0;
     }
     // Deleting the selected match keeps a valid selection on what is left.
+    // With nothing left it stays 0, not -1, so that undoing a replace brings
+    // the first match back as the selected one.
     return {
       spec,
-      selected_index: Math.min(selected_index, matches.length - 1),
+      selected_index: Math.max(0, Math.min(selected_index, matches.length - 1)),
       matches,
     };
   },
