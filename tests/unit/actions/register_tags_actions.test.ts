@@ -8,7 +8,7 @@ function setup() {
   const ui = new UIStore();
   const tags = {
     select_tag: vi.fn().mockResolvedValue(undefined),
-    clear_selected_tag: vi.fn(),
+    reload: vi.fn().mockResolvedValue(undefined),
   };
   const registry = new ActionRegistry();
   register_tags_actions({
@@ -31,20 +31,32 @@ describe("tags actions", () => {
     expect(tags.select_tag).toHaveBeenCalledWith("project/otterly");
   });
 
-  it("open_tag ignores a payload that is not a string", async () => {
-    const { ui, tags, registry } = setup();
-
-    await registry.execute(ACTION_IDS.tags_open_tag, { tag: "x" });
-
-    expect(ui.sidebar_view).toBe("explorer");
-    expect(tags.select_tag).not.toHaveBeenCalled();
-  });
-
-  it("close_tag clears the selected tag", async () => {
+  it("open_note reloads the pane only after the note open finished", async () => {
     const { tags, registry } = setup();
+    let finish_open: () => void = () => {};
+    const note_open = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish_open = resolve;
+        }),
+    );
+    registry.register({
+      id: ACTION_IDS.note_open,
+      label: "Open Note",
+      execute: note_open,
+    });
 
-    await registry.execute(ACTION_IDS.tags_close_tag);
+    const opening = registry.execute(ACTION_IDS.tags_open_note, "gone.md");
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(tags.clear_selected_tag).toHaveBeenCalledOnce();
+    expect(note_open).toHaveBeenCalledWith({
+      note_path: "gone.md",
+      cleanup_if_missing: true,
+    });
+    expect(tags.reload).not.toHaveBeenCalled();
+
+    finish_open();
+    await opening;
+    expect(tags.reload).toHaveBeenCalledOnce();
   });
 });

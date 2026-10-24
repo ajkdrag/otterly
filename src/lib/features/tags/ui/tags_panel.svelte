@@ -61,11 +61,7 @@
   }
 
   function open_note(path: string) {
-    // Rows come from the index, which can still list a note deleted elsewhere.
-    void action_registry.execute(ACTION_IDS.note_open, {
-      note_path: path,
-      cleanup_if_missing: true,
-    });
+    void action_registry.execute(ACTION_IDS.tags_open_note, path);
   }
 </script>
 
