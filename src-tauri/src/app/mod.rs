@@ -49,6 +49,7 @@ pub fn run() {
         .manage(features::watcher::service::WatcherState::default())
         .manage(features::document::service::DocumentState::default())
         .manage(features::search::service::SearchDbState::default())
+        .manage(features::theme::service::ThemeFileWatcherState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(log_builder.build())
@@ -133,6 +134,12 @@ pub fn run() {
             features::updater::service::is_portable_install,
             features::settings::service::get_setting,
             features::settings::service::set_setting,
+            features::theme::service::read_theme_file,
+            features::theme::service::create_theme_file,
+            features::theme::service::write_theme_schema,
+            features::theme::service::open_theme_file,
+            features::theme::service::reveal_theme_file,
+            features::theme::service::watch_theme_file,
             features::vault_session::service::load_latest_vault_session,
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,
