@@ -51,6 +51,27 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "settings",
   },
   {
+    id: "open_theme_file",
+    label: "Open Theme File",
+    description: "Edit the theme file in your default app",
+    keywords: ["theme", "file", "yaml", "json", "edit", "agent", "config"],
+    icon: "code",
+  },
+  {
+    id: "reveal_theme_file",
+    label: "Reveal Theme File",
+    description: "Show the theme file in the file manager",
+    keywords: ["theme", "file", "yaml", "reveal", "finder", "folder", "show"],
+    icon: "folder-open",
+  },
+  {
+    id: "copy_theme_file_path",
+    label: "Copy Theme File Path",
+    description: "Copy the theme file path to paste into an agent",
+    keywords: ["theme", "file", "path", "copy", "agent", "clipboard"],
+    icon: "link",
+  },
+  {
     id: "open_hotkeys",
     label: "Keyboard Shortcuts",
     description: "Configure keyboard shortcuts and hotkeys",
