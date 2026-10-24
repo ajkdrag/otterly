@@ -21,7 +21,8 @@ export type CommandId =
   | "git_create_checkpoint"
   | "git_init_repo"
   | "toggle_links_panel"
-  | "check_for_updates";
+  | "check_for_updates"
+  | "open_profiles";
 
 export type CommandIcon =
   | "file-plus"

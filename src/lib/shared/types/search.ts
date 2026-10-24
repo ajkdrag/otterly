@@ -25,7 +25,8 @@ export type SearchCommandDefinition = {
     | "git_create_checkpoint"
     | "git_init_repo"
     | "toggle_links_panel"
-    | "check_for_updates";
+    | "check_for_updates"
+    | "open_profiles";
   label: string;
   description: string;
   keywords: string[];

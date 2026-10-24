@@ -35,6 +35,7 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   git_init_repo: ACTION_IDS.git_init,
   toggle_links_panel: ACTION_IDS.ui_toggle_context_rail,
   check_for_updates: ACTION_IDS.app_check_for_updates,
+  open_profiles: ACTION_IDS.profile_open_dialog,
 };
 
 const COMMAND_ACTION_ARGUMENTS: Partial<Record<CommandId, unknown[]>> = {

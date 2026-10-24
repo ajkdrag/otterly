@@ -170,4 +170,18 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     keywords: ["update", "upgrade", "version", "release", "new version"],
     icon: "refresh-cw",
   },
+  {
+    id: "open_profiles",
+    label: "Profiles…",
+    description: "Open another profile in its own window, or create one",
+    keywords: [
+      "profile",
+      "profiles",
+      "instance",
+      "window",
+      "account",
+      "new window",
+    ],
+    icon: "folder-open",
+  },
 ];
