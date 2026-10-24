@@ -217,21 +217,21 @@ fn excerpt_around(plain: &[char], tag_start: usize) -> String {
 }
 
 // We do not pull in a YAML crate for one key. This reads a top level `tags:`
-// written as `[a, b]`, `a, b`, `a b`, or a block list of `- a` lines. Quotes
-// and a leading `#` are stripped.
+// written as `[a, b]` (also across lines), `a, b`, `a b`, or a block list of
+// `- a` lines. Quotes and a leading `#` are stripped.
 //
-// @Incomplete: `tag:` (singular), nested keys, and multi-line flow lists are
-// not handled.
+// @Incomplete: `tag:` (singular) and nested keys are not handled.
 fn frontmatter_tags(raw: &str) -> Vec<String> {
-    let mut values: Vec<&str> = Vec::new();
+    let mut values: Vec<String> = Vec::new();
     let mut in_block_list = false;
+    let mut lines = raw.lines();
 
-    for line in raw.lines() {
+    while let Some(line) = lines.next() {
         if in_block_list {
             let item = line.trim();
             // `- a`, but not the closing `---`.
             if let Some(value) = item.strip_prefix("- ") {
-                values.push(strip_yaml_comment(value));
+                values.push(strip_yaml_comment(value).to_string());
                 continue;
             }
             if item.is_empty() {
@@ -249,10 +249,15 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
         let rest = strip_yaml_comment(rest).trim();
         if rest.is_empty() {
             in_block_list = true;
-        } else if let Some(inner) = rest.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
-            values.extend(inner.split(','));
+        } else if let Some(after_bracket) = rest.strip_prefix('[') {
+            if let Some(inner) = read_flow_list(after_bracket, &mut lines) {
+                values.extend(inner.split(',').map(str::to_string));
+            }
         } else {
-            values.extend(rest.split(|ch: char| ch == ',' || ch.is_whitespace()));
+            values.extend(
+                rest.split(|ch: char| ch == ',' || ch.is_whitespace())
+                    .map(str::to_string),
+            );
         }
     }
 
@@ -264,6 +269,25 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
             validate_tag_body(value.strip_prefix('#').unwrap_or(value))
         })
         .collect()
+}
+
+// Returns the text between `[` and `]`, pulling in the following lines while
+// the list is still open. Lines are joined with a space, so an item broken
+// over two lines becomes one invalid value instead of two tags. If the
+// frontmatter ends first, the YAML is broken and we return None: no tags is
+// better than a guess.
+fn read_flow_list(after_bracket: &str, next_lines: &mut std::str::Lines) -> Option<String> {
+    let mut flow = String::new();
+    let mut piece = after_bracket;
+    loop {
+        if let Some(end) = piece.find(']') {
+            flow.push_str(&piece[..end]);
+            return Some(flow);
+        }
+        flow.push_str(piece);
+        flow.push(' ');
+        piece = strip_yaml_comment(next_lines.next()?);
+    }
 }
 
 // YAML starts a comment at a `#` that follows whitespace, so `a # note` loses
@@ -392,6 +416,13 @@ mod tests {
             tags("---\ntags: # why\n  - a # first\n  - \"#b\"\n---\n"),
             vec!["a", "b"]
         );
+        assert_eq!(tags("---\ntags: [a, b\n  , c]\n---\n"), vec!["a", "b", "c"]);
+        assert_eq!(
+            tags("---\ntags: [a, # why\n  b,\n  c] # end\n---\n"),
+            vec!["a", "b", "c"]
+        );
+        assert_eq!(tags("---\ntags: [ok, ab\n  cd]\n---\n"), vec!["ok"]);
+        assert_eq!(tags("---\ntags: [a, b\ntitle: x\n---\n"), none());
         assert_eq!(tags("---\ntag: a\nmeta:\n  tags: [b]\n---\n"), none());
         assert_eq!(
             tags("---\r\ntags:\r\n  - a\r\n  - b\r\n---\r\n#c\r\n"),
