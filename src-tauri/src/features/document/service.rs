@@ -1,4 +1,6 @@
 use crate::features::notes::service::{atomic_write, file_meta, read_text_file, safe_vault_abs};
+#[cfg(target_os = "macos")]
+use crate::features::profile::service::{webview_data_store_id, ProfileState};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -104,11 +106,18 @@ fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
     let state = app.state::<DocumentState>();
     // Register before building, so the page's first read finds its file.
     lock(&state).insert(label.clone(), path.clone());
-    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
+    let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
         .title(file_name(&path))
         .inner_size(960.0, 820.0)
-        .disable_drag_drop_handler()
-        .build();
+        .disable_drag_drop_handler();
+    // Same webview store as the profile's main window, so the theme cache
+    // matches. See webview_data_store_id.
+    #[cfg(target_os = "macos")]
+    let builder = match webview_data_store_id(&app.state::<ProfileState>()) {
+        Some(store_id) => builder.data_store_identifier(store_id),
+        None => builder,
+    };
+    let built = builder.build();
     if let Err(error) = built {
         lock(&state).remove(&label);
         return Err(error.to_string());
