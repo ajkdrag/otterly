@@ -155,6 +155,9 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
     found
 }
 
+// @Incomplete: Text is not Unicode-normalized. A decomposed accent (`e` plus
+// U+0301) is a combining mark, not alphanumeric, so it ends the tag early, and
+// `café` typed both ways would be two different tags.
 fn is_tag_char(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_' || ch == '-' || ch == '/'
 }
@@ -312,6 +315,7 @@ mod tests {
         assert_eq!(tags("#a/b and #a/b/"), vec!["a/b"]);
         assert_eq!(tags("x #/a #a//b # #"), none());
         assert_eq!(tags("#日本語 #café"), vec!["日本語", "café"]);
+        assert_eq!(tags("#party🎉 #ok"), vec!["party", "ok"]);
         assert_eq!(tags("#done. #x, #a,b"), vec!["done", "x", "a"]);
     }
 
