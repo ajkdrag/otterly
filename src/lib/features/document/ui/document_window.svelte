@@ -7,6 +7,7 @@
   import { ACTION_IDS } from "$lib/app";
   import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
   import { FindInFileBar } from "$lib/features/search";
+  import { VimModeBadge } from "$lib/features/vim";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
   import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
@@ -149,6 +150,9 @@
         <span class:DocumentWindow__unsaved={document.is_dirty}
           >{saved_label}</span
         >
+      {/if}
+      {#if document.vim_mode}
+        <VimModeBadge mode={document.vim_mode} />
       {/if}
       {#if document.load_state === "ready" && document.view_mode !== "text"}
         <button

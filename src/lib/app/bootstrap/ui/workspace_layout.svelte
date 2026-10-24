@@ -790,6 +790,7 @@
       {line_count}
       has_note={!!stores.editor.open_note}
       view_mode={stores.editor.view_mode}
+      vim_mode={stores.editor.vim_mode}
       is_dirty={stores.tab.is_open_note_dirty(stores.editor.open_note)}
       last_saved_at={stores.editor.last_saved_at}
       index_progress={stores.search.index_progress}
