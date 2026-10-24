@@ -99,6 +99,7 @@ describe("register_profile_actions", () => {
     port._request_dialog();
 
     await registry.execute(ACTION_IDS.profile_check_dialog_request);
+    expect(stores.ui.profile_dialog.open).toBe(true);
     await registry.execute(ACTION_IDS.profile_close_dialog);
     await registry.execute(ACTION_IDS.profile_check_dialog_request);
 

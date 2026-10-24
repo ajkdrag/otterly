@@ -183,7 +183,7 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
     toast.success("Otterly is up to date");
     return;
   }
-  show_update_ready_prompt(input, result.version);
+  await show_update_ready_prompt(input, result.version);
 }
 
 // "Later" stops these prompts for the session. The manual check still shows
@@ -200,10 +200,10 @@ async function execute_app_check_for_updates_in_background(
   if (result.status !== "ready" || input.stores.ui.update_prompt_dismissed) {
     return;
   }
-  show_update_ready_prompt(input, result.version);
+  await show_update_ready_prompt(input, result.version);
 }
 
-function show_update_ready_prompt(
+async function show_update_ready_prompt(
   input: ActionRegistrationInput,
   version: string,
 ) {
@@ -212,12 +212,16 @@ function show_update_ready_prompt(
   };
   // The Windows installer has to replace otterly.exe, so it force-closes every
   // running profile without letting them save. macOS and Linux keep the others
-  // running on the old version.
-  const closes_all_profiles = globalThis.navigator?.platform?.startsWith("Win");
+  // running on the old version. Say so only when there is another profile.
+  let closes_other_profiles = false;
+  if (globalThis.navigator?.platform?.startsWith("Win")) {
+    await input.services.profile.load_profiles();
+    closes_other_profiles = input.stores.profile.profile_ids.length > 1;
+  }
   // A fixed id replaces an open prompt instead of stacking another one.
   toast.info(`Otterly v${version} is ready`, {
     id: UPDATE_READY_TOAST_ID,
-    description: closes_all_profiles
+    description: closes_other_profiles
       ? "Restart to finish updating. Installing closes all open Otterly windows, including other profiles."
       : "Restart to finish updating.",
     duration: Number.POSITIVE_INFINITY,

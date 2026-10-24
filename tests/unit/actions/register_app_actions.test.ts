@@ -154,6 +154,7 @@ function create_harness(options: HarnessOptions = {}) {
     },
     profile: {
       load_current_profile: vi.fn().mockResolvedValue(undefined),
+      load_profiles: vi.fn().mockResolvedValue(undefined),
     },
     tab: {
       mark_conflict: vi.fn(),
@@ -421,18 +422,42 @@ describe("register_app_actions", () => {
   });
 
   it("warns on Windows that installing closes every profile", async () => {
-    const { registry, services } = create_harness();
+    const { registry, stores, services } = create_harness();
     get_test_window().__TAURI__ = {};
     vi.stubGlobal("navigator", { platform: "Win32" });
     services.updater.download_update.mockResolvedValue({
       status: "ready",
       version: "0.5.0",
     });
+    services.profile.load_profiles.mockImplementation(() => {
+      stores.profile.set_profile_ids(["default", "work"]);
+      return Promise.resolve();
+    });
 
     await registry.execute(ACTION_IDS.app_check_for_updates);
 
     expect(update_prompt_options().description).toContain(
       "including other profiles",
+    );
+  });
+
+  it("does not mention other profiles on Windows when there are none", async () => {
+    const { registry, stores, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    vi.stubGlobal("navigator", { platform: "Win32" });
+    services.updater.download_update.mockResolvedValue({
+      status: "ready",
+      version: "0.5.0",
+    });
+    services.profile.load_profiles.mockImplementation(() => {
+      stores.profile.set_profile_ids(["default"]);
+      return Promise.resolve();
+    });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(update_prompt_options().description).toBe(
+      "Restart to finish updating.",
     );
   });
 
