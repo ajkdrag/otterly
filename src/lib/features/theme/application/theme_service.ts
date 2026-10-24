@@ -46,10 +46,13 @@ export class ThemeService {
     private readonly now_ms: () => number,
   ) {}
 
+  // Also writes theme.schema.json. It only changes with the app, so startup
+  // is enough, and reloads of the theme file skip it.
   async load_themes(): Promise<ThemeLoadResult> {
     const [stored, theme_file] = await Promise.all([
       this.load_stored_themes(),
       this.load_theme_file(),
+      this.write_theme_schema(),
     ]);
     return { ...stored, theme_file };
   }
@@ -58,7 +61,6 @@ export class ThemeService {
   // the caller knows the last valid file theme worth keeping.
   async load_theme_file(): Promise<ThemeFileState> {
     this.op_store.start("theme.file_load", this.now_ms());
-    await this.write_theme_schema();
 
     let snapshot: ThemeFileSnapshot;
     try {

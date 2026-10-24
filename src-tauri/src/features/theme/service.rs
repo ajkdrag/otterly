@@ -75,8 +75,8 @@ pub fn create_theme_file(app: AppHandle, text: String) -> Result<String, String>
     Ok(display_path(&path))
 }
 
-// Every theme load calls this. Skipping identical bytes keeps the mtime, so
-// editors that watch the schema do not reload it for nothing.
+// Every window calls this on startup. Skipping identical bytes keeps the
+// mtime, so editors that watch the schema do not reload it for nothing.
 #[tauri::command]
 pub fn write_theme_schema(app: AppHandle, text: String) -> Result<(), String> {
     let path = theme_file_dir(&app)?.join(SCHEMA_FILE_NAME);

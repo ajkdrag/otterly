@@ -235,8 +235,7 @@ export function register_theme_actions(input: ThemeActionInput): void {
       }
       // The watcher reloads it too. Loading here shows it without waiting.
       await registry.execute(ACTION_IDS.theme_reload_file);
-      const opened = await services.theme.open_theme_file();
-      if (!opened) toast.error("Could not open the theme file");
+      await registry.execute(ACTION_IDS.theme_open_file);
     },
   });
 

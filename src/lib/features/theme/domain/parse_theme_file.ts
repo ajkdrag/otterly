@@ -68,15 +68,8 @@ export function parse_theme_file(
     return invalid(doc.errors.map((error) => syntax_error(error, line_at)));
   }
 
-  // An empty file (or only comments) is the default theme.
   const contents = doc.contents;
-  if (contents === null) {
-    return {
-      status: "valid",
-      theme: build_file_theme(BUILTIN_MOCHA, DEFAULT_FILE_THEME_NAME, {}, {}),
-    };
-  }
-  if (!isMap(contents)) {
+  if (contents !== null && !isMap(contents)) {
     return invalid([
       {
         line: line_at(contents.range[0]),
@@ -93,7 +86,9 @@ export function parse_theme_file(
   let name = DEFAULT_FILE_THEME_NAME;
   let tokens: Record<string, string> = {};
 
-  for (const entry of read_entries(contents, doc, line_at)) {
+  // An empty file (or only comments) has no entries: the default theme.
+  const entries = contents ? read_entries(contents, doc, line_at) : [];
+  for (const entry of entries) {
     const { key, value } = entry;
     const report = (expected: string) => {
       errors.push({
