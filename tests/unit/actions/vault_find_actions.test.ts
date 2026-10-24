@@ -84,6 +84,7 @@ function create_harness(files: VaultFindFile[]) {
       close_buffer: vi.fn(),
       select_line_range: vi.fn(),
     },
+    tab: { mark_conflict: vi.fn() },
     note: { open_note: vi.fn().mockResolvedValue({ status: "opened" }) },
     git: {
       create_checkpoint: vi.fn().mockResolvedValue({ status: "created" }),
@@ -225,5 +226,82 @@ describe("register_vault_find_actions", () => {
       { path: "a.md", content_hash: "hash:a.md", match_indexes: [0, 2] },
     ]);
     expect(request?.replacement).toBe("bar");
+  });
+
+  it("flags a conflict instead of reloading an active note you typed in during the write", async () => {
+    const { registry, stores, services } = create_harness([
+      file("active.md"),
+      file("other.md"),
+    ]);
+    open_note(stores, "active.md");
+    // Clean when the replace started, dirty by the time the write is done.
+    services.editor.is_dirty.mockReturnValueOnce(false).mockReturnValue(true);
+
+    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+
+    expect(services.tab.mark_conflict).toHaveBeenCalledWith("active.md");
+    expect(services.note.open_note).not.toHaveBeenCalled();
+    expect(services.editor.close_buffer).toHaveBeenCalledWith("other.md");
+  });
+
+  it("keeps the confirm dialog open until the write is done and ignores a second confirm", async () => {
+    const { registry, stores, services } = create_harness([file("a.md")]);
+    await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+    let finish_replace: () => void = () => {};
+    services.vault_find.replace.mockImplementationOnce(
+      (request: VaultReplaceRequest) =>
+        new Promise((resolve) => {
+          finish_replace = () => {
+            resolve({
+              status: "replaced" as const,
+              response: {
+                replaced: request.files.map((target) => ({
+                  path: target.path,
+                  count: 1,
+                  remaining: null,
+                })),
+                skipped: [],
+              },
+            });
+          };
+        }),
+    );
+
+    const first = registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await vi.waitFor(() => {
+      expect(services.vault_find.replace).toHaveBeenCalledOnce();
+    });
+    expect(stores.ui.vault_replace_dialog).toMatchObject({
+      open: true,
+      is_replacing: true,
+    });
+
+    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+    await registry.execute(ACTION_IDS.vault_find_cancel_replace_all);
+    await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+    expect(services.vault_find.replace).toHaveBeenCalledOnce();
+    expect(stores.ui.vault_replace_dialog.is_replacing).toBe(true);
+
+    finish_replace();
+    await first;
+    expect(stores.ui.vault_replace_dialog).toMatchObject({
+      open: false,
+      is_replacing: false,
+    });
+  });
+
+  it("closes the dialog when the checkpoint fails", async () => {
+    const { registry, stores, services } = create_harness([file("a.md")]);
+    stores.git.set_enabled(true);
+    services.git.create_checkpoint.mockResolvedValue({
+      status: "failed",
+      error: "index locked",
+    });
+    await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+
+    await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
+
+    expect(stores.ui.vault_replace_dialog.open).toBe(false);
+    expect(stores.ui.vault_replace_dialog.is_replacing).toBe(false);
   });
 });

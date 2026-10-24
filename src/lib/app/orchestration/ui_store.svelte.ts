@@ -118,6 +118,8 @@ const INITIAL_VAULT_REPLACE_DIALOG = {
   file_count: 0,
   // Files with unsaved edits. Replace All leaves them alone.
   unsaved_paths: [] as string[],
+  // The dialog stays open while the checkpoint and the writes run.
+  is_replacing: false,
 };
 
 const INITIAL_IMAGE_PASTE_DIALOG = {

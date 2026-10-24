@@ -228,6 +228,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     label: "Replace All in Vault",
     execute: () => {
       if (!results.can_replace_all) return;
+      if (stores.ui.vault_replace_dialog.is_replacing) return;
       const unsaved = unsaved_paths();
       stores.ui.vault_replace_dialog = {
         open: true,
@@ -236,6 +237,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
         unsaved_paths: results.files
           .map((file) => file.path)
           .filter((path) => unsaved.has(path.toLowerCase())),
+        is_replacing: false,
       };
     },
   });
@@ -244,6 +246,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.vault_find_cancel_replace_all,
     label: "Cancel Replace All in Vault",
     execute: () => {
+      if (stores.ui.vault_replace_dialog.is_replacing) return;
       stores.ui.vault_replace_dialog = {
         ...stores.ui.vault_replace_dialog,
         open: false,
@@ -251,37 +254,49 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     },
   });
 
+  // The dialog stays open until the checkpoint and the writes are done, so a
+  // second click cannot start another run and big vaults show progress.
   registry.register({
     id: ACTION_IDS.vault_find_confirm_replace_all,
     label: "Confirm Replace All in Vault",
     execute: async () => {
+      if (stores.ui.vault_replace_dialog.is_replacing) return;
       stores.ui.vault_replace_dialog = {
         ...stores.ui.vault_replace_dialog,
-        open: false,
+        is_replacing: true,
       };
-      const request = results.request;
-      if (!request || !results.can_replace_all) return;
-
-      // The checkpoint is the undo for Replace All. No checkpoint, no write.
-      if (stores.git.enabled) {
-        const checkpoint = await services.git.create_checkpoint(
-          `replace "${request.text}"`,
-        );
-        if (
-          checkpoint.status !== "created" &&
-          checkpoint.status !== "skipped"
-        ) {
-          const reason =
-            checkpoint.status === "failed" ? checkpoint.error : "no repository";
-          toast.error(`Nothing replaced: git checkpoint failed (${reason})`);
-          return;
-        }
+      try {
+        await checkpoint_and_replace_all();
+      } finally {
+        stores.ui.vault_replace_dialog = {
+          ...stores.ui.vault_replace_dialog,
+          open: false,
+          is_replacing: false,
+        };
       }
-
-      await run_replace(
-        results.files.map((file) => replace_target(file)),
-        "all",
-      );
     },
   });
+
+  async function checkpoint_and_replace_all() {
+    const request = results.request;
+    if (!request || !results.can_replace_all) return;
+
+    // The checkpoint is the undo for Replace All. No checkpoint, no write.
+    if (stores.git.enabled) {
+      const checkpoint = await services.git.create_checkpoint(
+        `replace "${request.text}"`,
+      );
+      if (checkpoint.status !== "created" && checkpoint.status !== "skipped") {
+        const reason =
+          checkpoint.status === "failed" ? checkpoint.error : "no repository";
+        toast.error(`Nothing replaced: git checkpoint failed (${reason})`);
+        return;
+      }
+    }
+
+    await run_replace(
+      results.files.map((file) => replace_target(file)),
+      "all",
+    );
+  }
 }

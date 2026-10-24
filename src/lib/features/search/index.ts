@@ -23,6 +23,7 @@ export { create_workspace_index_tauri_adapter } from "$lib/features/search/adapt
 export { default as Omnibar } from "$lib/features/search/ui/omnibar.svelte";
 export { default as FindInFileBar } from "$lib/features/search/ui/find_in_file_bar.svelte";
 export { default as VaultFindPanel } from "$lib/features/search/ui/vault_find_panel.svelte";
+export { default as VaultReplaceDialog } from "$lib/features/search/ui/vault_replace_dialog.svelte";
 export type {
   SearchNotesResult,
   WikiSuggestionsResult,
