@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, State};
@@ -118,21 +119,31 @@ pub fn webview_data_store_id(state: &ProfileState) -> Option<[u8; 16]> {
     Some(store_id)
 }
 
-// "default" first, then every <base>.profile-<id> folder in the config dir,
-// sorted. A profile exists when its folder does. There is no list to keep in
-// sync.
 pub fn list_profile_ids(app: &AppHandle) -> Result<Vec<String>, String> {
     let state = app.state::<ProfileState>();
     let config_dir = app.path().config_dir().map_err(|e| e.to_string())?;
+    profile_ids_in_config_dir(&config_dir, &state.base_identifier, &state.id)
+}
+
+// "default" first, then every <base>.profile-<id> folder in the config dir,
+// sorted. A profile exists when its folder does. There is no list to keep in
+// sync. Files and folders with an invalid id are skipped. The running profile
+// is always listed, because its folder only appears on its first write, and
+// someone can delete it by hand.
+pub fn profile_ids_in_config_dir(
+    config_dir: &Path,
+    base_identifier: &str,
+    current_id: &str,
+) -> Result<Vec<String>, String> {
     let mut profile_ids = Vec::new();
-    match std::fs::read_dir(&config_dir) {
+    match std::fs::read_dir(config_dir) {
         Ok(entries) => {
             for entry in entries.flatten() {
                 if !entry.path().is_dir() {
                     continue;
                 }
                 let dir_name = entry.file_name().to_string_lossy().to_string();
-                if let Some(id) = profile_id_from_dir_name(&state.base_identifier, &dir_name) {
+                if let Some(id) = profile_id_from_dir_name(base_identifier, &dir_name) {
                     profile_ids.push(id);
                 }
             }
@@ -140,7 +151,11 @@ pub fn list_profile_ids(app: &AppHandle) -> Result<Vec<String>, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error.to_string()),
     }
+    if current_id != DEFAULT_PROFILE_ID {
+        profile_ids.push(current_id.to_string());
+    }
     profile_ids.sort();
+    profile_ids.dedup();
     profile_ids.insert(0, DEFAULT_PROFILE_ID.to_string());
     Ok(profile_ids)
 }
@@ -166,7 +181,14 @@ pub fn launch_profile(app: &AppHandle, profile_id: &str) -> Result<(), String> {
     // Spawning our own executable works the same for the bundle, the Windows
     // and Linux installs, and `tauri dev`. The flag always goes along, even for
     // the default profile, so our own OTTERLY_PROFILE cannot leak into it.
-    let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    //
+    // current_binary gives the .AppImage file when we run from one, because
+    // the executable inside an AppImage sits on a temporary mount. It refuses
+    // a path with symlinks on macOS, where current_exe is fine, hence the
+    // fallback.
+    let exe_path = tauri::process::current_binary(&app.env())
+        .or_else(|_| std::env::current_exe())
+        .map_err(|e| e.to_string())?;
     let mut child = Command::new(exe_path)
         .arg(format!("{PROFILE_ARG_PREFIX}{profile_id}"))
         .env_remove(PROFILE_ENV_VAR)

@@ -1,6 +1,6 @@
 use crate::features::profile::service::{
     is_valid_profile_id, profile_from_launch, profile_id_from_dir_name, profile_identifier,
-    session_file_name,
+    profile_ids_in_config_dir, session_file_name,
 };
 
 const BASE: &str = "com.otterly.app";
@@ -141,4 +141,49 @@ fn other_folders_are_not_profiles() {
 fn default_profile_keeps_the_existing_session_file() {
     assert_eq!(session_file_name("default"), "latest.json");
     assert_eq!(session_file_name("work"), "latest-work.json");
+}
+
+#[test]
+fn lists_default_first_then_profile_folders_sorted() {
+    let config_dir = tempfile::tempdir().unwrap();
+    for name in [
+        "com.otterly.app",
+        "com.otterly.app.profile-work",
+        "com.otterly.app.profile-home",
+        // Not profiles: a bad id, an empty id, another app, and a stray file.
+        "com.otterly.app.profile-Bad_Name",
+        "com.otterly.app.profile-",
+        "com.other.app.profile-other",
+    ] {
+        std::fs::create_dir(config_dir.path().join(name)).unwrap();
+    }
+    std::fs::write(config_dir.path().join("com.otterly.app.profile-file"), "x").unwrap();
+
+    let ids = profile_ids_in_config_dir(config_dir.path(), BASE, "default").unwrap();
+
+    assert_eq!(ids, ["default", "home", "work"]);
+}
+
+#[test]
+fn listing_without_a_config_dir_has_only_default() {
+    let config_dir = tempfile::tempdir().unwrap();
+    let missing = config_dir.path().join("not-created");
+
+    let ids = profile_ids_in_config_dir(&missing, BASE, "default").unwrap();
+
+    assert_eq!(ids, ["default"]);
+}
+
+#[test]
+fn listing_includes_the_running_profile_once() {
+    let config_dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(config_dir.path().join("com.otterly.app.profile-home")).unwrap();
+
+    // Its folder is missing: nothing was written yet, or someone deleted it.
+    let without_folder = profile_ids_in_config_dir(config_dir.path(), BASE, "work").unwrap();
+    std::fs::create_dir(config_dir.path().join("com.otterly.app.profile-work")).unwrap();
+    let with_folder = profile_ids_in_config_dir(config_dir.path(), BASE, "work").unwrap();
+
+    assert_eq!(without_folder, ["default", "home", "work"]);
+    assert_eq!(with_folder, ["default", "home", "work"]);
 }

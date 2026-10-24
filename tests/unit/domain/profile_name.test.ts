@@ -22,7 +22,16 @@ describe("normalize_profile_name", () => {
   });
 
   it("rejects names the backend would reject", () => {
-    for (const input of ["", "   ", "-work", "_work", "wörk", "a/b", "a.b"]) {
+    for (const input of [
+      "",
+      "   ",
+      "-work",
+      "_work",
+      "wörk",
+      "日本語",
+      "a/b",
+      "a.b",
+    ]) {
       expect(normalize_profile_name(input), input).toHaveProperty("error");
     }
   });
