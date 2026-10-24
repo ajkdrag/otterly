@@ -24,8 +24,9 @@
   }: Props = $props();
 
   const error_count = $derived(theme_file.errors.length);
-  // The path is null when the backend could not pick a file at all (both
-  // theme.yaml and theme.json exist, say), so there is nothing to open.
+  // The path is null when the backend could not read the file (too big, not
+  // text, or both theme.yaml and theme.json exist). Open and Reveal stay on,
+  // because the backend finds the file itself.
   const has_path = $derived(theme_file.path !== null);
 </script>
 
@@ -82,15 +83,8 @@
     {#if theme_file.status === "missing"}
       <Button size="sm" onclick={on_create}>Create from current theme</Button>
     {:else}
-      <Button size="sm" variant="outline" onclick={on_open} disabled={!has_path}
-        >Open</Button
-      >
-      <Button
-        size="sm"
-        variant="outline"
-        onclick={on_reveal}
-        disabled={!has_path}>Reveal</Button
-      >
+      <Button size="sm" variant="outline" onclick={on_open}>Open</Button>
+      <Button size="sm" variant="outline" onclick={on_reveal}>Reveal</Button>
     {/if}
     <Button
       size="sm"

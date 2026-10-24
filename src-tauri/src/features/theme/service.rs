@@ -172,16 +172,21 @@ fn read_capped_text(path: &Path) -> Result<Option<String>, String> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     };
+    // The error carries the file name because the caller gets no path back.
+    let name = path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("The theme file");
     let size = file.metadata().map_err(|e| e.to_string())?.len();
     if size > MAX_THEME_FILE_BYTES {
         return Err(format!(
-            "The theme file is {} KB. The limit is 256 KB.",
+            "{name} is {} KB. The limit is 256 KB.",
             size / 1024
         ));
     }
     let mut text = String::new();
     file.read_to_string(&mut text)
-        .map_err(|_| "The theme file is not UTF-8 text".to_string())?;
+        .map_err(|_| format!("{name} is not UTF-8 text"))?;
     Ok(Some(text))
 }
 

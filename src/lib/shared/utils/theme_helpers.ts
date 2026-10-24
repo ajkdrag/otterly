@@ -23,6 +23,14 @@ export function format_hsl(hsl: HSL): string {
   return `hsl(${String(hsl.h)}, ${String(hsl.s)}%, ${String(hsl.l)}%)`;
 }
 
+// A theme file can name its theme anything. Cutting by code point keeps an
+// emoji or a CJK character from being split in half.
+export function shorten_theme_name(name: string, max_chars = 32): string {
+  const chars = Array.from(name);
+  if (chars.length <= max_chars) return name;
+  return `${chars.slice(0, max_chars - 1).join("")}…`;
+}
+
 export function resolve_font_stack(
   family: string,
   type: "sans" | "mono",

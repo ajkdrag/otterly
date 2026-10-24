@@ -3,7 +3,10 @@ import {
   STYLE_DESCRIPTORS,
   type ThemeStyleDescriptor,
 } from "$lib/features/theme/domain/theme_style_descriptors";
-import { TOKEN_NAME_PATTERN } from "$lib/features/theme/domain/parse_theme_file";
+import {
+  FONT_FAMILY_PATTERN,
+  TOKEN_NAME_PATTERN,
+} from "$lib/features/theme/domain/parse_theme_file";
 
 // theme.schema.json, written next to the theme file so editors and agents can
 // check a file before saving it. It covers everything parse_theme_file checks
@@ -79,10 +82,10 @@ function descriptor_schema(desc: ThemeStyleDescriptor): JsonSchema {
     case "font_select":
       return {
         type: "string",
-        minLength: 1,
+        pattern: FONT_FAMILY_PATTERN.source,
         description: sentences(
           desc.description,
-          "Any installed font family name",
+          "One installed font family name, like Inter. Not a CSS font stack",
         ),
       };
     case "color":

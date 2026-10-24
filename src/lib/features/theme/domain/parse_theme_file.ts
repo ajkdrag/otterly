@@ -39,6 +39,9 @@ export type ThemeFileParseResult =
 
 const MAX_ERRORS = 20;
 export const TOKEN_NAME_PATTERN = /^--[a-zA-Z0-9-]+$/;
+// One family name. apply_theme wraps it in quotes, so a CSS stack like
+// "Inter, sans-serif" would silently match no font at all.
+export const FONT_FAMILY_PATTERN = /^[^",;\\\n\r]+$/;
 const DEFAULT_FILE_THEME_NAME = "Theme file";
 
 const DESCRIPTOR_BY_KEY = new Map<string, ThemeStyleDescriptor>(
@@ -201,8 +204,10 @@ function check_field_value(
       return `must be one of ${options.join(", ")}`;
     }
     case "font_select":
-      if (typeof value === "string" && value.trim() !== "") return null;
-      return "must be a font family name";
+      if (typeof value === "string" && FONT_FAMILY_PATTERN.test(value)) {
+        return null;
+      }
+      return "must be one font family name, like Inter (no commas or quotes)";
     case "color":
       // null clears a color the base theme sets.
       if (value === null) return null;

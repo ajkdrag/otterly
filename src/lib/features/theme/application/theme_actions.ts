@@ -270,7 +270,10 @@ export function register_theme_actions(input: ThemeActionInput): void {
     label: "Copy Theme File Path",
     execute: async () => {
       const path = stores.ui.theme_file.path;
-      if (!path) return;
+      if (!path) {
+        toast.error("The theme file path is not known yet");
+        return;
+      }
       try {
         await services.clipboard.copy_text(path);
         toast.success("Theme file path copied");

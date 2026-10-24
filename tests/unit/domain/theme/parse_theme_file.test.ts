@@ -200,6 +200,22 @@ describe("parse_theme_file", () => {
     ]);
   });
 
+  it("accepts unicode in the name and font families", () => {
+    const theme = parse_valid(
+      "name: Café ☕ テーマ\nfont_family_sans: Noto Sans JP\nfont_family_mono: 'M+ 1m'\n",
+    );
+
+    expect(theme.name).toBe("Café ☕ テーマ");
+    expect(theme.font_family_sans).toBe("Noto Sans JP");
+  });
+
+  it("rejects a CSS font stack where one family name goes", () => {
+    const errors = parse_errors("font_family_sans: Inter, sans-serif\n");
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ line: 1, key: "font_family_sans" });
+  });
+
   it("rejects a top level that is a single value", () => {
     expect(parse_errors("dark\n")[0]?.message).toContain("must be a mapping");
   });

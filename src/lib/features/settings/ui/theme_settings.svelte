@@ -18,6 +18,7 @@
   import {
     parse_hsl,
     format_hsl,
+    shorten_theme_name,
     SANS_FONT_OPTIONS,
     MONO_FONT_OPTIONS,
     COLOR_PRESETS,
@@ -403,11 +404,15 @@
         class="ThemeSettings__theme-select"
         aria-label="Active theme"
       >
-        <span data-slot="select-value">{active_theme.name}</span>
+        <span data-slot="select-value"
+          >{shorten_theme_name(active_theme.name)}</span
+        >
       </Select.Trigger>
       <Select.Content>
         {#each all_themes as theme (theme.id)}
-          <Select.Item value={theme.id}>{theme.name}</Select.Item>
+          <Select.Item value={theme.id}
+            >{shorten_theme_name(theme.name)}</Select.Item
+          >
         {/each}
       </Select.Content>
     </Select.Root>
