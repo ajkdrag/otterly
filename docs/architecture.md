@@ -76,6 +76,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `hotkey`    | Custom hotkey editing and persistence                         |
 | `theme`     | Theme CRUD, switching, custom theme editing                   |
 | `links`     | Backlinks, local links, link repair on rename                 |
+| `tags`      | Tag pane, tag drill-down, current note tags                   |
 | `clipboard` | Copy markdown to clipboard                                    |
 | `shell`     | Open external URLs                                            |
 | `watcher`   | Filesystem watcher start/stop                                 |
@@ -341,6 +342,8 @@ The backend is a Tauri native process. Its sole job is exposing native capabilit
 | `app/`      | Composition root: registers plugins, managed state, and all command handlers |
 | `features/` | One sub-module per capability. Each owns command handlers and managed state  |
 | `shared/`   | Vault registry persistence, constants, asset request handler                 |
+
+The search db also holds `note_tags`. Tags are parsed during indexing (`search/tag_parser.rs`), so counts are as fresh as backlinks.
 
 Stateful services (watcher, search index) use Tauri's `.manage()` system. State structs live in each feature's `service.rs` and are registered in `app/mod.rs`. Commands receive state via Tauri DI: `fn watch_vault(state: tauri::State<'_, WatcherState>, ...)`.
 

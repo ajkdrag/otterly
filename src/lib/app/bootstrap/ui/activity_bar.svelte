@@ -4,6 +4,7 @@
     LayoutDashboard,
     Settings,
     Star,
+    Tags,
     CircleHelp,
     Search,
   } from "@lucide/svelte";
@@ -16,6 +17,7 @@
     on_open_explorer: () => void;
     on_open_dashboard: () => void;
     on_open_starred: () => void;
+    on_open_tags: () => void;
     on_open_commands: () => void;
     on_open_help: () => void;
     on_open_settings: () => void;
@@ -27,6 +29,7 @@
     on_open_explorer,
     on_open_dashboard,
     on_open_starred,
+    on_open_tags,
     on_open_commands,
     on_open_help,
     on_open_settings,
@@ -82,6 +85,18 @@
       title="Starred"
     >
       <Star class="ActivityBar__icon" />
+    </button>
+
+    <button
+      type="button"
+      class="ActivityBar__button"
+      class:ActivityBar__button--active={sidebar_open && active_view === "tags"}
+      onclick={on_open_tags}
+      aria-pressed={sidebar_open && active_view === "tags"}
+      aria-label="Tags"
+      title="Tags"
+    >
+      <Tags class="ActivityBar__icon" />
     </button>
   </div>
 
