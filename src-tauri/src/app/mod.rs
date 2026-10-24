@@ -6,7 +6,7 @@ use crate::features::profile::service::{
     profile_from_launch, profile_identifier, ProfileState, PROFILE_ENV_VAR,
 };
 #[cfg(target_os = "macos")]
-use crate::features::profile::service::{request_profile_dialog, webview_data_store_id};
+use crate::features::profile::service::{request_profile_dialog, with_profile_data_store};
 use crate::shared;
 use std::path::Path;
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
@@ -59,9 +59,11 @@ pub fn run() {
     }
 
     let builder = tauri::Builder::default();
-    // A second launch (double clicking a file on Windows or Linux) hands its
-    // arguments to this process and exits. It has to be the first plugin.
-    // macOS keeps one instance itself and sends RunEvent::Opened instead.
+    // Each profile has its own identifier, so this lock is per profile. A
+    // second launch of the same profile (a file double click on Windows and
+    // Linux, or open_profile spawning us on any platform) hands its args to the
+    // running process and exits. LaunchServices dedupes Finder launches on
+    // macOS, but not a direct exec. It has to be the first plugin.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
         open_files_or_main_window(app, files_from_args(&args, Path::new(&cwd)));
@@ -241,10 +243,7 @@ fn show_main_window(app: &AppHandle) {
     };
     let built = WebviewWindowBuilder::from_config(app, config).and_then(|builder| {
         #[cfg(target_os = "macos")]
-        let builder = match webview_data_store_id(&app.state::<ProfileState>()) {
-            Some(store_id) => builder.data_store_identifier(store_id),
-            None => builder,
-        };
+        let builder = with_profile_data_store(builder, app);
         builder.build()
     });
     if let Err(error) = built {

@@ -108,7 +108,7 @@ pub fn session_file_name(profile_id: &str) -> String {
 // share one localStorage. A data store id gives a profile its own. wry ignores
 // it below macOS 14, where profiles share the store and the theme cache.
 #[cfg(target_os = "macos")]
-pub fn webview_data_store_id(state: &ProfileState) -> Option<[u8; 16]> {
+fn webview_data_store_id(state: &ProfileState) -> Option<[u8; 16]> {
     if state.id == DEFAULT_PROFILE_ID {
         return None;
     }
@@ -117,6 +117,19 @@ pub fn webview_data_store_id(state: &ProfileState) -> Option<[u8; 16]> {
     let mut store_id = [0u8; 16];
     store_id.copy_from_slice(&hash.as_bytes()[..16]);
     Some(store_id)
+}
+
+// Every window we build (main and documents) goes through this, so a profile
+// has one webview store. The default profile keeps the shared one.
+#[cfg(target_os = "macos")]
+pub fn with_profile_data_store<'a>(
+    builder: tauri::WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+    app: &AppHandle,
+) -> tauri::WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    match webview_data_store_id(&app.state::<ProfileState>()) {
+        Some(store_id) => builder.data_store_identifier(store_id),
+        None => builder,
+    }
 }
 
 pub fn list_profile_ids(app: &AppHandle) -> Result<Vec<String>, String> {
