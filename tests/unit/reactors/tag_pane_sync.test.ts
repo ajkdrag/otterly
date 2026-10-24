@@ -85,6 +85,15 @@ describe("tag_pane_sync.reactor", () => {
     expect(result.reload).toBe(false);
   });
 
+  it("reloads when a draft is saved under its new path", () => {
+    const result = resolve_tag_pane_sync_decision(
+      state({ last_note_dirty: true, last_note_path: "draft:1:Untitled" }),
+      input({ open_note_dirty: false, open_note_path: "ideas.md" }),
+    );
+
+    expect(result.reload).toBe(true);
+  });
+
   it("ignores index and save changes while the pane is hidden", () => {
     const result = resolve_tag_pane_sync_decision(
       state({

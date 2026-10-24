@@ -1,6 +1,7 @@
 import { untrack } from "svelte";
 import type { UIStore } from "$lib/app";
 import type { EditorStore } from "$lib/features/editor";
+import { is_draft_note_path } from "$lib/features/note";
 import type { SearchStore } from "$lib/features/search";
 import type { TabStore } from "$lib/features/tab";
 import type { TagsService } from "$lib/features/tags";
@@ -51,11 +52,14 @@ export function resolve_tag_pane_sync_decision(
     input.index_status === "completed" &&
     state.last_index_status !== "completed";
   // Saving upserts the note into the index before the dirty flag clears, so
-  // dirty -> clean on the same note means the index has its new tags.
+  // dirty -> clean on the same note means the index has its new tags. A draft
+  // is always dirty and gets a new path when it is saved for the first time.
   const note_saved =
     !input.open_note_dirty &&
     state.last_note_dirty &&
-    input.open_note_path === state.last_note_path;
+    (input.open_note_path === state.last_note_path ||
+      (state.last_note_path !== null &&
+        is_draft_note_path(state.last_note_path)));
 
   const reload =
     input.vault_id !== null &&
