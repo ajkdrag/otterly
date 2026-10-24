@@ -29,9 +29,11 @@
   }: Props = $props();
 
   const parsed_name = $derived(normalize_profile_name(new_name));
-  const typed_id = $derived("id" in parsed_name ? parsed_name.id : null);
-  const can_open = $derived(
-    typed_id !== null && typed_id !== current_profile_id && !is_opening,
+  // Null while the name is invalid, is this window, or an open is running.
+  const profile_id_to_open = $derived(
+    "id" in parsed_name && parsed_name.id !== current_profile_id && !is_opening
+      ? parsed_name.id
+      : null,
   );
 
   const name_hint = $derived.by(() => {
@@ -54,7 +56,7 @@
   });
 
   function open_typed_profile() {
-    if (typed_id !== null && can_open) on_open_profile(typed_id);
+    if (profile_id_to_open !== null) on_open_profile(profile_id_to_open);
   }
 </script>
 
@@ -115,7 +117,9 @@
           placeholder="work"
           disabled={is_opening}
         />
-        <Button type="submit" disabled={!can_open}>Open</Button>
+        <Button type="submit" disabled={profile_id_to_open === null}
+          >Open</Button
+        >
       </div>
       <p
         class="text-sm {name_hint.is_error
