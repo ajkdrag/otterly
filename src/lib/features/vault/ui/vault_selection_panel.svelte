@@ -26,6 +26,9 @@
     on_select_vault: (vault_id: VaultId) => void;
     on_toggle_pin_vault: (vault_id: VaultId) => void;
     on_remove_vault: (vault_id: VaultId) => void;
+    // Only the welcome screen passes this. Without a vault no hotkey reaches
+    // the command palette, so this is the way to the profiles dialog.
+    on_open_profiles?: () => void;
     on_close?: () => void;
     is_dialog?: boolean;
     hide_choose_vault_button?: boolean;
@@ -41,6 +44,7 @@
     on_select_vault,
     on_toggle_pin_vault,
     on_remove_vault,
+    on_open_profiles,
     on_close,
     is_dialog = false,
     hide_choose_vault_button = false,
@@ -413,6 +417,17 @@
         Choose a vault directory to get started
       </p>
     </div>
+  {/if}
+
+  {#if on_open_profiles}
+    <Button
+      variant="ghost"
+      size="sm"
+      onclick={on_open_profiles}
+      class="self-start rounded-none"
+    >
+      Profiles…
+    </Button>
   {/if}
 {/snippet}
 
