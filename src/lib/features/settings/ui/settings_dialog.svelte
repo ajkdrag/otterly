@@ -19,7 +19,7 @@
     SettingsCategory,
   } from "$lib/shared/types/editor_settings";
   import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
-  import type { Theme } from "$lib/shared/types/theme";
+  import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
   import type { HotkeyConfig, HotkeyBinding } from "$lib/features/hotkey";
   import { draggable } from "$lib/shared/utils/draggable";
 
@@ -33,6 +33,7 @@
     hotkeys_config: HotkeyConfig;
     user_themes: Theme[];
     active_theme: Theme;
+    theme_file: ThemeFileState;
     on_update_settings: (settings: EditorSettings) => void;
     on_category_change: (category: SettingsCategory) => void;
     on_save: () => void;
@@ -47,6 +48,10 @@
     on_theme_rename: (id: string, name: string) => void;
     on_theme_delete: (theme_id: string) => void;
     on_theme_update: (theme: Theme) => void;
+    on_theme_open_file: () => void;
+    on_theme_reveal_file: () => void;
+    on_theme_copy_file_path: () => void;
+    on_theme_create_file: () => void;
   };
 
   let {
@@ -59,6 +64,7 @@
     hotkeys_config,
     user_themes,
     active_theme,
+    theme_file,
     on_update_settings,
     on_category_change,
     on_save,
@@ -73,6 +79,10 @@
     on_theme_rename,
     on_theme_delete,
     on_theme_update,
+    on_theme_open_file,
+    on_theme_reveal_file,
+    on_theme_copy_file_path,
+    on_theme_create_file,
   }: Props = $props();
 
   // A theme can set its own editor width, which wins over the Layout setting.
@@ -185,12 +195,17 @@
           <ThemeSettings
             {user_themes}
             {active_theme}
+            {theme_file}
             on_switch={on_theme_switch}
             on_create={on_theme_create}
             on_duplicate={on_theme_duplicate}
             on_rename={on_theme_rename}
             on_delete={on_theme_delete}
             on_update={on_theme_update}
+            on_open_file={on_theme_open_file}
+            on_reveal_file={on_theme_reveal_file}
+            on_copy_file_path={on_theme_copy_file_path}
+            on_create_file={on_theme_create_file}
           />
         {:else if active_category === "layout"}
           <h2 class="SettingsDialog__content-header">Layout</h2>

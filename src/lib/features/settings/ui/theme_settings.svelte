@@ -8,8 +8,13 @@
   import Plus from "@lucide/svelte/icons/plus";
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import SearchIcon from "@lucide/svelte/icons/search";
-  import type { Theme } from "$lib/shared/types/theme";
-  import { get_all_themes, BUILTIN_NORDIC_DARK } from "$lib/shared/types/theme";
+  import ThemeFileCard from "$lib/features/settings/ui/theme_file_card.svelte";
+  import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
+  import {
+    get_all_themes,
+    BUILTIN_NORDIC_DARK,
+    FILE_THEME_ID,
+  } from "$lib/shared/types/theme";
   import {
     parse_hsl,
     format_hsl,
@@ -30,27 +35,38 @@
   type Props = {
     user_themes: Theme[];
     active_theme: Theme;
+    theme_file: ThemeFileState;
     on_switch: (theme_id: string) => void;
     on_create: (name: string, base: Theme) => void;
     on_duplicate: (theme_id: string) => void;
     on_rename: (id: string, name: string) => void;
     on_delete: (theme_id: string) => void;
     on_update: (theme: Theme) => void;
+    on_open_file: () => void;
+    on_reveal_file: () => void;
+    on_copy_file_path: () => void;
+    on_create_file: () => void;
   };
 
   let {
     user_themes,
     active_theme,
+    theme_file,
     on_switch,
     on_create,
     on_duplicate,
     on_rename,
     on_delete,
     on_update,
+    on_open_file,
+    on_reveal_file,
+    on_copy_file_path,
+    on_create_file,
   }: Props = $props();
 
-  const all_themes = $derived(get_all_themes(user_themes));
+  const all_themes = $derived(get_all_themes(user_themes, theme_file.theme));
   const locked = $derived(active_theme.is_builtin);
+  const is_file_theme_active = $derived(active_theme.id === FILE_THEME_ID);
   const defaults = BUILTIN_NORDIC_DARK;
 
   let search_query = $state("");
@@ -365,6 +381,15 @@
 {/snippet}
 
 <div class="ThemeSettings">
+  <ThemeFileCard
+    {theme_file}
+    is_applied={is_file_theme_active}
+    on_open={on_open_file}
+    on_reveal={on_reveal_file}
+    on_copy_path={on_copy_file_path}
+    on_create={on_create_file}
+  />
+
   <!-- ─── Profile Bar ─── -->
   <div class="ThemeSettings__profile-bar">
     <Select.Root
@@ -456,7 +481,11 @@
     </div>
   {/if}
 
-  {#if locked}
+  {#if is_file_theme_active}
+    <p class="ThemeSettings__hint">
+      This theme comes from the theme file. Edit the file or duplicate it.
+    </p>
+  {:else if locked}
     <p class="ThemeSettings__hint">Duplicate this theme to customize it.</p>
   {/if}
 
