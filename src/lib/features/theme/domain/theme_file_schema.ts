@@ -29,6 +29,8 @@ export function build_theme_file_schema(): JsonSchema {
     name: {
       type: "string",
       minLength: 1,
+      // The parser also rejects a name of only whitespace.
+      pattern: "\\S",
       description: 'Name shown in Settings > Theme. Default "Theme file".',
     },
     extends: {

@@ -7,6 +7,7 @@ type PropertySchema = {
   minimum?: number;
   maximum?: number;
   enum?: string[];
+  pattern?: string;
 };
 
 // A valid value for each key the schema lists. Add one here when the schema
@@ -49,6 +50,16 @@ describe("build_theme_file_schema", () => {
 
     expect(result).toMatchObject({ status: "valid" });
     expect(schema.additionalProperties).toBe(false);
+  });
+
+  it("agrees with the parser on which names are blank", () => {
+    const name_pattern = new RegExp(properties.name?.pattern ?? "$^");
+
+    for (const name of ["   ", "\t", "Desk lamp", " a "]) {
+      const parsed = parse_theme_file(JSON.stringify({ name }), () => true);
+
+      expect(name_pattern.test(name)).toBe(parsed.status === "valid");
+    }
   });
 
   it("uses the descriptor ranges and options", () => {
