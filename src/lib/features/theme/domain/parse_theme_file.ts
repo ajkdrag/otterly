@@ -192,6 +192,14 @@ export function format_theme_file_error(error: ThemeFileError): string {
     : `line ${String(error.line)}: ${error.message}`;
 }
 
+// invalid() stops at MAX_ERRORS and does not keep the total, so a full list
+// means "at least this many". A file with exactly MAX_ERRORS reads the same.
+export function may_have_more_theme_file_errors(
+  errors: ThemeFileError[],
+): boolean {
+  return errors.length >= MAX_ERRORS;
+}
+
 // Returns what the value should have been, or null when it is fine.
 function check_field_value(
   desc: ThemeStyleDescriptor,

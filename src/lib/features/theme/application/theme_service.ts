@@ -16,6 +16,7 @@ import {
 } from "$lib/shared/types/theme";
 import {
   format_theme_file_error,
+  may_have_more_theme_file_errors,
   parse_theme_file,
 } from "$lib/features/theme/domain/parse_theme_file";
 import { build_theme_file_schema } from "$lib/features/theme/domain/theme_file_schema";
@@ -213,8 +214,9 @@ export class ThemeService {
     for (const message of messages) {
       log.warn(`Theme file has errors: ${message}`);
     }
-    const more =
-      messages.length > 1 ? ` (+${String(messages.length - 1)} more)` : "";
+    const rest = String(messages.length - 1);
+    const at_least = may_have_more_theme_file_errors(errors) ? " or" : "";
+    const more = messages.length > 1 ? ` (+${rest}${at_least} more)` : "";
     this.op_store.fail("theme.file_load", `${messages[0] ?? ""}${more}`);
     return { path, status: "invalid", theme: null, errors };
   }

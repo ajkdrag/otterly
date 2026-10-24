@@ -1,7 +1,10 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { format_theme_file_error } from "$lib/features/theme";
+  import {
+    format_theme_file_error,
+    may_have_more_theme_file_errors,
+  } from "$lib/features/theme";
   import type { ThemeFileState } from "$lib/shared/types/theme";
 
   type Props = {
@@ -24,6 +27,9 @@
   }: Props = $props();
 
   const error_count = $derived(theme_file.errors.length);
+  const error_count_label = $derived(
+    `${String(error_count)}${may_have_more_theme_file_errors(theme_file.errors) ? "+" : ""}`,
+  );
   // The path is null when the backend could not read the file (too big, not
   // text, or both theme.yaml and theme.json exist) and no earlier load gave
   // one. Open and Reveal don't depend on it: they work for a file that is too
@@ -41,7 +47,7 @@
       <Badge variant="secondary">Not created</Badge>
     {:else if theme_file.status === "invalid"}
       <Badge variant="destructive"
-        >{error_count} {error_count === 1 ? "error" : "errors"}</Badge
+        >{error_count_label} {error_count === 1 ? "error" : "errors"}</Badge
       >
     {:else}
       <Badge variant={is_applied ? "default" : "outline"}

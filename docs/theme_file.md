@@ -155,4 +155,4 @@ Found both theme.yaml and theme.json. Delete one.
 theme.yaml is 300 KB. The limit is 256 KB.
 ```
 
-The toast shows the first error plus `(+N more)`. The full list is in Settings > Theme.
+The toast shows the first error plus `(+N more)`. The full list is in Settings > Theme. Otterly stops counting at 20, so a file with more errors shows `20+ errors` in Settings and `(+19 or more)` in the toast.

@@ -69,6 +69,21 @@ describe("ThemeService theme file", () => {
     });
   });
 
+  it("says the rest is a floor when the error list hit its cap", async () => {
+    const { service, port, op_store } = create_harness();
+    port._snapshot.text = Array.from(
+      { length: 50 },
+      (_, idx) => `key_${String(idx)}: 1`,
+    ).join("\n");
+
+    const state = await service.load_theme_file();
+
+    expect(state.errors).toHaveLength(20);
+    expect(op_store.get("theme.file_load").error).toBe(
+      'line 1: unknown key "key_0" (+19 or more)',
+    );
+  });
+
   it("logs each error as its own line, so commas in a message stay whole", async () => {
     const { service, port } = create_harness();
     port._snapshot.text = "extends: nope\nfont_sise: 1\n";
