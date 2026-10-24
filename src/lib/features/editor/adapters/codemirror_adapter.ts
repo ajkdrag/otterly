@@ -235,9 +235,6 @@ export function create_codemirror_editor_port(
       });
       const extensions: Extension = [
         metrics_compartment.of(metrics_themes[0] ?? []),
-        // New buffers start with the session's first setting. open_buffer
-        // syncs every state it shows.
-        vim_compartment.of(vim_enabled ? vim_extension : []),
         // CodeMirror catches exceptions from plugins, listeners, and widgets
         // and only prints them to the console. Send them to the app log.
         EditorView.exceptionSink.of((exception: unknown) => {
@@ -382,7 +379,7 @@ export function create_codemirror_editor_port(
               : undefined;
           current = cached ?? create_buffer(next);
           view.setState(current.state);
-          sync_vim_compartment();
+          if (cached) sync_vim_compartment();
           refresh_word_count();
           if (!cached && next.view_state) restore_view_state(next.view_state);
           reported_dirty = !get_markdown_source_document(view.state).eq(
@@ -415,14 +412,17 @@ export function create_codemirror_editor_port(
         initial_markdown: string;
       }): BufferEntry {
         const is_markdown = is_markdown_path(input.note_path);
+        // Built per buffer, so a new buffer starts with the current setting.
+        const vim = vim_compartment.of(vim_enabled ? vim_extension : []);
         const state = is_markdown
           ? create_markdown_state(input.initial_markdown, {
               plugins,
-              extensions,
+              extensions: [extensions, vim],
               source_extensions: syntaxHighlighting(markdown_source_highlight),
             })
           : create_text_state(input.initial_markdown, [
               extensions,
+              vim,
               text_language.of([]),
               syntaxHighlighting(code_block_highlight),
             ]);

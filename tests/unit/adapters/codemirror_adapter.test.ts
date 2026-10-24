@@ -773,6 +773,32 @@ describe("CodeMirror editor port", () => {
     expect(session.get_markdown()).toBe("one");
   });
 
+  it("builds a new buffer with the current Vim setting", async () => {
+    const { session, view, events } = await open_editor("one");
+    session.set_vim_enabled(true);
+    events.on_vim_mode_change.mockClear();
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).toContain("md-vim");
+    expect(events.on_vim_mode_change.mock.calls).toEqual([["normal"]]);
+
+    session.set_vim_enabled(false);
+    events.on_vim_mode_change.mockClear();
+    session.open_buffer({
+      note_path: "gamma.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "three",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).not.toContain("md-vim");
+    expect(events.on_vim_mode_change).not.toHaveBeenCalled();
+  });
+
   it("opens a draft note, which has no file name yet, as Markdown", async () => {
     const { session, view, events } = await open_editor(
       "# Draft",
