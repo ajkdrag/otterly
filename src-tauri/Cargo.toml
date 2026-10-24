@@ -41,6 +41,8 @@ tokio = { version = "1.43.0", features = ["fs", "rt-multi-thread", "sync"] }
 # pull in OpenSSL and libssh2 and slow the build down a lot.
 git2 = { version = "0.19", default-features = false }
 walkdir = "2.5.0"
+# Already built for comrak. We use it to treat combining marks as tag chars.
+unicode_categories = "0.1.1"
 
 [dev-dependencies]
 tempfile = "3"

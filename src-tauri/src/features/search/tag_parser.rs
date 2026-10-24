@@ -14,7 +14,8 @@
 use crate::features::search::link_parser;
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::{parse_document, Arena, Options};
-use std::collections::HashSet;
+use std::collections::HashMap;
+use unicode_categories::UnicodeCategories;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteTag {
@@ -34,19 +35,26 @@ pub(crate) fn tag_key(tag: &str) -> String {
 // Tags are deduped by `tag_key`. The first spelling wins, frontmatter first,
 // then body order.
 //
+// Frontmatter has no text of its own, so its tags borrow an excerpt: the first
+// body line that uses the tag, or else the first line of the note. Vaults that
+// only tag in frontmatter still get a preview in the tag pane.
+//
 // @Speed: The index parses each note twice, once for links and once here.
 // Merge them into one parse if indexing a big vault gets slow.
 pub(crate) fn extract_note_tags(markdown: &str) -> Vec<NoteTag> {
     let arena = Arena::new();
     let root = parse_document(&arena, markdown, &tag_options());
-    let mut seen_keys: HashSet<String> = HashSet::new();
+    let mut tag_index_by_key: HashMap<String, usize> = HashMap::new();
     let mut tags: Vec<NoteTag> = Vec::new();
+    let mut first_container_excerpt: Option<String> = None;
 
     for node in root.descendants() {
         let value = &node.data.borrow().value;
         if let NodeValue::FrontMatter(raw) = value {
             for tag in frontmatter_tags(raw) {
-                if seen_keys.insert(tag_key(&tag)) {
+                let key = tag_key(&tag);
+                if !tag_index_by_key.contains_key(&key) {
+                    tag_index_by_key.insert(key, tags.len());
                     tags.push(NoteTag { tag, excerpt: None });
                 }
             }
@@ -61,17 +69,29 @@ pub(crate) fn extract_note_tags(markdown: &str) -> Vec<NoteTag> {
         let mut plain: Vec<char> = Vec::new();
         let mut scan: Vec<char> = Vec::new();
         collect_inline_text(node, &mut plain, &mut scan);
+        if first_container_excerpt.is_none() && !plain.is_empty() {
+            first_container_excerpt = Some(excerpt_around(&plain, 0));
+        }
         for (tag, tag_start) in scan_inline_tags(&scan) {
-            if seen_keys.insert(tag_key(&tag)) {
-                let excerpt = excerpt_around(&plain, tag_start);
-                tags.push(NoteTag {
-                    tag,
-                    excerpt: Some(excerpt),
-                });
+            let key = tag_key(&tag);
+            match tag_index_by_key.get(&key) {
+                None => {
+                    tag_index_by_key.insert(key, tags.len());
+                    let excerpt = Some(excerpt_around(&plain, tag_start));
+                    tags.push(NoteTag { tag, excerpt });
+                }
+                // Frontmatter named it first. Keep its spelling, add the excerpt.
+                Some(&idx) if tags[idx].excerpt.is_none() => {
+                    tags[idx].excerpt = Some(excerpt_around(&plain, tag_start));
+                }
+                Some(_) => {}
             }
         }
     }
 
+    for tag in tags.iter_mut().filter(|tag| tag.excerpt.is_none()) {
+        tag.excerpt = first_container_excerpt.clone();
+    }
     tags
 }
 
@@ -155,18 +175,22 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
     found
 }
 
-// @Incomplete: Text is not Unicode-normalized. A decomposed accent (`e` plus
-// U+0301) is a combining mark, not alphanumeric, so it ends the tag early, and
-// `café` typed both ways would be two different tags.
+// Combining marks count because whole scripts spell words with them: the
+// Devanagari virama in `क्या` and the Thai tone mark in `ไม่` are not
+// alphabetic, and without them the tag would stop after one letter.
+//
+// @Incomplete: Text is not Unicode-normalized, so `café` typed precomposed and
+// typed as `e` plus U+0301 gives two tags that look the same.
 fn is_tag_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_' || ch == '-' || ch == '/'
+    ch.is_alphanumeric() || ch.is_mark() || matches!(ch, '_' | '-' | '/')
 }
 
-// `a/b/` is `a/b`. Rejects `/a`, `a//b`, and all digits (`#123` is an issue
-// number or a year, not a tag). `#1st` and `#v2` are fine.
+// `a/b/` is `a/b`. Rejects `/a`, `a//b`, bodies with no letter or digit
+// (`#_`, `#---`), and all digits (`#123` is an issue number or a year, not a
+// tag). `#1st` and `#v2` are fine.
 fn validate_tag_body(body: &str) -> Option<String> {
     let body = body.trim_end_matches('/');
-    if body.is_empty() || !body.chars().all(is_tag_char) {
+    if !body.chars().all(is_tag_char) || !body.chars().any(char::is_alphanumeric) {
         return None;
     }
     if body.split('/').any(str::is_empty) {
@@ -196,8 +220,8 @@ fn excerpt_around(plain: &[char], tag_start: usize) -> String {
 // written as `[a, b]`, `a, b`, `a b`, or a block list of `- a` lines. Quotes
 // and a leading `#` are stripped.
 //
-// @Incomplete: `tag:` (singular), nested keys, multi-line flow lists, and
-// trailing YAML comments are not handled.
+// @Incomplete: `tag:` (singular), nested keys, and multi-line flow lists are
+// not handled.
 fn frontmatter_tags(raw: &str) -> Vec<String> {
     let mut values: Vec<&str> = Vec::new();
     let mut in_block_list = false;
@@ -207,7 +231,7 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
             let item = line.trim();
             // `- a`, but not the closing `---`.
             if let Some(value) = item.strip_prefix("- ") {
-                values.push(value);
+                values.push(strip_yaml_comment(value));
                 continue;
             }
             if item.is_empty() {
@@ -222,7 +246,7 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
         if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
             continue;
         }
-        let rest = rest.trim();
+        let rest = strip_yaml_comment(rest).trim();
         if rest.is_empty() {
             in_block_list = true;
         } else if let Some(inner) = rest.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
@@ -240,6 +264,20 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
             validate_tag_body(value.strip_prefix('#').unwrap_or(value))
         })
         .collect()
+}
+
+// YAML starts a comment at a `#` that follows whitespace, so `a # note` loses
+// `# note` but a quoted `"#b"` keeps its `#`. The start of the value counts as
+// following whitespace: it comes right after `tags:` or `- `.
+fn strip_yaml_comment(value: &str) -> &str {
+    let mut after_whitespace = true;
+    for (idx, ch) in value.char_indices() {
+        if ch == '#' && after_whitespace {
+            return &value[..idx];
+        }
+        after_whitespace = ch.is_whitespace();
+    }
+    value
 }
 
 fn strip_matching_quotes(value: &str) -> &str {
@@ -316,6 +354,8 @@ mod tests {
         assert_eq!(tags("x #/a #a//b # #"), none());
         assert_eq!(tags("#日本語 #café"), vec!["日本語", "café"]);
         assert_eq!(tags("#party🎉 #ok"), vec!["party", "ok"]);
+        assert_eq!(tags("#क्या hello #ไม่ ok"), vec!["क्या", "ไม่"]);
+        assert_eq!(tags("#_ #- #---"), none());
         assert_eq!(tags("#done. #x, #a,b"), vec!["done", "x", "a"]);
     }
 
@@ -346,6 +386,12 @@ mod tests {
             vec!["a", "b", "c"]
         );
         assert_eq!(tags("---\ntags: [123, ok, bad tag]\n---\n"), vec!["ok"]);
+        assert_eq!(tags("---\ntags: a # comment\n---\n"), vec!["a"]);
+        assert_eq!(tags("---\ntags: [a, b] # x\n---\n"), vec!["a", "b"]);
+        assert_eq!(
+            tags("---\ntags: # why\n  - a # first\n  - \"#b\"\n---\n"),
+            vec!["a", "b"]
+        );
         assert_eq!(tags("---\ntag: a\nmeta:\n  tags: [b]\n---\n"), none());
         assert_eq!(
             tags("---\r\ntags:\r\n  - a\r\n  - b\r\n---\r\n#c\r\n"),
@@ -354,20 +400,32 @@ mod tests {
     }
 
     #[test]
-    fn frontmatter_tags_come_first_without_excerpt() {
-        let found = extract_note_tags("---\ntags: [b]\n---\nBody #a and #B\n");
+    fn frontmatter_tags_come_first_and_borrow_an_excerpt() {
+        let note = "---\ntags: [b, c]\n---\nIntro text\n\nBody #a and #B\n";
+        let tag = |tag: &str, excerpt: &str| NoteTag {
+            tag: tag.to_string(),
+            excerpt: Some(excerpt.to_string()),
+        };
         assert_eq!(
-            found,
+            extract_note_tags(note),
             vec![
-                NoteTag {
-                    tag: "b".to_string(),
-                    excerpt: None,
-                },
-                NoteTag {
-                    tag: "a".to_string(),
-                    excerpt: Some("Body #a and #B".to_string()),
-                },
+                // Used in the body: that line is the excerpt, frontmatter spelling stays.
+                tag("b", "Body #a and #B"),
+                // Not used in the body: the first line of the note.
+                tag("c", "Intro text"),
+                tag("a", "Body #a and #B"),
             ]
+        );
+    }
+
+    #[test]
+    fn frontmatter_tag_in_a_note_with_no_text_has_no_excerpt() {
+        assert_eq!(
+            extract_note_tags("---\ntags: [a]\n---\n"),
+            vec![NoteTag {
+                tag: "a".to_string(),
+                excerpt: None,
+            }]
         );
     }
 
