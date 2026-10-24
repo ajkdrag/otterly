@@ -79,6 +79,9 @@ function parse_theme_file_text(
   const doc = parseDocument(text, {
     lineCounter: line_counter,
     prettyErrors: false,
+    // yaml checks duplicates by comparing every key with all the earlier
+    // ones. A 250 KB file of short keys took 30 s. read_entries uses a Set.
+    uniqueKeys: false,
   });
   const line_at = (offset: number) => line_counter.linePos(offset).line;
 
@@ -105,7 +108,7 @@ function parse_theme_file_text(
   let tokens: Record<string, string> = {};
 
   // An empty file (or only comments) has no entries: the default theme.
-  const entries = contents ? read_entries(contents, doc, line_at) : [];
+  const entries = contents ? read_entries(contents, doc, line_at, errors) : [];
   for (const entry of entries) {
     const { key, value } = entry;
     const report = (expected: string) => {
@@ -226,7 +229,7 @@ function read_tokens(
   is_valid_color: (value: string) => boolean,
 ): Record<string, string> {
   const tokens: Record<string, string> = {};
-  for (const { key, line, value } of read_entries(map, doc, line_at)) {
+  for (const { key, line, value } of read_entries(map, doc, line_at, errors)) {
     if (!TOKEN_NAME_PATTERN.test(key)) {
       errors.push({
         line,
@@ -282,20 +285,31 @@ type FileEntry = {
   value: unknown;
 };
 
+// A repeated key is reported on its own line and left out of the result.
 function read_entries(
   map: YAMLMap,
   doc: Document,
   line_at: (offset: number) => number,
+  errors: ThemeFileError[],
 ): FileEntry[] {
-  return map.items.map((pair) => {
+  const seen_keys = new Set<string>();
+  const entries: FileEntry[] = [];
+  for (const pair of map.items) {
     const key = isScalar(pair.key) ? String(pair.key.value) : String(pair.key);
     const line =
       isNode(pair.key) && pair.key.range ? line_at(pair.key.range[0]) : null;
+    if (seen_keys.has(key)) {
+      errors.push({ line, key, message: `duplicate key "${key}"` });
+      continue;
+    }
+    seen_keys.add(key);
+
     const value: unknown = isNode(pair.value)
       ? pair.value.toJS(doc)
       : pair.value;
-    return { key, line, node: pair.value, value };
-  });
+    entries.push({ key, line, node: pair.value, value });
+  }
+  return entries;
 }
 
 // The fields were checked against their descriptors, so they fit Theme.
@@ -319,13 +333,17 @@ function syntax_error(
   error: YAMLError,
   line_at: (offset: number) => number,
 ): ThemeFileError {
-  const message =
-    error.code === "DUPLICATE_KEY" ? "duplicate key" : error.message;
-  return { line: line_at(error.pos[0]), key: null, message };
+  return { line: line_at(error.pos[0]), key: null, message: error.message };
 }
 
+// Duplicate keys are found before the other checks run, so put the errors
+// back in file order. The toast shows the first one. Errors without a line
+// go first. Array.sort is stable, so equal lines keep their order.
 function invalid(errors: ThemeFileError[]): ThemeFileParseResult {
-  return { status: "invalid", errors: errors.slice(0, MAX_ERRORS) };
+  const in_file_order = [...errors].sort(
+    (a, b) => (a.line ?? 0) - (b.line ?? 0),
+  );
+  return { status: "invalid", errors: in_file_order.slice(0, MAX_ERRORS) };
 }
 
 // Keeps a stray object or long string from flooding the error toast.

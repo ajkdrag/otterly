@@ -210,14 +210,39 @@ describe("parse_theme_file", () => {
 
   it("reports duplicate keys with the line of the second one", () => {
     expect(parse_errors("font_size: 1\nfont_size: 1.1\n")).toEqual([
-      { line: 2, key: null, message: "duplicate key" },
+      { line: 2, key: "font_size", message: 'duplicate key "font_size"' },
     ]);
   });
 
   it("reports duplicate keys in JSON too", () => {
     expect(parse_errors('{\n  "font_size": 1,\n  "font_size": 1.1\n}')).toEqual(
-      [{ line: 3, key: null, message: "duplicate key" }],
+      [{ line: 3, key: "font_size", message: 'duplicate key "font_size"' }],
     );
+  });
+
+  it("reports a repeated token", () => {
+    expect(parse_errors("tokens:\n  --a: red\n  --a: blue\n")).toEqual([
+      { line: 3, key: "--a", message: 'duplicate key "--a"' },
+    ]);
+  });
+
+  it("lists a duplicate key in file order with the other errors", () => {
+    const errors = parse_errors(
+      "name: a\nfont_size: 1\nfont_sise: 1\nfont_size: 1.1\n",
+    );
+
+    expect(errors.map((error) => error.line)).toEqual([3, 4]);
+  });
+
+  it("parses a file of thousands of keys without freezing", () => {
+    const text = Array.from({ length: 20000 }, (_, i) => `k${String(i)}: 1`);
+    const started_at = performance.now();
+
+    const errors = parse_errors(text.join("\n"));
+
+    // yaml's own duplicate check took 30 s here. This takes 1 to 2 s.
+    expect(performance.now() - started_at).toBeLessThan(10_000);
+    expect(errors).toHaveLength(20);
   });
 
   it("reports YAML syntax errors with a line number", () => {
