@@ -64,7 +64,10 @@ export class TagsStore {
     this.note_tags = tags;
   }
 
+  // The note tags reactor calls this on every keystroke in a file that has no
+  // tags (CSS, YAML). Skip the write when there is nothing to clear.
   clear_note_tags() {
+    if (this.note_tags_path === null) return;
     this.note_tags_path = null;
     this.note_tags = [];
   }

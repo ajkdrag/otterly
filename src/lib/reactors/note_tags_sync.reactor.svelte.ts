@@ -1,6 +1,7 @@
 import type { EditorStore } from "$lib/features/editor";
 import type { UIStore } from "$lib/app";
 import type { TagsService } from "$lib/features/tags";
+import { is_markdown_path } from "$lib/shared/utils/path";
 import {
   resolve_local_links_sync_decision,
   type LocalLinksSyncState,
@@ -11,6 +12,9 @@ const NOTE_TAGS_DEBOUNCE_MS = 220;
 // The rail's tag chips reuse the local links rule on purpose, so both rail
 // sections update at the same moments: now on note switch or rail open,
 // debounced while typing, cleared when no note is open.
+//
+// Only Markdown files have tags. Other files open as text and the index skips
+// them, so we hand the rule "no note" for those and the chips clear.
 export function create_note_tags_sync_reactor(
   editor_store: EditorStore,
   ui_store: UIStore,
@@ -31,7 +35,11 @@ export function create_note_tags_sync_reactor(
 
   return $effect.root(() => {
     $effect(() => {
-      const open_note = editor_store.open_note;
+      const editor_note = editor_store.open_note;
+      const open_note =
+        editor_note && is_markdown_path(editor_note.meta.path)
+          ? editor_note
+          : null;
       const decision = resolve_local_links_sync_decision(state, {
         open_note_path: open_note?.meta.path ?? null,
         panel_open: ui_store.context_rail_open,
