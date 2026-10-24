@@ -10,6 +10,7 @@ export type {
 } from "$lib/features/vim/ports";
 export type {
   VimrcLoadResult,
+  VimrcOpenResult,
   VimrcProblem,
   VimrcStatus,
 } from "$lib/features/vim/types/vimrc";

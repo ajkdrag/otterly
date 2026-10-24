@@ -17,6 +17,16 @@ export type VimrcLoadResult =
       // focus reload does not repeat a warning.
       problems_changed: boolean;
     }
-  | { status: "failed"; error: string }
+  | {
+      status: "failed";
+      error: string;
+      // False when the previous load failed with the same error, so a focus
+      // reload of a file that stays unreadable does not repeat its error.
+      error_changed: boolean;
+    }
   // A newer load started before this one finished. It reports instead.
   | { status: "stale" };
+
+export type VimrcOpenResult =
+  | { status: "opened" }
+  | { status: "failed"; error: string };

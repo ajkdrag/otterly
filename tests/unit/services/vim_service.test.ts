@@ -10,10 +10,13 @@ const problem: VimrcProblem = {
   message: 'Unsupported command "let"',
 };
 
-function setup(read: () => Promise<VimrcFile>) {
+function setup(
+  read: () => Promise<VimrcFile>,
+  open: () => Promise<void> = () => Promise.resolve(),
+) {
   const vimrc_port: VimrcPort = {
     read_vimrc: vi.fn(read),
-    open_vimrc: vi.fn(() => Promise.resolve()),
+    open_vimrc: vi.fn(open),
   };
   const apply_vimrc = vi.fn((text: string) =>
     text.startsWith("let") ? [problem] : [],
@@ -86,6 +89,23 @@ describe("VimService.load_vimrc", () => {
     expect(vim_store.vimrc).toEqual({ path, exists: true, problems: [] });
   });
 
+  it("says a read error is new only when the last load did not fail the same way", async () => {
+    let fail = true;
+    const { service } = setup(() =>
+      fail
+        ? Promise.reject(new Error("permission denied"))
+        : Promise.resolve({ path, text: "imap jk <Esc>" }),
+    );
+
+    expect(await service.load_vimrc()).toMatchObject({ error_changed: true });
+    expect(await service.load_vimrc()).toMatchObject({ error_changed: false });
+
+    fail = false;
+    await service.load_vimrc();
+    fail = true;
+    expect(await service.load_vimrc()).toMatchObject({ error_changed: true });
+  });
+
   it("lets the latest load win when an earlier read finishes last", async () => {
     let finish_first: (file: VimrcFile) => void = () => {};
     let reads = 0;
@@ -105,5 +125,19 @@ describe("VimService.load_vimrc", () => {
     expect(await first).toEqual({ status: "stale" });
     expect(apply_vimrc).toHaveBeenCalledTimes(1);
     expect(vim_store.vimrc?.problems).toEqual([]);
+  });
+});
+
+describe("VimService.open_vimrc", () => {
+  it("returns the reason when the vimrc cannot be opened", async () => {
+    const { service } = setup(
+      () => Promise.resolve({ path, text: null }),
+      () => Promise.reject(new Error("no window available")),
+    );
+
+    expect(await service.open_vimrc()).toEqual({
+      status: "failed",
+      error: "no window available",
+    });
   });
 });

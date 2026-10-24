@@ -5,6 +5,7 @@ import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import {
   register_vim_actions,
   type VimrcLoadResult,
+  type VimrcOpenResult,
   type VimService,
 } from "$lib/features/vim";
 
@@ -21,6 +22,7 @@ const on_focus = { force: false };
 function create_harness(
   results: VimrcLoadResult[],
   has_settings_dialog = true,
+  open_result: VimrcOpenResult = { status: "opened" },
 ) {
   const registry = new ActionRegistry();
   const load_vimrc = vi.fn(() => {
@@ -28,9 +30,10 @@ function create_harness(
     if (!result) throw new Error("no load result left");
     return Promise.resolve(result);
   });
+  const open_vimrc = vi.fn(() => Promise.resolve(open_result));
   register_vim_actions({
     registry,
-    services: { vim: { load_vimrc } as unknown as VimService },
+    services: { vim: { load_vimrc, open_vimrc } as unknown as VimService },
     has_settings_dialog,
   });
   return { registry, load_vimrc };
@@ -116,15 +119,36 @@ describe("vim.load_vimrc", () => {
   });
 
   it("repeats a read error only when it is new or the reload was manual", async () => {
-    const failed = { status: "failed", error: "not valid UTF-8" } as const;
-    const { registry } = create_harness([failed, failed, failed]);
+    const new_error = {
+      status: "failed",
+      error: "not valid UTF-8",
+      error_changed: true,
+    } as const;
+    const same_error = { ...new_error, error_changed: false };
+    const { registry } = create_harness([new_error, same_error, same_error]);
 
     await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
     await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
     expect(toast.error).toHaveBeenCalledOnce();
+    expect(vi.mocked(toast.error).mock.calls[0]?.[1]).toMatchObject({
+      description: "not valid UTF-8",
+    });
 
     await registry.execute(ACTION_IDS.vim_load_vimrc);
     expect(toast.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("warns on every manual reload, even when the problems did not change", async () => {
+    const { registry } = create_harness([
+      problems_found,
+      { ...problems_found, problems_changed: false },
+    ]);
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
+
+    expect(toast.warning).toHaveBeenCalledTimes(2);
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("stays quiet when a newer load took over", async () => {
@@ -135,5 +159,24 @@ describe("vim.load_vimrc", () => {
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("vim.open_vimrc", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("says why the vimrc could not be opened", async () => {
+    const { registry } = create_harness([], true, {
+      status: "failed",
+      error: "no window available",
+    });
+
+    await registry.execute(ACTION_IDS.vim_open_vimrc);
+
+    expect(toast.error).toHaveBeenCalledWith("Could not open the vimrc", {
+      description: "no window available",
+    });
   });
 });

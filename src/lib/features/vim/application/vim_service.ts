@@ -7,6 +7,7 @@ import type {
 import type { VimStore } from "$lib/features/vim/state/vim_store.svelte";
 import type {
   VimrcLoadResult,
+  VimrcOpenResult,
   VimrcProblem,
 } from "$lib/features/vim/types/vimrc";
 import { error_message } from "$lib/shared/utils/error_message";
@@ -30,6 +31,8 @@ export class VimService {
 
   // Pass force to apply the file again even when its text did not change.
   async load_vimrc({ force = false } = {}): Promise<VimrcLoadResult> {
+    // start() clears the error, so read the last one first.
+    const previous_error = this.op_store.get("vim.load_vimrc").error;
     const revision = ++this.load_revision;
     this.op_store.start("vim.load_vimrc", Date.now());
     let file: VimrcFile;
@@ -40,7 +43,11 @@ export class VimService {
       const message = error_message(error);
       log.error("Could not read vimrc", { error: message });
       this.op_store.fail("vim.load_vimrc", message);
-      return { status: "failed", error: message };
+      return {
+        status: "failed",
+        error: message,
+        error_changed: message !== previous_error,
+      };
     }
     if (revision !== this.load_revision) return { status: "stale" };
 
@@ -69,14 +76,14 @@ export class VimService {
     };
   }
 
-  // Returns false on failure so the action can tell the user.
-  async open_vimrc(): Promise<boolean> {
+  async open_vimrc(): Promise<VimrcOpenResult> {
     try {
       await this.vimrc_port.open_vimrc();
-      return true;
+      return { status: "opened" };
     } catch (error) {
-      log.error("Could not open vimrc", { error: error_message(error) });
-      return false;
+      const message = error_message(error);
+      log.error("Could not open vimrc", { error: message });
+      return { status: "failed", error: message };
     }
   }
 }
