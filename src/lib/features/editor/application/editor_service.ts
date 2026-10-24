@@ -10,6 +10,7 @@ import type {
   OpenNoteState,
   CursorInfo,
   PastedImagePayload,
+  VimMode,
 } from "$lib/shared/types/editor";
 import type { MarkdownText, NoteId, NotePath } from "$lib/shared/types/ids";
 import { as_markdown_text } from "$lib/shared/types/ids";
@@ -52,6 +53,8 @@ export class EditorService {
   private host_root: HTMLDivElement | null = null;
   private active_note: OpenNoteState | null = null;
   private session_generation = 0;
+  // The next session starts with this. The vim_mode reactor sets it.
+  private vim_enabled = false;
 
   constructor(
     private readonly editor_port: EditorPort,
@@ -214,6 +217,11 @@ export class EditorService {
     this.session?.toggle_source_mode();
   }
 
+  set_vim_enabled(enabled: boolean) {
+    this.vim_enabled = enabled;
+    this.session?.set_vim_enabled(enabled);
+  }
+
   close_buffer(note_path: NotePath) {
     this.session?.close_buffer(note_path);
   }
@@ -328,6 +336,10 @@ export class EditorService {
         if (!this.is_generation_current(generation)) return;
         this.editor_store.set_view_mode(mode);
       },
+      on_vim_mode_change: (mode: VimMode | null) => {
+        if (!this.is_generation_current(generation)) return;
+        this.editor_store.set_vim_mode(mode);
+      },
       on_code_block_view_states_change: (heights: CodeBlockViewStates) => {
         if (!this.is_generation_current(generation)) return;
         const active_tab = this.tab_store.active_tab;
@@ -383,6 +395,7 @@ export class EditorService {
       initial_markdown: active_note.markdown,
       note_path: active_note.meta.path,
       vault_id: this.vault_store.vault?.id ?? null,
+      vim_enabled: this.vim_enabled,
       events: this.create_session_events(generation),
     });
 

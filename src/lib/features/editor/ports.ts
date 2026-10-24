@@ -5,6 +5,7 @@ import type {
   EditorBufferViewState,
   EditorViewMode,
   PastedImagePayload,
+  VimMode,
 } from "$lib/shared/types/editor";
 
 export type BufferConfig = {
@@ -35,6 +36,8 @@ export type EditorSession = {
   // Switches a Markdown note between its rich and source views. Does nothing
   // for other files.
   toggle_source_mode: () => void;
+  // Turns Vim keys on or off for every buffer, keeping each one's history.
+  set_vim_enabled: (enabled: boolean) => void;
   set_wiki_suggestions?: (
     items: Array<{
       title: string;
@@ -54,6 +57,8 @@ export type EditorEventHandlers = {
   on_dirty_state_change: (is_dirty: boolean) => void;
   on_cursor_change?: (info: CursorInfo) => void;
   on_view_mode_change?: (mode: EditorViewMode) => void;
+  // null when Vim is off.
+  on_vim_mode_change?: (mode: VimMode | null) => void;
   on_code_block_view_states_change?: (heights: CodeBlockViewStates) => void;
   on_internal_link_click?: (raw_path: string, base_note_path: string) => void;
   on_external_link_click?: (url: string) => void;
@@ -67,6 +72,7 @@ export type EditorSessionConfig = {
   initial_markdown: string;
   note_path: string;
   vault_id: VaultId | null;
+  vim_enabled: boolean;
   events: EditorEventHandlers;
 };
 

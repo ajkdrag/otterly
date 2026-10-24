@@ -54,6 +54,7 @@ function create_session(initial_markdown: string): EditorSession {
     is_dirty: vi.fn(() => false),
     focus: vi.fn(),
     toggle_source_mode: vi.fn(),
+    set_vim_enabled: vi.fn(),
     open_buffer: vi.fn((config: BufferConfig) => {
       current_markdown = config.initial_markdown;
     }),

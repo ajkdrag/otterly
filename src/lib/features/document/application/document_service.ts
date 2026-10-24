@@ -18,6 +18,8 @@ export type DocumentServiceCallbacks = {
 // Owns the one file and the one editor of a document window.
 export class DocumentService {
   private session: EditorSession | null = null;
+  // The editor starts with this. The vim_mode reactor sets it.
+  private vim_enabled = false;
 
   constructor(
     private readonly document_port: DocumentPort,
@@ -46,6 +48,7 @@ export class DocumentService {
       // images resolve through the document window's own handlers.
       note_path: file.path,
       vault_id: null,
+      vim_enabled: this.vim_enabled,
       events: {
         on_markdown_change: (markdown) => {
           this.store.note_edit(markdown);
@@ -58,6 +61,9 @@ export class DocumentService {
         },
         on_view_mode_change: (mode) => {
           this.store.set_view_mode(mode);
+        },
+        on_vim_mode_change: (mode) => {
+          this.store.set_vim_mode(mode);
         },
         on_external_link_click: (url) => {
           this.callbacks.on_external_link_click(url);
@@ -148,6 +154,11 @@ export class DocumentService {
 
   toggle_source_mode() {
     this.session?.toggle_source_mode();
+  }
+
+  set_vim_enabled(enabled: boolean) {
+    this.vim_enabled = enabled;
+    this.session?.set_vim_enabled(enabled);
   }
 
   focus() {

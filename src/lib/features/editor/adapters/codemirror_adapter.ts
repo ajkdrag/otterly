@@ -37,6 +37,7 @@ import {
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
   update_find_query,
+  vim_mode,
   wiki_links,
   type CodeBlockViewState,
   type MarkdownPlugin,
@@ -97,6 +98,9 @@ const metrics_themes = [
   EditorView.theme({ "&": { "--editor-metrics": "0" } }),
   EditorView.theme({ "&": { "--editor-metrics": "1" } }),
 ];
+// Holds the Vim extension while Vim mode is on. A compartment, so the toggle
+// keeps every cached buffer state and its undo history.
+const vim_compartment = new Compartment();
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -223,8 +227,17 @@ export function create_codemirror_editor_port(
         }),
       ];
       let metrics_theme_index = 0;
+      let vim_enabled = config.vim_enabled;
+      // One value per session, so sync_vim_compartment can tell whether a
+      // state already holds it.
+      const vim_extension = vim_mode({
+        on_mode_change: (mode) => events.on_vim_mode_change?.(mode),
+      });
       const extensions: Extension = [
         metrics_compartment.of(metrics_themes[0] ?? []),
+        // New buffers start with the session's first setting. open_buffer
+        // syncs every state it shows.
+        vim_compartment.of(vim_enabled ? vim_extension : []),
         // CodeMirror catches exceptions from plugins, listeners, and widgets
         // and only prints them to the console. Send them to the app log.
         EditorView.exceptionSink.of((exception: unknown) => {
@@ -286,6 +299,8 @@ export function create_codemirror_editor_port(
       refresh_word_count();
       publish_cursor();
       publish_view_mode();
+      // With Vim on, its plugin already reported "normal".
+      if (!vim_enabled) events.on_vim_mode_change?.(null);
 
       return Promise.resolve<EditorSession>({
         destroy() {
@@ -347,6 +362,10 @@ export function create_codemirror_editor_port(
           publish_view_mode();
           focus_editor();
         },
+        set_vim_enabled(enabled) {
+          vim_enabled = enabled;
+          sync_vim_compartment();
+        },
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
@@ -363,6 +382,7 @@ export function create_codemirror_editor_port(
               : undefined;
           current = cached ?? create_buffer(next);
           view.setState(current.state);
+          sync_vim_compartment();
           refresh_word_count();
           if (!cached && next.view_state) restore_view_state(next.view_state);
           reported_dirty = !get_markdown_source_document(view.state).eq(
@@ -445,6 +465,20 @@ export function create_codemirror_editor_port(
           ? get_editor_mode(current.state)
           : "text";
         events.on_view_mode_change?.(mode);
+      }
+
+      // Only the shown state is reconfigured. A cached buffer keeps the Vim
+      // setting it had when it was last shown, until open_buffer syncs it.
+      function sync_vim_compartment() {
+        const has_vim = vim_compartment.get(view.state) === vim_extension;
+        if (has_vim === vim_enabled) return;
+        view.dispatch({
+          effects: vim_compartment.reconfigure(
+            vim_enabled ? vim_extension : [],
+          ),
+        });
+        // Turning Vim on reports "normal" from its plugin.
+        if (!vim_enabled) events.on_vim_mode_change?.(null);
       }
 
       function publish_dirty() {

@@ -60,6 +60,8 @@ async function open_editor(
     on_code_block_view_states_change: vi.fn(),
     on_view_mode_change:
       vi.fn<NonNullable<EditorEventHandlers["on_view_mode_change"]>>(),
+    on_vim_mode_change:
+      vi.fn<NonNullable<EditorEventHandlers["on_vim_mode_change"]>>(),
   };
   const port = create_codemirror_editor_port({
     resolve_asset_url_for_vault,
@@ -70,6 +72,7 @@ async function open_editor(
     initial_markdown: markdown,
     note_path,
     vault_id: as_vault_id("test-vault"),
+    vim_enabled: false,
     events,
   });
   sessions.push(session);
@@ -737,6 +740,37 @@ describe("CodeMirror editor port", () => {
       restore_policy: "reuse_cache",
     });
     expect(events.on_view_mode_change).toHaveBeenLastCalledWith("source");
+  });
+
+  it("turns Vim on and off for the shown buffer and for cached ones it shows later", async () => {
+    const { session, view, events } = await open_editor("one");
+    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+
+    session.set_vim_enabled(true);
+    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith("normal");
+    expect(view.dom.classList).toContain("md-vim");
+    view.dispatch({ changes: { from: 3, insert: "!" } });
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).toContain("md-vim");
+
+    session.set_vim_enabled(false);
+    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+    session.open_buffer({
+      note_path: "alpha.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "one",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).not.toContain("md-vim");
+    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+    source_undo(view);
+    expect(session.get_markdown()).toBe("one");
   });
 
   it("opens a draft note, which has no file name yet, as Markdown", async () => {

@@ -10,6 +10,15 @@ export type OpenNoteState = NoteDoc & {
 // other file, which only has a source view.
 export type EditorViewMode = "rich" | "source" | "text";
 
+// The editor's Vim mode while Vim mode is on. Stores hold null while it is off.
+export type VimMode =
+  | "normal"
+  | "insert"
+  | "visual"
+  | "visual_line"
+  | "visual_block"
+  | "replace";
+
 export type CursorInfo = {
   line: number;
   column: number;

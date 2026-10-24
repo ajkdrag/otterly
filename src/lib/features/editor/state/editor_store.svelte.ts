@@ -2,6 +2,7 @@ import type {
   CursorInfo,
   EditorViewMode,
   OpenNoteState,
+  VimMode,
 } from "$lib/shared/types/editor";
 import type { NoteId, NotePath } from "$lib/shared/types/ids";
 import { note_name_from_path } from "$lib/shared/utils/path";
@@ -59,6 +60,8 @@ export class EditorStore {
   last_saved_at = $state<number | null>(null);
   session_persist_revision = $state(0);
   view_mode = $state<EditorViewMode>("rich");
+  // null while Vim mode is off.
+  vim_mode = $state<VimMode | null>(null);
 
   private bump_session_persist_revision() {
     this.session_persist_revision += 1;
@@ -199,6 +202,10 @@ export class EditorStore {
 
   set_view_mode(mode: EditorViewMode) {
     this.view_mode = mode;
+  }
+
+  set_vim_mode(mode: VimMode | null) {
+    this.vim_mode = mode;
   }
 
   reset() {

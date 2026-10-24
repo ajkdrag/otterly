@@ -18,9 +18,9 @@ import { slash_menu } from "../src/plugins/menus/slash_menu";
 import { vim_mode, type VimMode } from "../src/plugins/vim/index";
 import { apply_vimrc, parse_vimrc } from "../src/plugins/vim/vimrc";
 
-// jsdom has no layout, and the block cursor measures text. j and k move by
-// screen lines, so with no layout they run to the end of the document. The
-// tests below move with counts and G instead.
+// jsdom has no layout, and the block cursor measures text. j and k also
+// measure the screen to step over hidden text, and with no layout they run to
+// the end of the document. The tests below move with counts and G instead.
 const original_get_client_rects = Object.getOwnPropertyDescriptor(
   Range.prototype,
   "getClientRects",
@@ -44,11 +44,9 @@ afterAll(() => {
 const open_views = new Set<EditorView>();
 
 afterEach(() => {
-  for (const view of open_views) {
-    view.destroy();
-    view.dom.remove();
-  }
+  for (const view of open_views) view.destroy();
   open_views.clear();
+  document.body.replaceChildren();
   apply_vimrc("");
 });
 
