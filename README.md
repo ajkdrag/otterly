@@ -13,9 +13,19 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 | Platform                       | Package to choose                                                  |
 | ------------------------------ | ------------------------------------------------------------------ |
 | macOS (Apple Silicon or Intel) | `.dmg` for your Mac                                                |
-| Windows x64                    | `setup.exe` or `.msi`                                              |
+| Windows x64                    | `setup.exe` or `.msi`, or `portable.zip` (no install)              |
 | Linux x64                      | `.AppImage` or `.deb`                                              |
 | Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage) |
+
+### Windows portable zip
+
+Unzip it anywhere and run `otterly.exe`. Everything in the editor works the same as the installed app. Three things differ:
+
+- Updates: a portable copy does not update itself. Download the newest zip and replace `otterly.exe`. Keep `portable.txt` next to it, because the app reads that file to know it is portable.
+- File association: nothing is registered with Windows, so use "Open with" > "Choose another app" > "Choose an app on your PC" and pick `otterly.exe`.
+- Settings and the vault list still live in your user profile (`%APPDATA%\com.otterly.app`), not next to the exe. Installed and portable copies share them.
+
+Otterly needs the WebView2 runtime. Windows 11 and up-to-date Windows 10 already have it.
 
 ## See it in action
 

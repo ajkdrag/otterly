@@ -129,6 +129,7 @@ pub fn run() {
             features::notes::service::get_folder_stats,
             features::shell::service::reveal_in_file_manager,
             features::shell::service::open_in_default_app,
+            features::updater::service::is_portable_install,
             features::settings::service::get_setting,
             features::settings::service::set_setting,
             features::vault_session::service::load_latest_vault_session,

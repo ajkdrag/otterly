@@ -118,6 +118,8 @@ How files arrive:
 
 File associations live in `tauri.conf.json` (`bundle.fileAssociations`). Linux needs `src-tauri/linux/otterly.desktop`, because the default desktop entry passes no `%F`. macOS also merges `src-tauri/Info.plist`, which declares the Markdown type for older macOS versions.
 
+The Windows release also ships a portable zip: `otterly.exe` plus `src-tauri/windows/portable.txt`, built by `release.yml`. It is the same binary as the installed app. `is_portable_install` checks for `portable.txt` next to the exe, and `UpdaterService` then skips the update, because the updater would run the NSIS installer. Settings still live in the user profile.
+
 ### Cross-runtime split
 
 Features exist in both runtimes but stay physically separate: TypeScript in `src/lib/features/<name>/`, Rust in `src-tauri/src/features/<name>/`. Feature names match across runtimes when they represent the same capability. TS calls Rust exclusively through feature adapters (`*_tauri_adapter.ts`) that invoke `@tauri-apps/api` IPC. Rust exposes only `#[tauri::command]` functions — no direct frontend coupling.

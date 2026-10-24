@@ -1,0 +1,4 @@
+This file marks Otterly as a portable copy. Keep it next to otterly.exe.
+
+Portable copies do not update themselves. To update, download the newest
+portable zip from the releases page and replace otterly.exe.

@@ -383,6 +383,30 @@ describe("register_app_actions", () => {
     );
   });
 
+  it("explains that a portable build updates by downloading the zip", async () => {
+    const { registry, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    services.updater.download_update.mockResolvedValue({ status: "portable" });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(toast.info).toHaveBeenCalledWith(
+      "Portable builds do not update themselves",
+      {
+        description: "Download the latest portable zip from the releases page.",
+      },
+    );
+  });
+
+  it("stays quiet in the background for a portable build", async () => {
+    const { registry, services } = create_harness();
+    services.updater.download_update.mockResolvedValue({ status: "portable" });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
   it("stops background prompts for the session after Later", async () => {
     const { registry, stores, services } = create_harness();
     services.updater.download_update.mockResolvedValue({

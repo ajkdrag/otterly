@@ -189,6 +189,29 @@ jobs:
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
+      # The portable zip is the plain release binary plus portable.txt. The
+      # app looks for that file to turn off its installer based updater.
+      - name: Package Windows portable zip
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $stageDir = Join-Path $env:RUNNER_TEMP "otterly-portable"
+          $zipName = "otterly_${version}_x64_portable.zip"
+
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+          Copy-Item src-tauri/target/release/otterly.exe $stageDir
+          Copy-Item src-tauri/windows/portable.txt $stageDir
+
+          # Skips by itself when the certificate secrets are not set.
+          & scripts/sign_windows.ps1 -FilePath (Join-Path $stageDir "otterly.exe")
+
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $zipName -Force
+          gh release upload $env:TAG_NAME $zipName --clobber
+
       - name: Write updater metadata
         shell: bash
         run: |

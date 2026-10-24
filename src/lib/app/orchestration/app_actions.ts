@@ -167,6 +167,12 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
     toast.error("Failed to check for updates");
     return;
   }
+  if (result.status === "portable") {
+    toast.info("Portable builds do not update themselves", {
+      description: "Download the latest portable zip from the releases page.",
+    });
+    return;
+  }
   if (result.status === "up_to_date") {
     toast.success("Otterly is up to date");
     return;

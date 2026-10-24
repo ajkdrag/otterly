@@ -58,6 +58,24 @@ describe("UpdaterService.download_update", () => {
   });
 });
 
+describe("UpdaterService.download_update for a portable install", () => {
+  it("skips the download so the installer never runs", async () => {
+    const { port, service } = create_harness();
+    vi.spyOn(port, "is_portable_install").mockResolvedValue(true);
+    const download_update = vi.spyOn(port, "download_update");
+
+    expect(await service.download_update()).toEqual({ status: "portable" });
+    expect(download_update).not.toHaveBeenCalled();
+  });
+
+  it("reports failure when the portable check fails", async () => {
+    const { port, service } = create_harness();
+    vi.spyOn(port, "is_portable_install").mockRejectedValue(new Error("ipc"));
+
+    expect(await service.download_update()).toEqual({ status: "failed" });
+  });
+});
+
 describe("UpdaterService.install_and_relaunch", () => {
   it("reports failure when the install fails", async () => {
     const { port, service } = create_harness();
