@@ -253,6 +253,7 @@ Inactive table cells are static rendered HTML. Only the active cell has a nested
 | line prefix     | An empty caret is in `[line start, content start)`.     |
 | block `caret`   | An empty caret touches the block.                       |
 | block `surface` | Only while constructing or after `edit_block_source`.   |
+| block `surface` | With `reveal_surfaces_at_caret`: like a `caret` block.  |
 
 Non-empty selections never reveal, so text does not shift while selecting. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer.
 
@@ -294,6 +295,7 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 | `wiki_links`  | `query_wiki_links(query, signal)`                                   |
 | `clipboard`   | `html_to_markdown`, `on_image_paste`                                |
 | `code_blocks` | `languages`, `copy_code`, `render_diagram`, `on_view_states_change` |
+| `vim_mode`    | `on_mode_change`                                                    |
 
 ## Source and history
 
@@ -306,6 +308,18 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 `set_editor_mode(view, "source")` shows the plain Markdown. The mode is a state field, so the switch keeps the document, selection, and history. In source mode the block field and inline rendering draw nothing, and construct keys and block arrow keys step aside. Blocks are still tracked, so their view states survive the trip back. Pass `source_extensions` (for example a highlighter) to `create_markdown_state`. They sit in a compartment that only holds them in source mode.
 
 `create_text_state(source, extensions)` builds a state for a file that is not Markdown. It has the same line ending handling and undo as a note, without the plugins.
+
+## Vim
+
+`vim_mode({ on_mode_change })` (`plugins/vim`) is an extension, not a construct plugin, so it works on Markdown and text states. Hosts usually put it in a compartment to toggle it. It wraps `@replit/codemirror-vim`:
+
+- `vim()` sits at `Prec.highest`, so Vim keys beat `context_keymap`. All keymaps run from one `Prec.default` DOM handler, the menus' `Prec.highest` keymap included, so Vim sees every key first. A small handler before it closes an open slash or wiki menu on Esc. Enter and the arrows are not Vim keys in insert mode, so they already reach the menu.
+- `u` and `<C-r>` go to `source_undo` and `source_redo`. The plugin patches the engine's `CodeMirror.commands` once at load, which survives a vimrc reload. `u` follows CodeMirror history groups, not insert sessions.
+- It turns on `reveal_surfaces_at_caret`. Code blocks and tables show their source while the caret is in them, so one Vim instance edits the whole document and no key lands in a nested editor. Arrow keys walk into the source instead of calling a surface's `enter`. A click inside a rendered surface still focuses its nested editor, the block then turns into source, and the core hands focus back to the outer view.
+- `on_mode_change` gets `"normal"` when the extension is built (enable, `setState`) and then every change: `normal`, `insert`, `visual`, `visual_line`, `visual_block`, `replace`.
+- The theme uses host variables (`--primary`, `--muted`, `--font-mono`) for the block cursor and the `/` prompt. The editor root gets `md-vim`.
+
+`apply_vimrc(text)` applies a small vimrc subset to the global engine and returns the lines it could not apply. Maps, unmaps and `set` are supported. Each call starts clean, so a deleted line goes away on reload. `unmap` only removes maps from the same file, because the engine's own unmap of a built-in key breaks its `mapclear()`.
 
 ## Example: callouts
 
@@ -347,7 +361,7 @@ src/
     keys.ts               context key dispatch
   plugins/
     commonmark/  gfm/  code_blocks/  frontmatter/  links/  images/
-    wiki_links/  menus/  callouts/  find.ts  clipboard.ts
+    wiki_links/  menus/  callouts/  vim/  find.ts  clipboard.ts
   testing/
     test_editor.ts        a real editor driven by key events
 ```

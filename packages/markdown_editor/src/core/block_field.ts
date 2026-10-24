@@ -2,6 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import {
   Annotation,
+  Facet,
   StateEffect,
   StateField,
   type EditorState,
@@ -41,6 +42,14 @@ export type Block = {
 
 // Transactions dispatched by an editing surface carry this annotation.
 export const surface_input = Annotation.define<boolean>();
+
+// When true, surface blocks (code, tables) show their source while an empty
+// caret touches them, the same as "caret" blocks, and the caret never enters
+// a nested editor. Vim turns this on, so one Vim instance edits the whole
+// document instead of losing its keys to a nested view.
+export const reveal_surfaces_at_caret = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
 
 // Keep a block as source until the caret leaves it.
 export const edit_block_source = StateEffect.define<number>();
@@ -110,12 +119,15 @@ export const block_field = StateField.define<BlockFieldValue>({
     if (
       transaction.selection &&
       !state.field(reveal_freeze, false)?.frozen &&
-      blocks.some((block) => block.construct.reveal === "caret")
+      blocks.some((block) => reveals_at_caret(state, block))
     )
       changed = true;
     if (
       transaction.startState.field(reveal_freeze, false)?.frozen !==
-      state.field(reveal_freeze, false)?.frozen
+        state.field(reveal_freeze, false)?.frozen ||
+      // A compartment turned the facet on or off.
+      transaction.startState.facet(reveal_surfaces_at_caret) !==
+        state.facet(reveal_surfaces_at_caret)
     )
       changed = true;
     if (!changed) return value;
@@ -525,10 +537,7 @@ function build_decorations(
   const ranges: Range<Decoration>[] = [];
   for (const block of blocks) {
     if (block.from === constructing) continue;
-    if (
-      block.construct.reveal === "caret" &&
-      touches(state, block.from, block.to)
-    )
+    if (reveals_at_caret(state, block) && touches(state, block.from, block.to))
       continue;
     if (block.construct.complete && !block.construct.complete(block, state))
       continue;
@@ -540,6 +549,14 @@ function build_decorations(
     );
   }
   return Decoration.set(ranges, true);
+}
+
+function reveals_at_caret(state: EditorState, block: Block): boolean {
+  return (
+    block.construct.reveal === "caret" ||
+    (block.construct.reveal === "surface" &&
+      state.facet(reveal_surfaces_at_caret))
+  );
 }
 
 const measured_heights = new Map<string, number>();

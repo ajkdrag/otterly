@@ -28,6 +28,7 @@ import {
   controller_for_block,
   get_blocks,
   is_block_rendered,
+  reveal_surfaces_at_caret,
   surface_input,
   type Block,
 } from "./block_field.js";
@@ -392,6 +393,8 @@ export function enter_adjacent_block(
   vertical: boolean,
 ): boolean {
   const { state } = view;
+  // The caret walks into the block's source instead, which then shows.
+  if (state.facet(reveal_surfaces_at_caret)) return false;
   const selection = state.selection.main;
   if (!selection.empty || state.selection.ranges.length !== 1) return false;
   const line = state.doc.lineAt(selection.head);

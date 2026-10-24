@@ -64,6 +64,7 @@ export {
   patch_block_view_state,
   replace_block_view_states,
   read_block_view_states,
+  reveal_surfaces_at_caret,
   type Block,
   type BlockController,
 } from "./core/block_field.js";
@@ -125,3 +126,14 @@ export {
   type MarkdownClipboardOptions,
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
+export {
+  vim_mode,
+  type VimMode,
+  type VimModeOptions,
+} from "./plugins/vim/index.js";
+export {
+  apply_vimrc,
+  parse_vimrc,
+  type VimrcCommand,
+  type VimrcProblem,
+} from "./plugins/vim/vimrc.js";

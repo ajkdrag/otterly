@@ -13,6 +13,7 @@ import {
   controller_for_block,
   is_block_rendered,
   mounted_controllers,
+  reveal_surfaces_at_caret,
   surface_input,
 } from "./block_field.js";
 import {
@@ -186,8 +187,10 @@ const surface_selection_sync = EditorView.updateListener.of((update) => {
     update.transactions.some((transaction) =>
       transaction.annotation(surface_input),
     )
-  )
+  ) {
+    take_focus_from_revealed_surface(update.view);
     return;
+  }
   const head = update.state.selection.main.head;
   for (const controller of mounted_controllers(update.view)) {
     if (controller.owns?.(head)) controller.sync_selection?.();
@@ -229,6 +232,22 @@ function move_caret_into_surface(view: EditorView) {
     const nearer_start =
       selection.head - block.from <= block.to - selection.head;
     controller.enter?.(nearer_start ? 1 : -1, null);
+  });
+}
+
+// Under reveal_surfaces_at_caret, a click inside a rendered code block or
+// table still focuses its nested editor, which then moves the outer selection
+// into the block. That reveals the block's source and destroys the nested
+// view, and the focus goes with it. Give focus back to the outer editor, so
+// the next key lands in the source the caret now sits in.
+function take_focus_from_revealed_surface(view: EditorView) {
+  if (!view.state.facet(reveal_surfaces_at_caret)) return;
+  const block = block_at(view.state, view.state.selection.main.head);
+  if (!block || block.construct.reveal !== "surface") return;
+  if (is_block_rendered(view.state, block)) return;
+  // Focusing dispatches, which cannot happen inside this update.
+  queueMicrotask(() => {
+    view.focus();
   });
 }
 
