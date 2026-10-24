@@ -56,7 +56,7 @@
     </p>
   {/if}
 
-  {#if theme_file.path}
+  {#if has_path}
     <code
       class="rounded-sm bg-muted px-2 py-1 font-mono text-xs break-all text-muted-foreground select-all"
       >{theme_file.path}</code
