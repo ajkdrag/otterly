@@ -26,6 +26,8 @@
   const indexing = $derived(stores.search.index_progress.status === "indexing");
   const open_note_path = $derived(stores.editor.open_note?.meta.path ?? null);
 
+  // @Speed: The list is plain, not virtualized. Virtualize it if a vault with
+  // thousands of tags feels slow.
   const visible_tags = $derived.by(() => {
     const query = filter_text.trim().replace(/^#/, "").toLowerCase();
     const matching = query

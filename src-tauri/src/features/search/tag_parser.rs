@@ -33,6 +33,9 @@ pub(crate) fn tag_key(tag: &str) -> String {
 
 // Tags are deduped by `tag_key`. The first spelling wins, frontmatter first,
 // then body order.
+//
+// @Speed: The index parses each note twice, once for links and once here.
+// Merge them into one parse if indexing a big vault gets slow.
 pub(crate) fn extract_note_tags(markdown: &str) -> Vec<NoteTag> {
     let arena = Arena::new();
     let root = parse_document(&arena, markdown, &tag_options());
@@ -318,6 +321,7 @@ mod tests {
         assert_eq!(tags("| h |\n| --- |\n| #cell |\n"), vec!["cell"]);
         assert_eq!(tags("> #quote"), vec!["quote"]);
         assert_eq!(tags("- [ ] #task"), vec!["task"]);
+        assert_eq!(tags("> [!note] Title\n> body #callout"), vec!["callout"]);
     }
 
     #[test]
@@ -339,6 +343,10 @@ mod tests {
         );
         assert_eq!(tags("---\ntags: [123, ok, bad tag]\n---\n"), vec!["ok"]);
         assert_eq!(tags("---\ntag: a\nmeta:\n  tags: [b]\n---\n"), none());
+        assert_eq!(
+            tags("---\r\ntags:\r\n  - a\r\n  - b\r\n---\r\n#c\r\n"),
+            vec!["a", "b", "c"]
+        );
     }
 
     #[test]
