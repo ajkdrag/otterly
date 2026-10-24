@@ -84,6 +84,32 @@ describe("theme defaults", () => {
     );
   });
 
+  it("fills the interface fields on a theme saved before they existed", async () => {
+    const saved_before: Record<string, unknown> = {
+      ...BUILTIN_NORDIC_LIGHT,
+      id: "old",
+      name: "Saved last year",
+      is_builtin: false,
+    };
+    delete saved_before.ui_radius;
+    delete saved_before.file_tree_density;
+    delete saved_before.editor_max_width_ch;
+    const service = create_theme_service({
+      active_theme_id: "old",
+      user_themes: [saved_before],
+    });
+
+    const result = await service.load_themes();
+
+    expect(result.user_themes).toHaveLength(1);
+    expect(result.user_themes[0]).toMatchObject({
+      id: "old",
+      ui_radius: 0.25,
+      file_tree_density: "normal",
+      editor_max_width_ch: null,
+    });
+  });
+
   it("keeps a saved custom theme and its fonts", async () => {
     const custom = {
       ...BUILTIN_NORDIC_LIGHT,
