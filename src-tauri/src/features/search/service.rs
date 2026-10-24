@@ -804,6 +804,36 @@ pub fn index_note_links_snapshot(
 }
 
 #[tauri::command]
+pub fn index_list_tags(
+    app: AppHandle,
+    vault_id: String,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, search_db::list_tags)
+}
+
+#[tauri::command]
+pub fn index_list_notes_with_tag(
+    app: AppHandle,
+    vault_id: String,
+    tag: String,
+) -> Result<Vec<search_db::TaggedNote>, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::list_notes_with_tag(conn, &tag)
+    })
+}
+
+// Pure, like rewrite_note_links: the right rail asks about unsaved editor
+// text, so there is no vault or index involved. It sends tag names only,
+// the rail does not show excerpts.
+#[tauri::command]
+pub fn extract_note_tags(markdown: String) -> Vec<String> {
+    tag_parser::extract_note_tags(&markdown)
+        .into_iter()
+        .map(|note_tag| note_tag.tag)
+        .collect()
+}
+
+#[tauri::command]
 pub fn index_extract_local_note_links(
     app: AppHandle,
     vault_id: String,
