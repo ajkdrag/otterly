@@ -179,6 +179,29 @@ pub fn remove_note(conn: &Connection, path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// Runs `write` as one transaction. Another profile can have this vault open,
+// and then it is a second writer on this file. Without the transaction its
+// statements can land between ours: after our DELETE and before our INSERT,
+// say, which leaves a note with two search rows.
+//
+// Do not call this where a transaction is already open (sync_index and
+// rebuild_index open their own). SQLite has no nested BEGIN.
+pub fn in_write_transaction<T>(
+    conn: &Connection,
+    write: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|e| e.to_string())?;
+    let result = write().and_then(|value| {
+        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        Ok(value)
+    });
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK");
+    }
+    result
+}
+
 pub fn remove_notes(conn: &Connection, paths: &[String]) -> Result<(), String> {
     for path in paths {
         remove_note(conn, path)?;
@@ -1028,4 +1051,37 @@ pub fn get_backlinks(conn: &Connection, path: &str) -> Result<Vec<IndexNoteMeta>
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn count_notes(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn write_transaction_undoes_earlier_statements_when_a_later_one_fails() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE notes (path TEXT PRIMARY KEY)")
+            .unwrap();
+
+        let result: Result<(), String> = in_write_transaction(&conn, || {
+            conn.execute("INSERT INTO notes (path) VALUES ('a.md')", [])
+                .map_err(|e| e.to_string())?;
+            Err("second statement failed".to_string())
+        });
+
+        assert!(result.is_err());
+        assert_eq!(count_notes(&conn), 0);
+        // The failed write must not leave a transaction open.
+        in_write_transaction(&conn, || {
+            conn.execute("INSERT INTO notes (path) VALUES ('b.md')", [])
+                .map_err(|e| e.to_string())
+        })
+        .unwrap();
+        assert_eq!(count_notes(&conn), 1);
+    }
 }

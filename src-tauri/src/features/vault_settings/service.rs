@@ -53,7 +53,10 @@ fn read_vault_settings_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
 }
 
 fn write_vault_settings_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temporary_path = path.with_extension("json.tmp");
+    // Every profile that has this vault open writes this file. With one shared
+    // temp name, one process could truncate it while another renames it, which
+    // leaves settings.json empty. The process id keeps the temp files apart.
+    let temporary_path = path.with_extension(format!("json.{}.tmp", std::process::id()));
     std::fs::write(&temporary_path, bytes).map_err(|e| e.to_string())?;
     std::fs::rename(&temporary_path, path).map_err(|e| e.to_string())?;
     Ok(())

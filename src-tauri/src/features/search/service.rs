@@ -182,7 +182,8 @@ fn dispatch_command(
             let _ = reply.send(result);
         }
         DbCommand::RemoveNote { note_id, reply } => {
-            let result = search_db::remove_note(conn, &note_id);
+            let result =
+                search_db::in_write_transaction(conn, || search_db::remove_note(conn, &note_id));
             if let Err(ref e) = result {
                 log::warn!("writer: remove failed for {note_id}: {e}");
             } else {
@@ -191,7 +192,8 @@ fn dispatch_command(
             let _ = reply.send(result);
         }
         DbCommand::RemoveNotes { note_ids, reply } => {
-            let result = search_db::remove_notes(conn, &note_ids);
+            let result =
+                search_db::in_write_transaction(conn, || search_db::remove_notes(conn, &note_ids));
             if let Err(ref e) = result {
                 log::warn!("writer: batch remove failed: {e}");
             } else {
@@ -312,16 +314,13 @@ fn handle_upsert(
     let markdown = match std::fs::read_to_string(&abs) {
         Ok(content) => content,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            let _ = search_db::remove_note(conn, note_id);
+            let _ = search_db::in_write_transaction(conn, || search_db::remove_note(conn, note_id));
             notes_cache.remove(note_id);
             return Ok(());
         }
         Err(e) => return Err(e.to_string()),
     };
     let meta = search_db::extract_meta(&abs, vault_root)?;
-
-    search_db::upsert_note(conn, &meta, &markdown)?;
-    notes_cache.insert(meta.path.clone(), meta.clone());
 
     let targets = search_db::internal_link_targets(&markdown, &meta.path);
     let mut resolved: BTreeSet<String> = BTreeSet::new();
@@ -330,7 +329,16 @@ fn handle_upsert(
             resolved.insert(target);
         }
     }
-    search_db::set_outlinks(conn, &meta.path, &resolved.into_iter().collect::<Vec<_>>())
+    let resolved: Vec<String> = resolved.into_iter().collect();
+
+    // The file reads above stay outside the transaction, so the write lock is
+    // held only for the statements.
+    search_db::in_write_transaction(conn, || {
+        search_db::upsert_note(conn, &meta, &markdown)?;
+        search_db::set_outlinks(conn, &meta.path, &resolved)
+    })?;
+    notes_cache.insert(meta.path.clone(), meta);
+    Ok(())
 }
 
 type IndexFn = fn(
