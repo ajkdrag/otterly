@@ -20,6 +20,7 @@ import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
+import { ProfileService } from "$lib/features/profile";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -140,6 +141,13 @@ export function create_app_context(input: {
 
   const updater_service = new UpdaterService(input.ports.updater);
 
+  const profile_service = new ProfileService(
+    input.ports.profile,
+    stores.profile,
+    stores.op,
+    now_ms,
+  );
+
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,
     stores.op,
@@ -209,6 +217,7 @@ export function create_app_context(input: {
       search: stores.search,
       tab: stores.tab,
       git: stores.git,
+      profile: stores.profile,
     },
     services: {
       vault: vault_service,
@@ -226,6 +235,7 @@ export function create_app_context(input: {
       hotkey: hotkey_service,
       theme: theme_service,
       updater: updater_service,
+      profile: profile_service,
     },
     default_mount_config: input.default_mount_config,
   });

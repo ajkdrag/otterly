@@ -9,6 +9,7 @@ import type { GitPort } from "$lib/features/git";
 import type { VaultPort, VaultSettingsPort } from "$lib/features/vault";
 import type { WatcherPort } from "$lib/features/watcher";
 import type { UpdaterPort } from "$lib/features/updater";
+import type { ProfilePort } from "$lib/features/profile";
 
 export type Ports = {
   vault: VaultPort;
@@ -25,4 +26,5 @@ export type Ports = {
   git: GitPort;
   watcher: WatcherPort;
   updater: UpdaterPort;
+  profile: ProfilePort;
 };

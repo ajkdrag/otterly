@@ -125,6 +125,12 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
   const started_at = is_performance_logging_enabled ? performance.now() : null;
   set_startup_loading(input);
 
+  await input.services.profile.load_current_profile();
+  // The Dock's "New Profile…" may have created this window, and its event
+  // went out before we listened. Checking first shows the dialog while the
+  // vault still loads.
+  await input.registry.execute(ACTION_IDS.profile_check_dialog_request);
+
   const bootstrap_data = await load_bootstrap_data(input);
   apply_loaded_preferences(input, bootstrap_data);
 

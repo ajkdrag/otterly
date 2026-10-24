@@ -11,6 +11,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 
 vi.mock("svelte-sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -69,6 +70,7 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
+      profile: new ProfileStore(),
     };
 
     register_ui_actions({
@@ -106,6 +108,7 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
+      profile: new ProfileStore(),
     };
 
     register_ui_actions({

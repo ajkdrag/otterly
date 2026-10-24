@@ -18,6 +18,7 @@ import { create_shell_tauri_adapter } from "$lib/features/shell";
 import { create_git_tauri_adapter } from "$lib/features/git";
 import { create_watcher_tauri_adapter } from "$lib/features/watcher";
 import { create_updater_tauri_adapter } from "$lib/features/updater";
+import { create_profile_tauri_adapter } from "$lib/features/profile";
 import {
   create_document_tauri_adapter,
   document_asset_url,
@@ -39,6 +40,7 @@ export function create_prod_ports(): Ports {
   const git = create_git_tauri_adapter();
   const watcher = create_watcher_tauri_adapter();
   const updater = create_updater_tauri_adapter();
+  const profile = create_profile_tauri_adapter();
 
   return {
     vault,
@@ -59,6 +61,7 @@ export function create_prod_ports(): Ports {
     git,
     watcher,
     updater,
+    profile,
   };
 }
 

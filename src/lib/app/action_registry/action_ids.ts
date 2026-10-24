@@ -186,6 +186,12 @@ export const ACTION_IDS = {
   document_request_close: "document.request_close",
   document_confirm_close: "document.confirm_close",
   document_cancel_close: "document.cancel_close",
+
+  profile_open_dialog: "profile.open_dialog",
+  profile_close_dialog: "profile.close_dialog",
+  profile_update_new_name: "profile.update_new_name",
+  profile_open: "profile.open",
+  profile_check_dialog_request: "profile.check_dialog_request",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

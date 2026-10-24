@@ -10,6 +10,7 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
+import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
@@ -97,6 +98,7 @@ function create_harness(options: HarnessOptions = {}) {
     search: new SearchStore(),
     tab: new TabStore(),
     git: new GitStore(),
+    profile: new ProfileStore(),
   };
 
   const services = {
@@ -146,6 +148,9 @@ function create_harness(options: HarnessOptions = {}) {
       download_update: vi.fn().mockResolvedValue({ status: "up_to_date" }),
       install_and_relaunch: vi.fn().mockResolvedValue(true),
     },
+    profile: {
+      load_current_profile: vi.fn().mockResolvedValue(undefined),
+    },
     tab: {
       mark_conflict: vi.fn(),
       sync_dirty_state: vi.fn(),
@@ -159,6 +164,9 @@ function create_harness(options: HarnessOptions = {}) {
   const execute_folder_refresh_tree = vi.fn().mockResolvedValue(undefined);
   const execute_git_check_repo = vi.fn().mockResolvedValue(undefined);
   const execute_open_vault_dashboard = vi.fn().mockResolvedValue(undefined);
+  const execute_profile_check_dialog_request = vi
+    .fn()
+    .mockResolvedValue(undefined);
 
   register_app_actions({
     registry,
@@ -188,6 +196,12 @@ function create_harness(options: HarnessOptions = {}) {
     execute: execute_open_vault_dashboard,
   });
 
+  registry.register({
+    id: ACTION_IDS.profile_check_dialog_request,
+    label: "Check Profiles Dialog Request",
+    execute: execute_profile_check_dialog_request,
+  });
+
   return {
     registry,
     stores,
@@ -195,6 +209,7 @@ function create_harness(options: HarnessOptions = {}) {
     execute_folder_refresh_tree,
     execute_git_check_repo,
     execute_open_vault_dashboard,
+    execute_profile_check_dialog_request,
   };
 }
 
@@ -300,6 +315,20 @@ describe("register_app_actions", () => {
     expect(execute_folder_refresh_tree).not.toHaveBeenCalled();
     expect(execute_git_check_repo).not.toHaveBeenCalled();
     expect(execute_open_vault_dashboard).not.toHaveBeenCalled();
+  });
+
+  it("checks for a Dock profiles request even when the vault fails to load", async () => {
+    const { registry, services, execute_profile_check_dialog_request } =
+      create_harness();
+    services.vault.initialize.mockResolvedValue({
+      status: "error",
+      error: "startup failed",
+    });
+
+    await registry.execute(ACTION_IDS.app_mounted);
+
+    expect(services.profile.load_current_profile).toHaveBeenCalledTimes(1);
+    expect(execute_profile_check_dialog_request).toHaveBeenCalledTimes(1);
   });
 
   it("resets UI state on mount when reset_app_state is true", async () => {
