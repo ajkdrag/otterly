@@ -825,7 +825,15 @@ pub fn index_list_notes_with_tag(
 // Pure, like rewrite_note_links: the right rail asks about unsaved editor
 // text, so there is no vault or index involved. It sends tag names only,
 // the rail does not show excerpts.
-#[tauri::command]
+//
+// `async` makes Tauri run this plain fn on its thread pool. A sync command
+// runs on the main thread, and this parses the whole note on every typing
+// pause while the rail is open.
+//
+// @Speed: The rail also calls index_extract_local_note_links, which parses the
+// same text again, and the note crosses IPC twice. One command returning links
+// and tags would halve both.
+#[tauri::command(async)]
 pub fn extract_note_tags(markdown: String) -> Vec<String> {
     tag_parser::extract_note_tags(&markdown)
         .into_iter()
