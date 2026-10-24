@@ -8,4 +8,5 @@ pub mod updater;
 pub mod vault;
 pub mod vault_session;
 pub mod vault_settings;
+pub mod vim;
 pub mod watcher;

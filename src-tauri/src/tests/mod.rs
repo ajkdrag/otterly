@@ -21,3 +21,6 @@ mod document_service;
 
 #[path = "../../tests/portable_install.rs"]
 mod portable_install;
+
+#[path = "../../tests/vim_service.rs"]
+mod vim_service;

@@ -89,7 +89,7 @@ pub fn open_document_windows(app: &AppHandle, paths: Vec<PathBuf>) {
 }
 
 // One window per file. Opening the same file again focuses its window.
-fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
+pub(crate) fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
     let path = path.canonicalize().map_err(|e| e.to_string())?;
     if !path.is_file() {
         return Err("not a file".to_string());
@@ -178,7 +178,7 @@ fn file_name(path: &Path) -> String {
 }
 
 // canonicalize gives Windows verbatim paths (\\?\C:\...). Show the usual form.
-fn display_path(path: &Path) -> String {
+pub(crate) fn display_path(path: &Path) -> String {
     let text = path.to_string_lossy();
     text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
 }

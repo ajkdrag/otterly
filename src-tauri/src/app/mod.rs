@@ -133,6 +133,8 @@ pub fn run() {
             features::updater::service::is_portable_install,
             features::settings::service::get_setting,
             features::settings::service::set_setting,
+            features::vim::service::read_vimrc,
+            features::vim::service::open_vimrc,
             features::vault_session::service::load_latest_vault_session,
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,
