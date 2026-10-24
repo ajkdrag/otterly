@@ -63,27 +63,9 @@ fn space_separated_flag_is_not_a_profile() {
 }
 
 #[test]
-fn invalid_ids_are_errors() {
-    for bad in [
-        "",
-        "Work",
-        "-work",
-        "work stuff",
-        "work_stuff",
-        "a/b",
-        "../x",
-        "wörk",
-    ] {
-        let flag = format!("--profile={bad}");
-        assert!(
-            profile_from_launch(&args(&[&flag]), None).is_err(),
-            "flag {flag:?}"
-        );
-        assert!(
-            profile_from_launch(&args(&[]), Some(bad)).is_err(),
-            "env {bad:?}"
-        );
-    }
+fn invalid_id_from_flag_or_env_is_an_error() {
+    assert!(profile_from_launch(&args(&["--profile=Work"]), None).is_err());
+    assert!(profile_from_launch(&args(&[]), Some("work stuff")).is_err());
 }
 
 #[test]
@@ -97,6 +79,8 @@ fn profile_ids_are_lowercase_digits_and_dashes_up_to_32() {
         "Work",
         "work.stuff",
         "work_stuff",
+        "a/b",
+        "../x",
         &"a".repeat(33),
     ] {
         assert!(!is_valid_profile_id(bad), "{bad:?}");
@@ -112,10 +96,6 @@ fn identifier_and_dir_name_round_trip() {
         profile_id_from_dir_name(BASE, &identifier),
         Some("work".to_string())
     );
-}
-
-#[test]
-fn default_profile_keeps_the_base_identifier() {
     assert_eq!(profile_identifier(BASE, "default"), BASE);
 }
 
