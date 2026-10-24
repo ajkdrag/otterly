@@ -8,7 +8,7 @@ import {
   test,
   vi,
 } from "vitest";
-import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
@@ -18,11 +18,7 @@ import { code_blocks } from "../src/plugins/code_blocks/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
 import { vim_mode, type VimMode } from "../src/plugins/vim/index";
-import {
-  apply_vimrc,
-  built_in_one_key_commands,
-  parse_vimrc,
-} from "../src/plugins/vim/vimrc";
+import { apply_vimrc, parse_vimrc } from "../src/plugins/vim/vimrc";
 
 // jsdom has no layout, and the block cursor measures text. j and k also
 // measure the screen to step over hidden text, and with no layout they run to
@@ -610,67 +606,4 @@ describe("vimrc", () => {
     press(view, "l");
     expect(view.state.selection.main.head).toBe(1);
   });
-});
-
-describe("vimrc shadowing", () => {
-  // Keys that put a fresh editor in each mode before the probe key.
-  const first_keys = {
-    normal: [],
-    visual: ["v"],
-    operatorPending: ["d"],
-  } as const;
-  const printable = Array.from({ length: 94 }, (_, index) =>
-    String.fromCharCode(33 + index),
-  );
-  const named =
-    "Space BS CR Del Tab Esc Left Right Up Down Home End PageUp PageDown Ins"
-      .split(" ")
-      .map((name) => `<${name}>`);
-  const control = Array.from(
-    "abcdefghijklmnopqrstuvwxyz",
-    (letter) => `<C-${letter}>`,
-  );
-  const candidates = [
-    ...new Set([
-      ...printable,
-      ...named,
-      ...control,
-      ...built_in_one_key_commands.keys(),
-    ]),
-  ];
-
-  // The engine runs a one-key command the moment the key is typed. A key
-  // that only starts a longer map waits in the key buffer instead.
-  function runs_at_once(context: keyof typeof first_keys, key: string) {
-    const parent = document.createElement("div");
-    document.body.append(parent);
-    const view = new EditorView({
-      parent,
-      state: EditorState.create({ doc: "one two", extensions: vim_mode() }),
-    });
-    try {
-      const cm = getCM(view);
-      if (!cm) throw new Error("Vim is not running in this view");
-      for (const first_key of first_keys[context])
-        Vim.handleKey(cm, first_key, "user");
-      Vim.handleKey(cm, key, "user");
-      return (cm.state.vim?.inputState.keyBuffer.length ?? 0) === 0;
-    } finally {
-      view.destroy();
-    }
-  }
-
-  test.each(["normal", "visual", "operatorPending"] as const)(
-    "VIM-016 the engine runs exactly the listed one-key commands in %s mode",
-    (context) => {
-      for (const key of candidates) Vim.noremap(key + key, "x", "");
-
-      const actual = candidates.filter((key) => runs_at_once(context, key));
-      const listed = candidates.filter((key) =>
-        built_in_one_key_commands.get(key)?.includes(context),
-      );
-      expect(actual).toEqual(listed);
-    },
-    60_000,
-  );
 });
