@@ -168,7 +168,7 @@ Every feature follows this pattern. Cross-feature imports go through `index.ts` 
 
 ### Domain stores (`src/lib/features/*/state/*_store.svelte.ts`)
 
-Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`. These are `$state` classes instantiated once in `create_app_stores()`.
+Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`, `TagsStore`. These are `$state` classes instantiated once in `create_app_stores()`.
 
 - **Who writes**: Services (after IO completes) and actions (for immediate mutations).
 - **Who reads**: Components via `$derived`, reactors via `$effect`, services (to check current state before IO).
