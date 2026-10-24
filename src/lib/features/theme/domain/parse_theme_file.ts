@@ -58,15 +58,6 @@ const DESCRIPTOR_BY_KEY = new Map<string, ThemeStyleDescriptor>(
   STYLE_DESCRIPTORS.map((desc) => [desc.theme_key, desc]),
 );
 
-// $schema is for editors (yaml-language-server, VS Code) and is ignored here.
-export const THEME_FILE_KEYS: string[] = [
-  "$schema",
-  "name",
-  "extends",
-  "tokens",
-  ...DESCRIPTOR_BY_KEY.keys(),
-];
-
 export function parse_theme_file(
   text: string,
   is_valid_color: (value: string) => boolean,
@@ -125,6 +116,7 @@ function parse_theme_file_text(
       });
     };
 
+    // $schema is for editors (yaml-language-server, VS Code) and is ignored.
     if (key === "$schema") continue;
 
     if (key === "name") {
