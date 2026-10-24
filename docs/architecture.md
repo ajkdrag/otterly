@@ -298,6 +298,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
+- **Rust theme feature imports from notes**: `features/theme/service.rs` uses `atomic_write` from `features/notes/service.rs`, and `theme_file_dir` copies the config folder lines from `settings_path`. The document feature already imports `atomic_write` the same way, so this bends backend invariant 3 for a second consumer. Moving `atomic_write` and a `config_dir` helper into `shared/` is a follow-up that touches notes, document, settings and theme at once.
 
 ## Worked example: rename note
 
