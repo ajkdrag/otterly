@@ -75,6 +75,9 @@
     on_theme_update,
   }: Props = $props();
 
+  // A theme can set its own editor width, which wins over the Layout setting.
+  const theme_max_width_ch = $derived(active_theme.editor_max_width_ch);
+
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
     value: String(i + 1),
     label: String(i + 1),
@@ -196,9 +199,13 @@
             <div class="SettingsDialog__row">
               <div class="SettingsDialog__label-group">
                 <span class="SettingsDialog__label">Editor Max Width</span>
-                <span class="SettingsDialog__description"
-                  >Maximum line width for the editor content (in characters)</span
-                >
+                <span class="SettingsDialog__description">
+                  {#if theme_max_width_ch === null}
+                    Maximum line width for the editor content (in characters)
+                  {:else}
+                    Overridden by the active theme ({theme_max_width_ch}ch)
+                  {/if}
+                </span>
               </div>
               <div class="flex items-center gap-3">
                 <Slider
@@ -214,6 +221,7 @@
                   max={140}
                   step={5}
                   class="w-32"
+                  disabled={theme_max_width_ch !== null}
                 />
                 <span class="text-sm tabular-nums w-10"
                   >{editor_settings.editor_max_width_ch}ch</span
@@ -227,8 +235,9 @@
                       DEFAULT_EDITOR_SETTINGS.editor_max_width_ch,
                     )}
                   aria-label="Reset editor max width to default"
-                  disabled={editor_settings.editor_max_width_ch ===
-                    DEFAULT_EDITOR_SETTINGS.editor_max_width_ch}
+                  disabled={theme_max_width_ch !== null ||
+                    editor_settings.editor_max_width_ch ===
+                      DEFAULT_EDITOR_SETTINGS.editor_max_width_ch}
                   title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.editor_max_width_ch)}ch)`}
                 >
                   <RotateCcw />

@@ -132,6 +132,14 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
 
     editor_padding_x: num(raw.editor_padding_x, defaults.editor_padding_x),
     editor_padding_y: num(raw.editor_padding_y, defaults.editor_padding_y),
+    editor_max_width_ch: nullable_num(raw.editor_max_width_ch),
+
+    ui_radius: num(raw.ui_radius, defaults.ui_radius),
+    ui_density: enum_val(
+      raw.ui_density,
+      ["compact", "normal", "comfortable"],
+      defaults.ui_density,
+    ),
 
     bold_style: enum_val(
       raw.bold_style,
@@ -178,6 +186,10 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
 
 function num(val: unknown, fallback: number): number {
   return typeof val === "number" && Number.isFinite(val) ? val : fallback;
+}
+
+function nullable_num(val: unknown): number | null {
+  return typeof val === "number" && Number.isFinite(val) ? val : null;
 }
 
 function str(val: unknown, fallback: string): string {

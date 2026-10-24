@@ -7,6 +7,8 @@
 
   type Props = {
     nodes: FlatTreeNode[];
+    // Must match the --size-tree-row CSS variable. The theme density sets both.
+    row_height_px: number;
     selected_path: string;
     revealed_note_path: string;
     open_note_path: string;
@@ -50,6 +52,7 @@
 
   let {
     nodes,
+    row_height_px,
     selected_path,
     revealed_note_path,
     open_note_path,
@@ -78,7 +81,6 @@
     on_move_items,
   }: Props = $props();
 
-  const ROW_HEIGHT = 30;
   const OVERSCAN = 5;
 
   let scroll_container: HTMLDivElement | null = $state(null);
@@ -115,8 +117,18 @@
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: 0,
     getScrollElement: () => scroll_container,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => row_height_px,
     overscan: OVERSCAN,
+  });
+
+  // The virtualizer caches row sizes, so a density change needs a re-measure.
+  // measure() notifies the store, which re-runs this effect, hence the guard.
+  let measured_row_height_px: number | null = null;
+  $effect(() => {
+    const v = $virtualizer;
+    if (!v || row_height_px === measured_row_height_px) return;
+    measured_row_height_px = row_height_px;
+    v.measure();
   });
 
   $effect(() => {
@@ -165,7 +177,7 @@
     void current_nodes;
 
     const v = $virtualizer;
-    if (!v) return nodes.length * ROW_HEIGHT;
+    if (!v) return nodes.length * row_height_px;
     return v.getTotalSize();
   });
 

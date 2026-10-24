@@ -122,6 +122,20 @@ describe("apply_theme", () => {
     expect(store.get("--editor-bold-weight")).toBe("600");
   });
 
+  it("sets the interface radius and tree row height from the theme", () => {
+    apply_theme({
+      ...BUILTIN_NORDIC_DARK,
+      ui_radius: 0.5,
+      ui_density: "compact",
+    });
+    expect(store.get("--radius")).toBe("0.5rem");
+    expect(store.get("--size-tree-row")).toBe("26px");
+
+    apply_theme(BUILTIN_NORDIC_DARK);
+    expect(store.get("--radius")).toBe("0.25rem");
+    expect(store.get("--size-tree-row")).toBe("30px");
+  });
+
   it("applies bold accent color style", () => {
     const custom = {
       ...BUILTIN_NORDIC_DARK,

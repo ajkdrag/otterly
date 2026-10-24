@@ -1,4 +1,5 @@
 import type { Theme } from "$lib/shared/types/theme";
+import { TREE_ROW_HEIGHT_PX } from "$lib/shared/types/theme";
 import { resolve_font_stack } from "$lib/shared/utils/theme_helpers";
 
 const SPACING_MAP: Record<string, string> = {
@@ -61,6 +62,10 @@ function build_token_entries(theme: Theme): [string, string][] {
     // Layout
     ["--editor-padding-x", `${String(theme.editor_padding_x)}rem`],
     ["--editor-padding-y", `${String(theme.editor_padding_y)}rem`],
+
+    // Interface
+    ["--radius", `${String(theme.ui_radius)}rem`],
+    ["--size-tree-row", `${String(TREE_ROW_HEIGHT_PX[theme.ui_density])}px`],
 
     // Code block radius
     [

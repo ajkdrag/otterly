@@ -10,6 +10,16 @@ export type ThemeBlockquoteStyle = "default" | "minimal" | "accent-bar";
 
 export type ThemeCodeBlockStyle = "default" | "borderless" | "filled";
 
+export type ThemeUiDensity = "compact" | "normal" | "comfortable";
+
+// The file tree is virtualized, so it needs the row height in pixels, not
+// just the --size-tree-row CSS variable.
+export const TREE_ROW_HEIGHT_PX: Record<ThemeUiDensity, number> = {
+  compact: 26,
+  normal: 30,
+  comfortable: 34,
+};
+
 export type Theme = {
   id: string;
   name: string;
@@ -38,6 +48,11 @@ export type Theme = {
 
   editor_padding_x: number;
   editor_padding_y: number;
+  // null means the Layout setting decides.
+  editor_max_width_ch: number | null;
+
+  ui_radius: number;
+  ui_density: ThemeUiDensity;
 
   bold_style: ThemeBoldStyle;
   blockquote_style: ThemeBlockquoteStyle;
@@ -90,6 +105,9 @@ const SHARED_DEFAULTS: Omit<
   heading_6_size: 0.875,
   editor_padding_x: 2,
   editor_padding_y: 3,
+  editor_max_width_ch: null,
+  ui_radius: 0.25,
+  ui_density: "normal",
   bold_style: "default",
   blockquote_style: "default",
   code_block_style: "default",
@@ -236,8 +254,38 @@ export const BUILTIN_THEMES: readonly Theme[] = [
 
 export const DEFAULT_THEME_ID = BUILTIN_MOCHA.id;
 
-export function get_all_themes(user_themes: Theme[]): Theme[] {
-  return [...BUILTIN_THEMES, ...user_themes];
+// The theme built from theme.yaml (or theme.json) next to settings.json. It
+// sits in the theme list under this id, read-only like a built-in.
+export const FILE_THEME_ID = "file";
+
+export type ThemeFileError = {
+  line: number | null;
+  key: string | null;
+  message: string;
+};
+
+// While the file has errors, theme keeps the last valid file theme, so the
+// app does not jump around while someone is halfway through an edit.
+export type ThemeFileState = {
+  path: string | null;
+  status: "missing" | "valid" | "invalid";
+  theme: Theme | null;
+  errors: ThemeFileError[];
+};
+
+export const MISSING_THEME_FILE_STATE: ThemeFileState = {
+  path: null,
+  status: "missing",
+  theme: null,
+  errors: [],
+};
+
+export function get_all_themes(
+  user_themes: Theme[],
+  file_theme: Theme | null = null,
+): Theme[] {
+  const file_themes = file_theme ? [file_theme] : [];
+  return [...BUILTIN_THEMES, ...file_themes, ...user_themes];
 }
 
 export function resolve_theme(all_themes: Theme[], active_id: string): Theme {

@@ -218,7 +218,8 @@
 {/snippet}
 
 {#snippet slider_field(desc: ThemeStyleDescriptor)}
-  {@const val = active_theme[desc.theme_key] as number}
+  <!-- Only nullable sliders hold null. Reset puts them back to null. -->
+  {@const val = active_theme[desc.theme_key] as number | null}
   {@const modified = is_modified(desc.theme_key)}
   <div class="ThemeSettings__row--stacked">
     <div class="flex items-center justify-between">
@@ -237,12 +238,14 @@
           </button>
         {/if}
       </div>
-      <span class="ThemeSettings__badge">{format_display_value(desc)}</span>
+      <span class="ThemeSettings__badge"
+        >{val === null ? "Layout setting" : format_display_value(desc)}</span
+      >
     </div>
     <Slider.Root
       type="single"
       aria-label={desc.label}
-      value={val}
+      value={val ?? desc.min ?? 0}
       onValueChange={(v: number) => {
         const step = desc.step ?? 1;
         const rounded = Math.round(v / step) * step;
