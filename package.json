@@ -45,7 +45,8 @@
     "mermaid": "^12.0.0",
     "svelte-themes": "^2.0.10",
     "turndown": "^7.2.4",
-    "turndown-plugin-gfm": "^1.0.2"
+    "turndown-plugin-gfm": "^1.0.2",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
