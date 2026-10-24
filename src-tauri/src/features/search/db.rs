@@ -1,6 +1,7 @@
 use crate::features::notes::service as notes_service;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
+use crate::features::search::tag_parser::{self, NoteTag};
 use crate::shared::constants;
 use crate::shared::storage;
 use rusqlite::{params, Connection};
@@ -26,6 +27,18 @@ pub struct PlannedSuggestionHit {
 pub struct OrphanLink {
     pub target_path: String,
     pub ref_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagCount {
+    pub tag: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaggedNote {
+    pub note: IndexNoteMeta,
+    pub excerpt: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -102,7 +115,28 @@ fn fts_schema_needs_migration(conn: &Connection) -> bool {
     }
 }
 
+fn table_exists(conn: &Connection, name: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?1",
+        params![name],
+        |_| Ok(()),
+    )
+    .is_ok()
+}
+
 fn init_schema(conn: &Connection) -> Result<(), String> {
+    // A db from before tags has every note in the manifest, so sync would
+    // skip unchanged notes and they would never get tags. Empty the manifest
+    // and the next sync re-parses the whole vault once.
+    if table_exists(conn, "notes") && !table_exists(conn, "note_tags") {
+        conn.execute_batch(
+            "DELETE FROM notes;
+             DELETE FROM notes_fts;
+             DELETE FROM outlinks;",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     if fts_schema_needs_migration(conn) {
         conn.execute_batch(
             "DROP TABLE IF EXISTS notes_fts;
@@ -131,7 +165,17 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             PRIMARY KEY (source_path, target_path)
         );
 
-        CREATE INDEX IF NOT EXISTS idx_outlinks_target ON outlinks(target_path);"
+        CREATE INDEX IF NOT EXISTS idx_outlinks_target ON outlinks(target_path);
+
+        CREATE TABLE IF NOT EXISTS note_tags (
+            path TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            tag_key TEXT NOT NULL,
+            excerpt TEXT,
+            PRIMARY KEY (path, tag_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_note_tags_key ON note_tags(tag_key);"
     ))
     .map_err(|e| e.to_string())
 }
@@ -176,6 +220,8 @@ pub fn remove_note(conn: &Connection, path: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM outlinks WHERE source_path = ?1", params![path])
         .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM note_tags WHERE path = ?1", params![path])
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -206,6 +252,12 @@ pub fn remove_notes_by_prefix(conn: &Connection, prefix: &str) -> Result<(), Str
         .and_then(|_| {
             conn.execute(
                 "DELETE FROM outlinks WHERE source_path LIKE ?1 ESCAPE '\\'",
+                params![like_pattern],
+            )
+        })
+        .and_then(|_| {
+            conn.execute(
+                "DELETE FROM note_tags WHERE path LIKE ?1 ESCAPE '\\'",
                 params![like_pattern],
             )
         })
@@ -360,6 +412,8 @@ pub fn rebuild_index(
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM outlinks", [])
         .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM note_tags", [])
+        .map_err(|e| e.to_string())?;
 
     let paths = list_markdown_files(vault_root);
     let total = paths.len();
@@ -392,6 +446,7 @@ pub fn rebuild_index(
                 }
             };
             upsert_note(conn, &meta, &markdown)?;
+            set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
             let targets = internal_link_targets(&markdown, &meta.path);
             if !targets.is_empty() {
                 pending_links.push((meta.path.clone(), targets));
@@ -492,6 +547,7 @@ pub fn sync_index(
                 }
             };
             upsert_note(conn, &meta, &markdown)?;
+            set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
             let targets = internal_link_targets(&markdown, &meta.path);
             if !targets.is_empty() {
                 pending_links.push((meta.path.clone(), targets));
@@ -912,6 +968,68 @@ pub fn get_orphan_outlinks(conn: &Connection, path: &str) -> Result<Vec<OrphanLi
         .map_err(|e| e.to_string())
 }
 
+pub fn set_note_tags(conn: &Connection, path: &str, tags: &[NoteTag]) -> Result<(), String> {
+    conn.execute("DELETE FROM note_tags WHERE path = ?1", params![path])
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare("INSERT INTO note_tags (path, tag, tag_key, excerpt) VALUES (?1, ?2, ?3, ?4)")
+        .map_err(|e| e.to_string())?;
+
+    for note_tag in tags {
+        stmt.execute(params![
+            path,
+            note_tag.tag,
+            tag_parser::tag_key(&note_tag.tag),
+            note_tag.excerpt
+        ])
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// One row per tag. `#Work` and `#work` count as one; MIN picks a stable spelling.
+pub fn list_tags(conn: &Connection) -> Result<Vec<TagCount>, String> {
+    let sql = "SELECT MIN(tag), COUNT(*)
+               FROM note_tags
+               GROUP BY tag_key
+               ORDER BY tag_key";
+
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(TagCount {
+                tag: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+pub fn list_notes_with_tag(conn: &Connection, tag: &str) -> Result<Vec<TaggedNote>, String> {
+    let sql = "SELECT n.path, n.title, n.mtime_ms, n.size_bytes, t.excerpt
+               FROM note_tags t
+               JOIN notes n ON n.path = t.path
+               WHERE t.tag_key = ?1
+               ORDER BY n.mtime_ms DESC, n.path";
+
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![tag_parser::tag_key(tag)], |row| {
+            Ok(TaggedNote {
+                note: note_meta_from_row(row)?,
+                excerpt: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
 pub fn rename_folder_paths(
     conn: &Connection,
     old_prefix: &str,
@@ -967,6 +1085,10 @@ pub fn rename_folder_paths(
          WHERE target_path LIKE ?3 ESCAPE '\\'",
         params![new_prefix, old_len, like_pattern],
     ))
+    .and_then(|_| conn.execute(
+        "UPDATE note_tags SET path = ?1 || substr(path, ?2 + 1) WHERE path LIKE ?3 ESCAPE '\\'",
+        params![new_prefix, old_len, like_pattern],
+    ))
     .map_err(|e| e.to_string());
 
     match result {
@@ -999,6 +1121,12 @@ pub fn rename_note_path(conn: &Connection, old_path: &str, new_path: &str) -> Re
         .and_then(|_| {
             conn.execute(
                 "UPDATE outlinks SET source_path = ?1 WHERE source_path = ?2",
+                params![new_path, old_path],
+            )
+        })
+        .and_then(|_| {
+            conn.execute(
+                "UPDATE note_tags SET path = ?1 WHERE path = ?2",
                 params![new_path, old_path],
             )
         })

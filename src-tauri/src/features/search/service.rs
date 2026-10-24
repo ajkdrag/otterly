@@ -2,6 +2,7 @@ use crate::features::notes::service as notes_service;
 use crate::features::search::db as search_db;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
+use crate::features::search::tag_parser;
 use crate::shared::storage;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -321,6 +322,7 @@ fn handle_upsert(
     let meta = search_db::extract_meta(&abs, vault_root)?;
 
     search_db::upsert_note(conn, &meta, &markdown)?;
+    search_db::set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
     notes_cache.insert(meta.path.clone(), meta.clone());
 
     let targets = search_db::internal_link_targets(&markdown, &meta.path);
