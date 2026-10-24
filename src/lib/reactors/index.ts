@@ -170,7 +170,6 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.ui_store,
       context.search_store,
       context.editor_store,
-      context.tab_store,
       context.tags_service,
     ),
     create_window_title_reactor(

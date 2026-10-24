@@ -9,7 +9,7 @@ function state(
     last_pane_visible: boolean;
     last_index_status: IndexStatus;
     last_note_path: string | null;
-    last_note_dirty: boolean;
+    last_note_mtime_ms: number | null;
   }>,
 ) {
   return {
@@ -17,7 +17,7 @@ function state(
     last_pane_visible: true,
     last_index_status: "completed" as IndexStatus,
     last_note_path: "a.md",
-    last_note_dirty: false,
+    last_note_mtime_ms: 100,
     ...value,
   };
 }
@@ -28,7 +28,7 @@ function input(
     pane_visible: boolean;
     index_status: IndexStatus;
     open_note_path: string | null;
-    open_note_dirty: boolean;
+    open_note_mtime_ms: number | null;
   }>,
 ) {
   return {
@@ -36,7 +36,7 @@ function input(
     pane_visible: true,
     index_status: "completed" as IndexStatus,
     open_note_path: "a.md",
-    open_note_dirty: false,
+    open_note_mtime_ms: 100,
     ...value,
   };
 }
@@ -67,10 +67,10 @@ describe("tag_pane_sync.reactor", () => {
     expect(result.reload).toBe(true);
   });
 
-  it("reloads when the open note finishes saving", () => {
+  it("reloads when the open note gets a new mtime from a save or an external edit", () => {
     const result = resolve_tag_pane_sync_decision(
-      state({ last_note_dirty: true }),
-      input({ open_note_dirty: false }),
+      state({ last_note_mtime_ms: 100 }),
+      input({ open_note_mtime_ms: 250 }),
     );
 
     expect(result.reload).toBe(true);
@@ -96,8 +96,8 @@ describe("tag_pane_sync.reactor", () => {
 
   it("reloads when a draft is saved under its new path", () => {
     const result = resolve_tag_pane_sync_decision(
-      state({ last_note_dirty: true, last_note_path: "draft:1:Untitled" }),
-      input({ open_note_dirty: false, open_note_path: "ideas.md" }),
+      state({ last_note_path: "draft:1:Untitled", last_note_mtime_ms: 0 }),
+      input({ open_note_path: "ideas.md", open_note_mtime_ms: 250 }),
     );
 
     expect(result.reload).toBe(true);
@@ -108,7 +108,7 @@ describe("tag_pane_sync.reactor", () => {
       state({
         last_pane_visible: false,
         last_index_status: "indexing",
-        last_note_dirty: true,
+        last_note_mtime_ms: 0,
       }),
       input({ pane_visible: false }),
     );

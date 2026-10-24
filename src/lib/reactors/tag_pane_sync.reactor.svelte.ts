@@ -2,7 +2,6 @@ import { untrack } from "svelte";
 import type { UIStore } from "$lib/app";
 import type { EditorStore } from "$lib/features/editor";
 import type { SearchStore } from "$lib/features/search";
-import type { TabStore } from "$lib/features/tab";
 import type { TagsService } from "$lib/features/tags";
 import type { VaultStore } from "$lib/features/vault";
 
@@ -13,7 +12,7 @@ type TagPaneSyncState = {
   last_pane_visible: boolean;
   last_index_status: IndexStatus;
   last_note_path: string | null;
-  last_note_dirty: boolean;
+  last_note_mtime_ms: number | null;
 };
 
 type TagPaneSyncInput = {
@@ -21,7 +20,7 @@ type TagPaneSyncInput = {
   pane_visible: boolean;
   index_status: IndexStatus;
   open_note_path: string | null;
-  open_note_dirty: boolean;
+  open_note_mtime_ms: number | null;
 };
 
 type TagPaneSyncDecision = {
@@ -42,7 +41,7 @@ export function resolve_tag_pane_sync_decision(
     last_pane_visible: input.pane_visible,
     last_index_status: input.index_status,
     last_note_path: input.open_note_path,
-    last_note_dirty: input.open_note_dirty,
+    last_note_mtime_ms: input.open_note_mtime_ms,
   };
 
   const vault_changed = input.vault_id !== state.last_vault_id;
@@ -50,14 +49,16 @@ export function resolve_tag_pane_sync_decision(
   const index_completed =
     input.index_status === "completed" &&
     state.last_index_status !== "completed";
-  // Open, rename, delete and a draft's first save all change the path. Saving
-  // upserts the note into the index before the dirty flag clears, so
-  // dirty -> clean on the same path means the index has its new tags.
+  // Open, rename, delete and a draft's first save all change the path.
   const note_switched = input.open_note_path !== state.last_note_path;
-  const note_saved =
-    !input.open_note_dirty &&
-    state.last_note_dirty &&
-    input.open_note_path === state.last_note_path;
+  // A save and a watcher reload of an external edit both upsert the note into
+  // the index and give the open note a new mtime. Typing does neither.
+  //
+  // @Robustness: A reload sets the mtime just before it sends the upsert. We
+  // rely on the backend running both commands in the order sent, so the list
+  // query sees the new tags. I have not checked this under load.
+  const note_rewritten =
+    !note_switched && input.open_note_mtime_ms !== state.last_note_mtime_ms;
 
   const reload =
     input.vault_id !== null &&
@@ -66,7 +67,7 @@ export function resolve_tag_pane_sync_decision(
       became_visible ||
       index_completed ||
       note_switched ||
-      note_saved);
+      note_rewritten);
 
   return { clear: vault_changed, reload, next_state };
 }
@@ -76,7 +77,6 @@ export function create_tag_pane_sync_reactor(
   ui_store: UIStore,
   search_store: SearchStore,
   editor_store: EditorStore,
-  tab_store: TabStore,
   tags_service: TagsService,
 ): () => void {
   let state: TagPaneSyncState = {
@@ -84,7 +84,7 @@ export function create_tag_pane_sync_reactor(
     last_pane_visible: false,
     last_index_status: "idle",
     last_note_path: null,
-    last_note_dirty: false,
+    last_note_mtime_ms: null,
   };
 
   return $effect.root(() => {
@@ -95,7 +95,7 @@ export function create_tag_pane_sync_reactor(
         pane_visible: ui_store.sidebar_open && ui_store.sidebar_view === "tags",
         index_status: search_store.index_progress.status,
         open_note_path: open_note?.meta.path ?? null,
-        open_note_dirty: tab_store.is_open_note_dirty(open_note),
+        open_note_mtime_ms: open_note?.meta.mtime_ms ?? null,
       });
       state = decision.next_state;
 
