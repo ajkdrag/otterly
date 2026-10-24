@@ -200,6 +200,26 @@ describe("parse_theme_file", () => {
     ]);
   });
 
+  it("rejects a top level that is a single value", () => {
+    expect(parse_errors("dark\n")[0]?.message).toContain("must be a mapping");
+  });
+
+  it("reports an alias bomb as an error instead of throwing", () => {
+    const lines = ["a: &a [x, x, x, x, x, x, x, x, x]"];
+    let previous = "a";
+    for (const name of ["b", "c", "d", "e", "f", "g", "h", "i"]) {
+      const refs = Array(9).fill(`*${previous}`).join(", ");
+      lines.push(`${name}: &${name} [${refs}]`);
+      previous = name;
+    }
+    lines.push(`name: *${previous}`);
+
+    const errors = parse_errors(lines.join("\n"));
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.line).toBeNull();
+  });
+
   it("reports every error, up to 20", () => {
     const text = Array.from(
       { length: 25 },

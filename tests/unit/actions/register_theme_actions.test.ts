@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "svelte-sonner";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
@@ -27,6 +28,10 @@ function create_theme(
   };
 }
 
+vi.mock("svelte-sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 const FILE_THEME: Theme = {
   ...BUILTIN_NORDIC_LIGHT,
   id: FILE_THEME_ID,
@@ -52,6 +57,9 @@ function create_harness() {
         active_theme_id: BUILTIN_NORDIC_DARK.id,
       }),
       load_theme_file: vi.fn<() => Promise<ThemeFileState>>(),
+      create_theme_file_from: vi.fn(),
+      open_theme_file: vi.fn<() => Promise<boolean>>(),
+      reveal_theme_file: vi.fn<() => Promise<boolean>>(),
       save_user_themes: vi.fn().mockResolvedValue(undefined),
       save_active_theme_id: vi.fn().mockResolvedValue(undefined),
       duplicate_theme: vi.fn((name: string, base: Theme) => ({
@@ -258,6 +266,64 @@ describe("register_theme_actions", () => {
       // Recreating the file brings it back, so the choice stays saved.
       expect(stores.ui.active_theme_id).toBe(FILE_THEME_ID);
       expect(stores.ui.active_theme).toBe(BUILTIN_MOCHA);
+    });
+  });
+
+  describe("theme file buttons", () => {
+    it("shows the file in the file manager when no app can open it", async () => {
+      const { registry, services } = create_harness();
+      services.theme.open_theme_file.mockResolvedValue(false);
+      services.theme.reveal_theme_file.mockResolvedValue(true);
+
+      await registry.execute(ACTION_IDS.theme_open_file);
+
+      expect(services.theme.reveal_theme_file).toHaveBeenCalledOnce();
+      expect(toast.error).toHaveBeenCalledOnce();
+    });
+
+    it("does not reveal the file when it opened", async () => {
+      const { registry, services } = create_harness();
+      services.theme.open_theme_file.mockResolvedValue(true);
+
+      await registry.execute(ACTION_IDS.theme_open_file);
+
+      expect(services.theme.reveal_theme_file).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("creates the file from the active theme, then loads and opens it", async () => {
+      const { registry, stores, services } = create_harness();
+      stores.ui.set_active_theme_id(BUILTIN_NORDIC_LIGHT.id);
+      services.theme.create_theme_file_from.mockResolvedValue({
+        status: "created",
+        path: THEME_FILE_PATH,
+      });
+      services.theme.load_theme_file.mockResolvedValue(
+        valid_theme_file(FILE_THEME),
+      );
+      services.theme.open_theme_file.mockResolvedValue(true);
+
+      await registry.execute(ACTION_IDS.theme_create_file);
+
+      expect(services.theme.create_theme_file_from).toHaveBeenCalledWith(
+        BUILTIN_NORDIC_LIGHT,
+      );
+      expect(stores.ui.theme_file.status).toBe("valid");
+      expect(services.theme.open_theme_file).toHaveBeenCalledOnce();
+    });
+
+    it("does not load or open anything when creating the file fails", async () => {
+      const { registry, services } = create_harness();
+      services.theme.create_theme_file_from.mockResolvedValue({
+        status: "failed",
+        error: "A theme file already exists",
+      });
+
+      await registry.execute(ACTION_IDS.theme_create_file);
+
+      expect(services.theme.load_theme_file).not.toHaveBeenCalled();
+      expect(services.theme.open_theme_file).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledOnce();
     });
   });
 

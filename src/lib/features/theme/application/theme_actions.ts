@@ -243,8 +243,16 @@ export function register_theme_actions(input: ThemeActionInput): void {
     id: ACTION_IDS.theme_open_file,
     label: "Open Theme File",
     execute: async () => {
-      const opened = await services.theme.open_theme_file();
-      if (!opened) toast.error("Could not open the theme file");
+      if (await services.theme.open_theme_file()) return;
+
+      // Some systems have no default app for .yaml (macOS says so and fails).
+      // Showing the file in the file manager lets the person pick an app.
+      const revealed = await services.theme.reveal_theme_file();
+      toast.error(
+        revealed
+          ? "No app is set to open the theme file. Showing it in the file manager."
+          : "Could not open the theme file",
+      );
     },
   });
 

@@ -18,6 +18,7 @@ import {
   STYLE_DESCRIPTORS,
   type ThemeStyleDescriptor,
 } from "$lib/features/theme/domain/theme_style_descriptors";
+import { error_message } from "$lib/shared/utils/error_message";
 
 // Reads theme.yaml or theme.json. JSON is valid YAML, so one parser reads
 // both. Every key is optional. The theme is the built-in named in `extends`
@@ -54,6 +55,19 @@ export const THEME_FILE_KEYS: string[] = [
 ];
 
 export function parse_theme_file(
+  text: string,
+  is_valid_color: (value: string) => boolean,
+): ThemeFileParseResult {
+  try {
+    return parse_theme_file_text(text, is_valid_color);
+  } catch (error) {
+    // yaml throws, instead of reporting, when aliases expand without bound
+    // (a "billion laughs" file). The caller promises never to throw.
+    return invalid([{ line: null, key: null, message: error_message(error) }]);
+  }
+}
+
+function parse_theme_file_text(
   text: string,
   is_valid_color: (value: string) => boolean,
 ): ThemeFileParseResult {
