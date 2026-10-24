@@ -71,7 +71,9 @@
     {/if}
     <p
       role="status"
-      class="text-sm {load_error ? 'text-destructive' : 'text-muted-foreground'}"
+      class="text-sm {load_error
+        ? 'text-destructive'
+        : 'text-muted-foreground'}"
     >
       {status}
     </p>
