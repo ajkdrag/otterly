@@ -72,6 +72,8 @@ type BlockFieldValue = {
   decorations: DecorationSet;
   // The block being typed or edited as source, by its start position.
   constructing: number | null;
+  // Start of every block shown as source because the caret is in it.
+  revealed: readonly number[];
 };
 
 export const block_field = StateField.define<BlockFieldValue>({
@@ -81,6 +83,7 @@ export const block_field = StateField.define<BlockFieldValue>({
       blocks,
       decorations: build_decorations(state, blocks, null),
       constructing: null,
+      revealed: revealed_blocks(state, blocks),
     };
   },
   update(value, transaction) {
@@ -115,11 +118,14 @@ export const block_field = StateField.define<BlockFieldValue>({
     }
     const constructing = next_constructing(value, blocks, transaction);
     if (constructing !== value.constructing) changed = true;
-    // Caret-revealed blocks follow the selection.
+    // Caret-revealed blocks follow the selection. Rebuilding every widget on
+    // each caret move costs about 10 ms in a note with 5000 blocks, and Vim
+    // moves the caret on every key, so rebuild only when the set changed.
     if (
+      !changed &&
       transaction.selection &&
       !state.field(reveal_freeze, false)?.frozen &&
-      blocks.some((block) => reveals_at_caret(state, block))
+      !same_positions(value.revealed, revealed_blocks(state, blocks))
     )
       changed = true;
     if (
@@ -135,6 +141,7 @@ export const block_field = StateField.define<BlockFieldValue>({
       blocks,
       decorations: build_decorations(state, blocks, constructing),
       constructing,
+      revealed: revealed_blocks(state, blocks),
     };
   },
   provide: (field) => [
@@ -549,6 +556,28 @@ function build_decorations(
     );
   }
   return Decoration.set(ranges, true);
+}
+
+function revealed_blocks(
+  state: EditorState,
+  blocks: readonly Block[],
+): number[] {
+  return blocks
+    .filter(
+      (block) =>
+        reveals_at_caret(state, block) && touches(state, block.from, block.to),
+    )
+    .map((block) => block.from);
+}
+
+function same_positions(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((position, index) => position === right[index])
+  );
 }
 
 function reveals_at_caret(state: EditorState, block: Block): boolean {

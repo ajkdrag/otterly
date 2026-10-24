@@ -11,6 +11,7 @@ import {
 import { Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { Vim, getCM } from "@replit/codemirror-vim";
+import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { gfm } from "../src/plugins/gfm/index";
@@ -142,6 +143,28 @@ describe("vim mode", () => {
     const view = vim_editor("text", { modes });
     press(view, "i", "<Esc>", "V");
     expect(modes).toEqual(["normal", "insert", "normal", "visual_line"]);
+  });
+
+  test("VIM-007 a caret move that reveals no other block keeps the block decorations", () => {
+    const view = vim_editor(`one\ntwo\n\n${table}\n\nafter`);
+    const decorations = () => view.state.field(block_field).decorations;
+    const move_to_line = (line: number) =>
+      view.dispatch({
+        selection: EditorSelection.cursor(view.state.doc.line(line).from),
+      });
+    const widgets_at_start = decorations();
+
+    move_to_line(2);
+    expect(decorations()).toBe(widgets_at_start);
+
+    move_to_line(5);
+    expect(table_widget(view)).toBeNull();
+    const widgets_in_table = decorations();
+    move_to_line(6);
+    expect(decorations()).toBe(widgets_in_table);
+
+    move_to_line(8);
+    expect(table_widget(view)).not.toBeNull();
   });
 
   test("VIM-006 Esc closes an open slash menu before it leaves insert mode", async () => {
