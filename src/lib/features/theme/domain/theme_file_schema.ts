@@ -44,7 +44,7 @@ export function build_theme_file_schema(): JsonSchema {
   properties.tokens = {
     type: "object",
     description:
-      'Raw CSS custom properties, applied last, so they win over every other key. Example: --sidebar: "#f4efe6". Useful ones: surface colors (--background, --sidebar, --border), sizes (--size-*), spacing (--space-*), text sizes (--text-*) and syntax colors (--syntax-*).',
+      'Raw CSS custom properties, applied last, so they win over every other key. Example: --sidebar: "#f4efe6". Useful ones: surface colors (--background, --sidebar, --border), sizes (--size-*), spacing (--space-*), text sizes (--text-*) and syntax colors (--syntax-*). Otterly checks color tokens (--background, --sidebar, --border, --syntax-* and similar) when it loads the file, this schema does not. --size-tree-row is an error: use file_tree_density.',
     propertyNames: { pattern: TOKEN_NAME_PATTERN.source },
     additionalProperties: { type: ["string", "number"], minLength: 1 },
   };

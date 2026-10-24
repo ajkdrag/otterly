@@ -91,13 +91,13 @@ Rules worth knowing:
 - Colors take any CSS color: `"#abc"`, `"oklch(0.7 0.1 200)"`, `"light-dark(#fff, #000)"`, `"var(--primary)"`. Typos like `redd` and non-colors like `12px` are errors. `null` clears a color the base theme sets. In YAML, quote colors: an unquoted `#` starts a comment.
 - Fonts are one family name, like `Inter`. Not a CSS stack: `Inter, sans-serif` is an error.
 - `editor_max_width_ch: null` and leaving it out both mean "use the Layout setting". A number overrides the Layout setting while this theme is active.
-- `file_tree_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized, so use `file_tree_density` for this. Setting `--size-tree-row` in `tokens` won't resize the rows.
+- `file_tree_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized and places its rows from this setting, so `--size-tree-row` in `tokens` is an error.
 - `ui_radius` is in rem and sets `--radius`.
-- Older WebKitGTK builds (Linux) may not know `light-dark()`, so a color written with it fails validation there. "Create from current theme" on a copy of Mocha writes a lot of them. I have not verified which WebKitGTK versions are affected. If you hit it, start from `nordic-dark` or `nordic-light`, or use plain colors.
+- Older WebKitGTK builds (Linux) may not know `light-dark()`, so a color or color token written with it fails validation there. "Create from current theme" on a copy of Mocha writes a lot of them. I have not verified which WebKitGTK versions are affected. If you hit it, start from `nordic-dark` or `nordic-light`, or use plain colors.
 
 ## tokens
 
-`tokens` are raw CSS custom properties, applied last, so they win over every other key. Names start with `--` and use letters, digits and dashes. Values are strings or numbers (a number becomes a string, so `--foo: 2` is `"2"`). They apply in both light and dark, so use `light-dark(a, b)` if you want a different color per scheme.
+`tokens` are raw CSS custom properties, applied last, so they win over every other key. Names start with `--` and use letters, digits and dashes. Values are strings or numbers (a number becomes a string, so `--foo: 2` is `"2"`). They apply in both light and dark, so use `light-dark(a, b)` if you want a different color per scheme. Tokens that hold colors (`--background`, `--sidebar`, `--border`, `--syntax-*` and the other families in the table) are checked by Otterly when it loads the file. The schema can't check them, so a typo like `"#f4efe"` only shows up as an error in Otterly. Tokens that hold lengths, like `--border-width-thick`, are not checked.
 
 | What              | Tokens                                                                                                                                                                                                                                                           |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,6 +121,8 @@ line 3: font_size must be a number from 0.875 to 1.25 (got 2)
 line 5: unknown key "fontsize"
 line 7: caret_color must be a CSS color or null (got "redd")
 line 9: token "sidebar" must start with -- and use only letters, digits and dashes
+line 10: token --sidebar must be a CSS color (got "#f4efe")
+line 11: token --size-tree-row is set by file_tree_density, use file_tree_density instead
 line 2: duplicate key
 line 1: extends must be one of mocha, nordic-light, nordic-dark (got "my-theme")
 the file must be a mapping of keys to values, like font_size: 1.1

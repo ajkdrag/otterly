@@ -39,6 +39,16 @@ export type ThemeFileParseResult =
 
 const MAX_ERRORS = 20;
 export const TOKEN_NAME_PATTERN = /^--[a-zA-Z0-9-]+$/;
+// Token families that hold colors. A typo in one (--sidebar: "#f4efe") is
+// only caught when the browser computes the value, and the surface goes
+// transparent with no error anywhere. So these are checked like color fields.
+const COLOR_TOKEN_PATTERN =
+  /^--(background|foreground|card|popover|primary|secondary|muted|accent|destructive|border|input|ring|sidebar|syntax|interactive|focus-ring|selection|warning|indicator|scrollbar)(-|$)/;
+// Tokens inside those families that hold a length or a number instead.
+const NON_COLOR_TOKEN_PATTERN = /-(width|hue|chroma)(-|$)/;
+// apply_theme sets it from file_tree_density, and the virtualized tree places
+// its rows from that setting. A different value overlaps or gaps the rows.
+const TREE_ROW_TOKEN = "--size-tree-row";
 // One family name. apply_theme wraps it in quotes, so a CSS stack like
 // "Inter, sans-serif" would silently match no font at all.
 export const FONT_FAMILY_PATTERN = /^[^",;\\\n\r]+$/;
@@ -143,7 +153,7 @@ function parse_theme_file_text(
         );
         continue;
       }
-      tokens = read_tokens(entry.node, doc, line_at, errors);
+      tokens = read_tokens(entry.node, doc, line_at, errors, is_valid_color);
       continue;
     }
 
@@ -221,6 +231,7 @@ function read_tokens(
   doc: Document,
   line_at: (offset: number) => number,
   errors: ThemeFileError[],
+  is_valid_color: (value: string) => boolean,
 ): Record<string, string> {
   const tokens: Record<string, string> = {};
   for (const { key, line, value } of read_entries(map, doc, line_at)) {
@@ -232,11 +243,21 @@ function read_tokens(
       });
       continue;
     }
-    if (typeof value === "number" && Number.isFinite(value)) {
-      tokens[key] = String(value);
+    if (key === TREE_ROW_TOKEN) {
+      errors.push({
+        line,
+        key,
+        message: `token ${key} is set by file_tree_density, use file_tree_density instead`,
+      });
       continue;
     }
-    if (typeof value !== "string" || value.trim() === "") {
+
+    let text: string;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      text = String(value);
+    } else if (typeof value === "string" && value.trim() !== "") {
+      text = value;
+    } else {
       errors.push({
         line,
         key,
@@ -244,9 +265,22 @@ function read_tokens(
       });
       continue;
     }
-    tokens[key] = value;
+
+    if (is_color_token(key) && !is_valid_color(text)) {
+      errors.push({
+        line,
+        key,
+        message: `token ${key} must be a CSS color (got ${describe_value(value)})`,
+      });
+      continue;
+    }
+    tokens[key] = text;
   }
   return tokens;
+}
+
+function is_color_token(name: string): boolean {
+  return COLOR_TOKEN_PATTERN.test(name) && !NON_COLOR_TOKEN_PATTERN.test(name);
 }
 
 type FileEntry = {

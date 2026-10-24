@@ -164,6 +164,46 @@ describe("parse_theme_file", () => {
     expect(errors[0]).toMatchObject({ line: 3, key: "sidebar" });
   });
 
+  it("checks color tokens with the injected validator", () => {
+    expect(
+      parse_errors("tokens:\n  --ok: red\n  --sidebar: not-a-color\n"),
+    ).toEqual([
+      {
+        line: 3,
+        key: "--sidebar",
+        message: 'token --sidebar must be a CSS color (got "not-a-color")',
+      },
+    ]);
+  });
+
+  it("does not check tokens in a color family that hold lengths or numbers", () => {
+    const only_red_is_a_color = (value: string) => value === "red";
+    const result = parse_theme_file(
+      [
+        "tokens:",
+        "  --sidebar: red",
+        "  --accent-hue: 30",
+        "  --border-width-thick: 3px",
+        "  --scrollbar-width: 8px",
+        "  --size-status-bar: 1.5rem",
+      ].join("\n"),
+      only_red_is_a_color,
+    );
+
+    expect(result.status).toBe("valid");
+  });
+
+  it("rejects --size-tree-row and points at file_tree_density", () => {
+    expect(parse_errors("tokens:\n  --size-tree-row: 40px\n")).toEqual([
+      {
+        line: 2,
+        key: "--size-tree-row",
+        message:
+          "token --size-tree-row is set by file_tree_density, use file_tree_density instead",
+      },
+    ]);
+  });
+
   it("rejects tokens that are not a mapping", () => {
     expect(parse_errors("tokens: [red]\n")[0]?.key).toBe("tokens");
   });
