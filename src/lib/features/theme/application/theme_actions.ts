@@ -74,6 +74,13 @@ export function register_theme_actions(input: ThemeActionInput): void {
     stores.ui.theme_has_draft = false;
   }
 
+  // The command palette lists Open and Reveal even before there is a file.
+  function require_theme_file(): boolean {
+    if (stores.ui.theme_file.status !== "missing") return true;
+    toast.error("There is no theme file yet. Create one in Settings > Theme.");
+    return false;
+  }
+
   function find_theme(theme_id: string): Theme | undefined {
     return get_all_themes(
       stores.ui.user_themes,
@@ -253,14 +260,16 @@ export function register_theme_actions(input: ThemeActionInput): void {
     id: ACTION_IDS.theme_open_file,
     label: "Open Theme File",
     execute: async () => {
+      if (!require_theme_file()) return;
       if (await services.theme.open_theme_file()) return;
 
-      // Some systems have no default app for .yaml (macOS says so and fails).
-      // Showing the file in the file manager lets the person pick an app.
+      // Some systems have no default app for .yaml (macOS says so and fails),
+      // and with both theme.yaml and theme.json there is no one file to open.
+      // The file manager lets the person pick an app or fix the folder.
       const revealed = await services.theme.reveal_theme_file();
       toast.error(
         revealed
-          ? "No app is set to open the theme file. Showing it in the file manager."
+          ? "Could not open the theme file. Showing it in the file manager."
           : "Could not open the theme file",
       );
     },
@@ -270,6 +279,7 @@ export function register_theme_actions(input: ThemeActionInput): void {
     id: ACTION_IDS.theme_reveal_file,
     label: "Reveal Theme File",
     execute: async () => {
+      if (!require_theme_file()) return;
       const revealed = await services.theme.reveal_theme_file();
       if (!revealed) toast.error("Could not show the theme file");
     },

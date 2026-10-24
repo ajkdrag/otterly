@@ -312,7 +312,8 @@ describe("register_theme_actions", () => {
 
   describe("theme file buttons", () => {
     it("shows the file in the file manager when no app can open it", async () => {
-      const { registry, services } = create_harness();
+      const { registry, stores, services } = create_harness();
+      stores.ui.set_theme_file(valid_theme_file(FILE_THEME));
       services.theme.open_theme_file.mockResolvedValue(false);
       services.theme.reveal_theme_file.mockResolvedValue(true);
 
@@ -323,12 +324,44 @@ describe("register_theme_actions", () => {
     });
 
     it("does not reveal the file when it opened", async () => {
-      const { registry, services } = create_harness();
+      const { registry, stores, services } = create_harness();
+      stores.ui.set_theme_file(valid_theme_file(FILE_THEME));
       services.theme.open_theme_file.mockResolvedValue(true);
 
       await registry.execute(ACTION_IDS.theme_open_file);
 
       expect(services.theme.reveal_theme_file).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("says there is no file yet instead of opening or revealing one", async () => {
+      const { registry, stores, services } = create_harness();
+      expect(stores.ui.theme_file.status).toBe("missing");
+
+      await registry.execute(ACTION_IDS.theme_open_file);
+      await registry.execute(ACTION_IDS.theme_reveal_file);
+
+      expect(services.theme.open_theme_file).not.toHaveBeenCalled();
+      expect(services.theme.reveal_theme_file).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledTimes(2);
+      expect(toast.error).toHaveBeenCalledWith(
+        "There is no theme file yet. Create one in Settings > Theme.",
+      );
+    });
+
+    it("still reveals a file the app can't read, to fix it in the folder", async () => {
+      const { registry, stores, services } = create_harness();
+      stores.ui.set_theme_file({
+        path: THEME_FILE_PATH,
+        status: "invalid",
+        theme: null,
+        errors: [{ line: null, key: null, message: "Found both files" }],
+      });
+      services.theme.reveal_theme_file.mockResolvedValue(true);
+
+      await registry.execute(ACTION_IDS.theme_reveal_file);
+
+      expect(services.theme.reveal_theme_file).toHaveBeenCalledOnce();
       expect(toast.error).not.toHaveBeenCalled();
     });
 
