@@ -1036,7 +1036,9 @@ pub fn rename_folder_paths(
     new_prefix: &str,
 ) -> Result<usize, String> {
     let like_pattern = like_prefix_pattern(old_prefix);
-    let old_len = old_prefix.len() as i64;
+    // SQLite substr counts characters, not bytes. `len()` would cut paths
+    // short for folders with non-ASCII names.
+    let old_len = old_prefix.chars().count() as i64;
 
     let count: usize = conn
         .query_row(

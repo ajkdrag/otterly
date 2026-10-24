@@ -505,6 +505,22 @@ fn rename_note_and_rename_folder_move_tags() {
 }
 
 #[test]
+fn rename_folder_with_non_ascii_name_keeps_paths_intact() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+
+    upsert_note(&conn, &note_meta("日本/a.md"), "body").expect("upsert should succeed");
+    set_note_tags(&conn, "日本/a.md", &[note_tag("t")]).expect("tags should be set");
+
+    rename_folder_paths(&conn, "日本/", "nihon/").expect("folder rename should succeed");
+
+    assert_eq!(paths_with_tag(&conn, "t"), vec!["nihon/a.md".to_string()]);
+    assert!(get_manifest(&conn)
+        .expect("manifest should load")
+        .contains_key("nihon/a.md"));
+}
+
+#[test]
 fn db_from_before_tags_gets_its_manifest_cleared_once() {
     let tmp = TempDir::new().expect("temp dir should be created");
     let root = tmp.path();
