@@ -81,6 +81,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `watcher`   | Filesystem watcher start/stop                                 |
 | `updater`   | Background update download, install and relaunch              |
 | `document`  | One file opened outside any vault, in its own window          |
+| `vim`       | Vim mode settings, vimrc loading and applying, mode readout   |
 
 ### Folder structure (first 2 levels)
 
@@ -107,7 +108,7 @@ tests/
 
 ### Windows
 
-The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave), and the `document` feature, and nothing that needs a vault.
+The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
 
 It reuses the vault app's find in file, help dialog, and clipboard service, and registers the vault app's action ids where the meaning is the same. Hotkeys are the defaults filtered to the actions the window registers, so a shortcut for something missing here does nothing and does not show in Help. Reveal in the file manager is a document command (`reveal_document`) with no path argument, like read and write.
 
@@ -129,6 +130,8 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 ## Markdown editor package
 
 `packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
+
+Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The `vim_mode` reactor pushes the setting into the editor and reloads the vimrc on window focus. The vimrc is `<app_config_dir>/otterly/vimrc`, a subset of maps, unmaps, and `set` (see the package design). Lines that do not apply are listed in Settings under Vim.
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -296,6 +299,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **EditorService statefulness**: Holds persistent session state (`session`, `host_root`, `active_note`, `session_generation`) because it manages a live DOM editor session. The `session_generation` counter guards against race conditions.
 - **VaultService lifecycle state**: Stores `active_open_revision` and `index_progress_unsubscribe` for "latest vault-open intent wins" cancellation.
 - **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
+- **VimService load state**: Holds `load_revision` (the latest vimrc load wins) and the last applied file (a focus reload with no edit is skipped).
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
 

@@ -319,7 +319,7 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 - `on_mode_change` gets `"normal"` when the extension is built (enable, `setState`) and then every change: `normal`, `insert`, `visual`, `visual_line`, `visual_block`, `replace`.
 - The theme uses host variables (`--primary`, `--muted`, `--font-mono`) for the block cursor and the `/` prompt. The editor root gets `md-vim`.
 
-`apply_vimrc(text)` applies a small vimrc subset to the global engine and returns the lines it could not apply. Maps, unmaps and `set` are supported. Each call starts clean, so a deleted line goes away on reload. `unmap` only removes maps from the same file, because the engine's own unmap of a built-in key breaks its `mapclear()`.
+`apply_vimrc(text)` applies a small vimrc subset to the global engine and returns the lines it could not apply. Maps, unmaps and `set` are supported. Each call starts clean, so a deleted line goes away on reload. `unmap` only removes maps from the same file, because the engine's own unmap of a built-in key breaks its `mapclear()`. Maps of `:` commands, `<buffer>` and `<expr>` style map arguments, and per-editor options such as `textwidth` are reported as problems, because they cannot be applied globally or cleared on reload.
 
 ## Example: callouts
 
