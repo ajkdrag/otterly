@@ -1,7 +1,10 @@
 use crate::features::theme::service::{
     debounce_changes, is_theme_file_change, pick_theme_file, start_theme_file_watcher,
 };
-use notify::event::{AccessKind, AccessMode, CreateKind, ModifyKind, RemoveKind, RenameMode};
+use notify::event::{
+    AccessKind, AccessMode, CreateKind, DataChange, MetadataKind, ModifyKind, RemoveKind,
+    RenameMode,
+};
 use notify::EventKind;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -107,6 +110,27 @@ fn reading_the_theme_file_is_not_a_change() {
 
     assert!(!is_theme_file_change(&opened));
     assert!(is_theme_file_change(&closed_after_write));
+}
+
+#[test]
+fn changing_only_the_metadata_is_not_a_change() {
+    // macOS sets a last-used xattr when it opens a file. Nothing was edited.
+    let xattr = event(
+        EventKind::Modify(ModifyKind::Metadata(MetadataKind::Extended)),
+        &["theme.yaml"],
+    );
+    let chmod = event(
+        EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)),
+        &["theme.yaml"],
+    );
+    let write = event(
+        EventKind::Modify(ModifyKind::Data(DataChange::Content)),
+        &["theme.yaml"],
+    );
+
+    assert!(!is_theme_file_change(&xattr));
+    assert!(!is_theme_file_change(&chmod));
+    assert!(is_theme_file_change(&write));
 }
 
 #[test]

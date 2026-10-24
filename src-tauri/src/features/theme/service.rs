@@ -1,5 +1,5 @@
 use crate::features::notes::service::atomic_write;
-use notify::event::{AccessKind, AccessMode};
+use notify::event::{AccessKind, AccessMode, ModifyKind};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::ffi::OsStr;
@@ -214,7 +214,13 @@ pub fn is_theme_file_change(event: &notify::Event) -> bool {
         event.kind,
         EventKind::Access(kind) if kind != AccessKind::Close(AccessMode::Write)
     );
-    !is_read && event.paths.iter().any(|path| is_theme_file(path))
+    // chmod, touch and xattr changes leave the text alone. macOS sets a
+    // last-used xattr when it opens a file, which would otherwise reload a
+    // theme file nobody edited and switch the app to it. Edits still arrive
+    // as Modify(Data), Create or Rename. Windows reports all of these as
+    // Modify(Any), so there they still reload.
+    let is_metadata_only = matches!(event.kind, EventKind::Modify(ModifyKind::Metadata(_)));
+    !is_read && !is_metadata_only && event.paths.iter().any(|path| is_theme_file(path))
 }
 
 fn is_theme_file(path: &Path) -> bool {
