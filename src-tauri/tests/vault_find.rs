@@ -308,6 +308,35 @@ fn app_folders_temp_files_binaries_and_invalid_utf8_are_skipped() {
 }
 
 #[test]
+fn an_include_of_everything_still_skips_app_folders() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_file(root, "note.md", b"needle");
+    write_file(root, ".otterly/cache.md", b"needle");
+    write_file(root, ".git/HEAD", b"needle");
+    write_file(root, "sub/.git/config", b"needle");
+
+    let run = run_find(root, "needle", "**", "");
+    assert_eq!(found_paths(&run), ["note.md"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinks_are_not_followed() {
+    let tmp = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_file(root, "real/note.md", b"needle");
+    write_file(outside.path(), "secret.md", b"needle");
+    std::os::unix::fs::symlink(outside.path(), root.join("linked_folder")).unwrap();
+    std::os::unix::fs::symlink(root.join("real"), root.join("linked_inside")).unwrap();
+    std::os::unix::fs::symlink(root.join("real/note.md"), root.join("linked_file.md")).unwrap();
+
+    let run = run_find(root, "needle", "", "");
+    assert_eq!(found_paths(&run), ["real/note.md"]);
+}
+
+#[test]
 fn hitting_the_match_cap_truncates_the_results() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
