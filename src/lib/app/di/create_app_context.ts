@@ -251,6 +251,7 @@ export function create_app_context(input: {
     tab_store: stores.tab,
     git_store: stores.git,
     links_store: stores.links,
+    profile_store: stores.profile,
     editor_service,
     note_service,
     vault_service,
@@ -260,6 +261,7 @@ export function create_app_context(input: {
     git_service,
     links_service,
     watcher_service,
+    profile_service,
     action_registry,
   });
 
