@@ -76,13 +76,22 @@ describe("tag_pane_sync.reactor", () => {
     expect(result.reload).toBe(true);
   });
 
-  it("does not treat switching away from a dirty note as a save", () => {
+  it("reloads when the open note is renamed", () => {
     const result = resolve_tag_pane_sync_decision(
-      state({ last_note_dirty: true, last_note_path: "a.md" }),
-      input({ open_note_dirty: false, open_note_path: "b.md" }),
+      state({ last_note_path: "a.md" }),
+      input({ open_note_path: "renamed.md" }),
     );
 
-    expect(result.reload).toBe(false);
+    expect(result.reload).toBe(true);
+  });
+
+  it("reloads when the open note is deleted", () => {
+    const result = resolve_tag_pane_sync_decision(
+      state({ last_note_path: "a.md" }),
+      input({ open_note_path: null }),
+    );
+
+    expect(result.reload).toBe(true);
   });
 
   it("reloads when a draft is saved under its new path", () => {

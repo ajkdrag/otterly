@@ -1,7 +1,6 @@
 import { untrack } from "svelte";
 import type { UIStore } from "$lib/app";
 import type { EditorStore } from "$lib/features/editor";
-import { is_draft_note_path } from "$lib/features/note";
 import type { SearchStore } from "$lib/features/search";
 import type { TabStore } from "$lib/features/tab";
 import type { TagsService } from "$lib/features/tags";
@@ -51,20 +50,23 @@ export function resolve_tag_pane_sync_decision(
   const index_completed =
     input.index_status === "completed" &&
     state.last_index_status !== "completed";
-  // Saving upserts the note into the index before the dirty flag clears, so
-  // dirty -> clean on the same note means the index has its new tags. A draft
-  // is always dirty and gets a new path when it is saved for the first time.
+  // Open, rename, delete and a draft's first save all change the path. Saving
+  // upserts the note into the index before the dirty flag clears, so
+  // dirty -> clean on the same path means the index has its new tags.
+  const note_switched = input.open_note_path !== state.last_note_path;
   const note_saved =
     !input.open_note_dirty &&
     state.last_note_dirty &&
-    (input.open_note_path === state.last_note_path ||
-      (state.last_note_path !== null &&
-        is_draft_note_path(state.last_note_path)));
+    input.open_note_path === state.last_note_path;
 
   const reload =
     input.vault_id !== null &&
     input.pane_visible &&
-    (vault_changed || became_visible || index_completed || note_saved);
+    (vault_changed ||
+      became_visible ||
+      index_completed ||
+      note_switched ||
+      note_saved);
 
   return { clear: vault_changed, reload, next_state };
 }
