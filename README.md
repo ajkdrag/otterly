@@ -54,6 +54,22 @@ To make Otterly the default app for Markdown:
 - **Windows:** Right-click a `.md` file, choose "Open with" > "Choose another app", pick Otterly, and tick "Always use this app".
 - **Linux:** Right-click a `.md` file in your file manager, open its properties, and set Otterly as the default for "Markdown". From a terminal: `xdg-mime default otterly.desktop text/markdown`. The desktop file name depends on how you installed Otterly.
 
+## Vim Mode
+
+Turn it on in Settings, under Vim. Notes and text files then use Vim keys: `hjkl`, `w` `b` `e`, `0` `$`, `gg` `G`, `d` `c` `y` with motions, `dd` `yy` `p`, `v` and `V`, `u` and Ctrl-r, `/` search, `i` `a` `o` `O`, counts, and `.`. The status bar shows the mode, and normal and visual mode draw a block cursor. Code blocks and tables show their Markdown source while the cursor is inside them, so Vim edits the whole file.
+
+Cmd keys stay app shortcuts. On macOS, Ctrl keys go to Vim inside the editor. On Windows and Linux the app shortcuts on Ctrl (Ctrl+F, Ctrl+O and so on) win.
+
+Key maps and options go in a `vimrc` file at `<app config dir>/otterly/vimrc`, which is `~/Library/Application Support/com.otterly.app/otterly/vimrc` on macOS. "Open vimrc" in Settings creates it with examples and opens it in its own window. The main window reloads it when you come back to it.
+
+```vim
+imap jk <Esc>
+nnoremap Y y$
+set insertModeEscKeysTimeout=300
+```
+
+You get `map`, `nmap`, `vmap`, `imap`, `omap`, their `noremap` and `unmap` forms, and `set`. Anything else (`let`, `autocmd`, `<leader>`) does not apply. Lines that do not apply are listed with their line numbers in Settings, under Vim.
+
 ## Build From Source
 
 ### Prerequisites
