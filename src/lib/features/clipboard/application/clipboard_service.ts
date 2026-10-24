@@ -1,5 +1,4 @@
 import type { ClipboardPort } from "$lib/features/clipboard/ports";
-import type { EditorStore } from "$lib/features/editor";
 import type { OpStore } from "$lib/app";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
@@ -9,7 +8,6 @@ const log = create_logger("clipboard_service");
 export class ClipboardService {
   constructor(
     private readonly clipboard_port: ClipboardPort,
-    private readonly editor_store: EditorStore,
     private readonly op_store: OpStore,
     private readonly now_ms: () => number,
   ) {}
@@ -38,10 +36,7 @@ export class ClipboardService {
     }
   }
 
-  async copy_open_note_markdown(): Promise<void> {
-    const markdown = this.editor_store.open_note?.markdown;
-    if (!markdown) return;
-
+  async copy_markdown(markdown: string): Promise<void> {
     this.start_write_operation();
 
     try {

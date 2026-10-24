@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tick } from "svelte";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
+import { DocumentStore } from "$lib/features/document";
 import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
-import type { EditorService } from "$lib/features/editor";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { search_within_text } from "$lib/features/search/domain/search_within_text";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
@@ -42,9 +42,12 @@ async function create_find() {
   cleanups.push(
     create_find_in_file_reactor(
       ui,
-      editor,
       search,
-      { update_find_state } as unknown as EditorService,
+      {
+        read_buffer_id: () => editor.open_note?.buffer_id ?? null,
+        read_markdown: () => editor.open_note?.markdown ?? "",
+        update_find_state,
+      },
       { search_within_file },
     ),
   );
@@ -77,6 +80,40 @@ describe("find in file reactor", () => {
     expect(search.in_file_matches).toHaveLength(1);
     expect(ui.find_in_file.selected_match_index).toBe(0);
   });
+  it("leaves the editor's find state alone when only the text changes", async () => {
+    const ui = new UIStore();
+    const search = new SearchStore();
+    const document = new DocumentStore();
+    const update_find_state = vi.fn();
+    document.set_loaded({
+      path: "/notes/a.md",
+      name: "a.md",
+      text: "needle needle",
+      mtime_ms: 1,
+    });
+    ui.find_in_file = { open: true, query: "needle", selected_match_index: 0 };
+    cleanups.push(
+      create_find_in_file_reactor(
+        ui,
+        search,
+        {
+          read_buffer_id: () => document.file?.path ?? null,
+          read_markdown: () => document.markdown,
+          update_find_state,
+        },
+        { search_within_file: search_within_text },
+      ),
+    );
+    await tick();
+    update_find_state.mockClear();
+
+    document.note_edit("needle");
+    await tick();
+
+    expect(search.in_file_matches).toHaveLength(1);
+    expect(update_find_state).not.toHaveBeenCalled();
+  });
+
   it("restores results when reopening a retained query and clears them when closed", async () => {
     const { ui, search, update_find_state } = await create_find();
     ui.find_in_file.open = false;

@@ -2,40 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
-import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
-import { NotesStore } from "$lib/features/note/state/note_store.svelte";
-import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
-import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
-import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
-import { GitStore } from "$lib/features/git/state/git_store.svelte";
 import { register_find_in_file_actions } from "$lib/features/search/application/find_in_file_actions";
 
 function create_find_actions_harness() {
   const registry = new ActionRegistry();
-  const stores = {
-    ui: new UIStore(),
-    vault: new VaultStore(),
-    notes: new NotesStore(),
-    editor: new EditorStore(),
-    op: new OpStore(),
-    search: new SearchStore(),
-    tab: new TabStore(),
-    git: new GitStore(),
-  };
+  const stores = { ui: new UIStore(), search: new SearchStore() };
   const focus = vi.fn();
 
   register_find_in_file_actions({
     registry,
     stores,
-    services: {
-      editor: { focus },
-      search: { search_within_file: vi.fn().mockReturnValue([]) },
-    } as never,
-    default_mount_config: {
-      reset_app_state: true,
-      bootstrap_default_vault_path: null,
-    },
+    services: { editor: { focus } },
   });
 
   return { registry, stores, focus };

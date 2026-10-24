@@ -109,6 +109,8 @@ tests/
 
 The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave), and the `document` feature, and nothing that needs a vault.
 
+It reuses the vault app's find in file, help dialog, and clipboard service, and registers the vault app's action ids where the meaning is the same. Hotkeys are the defaults filtered to the actions the window registers, so a shortcut for something missing here does nothing and does not show in Help. Reveal in the file manager is a document command (`reveal_document`) with no path argument, like read and write.
+
 The backend keeps a map from window label to file path. `read_document` and `write_document` take no path: they act on the calling window's file. So a document window cannot reach any other file on disk.
 
 How files arrive:

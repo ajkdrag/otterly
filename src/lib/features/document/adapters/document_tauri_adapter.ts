@@ -10,6 +10,7 @@ export function create_document_tauri_adapter(): DocumentPort {
         text,
         expectedMtimeMs: expected_mtime_ms,
       }),
+    reveal_document: () => tauri_invoke<void>("reveal_document"),
   };
 }
 

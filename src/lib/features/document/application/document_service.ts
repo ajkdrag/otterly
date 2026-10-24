@@ -47,8 +47,8 @@ export class DocumentService {
       note_path: file.path,
       vault_id: null,
       events: {
-        on_markdown_change: () => {
-          this.store.note_edit();
+        on_markdown_change: (markdown) => {
+          this.store.note_edit(markdown);
         },
         on_dirty_state_change: (is_dirty) => {
           this.store.set_dirty(is_dirty);
@@ -148,6 +148,30 @@ export class DocumentService {
 
   toggle_source_mode() {
     this.session?.toggle_source_mode();
+  }
+
+  focus() {
+    this.session?.focus();
+  }
+
+  update_find_state(query: string, selected_index: number) {
+    this.session?.update_find_state?.(query, selected_index);
+  }
+
+  // The editor's canonical source, which can be newer than the store's copy.
+  get_markdown(): string | null {
+    return this.session?.get_markdown() ?? null;
+  }
+
+  // Returns false on failure so the action can tell the user.
+  async reveal_in_file_manager(): Promise<boolean> {
+    try {
+      await this.document_port.reveal_document();
+      return true;
+    } catch (error) {
+      log.error("Reveal document failed", { error: error_message(error) });
+      return false;
+    }
   }
 }
 

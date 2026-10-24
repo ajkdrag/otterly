@@ -2,27 +2,22 @@
   import { Code } from "@lucide/svelte";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Button } from "$lib/components/ui/button";
+  import * as ContextMenu from "$lib/components/ui/context-menu";
   import { use_document_window_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
+  import { FindInFileBar } from "$lib/features/search";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
+  import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
   const { stores, action_registry } = use_document_window_context();
   const document = stores.document;
 
-  // The vault app's hotkeys, minus everything that needs a vault or tabs.
-  // Actions the document window does not register are skipped.
-  const registered_action_ids = new Set(
-    action_registry.get_all().map((action) => action.id),
-  );
   const keyboard = use_keyboard_shortcuts({
-    hotkeys_config: () => ({
-      bindings: stores.ui.hotkeys_config.bindings.filter((binding) =>
-        registered_action_ids.has(binding.action_id),
-      ),
-    }),
+    hotkeys_config: () => stores.ui.hotkeys_config,
     is_enabled: () => document.load_state === "ready",
-    is_blocked: () => stores.ui.document_close_confirm.open,
+    is_blocked: () =>
+      stores.ui.document_close_confirm.open || stores.ui.help_dialog.open,
     is_omnibar_topmost: () => false,
     is_vault_switcher_open: () => false,
     is_hotkey_recorder_open: () => false,
@@ -55,6 +50,12 @@
     return () => clearInterval(handle);
   });
 
+  const words_label = $derived(
+    document.cursor?.word_count_pending
+      ? "…"
+      : String(document.cursor?.total_words ?? 0),
+  );
+
   const saved_label = $derived(
     document.is_dirty
       ? "Unsaved changes"
@@ -85,6 +86,17 @@
   {/if}
 
   {#if document.load_state === "ready"}
+    <FindInFileBar
+      open={stores.ui.find_in_file.open}
+      query={stores.ui.find_in_file.query}
+      matches={stores.search.in_file_matches}
+      selected_match_index={stores.ui.find_in_file.selected_match_index}
+      on_query_change={(query: string) =>
+        run(ACTION_IDS.find_in_file_set_query, query)}
+      on_next={() => run(ACTION_IDS.find_in_file_next)}
+      on_prev={() => run(ACTION_IDS.find_in_file_prev)}
+      on_close={() => run(ACTION_IDS.find_in_file_close)}
+    />
     <div use:mount_editor class="DocumentWindow__editor"></div>
   {:else if document.load_state === "error"}
     <div class="DocumentWindow__message">
@@ -96,14 +108,42 @@
   {/if}
 
   <footer class="DocumentWindow__status">
-    <!-- rtl puts the ellipsis on the left, so the file name stays visible.
-         The inner span keeps the path itself left to right. -->
-    <span class="DocumentWindow__path" title={document.file?.path}>
-      <span dir="ltr">{document.file?.path ?? ""}</span>
-    </span>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
+        {#snippet child({ props })}
+          <!-- rtl puts the ellipsis on the left, so the file name stays
+               visible. The inner span keeps the path itself left to right. -->
+          <span
+            {...props}
+            class="DocumentWindow__path"
+            title={document.file?.path}
+          >
+            <span dir="ltr">{document.file?.path ?? ""}</span>
+          </span>
+        {/snippet}
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content>
+          <ContextMenu.Item onSelect={() => run(ACTION_IDS.note_copy_markdown)}>
+            Copy Markdown
+          </ContextMenu.Item>
+          <ContextMenu.Item onSelect={() => run(ACTION_IDS.document_copy_path)}>
+            Copy File Path
+          </ContextMenu.Item>
+          <ContextMenu.Separator />
+          <ContextMenu.Item
+            onSelect={() => run(ACTION_IDS.document_reveal_in_file_manager)}
+          >
+            {reveal_in_file_manager_label()}
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
     <span class="DocumentWindow__status-items">
       {#if document.cursor}
         <span>Ln {document.cursor.line}, Col {document.cursor.column}</span>
+        <span>{words_label} words</span>
+        <span>{document.cursor.total_lines} lines</span>
       {/if}
       {#if saved_label}
         <span class:DocumentWindow__unsaved={document.is_dirty}

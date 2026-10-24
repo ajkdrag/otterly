@@ -142,7 +142,6 @@ export function create_app_context(input: {
 
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,
-    stores.editor,
     stores.op,
     now_ms,
   );

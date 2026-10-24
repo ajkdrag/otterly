@@ -9,4 +9,5 @@ export interface DocumentPort {
     text: string,
     expected_mtime_ms: number | null,
   ) => Promise<number>;
+  reveal_document: () => Promise<void>;
 }

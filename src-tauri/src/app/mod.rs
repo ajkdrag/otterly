@@ -126,6 +126,7 @@ pub fn run() {
             features::notes::service::list_folder_contents,
             features::document::service::read_document,
             features::document::service::write_document,
+            features::document::service::reveal_document,
             features::notes::service::get_folder_stats,
             features::shell::service::reveal_in_file_manager,
             features::shell::service::open_in_default_app,

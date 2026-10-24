@@ -36,7 +36,7 @@ If you stop using Otterly, your notes are still just Markdown files in a folder 
 
 ## Open Markdown Files With Otterly
 
-Otterly can open any `.md` file, not just notes in a vault. The file opens in its own window. Edits save back to the same file, with its line endings kept.
+Otterly can open any `.md` file, not just notes in a vault. The file opens in its own window. Edits save back to the same file, with its line endings kept. Find in file (Cmd/Ctrl+F), source mode, zoom, and F1 help work there too. Right-click the path in the status bar to copy the Markdown or the path, or to show the file in your file manager.
 
 To make Otterly the default app for Markdown:
 

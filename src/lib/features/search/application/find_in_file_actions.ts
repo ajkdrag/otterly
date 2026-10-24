@@ -1,7 +1,16 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
-import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
+import type { ActionRegistry, UIStore } from "$lib/app";
+import type { SearchStore } from "$lib/features/search/state/search_store.svelte";
 
-export function register_find_in_file_actions(input: ActionRegistrationInput) {
+// The vault app and the document window both register these, so the input is
+// only what find needs.
+export type FindInFileActionInput = {
+  registry: ActionRegistry;
+  stores: { ui: UIStore; search: SearchStore };
+  services: { editor: { focus: () => void } };
+};
+
+export function register_find_in_file_actions(input: FindInFileActionInput) {
   const { registry, stores, services } = input;
   const CLOSED_FIND_STATE = {
     open: false,
@@ -9,9 +18,7 @@ export function register_find_in_file_actions(input: ActionRegistrationInput) {
     selected_match_index: 0,
   } as const;
 
-  function update_find_state(
-    patch: Partial<ActionRegistrationInput["stores"]["ui"]["find_in_file"]>,
-  ) {
+  function update_find_state(patch: Partial<UIStore["find_in_file"]>) {
     stores.ui.find_in_file = {
       ...stores.ui.find_in_file,
       ...patch,
