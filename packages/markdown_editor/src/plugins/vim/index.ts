@@ -1,8 +1,17 @@
 import { closeCompletion } from "@codemirror/autocomplete";
-import { Prec, type Extension, type StateCommand } from "@codemirror/state";
+import {
+  Prec,
+  type EditorState,
+  type Extension,
+  type StateCommand,
+} from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import { CodeMirror, Vim, getCM, vim } from "@replit/codemirror-vim";
-import { reveal_surfaces_at_caret } from "../../core/block_field.js";
+import {
+  get_blocks,
+  is_block_rendered,
+  reveal_surfaces_at_caret,
+} from "../../core/block_field.js";
 import { source_redo, source_undo } from "../../core/source_state.js";
 
 // Vim keybindings on @replit/codemirror-vim. Hosts add the extension to a
@@ -75,6 +84,42 @@ Vim.defineEx("unmap", undefined, (cm) => {
   message.textContent = ":unmap only works in the vimrc.";
   cm.openNotification(message, { bottom: true, duration: 5000 });
 });
+
+// j and k ask findPosV where the screen takes the caret, and the engine
+// follows an answer past the target line (that is meant for folded text).
+// CodeMirror's vertical motion steps over a widget, so a rendered code block
+// or table would be skipped whole and the caret could never enter it. When the
+// answer jumps over a rendered block, answer with the target line instead.
+// The caret then lands on the block's nearest line, which shows its source.
+// The wrapper calls the original with the right this.
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const find_pos_v = CodeMirror.prototype.findPosV;
+CodeMirror.prototype.findPosV = function (start, amount, unit, goal_column) {
+  const found = find_pos_v.call(this, start, amount, unit, goal_column);
+  if (unit !== "line") return found;
+  const start_offset = this.indexFromPos(start);
+  const found_offset = this.indexFromPos(found);
+  if (!jumps_over_rendered_block(this.cm6.state, start_offset, found_offset))
+    return found;
+  const target = new CodeMirror.Pos(start.line + Math.round(amount), start.ch);
+  return this.posFromIndex(this.indexFromPos(target));
+};
+
+function jumps_over_rendered_block(
+  state: EditorState,
+  start_offset: number,
+  found_offset: number,
+): boolean {
+  const start_line = state.doc.lineAt(start_offset);
+  const moves_down = found_offset > start_offset;
+  return get_blocks(state).some(
+    (block) =>
+      (moves_down
+        ? block.from > start_line.to && block.from <= found_offset
+        : block.to < start_line.from && block.to >= found_offset) &&
+      is_block_rendered(state, block),
+  );
+}
 
 // Same caret handling as the package's own history command: Vim expects the
 // caret at the start of the undone change. The engine records that start

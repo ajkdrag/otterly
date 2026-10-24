@@ -393,8 +393,9 @@ export function enter_adjacent_block(
   vertical: boolean,
 ): boolean {
   const { state } = view;
-  // The caret walks into the block's source instead, which then shows.
-  if (state.facet(reveal_surfaces_at_caret)) return false;
+  const reveals_source = state.facet(reveal_surfaces_at_caret);
+  // Left and right already step onto the block's edge, which shows its source.
+  if (reveals_source && !vertical) return false;
   const selection = state.selection.main;
   if (!selection.empty || state.selection.ranges.length !== 1) return false;
   const line = state.doc.lineAt(selection.head);
@@ -412,6 +413,18 @@ export function enter_adjacent_block(
     direction > 0 ? candidate.from === target.from : candidate.to === target.to,
   );
   if (!block || !is_block_rendered(state, block)) return false;
+  if (reveals_source) {
+    // The outer view owns every key, so no nested editor takes the caret. The
+    // browser's own up and down step over the widget, so go to the nearest
+    // line ourselves. It shows the block's source.
+    const column = Math.min(selection.head - line.from, target.length);
+    view.dispatch({
+      selection: EditorSelection.cursor(target.from + column),
+      scrollIntoView: true,
+      userEvent: "select",
+    });
+    return true;
+  }
   const controller = controller_for_block(view, block);
   if (!controller?.enter) return false;
   return controller.enter(

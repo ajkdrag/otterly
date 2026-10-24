@@ -155,6 +155,55 @@ describe("vim mode", () => {
     expect(table_widget(view)).not.toBeNull();
   });
 
+  // jsdom's findPosV overshoots to the end of the note. The browser's lands
+  // past the block when it steps over a widget. Either way the caret must land
+  // on the nearest line of the block.
+  test.each([
+    {
+      name: "code block",
+      source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
+      blank_above: 2,
+      first_line: 3,
+      last_line: 5,
+      blank_below: 6,
+    },
+    {
+      name: "table",
+      source: `before\n\n${table}\n\nafter`,
+      blank_above: 2,
+      first_line: 3,
+      last_line: 5,
+      blank_below: 6,
+    },
+  ])(
+    "VIM-017 j and k step into a rendered $name on its nearest line",
+    ({ source, blank_above, first_line, last_line, blank_below }) => {
+      const view = vim_editor(source);
+      const line_start = (number: number) => view.state.doc.line(number).from;
+      expect(table_widget(view)).not.toBeNull();
+
+      press(view, String(blank_above), "G", "j");
+      expect(view.state.selection.main.head).toBe(line_start(first_line));
+      expect(table_widget(view)).toBeNull();
+
+      press(view, "G", String(blank_below), "G", "k");
+      expect(view.state.selection.main.head).toBe(line_start(last_line));
+      expect(table_widget(view)).toBeNull();
+    },
+  );
+
+  test("VIM-018 an insert mode arrow key steps into a rendered table on its nearest line", () => {
+    const view = vim_editor(`before\n\n${table}\n\nafter`);
+    press(view, "2", "G", "i");
+    keydown(view, "ArrowDown");
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(3).from);
+    expect(table_widget(view)).toBeNull();
+
+    press(view, "<Esc>", "6", "G", "i");
+    keydown(view, "ArrowUp");
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(5).from);
+  });
+
   test("VIM-003 reports each mode change, starting in normal", () => {
     const modes: VimMode[] = [];
     const view = vim_editor("text", { modes });
