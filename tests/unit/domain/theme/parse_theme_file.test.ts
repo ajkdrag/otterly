@@ -99,6 +99,33 @@ describe("parse_theme_file", () => {
     expect(theme.editor_text_color).toBeNull();
   });
 
+  it("keeps accepting an explicit null or ~ for a color", () => {
+    expect(parse_valid("link_color: ~\n").link_color).toBeNull();
+    expect(parse_valid('{"link_color": null}').link_color).toBeNull();
+  });
+
+  it("rejects an unquoted # color, which YAML reads as an empty value plus a comment", () => {
+    expect(parse_errors("name: Warm\nlink_color: #ff0000\n")).toEqual([
+      {
+        line: 2,
+        key: "link_color",
+        message:
+          'link_color is empty. In YAML an unquoted # starts a comment, so quote the color: "#ff0000"',
+      },
+    ]);
+  });
+
+  it("rejects an unquoted # color in tokens", () => {
+    expect(parse_errors("tokens:\n  --ok: red\n  --sidebar: #fff\n")).toEqual([
+      {
+        line: 3,
+        key: "--sidebar",
+        message:
+          'token --sidebar is empty. In YAML an unquoted # starts a comment, so quote colors: "#ff0000"',
+      },
+    ]);
+  });
+
   it("rejects unknown keys", () => {
     expect(parse_errors("fontsize: 1.1\n")).toEqual([
       { line: 1, key: "fontsize", message: 'unknown key "fontsize"' },

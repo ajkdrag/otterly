@@ -144,6 +144,7 @@ Each error is one line: `line N: message`. The line is the line of the key (or o
 line 3: font_size must be a number from 0.875 to 1.25 (got 2)
 line 5: unknown key "fontsize"
 line 7: caret_color must be a CSS color or null (got "redd")
+line 8: link_color is empty. In YAML an unquoted # starts a comment, so quote the color: "#ff0000"
 line 9: token "sidebar" must start with -- and use only letters, digits and dashes
 line 10: token --sidebar must be a CSS color (got "#f4efe")
 line 11: token --size-tree-row is set by file_tree_density, use file_tree_density instead

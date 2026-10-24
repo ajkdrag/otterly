@@ -162,6 +162,15 @@ function parse_theme_file_text(
       continue;
     }
 
+    if (desc.control === "color" && entry.is_empty) {
+      errors.push({
+        line: entry.line,
+        key,
+        message: `${key} is empty. In YAML an unquoted # starts a comment, so quote the color: "#ff0000"`,
+      });
+      continue;
+    }
+
     const expected = check_field_value(desc, value, is_valid_color);
     if (expected) {
       report(expected);
@@ -229,7 +238,8 @@ function read_tokens(
   is_valid_color: (value: string) => boolean,
 ): Record<string, string> {
   const tokens: Record<string, string> = {};
-  for (const { key, line, value } of read_entries(map, doc, line_at, errors)) {
+  for (const entry of read_entries(map, doc, line_at, errors)) {
+    const { key, line, value } = entry;
     if (!TOKEN_NAME_PATTERN.test(key)) {
       errors.push({
         line,
@@ -243,6 +253,15 @@ function read_tokens(
         line,
         key,
         message: `token ${key} is set by file_tree_density, use file_tree_density instead`,
+      });
+      continue;
+    }
+
+    if (entry.is_empty) {
+      errors.push({
+        line,
+        key,
+        message: `token ${key} is empty. In YAML an unquoted # starts a comment, so quote colors: "#ff0000"`,
       });
       continue;
     }
@@ -283,6 +302,9 @@ type FileEntry = {
   line: number | null;
   node: unknown;
   value: unknown;
+  // The value is missing, as in `link_color: #ff0000`, where YAML reads # as
+  // the start of a comment. An explicit null or ~ is not this.
+  is_empty: boolean;
 };
 
 // A repeated key is reported on its own line and left out of the result.
@@ -307,7 +329,11 @@ function read_entries(
     const value: unknown = isNode(pair.value)
       ? pair.value.toJS(doc)
       : pair.value;
-    entries.push({ key, line, node: pair.value, value });
+    const is_empty =
+      isScalar(pair.value) &&
+      pair.value.value === null &&
+      pair.value.source === "";
+    entries.push({ key, line, node: pair.value, value, is_empty });
   }
   return entries;
 }
