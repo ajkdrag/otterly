@@ -6,7 +6,17 @@ const log = create_logger("op_toast_reactor");
 
 type ToastCommand =
   | { kind: "success"; message: string }
-  | { kind: "error"; message: string; log_label: string; error: string };
+  | {
+      kind: "error";
+      message: string;
+      error: string;
+      // Left out when the service already logged the failure.
+      log_label?: string;
+      // A toast with the same id replaces the old one instead of stacking.
+      toast_id?: string;
+    };
+
+const THEME_FILE_TOAST_ID = "theme.file_load";
 
 export function resolve_op_toast_commands(input: {
   key: string;
@@ -57,12 +67,26 @@ export function resolve_op_toast_commands(input: {
     }
   }
 
+  // No success toast: every save of the theme file would show one. The error
+  // is already "<first error> (+N more)".
+  if (key === "theme.file_load" && current_status === "error") {
+    return [
+      {
+        kind: "error",
+        message: `Theme file: ${error ?? "unknown error"}`,
+        error: error ?? "unknown error",
+        toast_id: THEME_FILE_TOAST_ID,
+      },
+    ];
+  }
+
   return [];
 }
 
 export function create_op_toast_reactor(op_store: OpStore): () => void {
   let last_clipboard_status = op_store.get("clipboard.write").status;
   let last_link_repair_status = op_store.get("links.repair").status;
+  let last_theme_file_status = op_store.get("theme.file_load").status;
 
   const apply_commands = (commands: ToastCommand[]) => {
     for (const command of commands) {
@@ -71,8 +95,13 @@ export function create_op_toast_reactor(op_store: OpStore): () => void {
         continue;
       }
 
-      log.error(command.log_label, { error: command.error });
-      toast.error(command.message);
+      if (command.log_label) {
+        log.error(command.log_label, { error: command.error });
+      }
+      toast.error(
+        command.message,
+        command.toast_id === undefined ? {} : { id: command.toast_id },
+      );
     }
   };
 
@@ -99,6 +128,17 @@ export function create_op_toast_reactor(op_store: OpStore): () => void {
       });
       last_link_repair_status = link_repair.status;
       apply_commands(link_repair_commands);
+
+      const theme_file = op_store.get("theme.file_load");
+      const theme_file_commands = resolve_op_toast_commands({
+        key: "theme.file_load",
+        previous_status: last_theme_file_status,
+        current_status: theme_file.status,
+        error: theme_file.error,
+        message: theme_file.message,
+      });
+      last_theme_file_status = theme_file.status;
+      apply_commands(theme_file_commands);
     });
   });
 }

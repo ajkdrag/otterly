@@ -52,6 +52,37 @@ describe("op_toast.reactor", () => {
     ]);
   });
 
+  it("returns one fixed-id error toast when the theme file has errors", () => {
+    const commands = resolve_op_toast_commands({
+      key: "theme.file_load",
+      previous_status: "pending",
+      current_status: "error",
+      error: "line 3: font_size must be a number (+1 more)",
+      message: null,
+    });
+
+    expect(commands).toEqual([
+      {
+        kind: "error",
+        message: "Theme file: line 3: font_size must be a number (+1 more)",
+        error: "line 3: font_size must be a number (+1 more)",
+        toast_id: "theme.file_load",
+      },
+    ]);
+  });
+
+  it("returns no toast when the theme file loads fine", () => {
+    const commands = resolve_op_toast_commands({
+      key: "theme.file_load",
+      previous_status: "pending",
+      current_status: "success",
+      error: null,
+      message: null,
+    });
+
+    expect(commands).toEqual([]);
+  });
+
   it("returns no commands when status is unchanged", () => {
     const commands = resolve_op_toast_commands({
       key: "links.repair",
