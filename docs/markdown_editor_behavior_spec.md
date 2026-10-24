@@ -1015,6 +1015,24 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** Count meaningful text under the app's current rule, excluding formatting/destinations/metadata; code body text remains counted.
 - **Edge cases/notes:** Do not count table delimiters or image source. Mark incomplete large-note counts as pending and publish the final count for the correct note.
 
+### FIND-007. Regex, case, and whole-word options
+
+- **Setup/action:** Search with a `FindSpec` that turns on regex, case-sensitive, or whole-word matching.
+- **Expected:** Matching runs one line at a time, so `\s` and `[^x]` never cross a line and `^`/`$` anchor lines. Offsets stay in UTF-16 display units.
+- **Edge cases/notes:** An empty or invalid pattern has no matches and no error inside the editor. Empty matches (`^`, `a*`) are skipped. Whole word wraps the pattern in `\b(?:...)\b`, so it only checks ASCII word boundaries.
+
+### FIND-008. Replace the selected match
+
+- **Setup/action:** Replace the selected match, in literal and regex mode.
+- **Expected:** One transaction and one undo step. The next match after the inserted text becomes selected, wrapping to the first. Regex mode expands `$1`, `${1}`, `$name`, `${name}`, `$0`, and `$$` like Rust's `Captures::expand`. Literal mode inserts the text as is.
+- **Edge cases/notes:** A replacement that contains the query does not select its own inserted text. A read-only editor replaces nothing.
+
+### FIND-009. Replace all matches
+
+- **Setup/action:** Replace every match of the active query.
+- **Expected:** One transaction, so one `source_undo` restores the whole note. The saved source keeps its original line endings.
+- **Edge cases/notes:** Returns the number of replaced matches. The match list is empty afterward unless the replacement matches the query again.
+
 ## 18. Note, vault, and session lifecycle
 
 ### LIFE-001. Cached notes retain selection and history

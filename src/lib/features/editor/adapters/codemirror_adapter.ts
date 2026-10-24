@@ -31,6 +31,7 @@ import {
   images,
   insert_markdown_source,
   links,
+  literal_find_spec,
   read_code_block_view_states,
   refresh_code_diagrams,
   set_editor_mode,
@@ -351,7 +352,7 @@ export function create_codemirror_editor_port(
           pending_wiki?.(items);
         },
         update_find_state(query, selected_index) {
-          update_find_query(view, query, selected_index);
+          update_find_query(view, literal_find_spec(query), selected_index);
         },
         open_buffer(next: BufferConfig) {
           cancel_pending();

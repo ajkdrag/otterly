@@ -5,14 +5,21 @@ import { gfm } from "../src/plugins/gfm/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
 import { links } from "../src/plugins/links/index";
 import {
+  expand_replacement,
   find,
+  find_regexp,
   get_find_matches,
   get_find_query,
+  literal_find_spec,
+  replace_all_find_matches,
+  replace_find_match,
   set_find_query,
   update_find_query,
+  type FindSpec,
 } from "../src/plugins/find";
 import { focus_selection } from "../src/core/surface";
 import { create_markdown_state } from "../src/core/editor";
+import { source_undo } from "../src/core/source_state";
 import {
   destroy_test_editors,
   test_editor,
@@ -30,8 +37,30 @@ const editor = (source: string) =>
     find(),
   ]);
 
-function search(view: TestEditor, query: string, selected_index = 0) {
-  view.view.dispatch({ effects: set_find_query.of({ query, selected_index }) });
+function search(
+  view: TestEditor,
+  query: string | FindSpec,
+  selected_index = 0,
+) {
+  const spec = typeof query === "string" ? literal_find_spec(query) : query;
+  view.view.dispatch({ effects: set_find_query.of({ spec, selected_index }) });
+}
+
+const regex = (text: string): FindSpec => ({
+  ...literal_find_spec(text),
+  regex: true,
+});
+
+function matched_text(view: TestEditor) {
+  return matches(view).map(({ from, to }) =>
+    view.view.state.doc.sliceString(from, to),
+  );
+}
+
+function selected_text(view: TestEditor) {
+  const { selected_index } = get_find_query(view.view.state);
+  const match = matches(view)[selected_index];
+  return match ? view.view.state.doc.sliceString(match.from, match.to) : null;
 }
 
 function matches(view: TestEditor) {
@@ -193,11 +222,113 @@ describe("find", () => {
   test("FIND-001 update_find_query selects a match without moving the caret or editing", () => {
     const source = "alpha\n\nbeta alpha";
     const view = editor(source + "‸");
-    update_find_query(view.view, "alpha", 1);
+    update_find_query(view.view, literal_find_spec("alpha"), 1);
     expect(get_find_query(view.view.state)).toMatchObject({
-      query: "alpha",
+      spec: { text: "alpha" },
       selected_index: 1,
     });
     expect(view.saved()).toBe(source);
+  });
+
+  test("FIND-007 regex, case, and whole word options narrow the matches", () => {
+    const view = editor("Cat cat concat cats a1 a22");
+    search(view, regex("a\\d+"));
+    expect(matched_text(view)).toEqual(["a1", "a22"]);
+    search(view, { ...literal_find_spec("cat"), case_sensitive: true });
+    expect(matched_text(view)).toEqual(["cat", "cat", "cat"]);
+    search(view, { ...literal_find_spec("cat"), whole_word: true });
+    expect(matched_text(view)).toEqual(["Cat", "cat"]);
+  });
+
+  test("FIND-007 an invalid regex has no matches, and empty matches are skipped", () => {
+    const view = editor("aaa b");
+    search(view, regex("(unclosed"));
+    expect(matches(view)).toEqual([]);
+    expect(find_regexp(regex("(unclosed"))).toBeNull();
+    expect(find_regexp({ ...regex("a)|(b"), whole_word: true })).toBeNull();
+    search(view, regex("a*"));
+    expect(matched_text(view)).toEqual(["aaa"]);
+  });
+
+  test("FIND-007 regex matches never cross a line", () => {
+    const view = editor("foo\nbar\nfoo bar");
+    search(view, regex("foo\\s+bar"));
+    expect(matched_text(view)).toEqual(["foo bar"]);
+    search(view, regex("^bar"));
+    expect(matches(view)).toHaveLength(1);
+  });
+
+  test("FIND-008 replacing the selected match selects the next one", () => {
+    const view = editor("foo foo foo");
+    search(view, "foo", 1);
+    expect(replace_find_match(view.view, "foofoo")).toBe(true);
+    expect(view.saved()).toBe("foo foofoo foo");
+    expect(get_find_query(view.view.state).selected_index).toBe(3);
+    expect(selected_text(view)).toBe("foo");
+    expect(matches(view)[3]).toEqual({ from: 11, to: 14 });
+  });
+
+  test("FIND-008 replacing the last match wraps to the first", () => {
+    const view = editor("foo foo");
+    search(view, "foo", 1);
+    replace_find_match(view.view, "bar");
+    expect(view.saved()).toBe("foo bar");
+    expect(get_find_query(view.view.state).selected_index).toBe(0);
+  });
+
+  test("FIND-008 regex replacements expand capture groups", () => {
+    const view = editor("v1 and v22");
+    search(view, regex("v(?<n>\\d+)"));
+    replace_find_match(view.view, "version $1");
+    expect(view.saved()).toBe("version 1 and v22");
+    replace_find_match(view.view, "${n}!");
+    expect(view.saved()).toBe("version 1 and 22!");
+  });
+
+  test("FIND-008 literal replacements insert dollar signs as is", () => {
+    const view = editor("price");
+    search(view, "price");
+    replace_find_match(view.view, "$1 $$");
+    expect(view.saved()).toBe("$1 $$");
+  });
+
+  test("FIND-009 replace all is one undo step", () => {
+    const source = "a1 b a2\n\na3";
+    const view = editor(source);
+    search(view, regex("a(\\d)"));
+    expect(replace_all_find_matches(view.view, "<$1>")).toBe(3);
+    expect(view.saved()).toBe("<1> b <2>\n\n<3>");
+    expect(matches(view)).toEqual([]);
+    source_undo(view.view);
+    expect(view.saved()).toBe(source);
+  });
+
+  test("FIND-009 replace all keeps CRLF line endings in the saved source", () => {
+    const view = editor("foo\r\nfoo\r\n");
+    search(view, "foo");
+    replace_all_find_matches(view.view, "bar");
+    expect(view.saved()).toBe("bar\r\nbar\r\n");
+  });
+});
+
+describe("expand_replacement", () => {
+  const found = "on 2026-10 ok".match(/(?<year>\d{4})-(\d{2})(x)?/);
+  if (!found) throw new Error("the test pattern should match");
+  const match = found;
+
+  test("expands numbered and named groups, braced or not", () => {
+    expect(expand_replacement("$2/$1", match)).toBe("10/2026");
+    expect(expand_replacement("${2}x $year ${year}", match)).toBe(
+      "10x 2026 2026",
+    );
+    expect(expand_replacement("[$0]", match)).toBe("[2026-10]");
+  });
+
+  test("follows the Rust rules for $$, unknown groups, and stray dollars", () => {
+    expect(expand_replacement("$$1", match)).toBe("$1");
+    expect(expand_replacement("$1a|$3|$9|${nope}", match)).toBe("|||");
+    expect(expand_replacement("cost: $ ${unclosed $", match)).toBe(
+      "cost: $ ${unclosed $",
+    );
   });
 });
