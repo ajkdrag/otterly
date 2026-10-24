@@ -989,11 +989,14 @@ pub fn set_note_tags(conn: &Connection, path: &str, tags: &[NoteTag]) -> Result<
 }
 
 // One row per tag. `#Work` and `#work` count as one; MIN picks a stable spelling.
+// The JOIN matches list_notes_with_tag, so a row left behind by a deleted note
+// cannot make the list say 12 while the drill-down shows 11.
 pub fn list_tags(conn: &Connection) -> Result<Vec<TagCount>, String> {
-    let sql = "SELECT MIN(tag), COUNT(*)
-               FROM note_tags
-               GROUP BY tag_key
-               ORDER BY tag_key";
+    let sql = "SELECT MIN(t.tag), COUNT(*)
+               FROM note_tags t
+               JOIN notes n ON n.path = t.path
+               GROUP BY t.tag_key
+               ORDER BY t.tag_key";
 
     let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt

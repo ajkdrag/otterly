@@ -484,6 +484,20 @@ fn remove_note_and_remove_by_prefix_drop_their_tags() {
 }
 
 #[test]
+fn tag_counts_skip_rows_whose_note_is_gone() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+
+    upsert_note(&conn, &note_meta("a.md"), "body").expect("upsert should succeed");
+    set_note_tags(&conn, "a.md", &[note_tag("t")]).expect("tags should be set");
+    // An older build deletes notes without touching note_tags.
+    set_note_tags(&conn, "ghost.md", &[note_tag("t")]).expect("tags should be set");
+
+    assert_eq!(tag_counts(&conn), vec![("t".to_string(), 1)]);
+    assert_eq!(paths_with_tag(&conn, "t"), vec!["a.md".to_string()]);
+}
+
+#[test]
 fn rename_note_and_rename_folder_move_tags() {
     let tmp = TempDir::new().expect("temp dir should be created");
     let conn = open_search_db(tmp.path()).expect("db should open");
