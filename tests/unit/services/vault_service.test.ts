@@ -315,13 +315,49 @@ describe("VaultService", () => {
       stored: { starred_paths: ["from-other-profile.md", "docs"] },
     });
 
-    await service.save_starred_paths(vault_id, ["docs"], ["docs", "docs/a.md"]);
+    const saved = await service.save_starred_paths(
+      vault_id,
+      ["docs"],
+      ["docs", "docs/a.md"],
+    );
 
+    expect(saved).toBe(true);
     expect(vault_settings_port.set_vault_setting).toHaveBeenCalledWith(
       vault_id,
       "starred_paths",
       ["from-other-profile.md", "docs", "docs/a.md"],
     );
+  });
+
+  it("does not save starred paths when the list on disk cannot be read", async () => {
+    const { service, vault_settings_port } = create_vault_settings_service({});
+    vault_settings_port.get_vault_setting.mockRejectedValue(
+      new Error("settings.json is empty"),
+    );
+
+    const saved = await service.save_starred_paths(
+      as_vault_id("vault-a"),
+      [],
+      ["docs/a.md"],
+    );
+
+    expect(saved).toBe(false);
+    expect(vault_settings_port.set_vault_setting).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed starred paths write", async () => {
+    const { service, vault_settings_port } = create_vault_settings_service({});
+    vault_settings_port.set_vault_setting.mockRejectedValue(
+      new Error("disk full"),
+    );
+
+    const saved = await service.save_starred_paths(
+      as_vault_id("vault-a"),
+      [],
+      ["docs/a.md"],
+    );
+
+    expect(saved).toBe(false);
   });
 
   it("keeps recent notes of the default profile under the old key", async () => {
