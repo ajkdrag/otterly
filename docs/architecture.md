@@ -83,6 +83,8 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `updater`   | Background update download, install and relaunch              |
 | `document`  | One file opened outside any vault, in its own window          |
 
+@Incomplete: Tags are flat. `#a/b` is its own tag, there is no nested tree, and the editor does not highlight tags. Highlighting needs a second tag parser in TS that has to agree with the Rust one on every edge case.
+
 ### Folder structure (first 2 levels)
 
 ```
