@@ -21,3 +21,6 @@ mod document_service;
 
 #[path = "../../tests/portable_install.rs"]
 mod portable_install;
+
+#[path = "../../tests/profile_launch.rs"]
+mod profile_launch;

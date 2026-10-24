@@ -2,6 +2,11 @@ use crate::features;
 use crate::features::document::service::{
     files_from_args, forget_document_window, open_document_windows,
 };
+#[cfg(target_os = "macos")]
+use crate::features::profile::service::webview_data_store_id;
+use crate::features::profile::service::{
+    profile_from_launch, profile_identifier, ProfileState, PROFILE_ENV_VAR,
+};
 use crate::shared;
 use std::path::Path;
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
@@ -36,6 +41,23 @@ pub fn run() {
         });
     }
 
+    let mut context = tauri::generate_context!();
+    let base_identifier = context.config().identifier.clone();
+    let args: Vec<String> = std::env::args().collect();
+    let env_profile = std::env::var(PROFILE_ENV_VAR).ok();
+    // The logger does not exist yet, so setup logs a bad profile id.
+    let (profile_id, profile_error) = match profile_from_launch(&args, env_profile.as_deref()) {
+        Ok(profile_id) => (profile_id, None),
+        Err(error) => (None, Some(error)),
+    };
+    // A profile runs under its own identifier. Tauri derives the config dir
+    // (settings, vault list), logs, window state, the webview data dir and the
+    // single-instance lock from it, so profiles share none of those. This has
+    // to happen before the builder and its plugins see the config.
+    if let Some(profile_id) = &profile_id {
+        context.config_mut().identifier = profile_identifier(&base_identifier, profile_id);
+    }
+
     let builder = tauri::Builder::default();
     // A second launch (double clicking a file on Windows or Linux) hands its
     // arguments to this process and exits. It has to be the first plugin.
@@ -49,6 +71,7 @@ pub fn run() {
         .manage(features::watcher::service::WatcherState::default())
         .manage(features::document::service::DocumentState::default())
         .manage(features::search::service::SearchDbState::default())
+        .manage(ProfileState::new(profile_id, base_identifier))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(log_builder.build())
@@ -64,8 +87,12 @@ pub fn run() {
                 )
                 .build(),
         )
-        .setup(|app| {
-            let args: Vec<String> = std::env::args().collect();
+        .setup(move |app| {
+            if let Some(error) = &profile_error {
+                log::error!("{error}. Starting the default profile instead.");
+            }
+            log::info!("Profile {}", app.state::<ProfileState>().id);
+
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = files_from_args(&args, &cwd);
             // macOS delivers opened files as events after setup, so it decides
@@ -145,12 +172,16 @@ pub fn run() {
             features::git::service::git_diff,
             features::git::service::git_show_file_at_commit,
             features::git::service::git_restore_file,
-            features::git::service::git_create_tag
+            features::git::service::git_create_tag,
+            features::profile::service::get_current_profile,
+            features::profile::service::list_profiles,
+            features::profile::service::open_profile,
+            features::profile::service::take_profile_dialog_request
         ])
         .register_uri_scheme_protocol("otterly-asset", |ctx, req| {
             shared::storage::handle_asset_request(ctx.app_handle(), req)
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(handle_run_event);
 }
@@ -198,7 +229,14 @@ fn show_main_window(app: &AppHandle) {
         log::error!("tauri.conf.json has no main window");
         return;
     };
-    let built = WebviewWindowBuilder::from_config(app, config).and_then(|b| b.build());
+    let built = WebviewWindowBuilder::from_config(app, config).and_then(|builder| {
+        #[cfg(target_os = "macos")]
+        let builder = match webview_data_store_id(&app.state::<ProfileState>()) {
+            Some(store_id) => builder.data_store_identifier(store_id),
+            None => builder,
+        };
+        builder.build()
+    });
     if let Err(error) = built {
         log::error!("Could not create the main window: {}", error);
     }
