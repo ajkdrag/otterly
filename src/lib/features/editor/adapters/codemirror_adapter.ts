@@ -37,7 +37,8 @@ import {
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
   update_find_query,
-  vim_mode,
+  close_vim_prompt,
+  vim_keybindings,
   wiki_links,
   type CodeBlockViewState,
   type MarkdownPlugin,
@@ -230,8 +231,15 @@ export function create_codemirror_editor_port(
       let vim_enabled = config.vim_enabled;
       // One value per session, so sync_vim_compartment can tell whether a
       // state already holds it.
-      const vim_extension = vim_mode({
-        on_mode_change: (mode) => events.on_vim_mode_change?.(mode),
+      const vim_extension = vim_keybindings({
+        // @Incomplete: Only the mode reaches the app so far, and the one
+        // command after <C-o> shows as normal. showcmd and the recording
+        // register come with the status indicator.
+        on_status_change: ({ mode }) => {
+          events.on_vim_mode_change?.(
+            mode === "insert_normal" ? "normal" : mode,
+          );
+        },
       });
       const extensions: Extension = [
         metrics_compartment.of(metrics_themes[0] ?? []),
@@ -372,6 +380,8 @@ export function create_codemirror_editor_port(
         open_buffer(next: BufferConfig) {
           cancel_pending();
           cancel_word_count();
+          // An open / or : prompt would come back as an empty strip.
+          close_vim_prompt(view);
           current.state = view.state;
           const cached =
             next.restore_policy === "reuse_cache"

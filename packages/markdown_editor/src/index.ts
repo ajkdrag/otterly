@@ -127,8 +127,10 @@ export {
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
 export {
-  vim_mode,
+  vim_keybindings,
+  close_vim_prompt,
   type VimMode,
-  type VimModeOptions,
+  type VimStatus,
+  type VimKeybindingsOptions,
 } from "./plugins/vim/index.js";
 export { apply_vimrc, type VimrcProblem } from "./plugins/vim/vimrc.js";

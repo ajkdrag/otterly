@@ -1,68 +1,167 @@
-import { closeCompletion } from "@codemirror/autocomplete";
 import {
+  Facet,
   Prec,
   type EditorState,
   type Extension,
   type StateCommand,
 } from "@codemirror/state";
-import { EditorView, ViewPlugin } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { CodeMirror, Vim, getCM, vim } from "@replit/codemirror-vim";
 import {
   get_blocks,
   is_block_rendered,
   reveal_surfaces_at_caret,
 } from "../../core/block_field.js";
+import { line_container } from "../../core/context.js";
+import { is_rich } from "../../core/editor_mode.js";
+import { run_construct_key } from "../../core/keys.js";
 import { source_redo, source_undo } from "../../core/source_state.js";
+import {
+  close_menu_before_leaving_insert,
+  normal_mode_guards,
+} from "./input_guards.js";
+import { map_prefix_wait } from "./map_prefix_wait.js";
+import { status_plugin, type VimMode, type VimStatus } from "./status.js";
+import { undo_steps } from "./undo_steps.js";
 
 // Vim keybindings on @replit/codemirror-vim. Hosts add the extension to a
 // Markdown or text state, usually through a compartment so it can be toggled:
 //
-//   vim_mode({ on_mode_change: (mode) => show_mode(mode) })
+//   vim_keybindings({
+//     on_status_change: (status) => show_status(status),
+//     on_write: () => save(),
+//     on_quit: () => close(),
+//   })
 //
 // The engine keeps registers, maps and options global to the page, so a yank
 // in one editor pastes in another. Mode is per view, and starts as "normal"
 // whenever the extension is built. apply_vimrc (vimrc.ts) configures it.
+//
+// Engine bugs we fixed in the engine itself live in patches/ at the repo
+// root, each hunk marked "otterly patch Vn".
 
-export type VimMode =
-  | "normal"
-  | "insert"
-  | "visual"
-  | "visual_line"
-  | "visual_block"
-  | "replace";
+export type { VimMode, VimStatus };
 
-export type VimModeOptions = {
-  on_mode_change?: (mode: VimMode) => void;
+export type VimKeybindingsOptions = {
+  on_status_change?: (status: VimStatus) => void;
+  // :w, and the first half of :wq and :x.
+  on_write?: () => void | Promise<void>;
+  // :q and :q!, and the second half of :wq and :x.
+  on_quit?: () => void;
+  // "+ and set clipboard=unnamed read and write through this. The engine is
+  // global, so the last editor built sets it for the page. Without it the
+  // engine uses navigator.clipboard.
+  clipboard?: {
+    read_text: () => Promise<string>;
+    write_text: (text: string) => Promise<void>;
+  };
 };
 
-export function vim_mode(options: VimModeOptions = {}): Extension {
+export function vim_keybindings(
+  options: VimKeybindingsOptions = {},
+): Extension {
+  const { clipboard } = options;
+  if (clipboard)
+    Vim.clipboard = {
+      readText: () => clipboard.read_text(),
+      writeText: (text) => clipboard.write_text(text),
+    };
   return [
-    escape_closes_menu_first,
+    close_menu_before_leaving_insert,
     // Vim keys must beat context_keymap (Prec.high), or Enter in normal mode
     // continues a list item instead of moving down.
     Prec.highest(vim()),
+    // After vim(), so they only see keys and text Vim did not take.
+    normal_mode_guards,
     // One Vim instance edits the whole document. Code blocks and tables show
     // their source under the caret instead of handing keys to a nested view.
     reveal_surfaces_at_caret.of(true),
-    // After vim(), so getCM(view) exists when this plugin is built.
-    options.on_mode_change ? mode_listener(options.on_mode_change) : [],
+    // These plugins come after vim(), so getCM(view) exists when they are
+    // built.
+    undo_steps(),
+    map_prefix_wait(),
+    status_plugin(options.on_status_change),
+    host_commands.of(options),
     vim_theme,
     EditorView.editorAttributes.of({ class: "md-vim" }),
   ];
+}
+
+// Closes an open / or : prompt the way Esc does. Call it before the view
+// shows another buffer, or the prompt comes back as an empty strip when
+// you return to this one.
+export function close_vim_prompt(view: EditorView) {
+  const input = getCM(view)?.state.dialog?.querySelector("input");
+  input?.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Escape",
+      keyCode: 27,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
+type HostCommands = Pick<VimKeybindingsOptions, "on_write" | "on_quit">;
+
+const host_commands = Facet.define<HostCommands, HostCommands>({
+  combine: (values) => values[0] ?? {},
+});
+
+// The engine's :w runs CodeMirror.commands.save, which is not defined here.
+// Saving and closing belong to the host. :q never discards anything: the
+// host's close asks about unsaved changes, so :q! does the same as :q.
+Vim.defineEx("write", "w", (cm) => {
+  write_note(cm);
+});
+Vim.defineEx("quit", "q", (cm) => {
+  quit_note(cm);
+});
+Vim.defineEx("wq", "wq", (cm) => {
+  write_then_quit(cm);
+});
+Vim.defineEx("xit", "x", (cm) => {
+  write_then_quit(cm);
+});
+
+function write_note(cm: CodeMirror) {
+  const { on_write } = cm.cm6.state.facet(host_commands);
+  if (on_write) void on_write();
+  else show_notification(cm, ":w does not save here");
+}
+
+function quit_note(cm: CodeMirror) {
+  const { on_quit } = cm.cm6.state.facet(host_commands);
+  if (on_quit) on_quit();
+  else show_notification(cm, ":q does not close here");
+}
+
+function write_then_quit(cm: CodeMirror) {
+  const { on_write, on_quit } = cm.cm6.state.facet(host_commands);
+  if (!on_write || !on_quit) {
+    show_notification(cm, ":w does not save here");
+    return;
+  }
+  // A failed save keeps the note open. The host reports the failure.
+  Promise.resolve(on_write()).then(on_quit, () => {});
+}
+
+function show_notification(cm: CodeMirror, text: string) {
+  const message = document.createElement("div");
+  message.textContent = text;
+  cm.openNotification(message, { bottom: true, duration: 5000 });
 }
 
 // Vim's u and <C-r> run CodeMirror's undo and redo on the display state,
 // which has no history. Ours lives on the raw source (source_state.ts), so
 // route both there. We patch the engine's command table once, instead of
 // mapping u and <C-r>, because Vim.mapclear() on a vimrc reload would drop
-// those maps.
-// @Incomplete: u undoes one CodeMirror history group (edits less than 500 ms
-// apart), not one insert session like real Vim.
+// those maps. undo_steps.ts decides what one step is.
 CodeMirror.commands.undo = (cm) => {
-  run_source_history(cm, source_undo);
+  run_source_history(cm, source_undo, "undo");
 };
 CodeMirror.commands.redo = (cm) => {
-  run_source_history(cm, source_redo);
+  run_source_history(cm, source_redo, "redo");
 };
 
 // The engine copied the original undo and redo into its ex table when it
@@ -83,21 +182,121 @@ Vim.defineEx("unmap", undefined, (cm) => {
   show_notification(cm, ":unmap only works in the vimrc.");
 });
 
-// The engine's :w runs CodeMirror.commands.save, which is not defined here, so
-// it would do nothing at all. Saving belongs to the app.
-// @Incomplete: A host callback could make :w save. Nobody has asked yet.
-Vim.defineEx("write", "w", (cm) => {
-  show_notification(
-    cm,
-    ":w does not save. Press Cmd+S (Ctrl+S on Windows and Linux).",
-  );
-});
-
-function show_notification(cm: CodeMirror, text: string) {
-  const message = document.createElement("div");
-  message.textContent = text;
-  cm.openNotification(message, { bottom: true, duration: 5000 });
+// Where the cursor goes after u and <C-r>, like Vim. <C-r> goes to the start
+// of the change. u goes to the first non-blank of the first line it brings
+// back (dd u), else back to where the cursor was before the command (the
+// history restores that, see undo_steps.ts) when that is on or right below
+// the first changed line (o and O), else to that line's first non-blank.
+// Outside insert mode the cursor sits on a character, never past the end of
+// the line. The engine clips after u but not after <C-r>.
+function run_source_history(
+  cm: CodeMirror,
+  command: StateCommand,
+  direction: "undo" | "redo",
+) {
+  // The engine's view plugin records each change of the current operation:
+  // the lowest start in $changeStart, and a list of the inserted texts.
+  if (cm.curOp) delete cm.curOp.$changeStart;
+  const previous_change: unknown = cm.curOp?.lastChange;
+  const length_before = cm.cm6.state.doc.length;
+  command(cm.cm6);
+  const change_start = cm.curOp?.$changeStart;
+  if (change_start === undefined) return;
+  const { state } = cm.cm6;
+  const first_change: unknown = is_engine_change(previous_change)
+    ? previous_change.next
+    : cm.curOp?.change;
+  const inserted = is_engine_change(first_change)
+    ? first_change.text.join("\n")
+    : "";
+  const changed_line = state.doc.lineAt(change_start);
+  let cursor = change_start;
+  if (direction === "undo") {
+    // Only a pure insertion can bring lines back.
+    const restored_lines =
+      inserted.length === state.doc.length - length_before &&
+      restores_lines(state, change_start, inserted);
+    const restored = state.selection.main.from;
+    const restored_line = state.doc.lineAt(restored).number;
+    if (restored_lines) {
+      const line = state.doc.lineAt(
+        change_start === changed_line.to && inserted.startsWith("\n")
+          ? change_start + 1
+          : change_start,
+      );
+      cursor = line.from + line.text.search(/\S|$/);
+    } else if (
+      restored_line === changed_line.number ||
+      restored_line === changed_line.number + 1
+    ) {
+      cursor = restored;
+    } else {
+      cursor = changed_line.from + changed_line.text.search(/\S|$/);
+    }
+  }
+  if (!cm.state.vim?.insertMode) cursor = on_a_character(state, cursor);
+  cm.cm6.dispatch({ selection: { anchor: cursor } });
 }
+
+// The engine types its change list as any. Each entry has the inserted
+// lines, and the next change of the same operation.
+type EngineChange = { text: string[]; next?: unknown };
+
+function is_engine_change(value: unknown): value is EngineChange {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "text" in value &&
+    Array.isArray(value.text)
+  );
+}
+
+// Whether text inserted at position is whole lines: at a line start ending
+// in a line break, or at a line end starting with one and running to the
+// end of a line (dd on the last line takes the break before it).
+function restores_lines(
+  state: EditorState,
+  position: number,
+  inserted: string,
+): boolean {
+  if (!inserted.includes("\n")) return false;
+  const line = state.doc.lineAt(position);
+  if (position === line.from && inserted.endsWith("\n")) return true;
+  const end = position + inserted.length;
+  return (
+    position === line.to &&
+    inserted.startsWith("\n") &&
+    end === state.doc.lineAt(end).to
+  );
+}
+
+function on_a_character(state: EditorState, position: number): number {
+  const line = state.doc.lineAt(position);
+  if (position < line.to || line.from === line.to) return position;
+  const last = state.sliceDoc(Math.max(line.from, line.to - 2), line.to);
+  return line.to - (/^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(last) ? 2 : 1);
+}
+
+// o and O continue a list, task or quote in rich mode, like Enter in insert
+// mode does. Vim on Markdown gives a bare line, but a notes app should give
+// the next bullet. An empty item gets a plain line, because Enter there would
+// end the list. Source mode and text files stay plain, like Vim. The engine
+// prefers this command over newlineAndIndent for o, O and r<CR>.
+CodeMirror.commands.newlineAndIndentContinueComment = (cm: CodeMirror) => {
+  const view = cm.cm6;
+  const { state } = view;
+  if (is_rich(state)) {
+    const line = state.doc.lineAt(state.selection.main.head);
+    const container = line_container(state, line);
+    if (
+      container.layers.length > 0 &&
+      !container.blank &&
+      run_construct_key(view, "Enter")
+    )
+      return;
+  }
+  CodeMirror.commands.newlineAndIndent(cm);
+};
 
 // j and k ask findPosV where the screen takes the caret, and the engine
 // follows an answer past the target line (that is meant for folded text).
@@ -133,56 +332,6 @@ function jumps_over_rendered_block(
         : block.to < start_line.from && block.to >= found_offset) &&
       is_block_rendered(state, block),
   );
-}
-
-// Same caret handling as the package's own history command: Vim expects the
-// caret at the start of the undone change. The engine records that start
-// while our dispatch goes through its view plugin.
-function run_source_history(cm: CodeMirror, command: StateCommand) {
-  if (cm.curOp) delete cm.curOp.$changeStart;
-  command(cm.cm6);
-  const change_start = cm.curOp?.$changeStart;
-  if (change_start !== undefined)
-    cm.cm6.dispatch({ selection: { anchor: change_start } });
-}
-
-// Every keymap, the menus' Prec.highest one included, runs from a single
-// Prec.default DOM handler, so Vim's handler above sees keys first. Without
-// this, Esc in an open slash or wiki menu would leave insert mode and keep
-// the menu open. Other menu keys (Enter, arrows) are not Vim keys in insert
-// mode, so they already reach the menu.
-const escape_closes_menu_first = Prec.highest(
-  EditorView.domEventHandlers({
-    keydown: (event, view) => event.key === "Escape" && closeCompletion(view),
-  }),
-);
-
-type VimModeChange = { mode: string; subMode?: string };
-
-function mode_listener(on_mode_change: (mode: VimMode) => void) {
-  return ViewPlugin.define((view) => {
-    const cm = getCM(view);
-    const listener = (change: VimModeChange) => {
-      on_mode_change(to_vim_mode(change));
-    };
-    cm?.on("vim-mode-change", listener);
-    on_mode_change("normal");
-    return {
-      destroy() {
-        cm?.off("vim-mode-change", listener);
-      },
-    };
-  });
-}
-
-function to_vim_mode(change: VimModeChange): VimMode {
-  if (change.mode === "visual") {
-    if (change.subMode === "linewise") return "visual_line";
-    if (change.subMode === "blockwise") return "visual_block";
-    return "visual";
-  }
-  if (change.mode === "insert" || change.mode === "replace") return change.mode;
-  return "normal";
 }
 
 // The engine already draws a block cursor in normal and visual mode, a half
