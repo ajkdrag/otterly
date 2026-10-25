@@ -10,6 +10,8 @@
   import { ACTION_IDS } from "$lib/app";
   import { format_hotkey_for_display } from "$lib/features/hotkey";
   import type { TagCount } from "$lib/features/tags/types/tag";
+  import TagChip from "$lib/features/tags/ui/tag_chip.svelte";
+  import TagExcerpt from "$lib/features/tags/ui/tag_excerpt.svelte";
   import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
 
   const { stores, action_registry } = use_app_context();
@@ -335,11 +337,7 @@
         All tags
       </Button>
       <div class="flex min-w-0 items-center gap-2 px-1">
-        <!-- @Incomplete: TagChip (size sm, static) replaces this label. -->
-        <span
-          class="min-w-0 truncate text-sm font-medium"
-          title={`#${selected_tag}`}>#{selected_tag}</span
-        >
+        <TagChip tag={selected_tag} size="sm" />
         {#if tagged_notes_status === "ready"}
           <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
             {tagged_notes_total.toLocaleString()}
@@ -410,9 +408,8 @@
                 </span>
               {/if}
               {#if entry.snippet}
-                <!-- @Incomplete: TagExcerpt replaces this, to draw #tag in the tag color. -->
                 <span class="line-clamp-2 text-xs text-muted-foreground">
-                  {entry.snippet}
+                  <TagExcerpt text={entry.snippet} tags={[selected_tag]} />
                 </span>
               {/if}
             </button>

@@ -18,13 +18,13 @@
   import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
   import CodeIcon from "@lucide/svelte/icons/code";
   import HashIcon from "@lucide/svelte/icons/hash";
-  import XIcon from "@lucide/svelte/icons/x";
   import type {
     OmnibarItem,
     OmnibarQueryTarget,
     OmnibarScope,
   } from "$lib/shared/types/search";
   import type { NoteMeta } from "$lib/shared/types/note";
+  import { TagChip, TagExcerpt } from "$lib/features/tags";
   import type { TagMatch } from "$lib/features/tags";
   import type { CommandIcon as CommandIconType } from "$lib/features/search/types/command_palette";
   import type { EditorSettings } from "$lib/shared/types/editor_settings";
@@ -573,7 +573,6 @@
     <div class="Omnibar__search">
       <SearchIcon />
       {#if tags.length > 0}
-        <!-- @Incomplete: TagChip (size md, on_remove) replaces this markup. -->
         <div class="Omnibar__chips" role="group" aria-label="Tag filters">
           {#each tags as tag, index (tag)}
             {#if index > 0}
@@ -581,21 +580,13 @@
                 >{tag_match === "all" ? "and" : "or"}</span
               >
             {/if}
-            <span class="Omnibar__chip" title={`#${tag}`}>
-              <span class="Omnibar__chip-label">#{tag}</span>
-              <button
-                type="button"
-                class="Omnibar__chip-remove"
-                aria-label={`Remove tag #${tag}`}
-                onclick={() => remove_tag_and_refocus(tag)}
-                onkeydown={(event) => {
-                  if (event.key !== "Backspace" && event.key !== "Delete")
-                    return;
-                  event.preventDefault();
-                  remove_tag_and_refocus(tag);
-                }}><XIcon /></button
-              >
-            </span>
+            <TagChip
+              {tag}
+              size="md"
+              on_remove={() => {
+                remove_tag_and_refocus(tag);
+              }}
+            />
           {/each}
         </div>
       {/if}
@@ -805,8 +796,9 @@
                     <span class="Omnibar__item-title">{item.note.title}</span>
                     <span class="Omnibar__item-path">{item.note.path}</span>
                     {#if item.snippet}
-                      <!-- @Incomplete: TagExcerpt replaces this, to draw the chip tags in the tag color. -->
-                      <span class="Omnibar__item-snippet">{item.snippet}</span>
+                      <span class="Omnibar__item-snippet"
+                        ><TagExcerpt text={item.snippet} {tags} /></span
+                      >
                     {/if}
                   </div>
                   {#if match_badge_label(item)}
@@ -1162,55 +1154,6 @@
     align-items: center;
     gap: var(--space-1);
     max-width: 75%;
-  }
-
-  .Omnibar__chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-0-5);
-    max-width: 16rem;
-    height: 1.5rem;
-    padding-inline: var(--space-1-5) var(--space-0-5);
-    border-radius: var(--editor-tag-radius, var(--radius-sm));
-    font-size: var(--text-sm);
-    color: var(--editor-tag-text, var(--interactive));
-    background-color: var(--editor-tag-bg, var(--interactive-bg));
-    box-shadow: inset 0 0 0 1px var(--editor-tag-border, transparent);
-  }
-
-  .Omnibar__chip-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .Omnibar__chip-remove {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 1rem;
-    height: 1rem;
-    border-radius: var(--radius-sm);
-    color: inherit;
-    opacity: 0.7;
-  }
-
-  .Omnibar__chip-remove:hover {
-    opacity: 1;
-    background-color: var(--editor-tag-bg-hover, var(--muted));
-  }
-
-  .Omnibar__chip-remove:focus-visible {
-    opacity: 1;
-    outline: 2px solid var(--focus-ring, var(--ring));
-  }
-
-  :global(.Omnibar__chip-remove svg) {
-    width: 0.75rem !important;
-    height: 0.75rem !important;
-    color: inherit !important;
   }
 
   .Omnibar__tags-button {
