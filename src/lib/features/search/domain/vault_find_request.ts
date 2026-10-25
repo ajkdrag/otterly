@@ -1,4 +1,3 @@
-import type { TagMatch } from "$lib/features/tags";
 import type { VaultFindRequest } from "$lib/features/search/types/vault_find";
 
 export type VaultFindInputs = {
@@ -10,17 +9,12 @@ export type VaultFindInputs = {
   exclude: string;
 };
 
-export type VaultFindChips = {
-  tags: string[];
-  tag_match: TagMatch;
-};
-
 // The Text mode inputs and the omnibar's chips as a request, or null when
 // there is nothing to search. The replacement and the selection are not part
 // of it: typing a replacement or moving through matches must not search again.
 export function build_vault_find_request(
   inputs: VaultFindInputs,
-  chips: VaultFindChips,
+  tags: string[],
 ): VaultFindRequest | null {
   if (!inputs.query) return null;
   return {
@@ -30,8 +24,7 @@ export function build_vault_find_request(
     whole_word: inputs.whole_word,
     include: inputs.include,
     exclude: inputs.exclude,
-    tags: chips.tags,
-    tag_match: chips.tag_match,
+    tags,
   };
 }
 
@@ -47,7 +40,6 @@ export function vault_find_request_key(request: VaultFindRequest): string {
     request.include,
     request.exclude,
     request.tags,
-    request.tag_match,
   ]);
 }
 

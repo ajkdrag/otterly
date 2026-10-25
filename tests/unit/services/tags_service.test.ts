@@ -62,7 +62,6 @@ describe("TagsService", () => {
 
     expect(search_tagged_notes).toHaveBeenCalledWith(expect.anything(), {
       tags: ["work"],
-      match: "all",
       text: "",
       limit: 500,
     });
@@ -100,7 +99,6 @@ describe("TagsService", () => {
 
     const result = await service.search_tagged_notes({
       tags: ["work"],
-      match: "any",
       text: "plan",
       limit: 50,
     });

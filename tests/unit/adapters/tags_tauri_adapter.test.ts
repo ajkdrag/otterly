@@ -21,7 +21,6 @@ describe("tags_tauri_adapter", () => {
     const vault_id = as_vault_id("vault-1");
     const query = {
       tags: ["work"],
-      match: "any" as const,
       text: "plan",
       limit: 50,
     };

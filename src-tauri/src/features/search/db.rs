@@ -35,17 +35,9 @@ pub struct TagCount {
     pub count: usize,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TagMatch {
-    All,
-    Any,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct TagNoteQuery {
     pub tags: Vec<String>,
-    pub r#match: TagMatch,
     pub text: String,
     pub limit: usize,
 }
@@ -1102,7 +1094,7 @@ pub fn suggest_tags(
             if exclude_keys.contains(&key) {
                 return None;
             }
-            let tier = tag_match_tier(&key, &partial_key)?;
+            let tier = tag_suggestion_tier(&key, &partial_key)?;
             Some((tier, key, entry))
         })
         .collect();
@@ -1116,7 +1108,7 @@ pub fn suggest_tags(
     Ok(ranked.into_iter().map(|(_, _, entry)| entry).collect())
 }
 
-fn tag_match_tier(key: &str, partial: &str) -> Option<u8> {
+fn tag_suggestion_tier(key: &str, partial: &str) -> Option<u8> {
     if partial.is_empty() || key == partial {
         return Some(0);
     }
@@ -1148,32 +1140,24 @@ fn unique_tag_keys(tags: &[String]) -> Vec<String> {
     keys
 }
 
-// Paths of the notes with all (or any) of `key_count` tag keys, bound as `?`
-// params. The tag mode search and vault find both use it, so All and Any mean
-// the same thing in both.
-fn tagged_paths_sql(key_count: usize, tag_match: TagMatch) -> String {
+// Paths of the notes with every one of `key_count` tag keys, bound as `?`
+// params. The tag mode search and vault find both use it, so chips narrow
+// the same way in both.
+fn tagged_paths_sql(key_count: usize) -> String {
     let key_placeholders = vec!["?"; key_count].join(", ");
     // PRIMARY KEY (path, tag_key) makes COUNT(*) a count of distinct tags.
-    let having = match tag_match {
-        TagMatch::All => format!("HAVING COUNT(*) = {key_count}"),
-        TagMatch::Any => String::new(),
-    };
     format!(
-        "SELECT path FROM note_tags WHERE tag_key IN ({key_placeholders}) GROUP BY path {having}"
+        "SELECT path FROM note_tags WHERE tag_key IN ({key_placeholders}) GROUP BY path HAVING COUNT(*) = {key_count}"
     )
 }
 
 // The files vault find reads when the omnibar has tag chips.
-pub fn list_tagged_paths(
-    conn: &Connection,
-    tags: &[String],
-    tag_match: TagMatch,
-) -> Result<Vec<String>, String> {
+pub fn list_tagged_paths(conn: &Connection, tags: &[String]) -> Result<Vec<String>, String> {
     let keys = unique_tag_keys(tags);
     if keys.is_empty() {
         return Ok(Vec::new());
     }
-    let sql = tagged_paths_sql(keys.len(), tag_match);
+    let sql = tagged_paths_sql(keys.len());
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params_from_iter(&keys), |row| row.get(0))
@@ -1183,7 +1167,7 @@ pub fn list_tagged_paths(
 }
 
 // One query for the sidebar drill-down and the omnibar tag mode: notes with
-// all (or any) of `tags`, narrowed by `text`, at most `limit` of them.
+// every one of `tags`, narrowed by `text`, at most `limit` of them.
 //
 // Without text the newest notes come first. With text, notes whose name,
 // title or path match come first (the same scoring as the omnibar file
@@ -1199,19 +1183,15 @@ pub fn search_tagged_notes(conn: &Connection, query: &TagNoteQuery) -> Result<Ta
         });
     }
 
-    let key_placeholders = vec!["?"; keys.len()].join(", ");
-    let tagged_paths = tagged_paths_sql(keys.len(), query.r#match);
-    // The excerpt is the one around the first tag. In "any" mode a note may
-    // lack that tag, and then any of the other tags' excerpts will do.
+    let tagged_paths = tagged_paths_sql(keys.len());
+    // Every note here carries the first tag, so the excerpt is the one around it.
     let tagged_notes = format!(
         "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,
-                (SELECT t.excerpt FROM note_tags t
-                 WHERE t.path = n.path AND t.tag_key IN ({key_placeholders})
-                 ORDER BY t.tag_key = ? DESC LIMIT 1)
+                (SELECT excerpt FROM note_tags WHERE path = n.path AND tag_key = ?)
          FROM notes n
          WHERE n.path IN ({tagged_paths})"
     );
-    let tagged_notes_params: Vec<&str> = [keys.as_slice(), &keys[..1], keys.as_slice()].concat();
+    let tagged_notes_params: Vec<&str> = [&keys[..1], keys.as_slice()].concat();
     // One extra row tells us the page is truncated.
     let limit_plus_one = query.limit + 1;
 

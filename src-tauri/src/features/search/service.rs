@@ -919,7 +919,6 @@ pub struct VaultFindStartRequest {
     #[serde(flatten)]
     pub find: vault_find::VaultFindRequest,
     pub tags: Vec<String>,
-    pub tag_match: search_db::TagMatch,
 }
 
 // Validates on the calling thread, so a bad regex or glob comes back as
@@ -939,7 +938,7 @@ pub fn vault_find_start(
         None
     } else {
         let paths = with_read_conn(&app, &vault_id, |conn| {
-            search_db::list_tagged_paths(conn, &request.tags, request.tag_match)
+            search_db::list_tagged_paths(conn, &request.tags)
         })?;
         Some(paths.into_iter().collect::<HashSet<String>>())
     };

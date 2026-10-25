@@ -1,5 +1,4 @@
 import type { FindSpec } from "$lib/shared/types/search";
-import type { TagMatch } from "$lib/features/tags";
 
 // Shapes shared with the Rust vault find (features/search/vault_find.rs and
 // VaultFindStartRequest in service.rs). Field names match the serde structs.
@@ -9,10 +8,9 @@ export type VaultFindRequest = FindSpec & {
   // Comma separated globs. "" means every file.
   include: string;
   exclude: string;
-  // The omnibar's tag chips: only files of notes with all (or any) of these
+  // The omnibar's tag chips: only files of notes with every one of these
   // tags. [] means every file.
   tags: string[];
-  tag_match: TagMatch;
 };
 
 export type VaultFindMatch = {

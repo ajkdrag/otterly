@@ -35,7 +35,7 @@
     replacement: string;
     can_replace: boolean;
     git_enabled: boolean;
-    // "#a and #b" while tag chips narrow the search, "" without chips.
+    // "#a #b" while tag chips narrow the search, "" without chips.
     tag_list_label: string;
     include: string;
     is_indexing: boolean;
@@ -205,12 +205,16 @@
       class:opacity-50={stale}
       style="height: {$virtualizer.getTotalSize()}px"
     >
+      <!-- Same columns as the rest of the omnibar: the file icon on A, its
+           name on B, and the line numbers start on B too, so matches read
+           as a tree under their file. The right padding leaves out the
+           scrollbar gutter, like the notes rows. -->
       {#each virtual_rows as virtual_row (rows[virtual_row.index]?.key ?? virtual_row.key)}
         {@const row = rows[virtual_row.index]}
         {#if row?.kind === "file"}
           <div
             role="presentation"
-            class="absolute top-0 left-0 flex w-full items-center gap-2 px-4 text-sm"
+            class="absolute top-0 left-0 flex w-full items-center gap-2 ps-4 pe-[calc(var(--omnibar-inset)_-_var(--scrollbar-width))] text-sm"
             style="height: {virtual_row.size}px; transform: translateY({virtual_row.start}px)"
             title={row.file.path}
             onmousedown={keep_focus}
@@ -237,7 +241,7 @@
             role="option"
             tabindex="-1"
             aria-selected={row.key === selected_row?.key}
-            class="group hover:bg-accent/60 aria-selected:border-primary aria-selected:bg-(--interactive-bg) absolute top-0 left-0 flex w-full cursor-pointer items-center gap-2 border-s-2 border-transparent ps-4 pe-2 text-sm"
+            class="group hover:bg-accent/60 aria-selected:border-primary aria-selected:bg-(--interactive-bg) absolute top-0 left-0 flex w-full cursor-pointer items-center gap-2 border-s-2 border-transparent ps-3.5 pe-[calc(var(--omnibar-inset)_-_var(--scrollbar-width))] text-sm"
             style="height: {virtual_row.size}px; transform: translateY({virtual_row.start}px)"
             onmousedown={keep_focus}
             onclick={() => {
@@ -245,7 +249,7 @@
             }}
           >
             <span
-              class="text-muted-foreground w-8 shrink-0 text-right text-xs tabular-nums"
+              class="text-muted-foreground ms-6 w-8 shrink-0 text-right text-xs tabular-nums"
               >{String(row.match.line)}</span
             >
             <!--
@@ -325,11 +329,15 @@
     <!-- While stale, a new search is on its way: no "No results" flash. -->
     {#if rows.length === 0 && results.status !== "searching" && !stale}
       <div
-        class="text-muted-foreground px-3 py-8 text-center text-sm"
+        class="text-muted-foreground px-4 py-8 text-center text-sm"
         aria-hidden="true"
       >
         {#if !has_pattern}
-          <p>Find text in every file</p>
+          {#if tag_list_label}
+            <p>Find text in notes tagged {tag_list_label}</p>
+          {:else}
+            <p>Find text in every file</p>
+          {/if}
           <p class="mt-1 text-xs">{empty_hint}</p>
         {:else if results.error}
           <p

@@ -20,7 +20,6 @@ function request(text: string): VaultFindRequest {
     include: "",
     exclude: "",
     tags: [],
-    tag_match: "all",
   };
 }
 

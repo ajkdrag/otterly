@@ -6,12 +6,8 @@ export type TagCount = {
   count: number;
 };
 
-// "all": notes with every tag. "any": notes with at least one.
-export type TagMatch = "all" | "any";
-
 export type TagNoteQuery = {
   tags: string[];
-  match: TagMatch;
   // Narrows the tagged notes by name, title, path and body. Empty lists the
   // newest first.
   text: string;
