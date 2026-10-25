@@ -41,6 +41,13 @@ export function create_app_context(input: {
     now_ms,
   );
 
+  // Before EditorService: its tag callbacks ask this for suggestions.
+  const tags_service = new TagsService(
+    input.ports.tags,
+    stores.vault,
+    stores.tags,
+  );
+
   const editor_service = new EditorService(
     input.ports.editor,
     stores.vault,
@@ -66,6 +73,11 @@ export function create_app_context(input: {
           note_path,
           image,
         }),
+      on_tag_click: (tag) =>
+        void action_registry.execute(ACTION_IDS.omnibar_open_tags, {
+          tags: [tag],
+        }),
+      suggest_tags: (partial) => tags_service.suggest_tags(partial, [], 20),
     },
     search_service,
   );
@@ -171,12 +183,6 @@ export function create_app_context(input: {
     input.ports.search,
     stores.vault,
     stores.links,
-  );
-
-  const tags_service = new TagsService(
-    input.ports.tags,
-    stores.vault,
-    stores.tags,
   );
 
   const hotkey_service = new HotkeyService(

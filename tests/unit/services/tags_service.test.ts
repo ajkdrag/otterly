@@ -50,21 +50,22 @@ function setup(port: Partial<TagsPort>) {
   vault_store.set_vault(create_test_vault());
   const tags_store = new TagsStore();
   const service = new TagsService(tags_port, vault_store, tags_store);
-  return { service, tags_store, tags_port };
+  return { service, tags_store };
 }
 
 describe("TagsService", () => {
   it("drills into one tag with the newest notes first, bounded, and keeps the total", async () => {
-    const { service, tags_store, tags_port } = setup({
-      search_tagged_notes: vi.fn().mockResolvedValue(page(["a.md"], 900)),
-    });
+    const search_tagged_notes = vi.fn().mockResolvedValue(page(["a.md"], 900));
+    const { service, tags_store } = setup({ search_tagged_notes });
 
     await service.select_tag("work");
 
-    expect(tags_port.search_tagged_notes).toHaveBeenCalledWith(
-      expect.anything(),
-      { tags: ["work"], match: "all", text: "", limit: 500 },
-    );
+    expect(search_tagged_notes).toHaveBeenCalledWith(expect.anything(), {
+      tags: ["work"],
+      match: "all",
+      text: "",
+      limit: 500,
+    });
     expect(tags_store.tagged_notes_total).toBe(900);
     expect(tags_store.tagged_notes_status).toBe("ready");
   });

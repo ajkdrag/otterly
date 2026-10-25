@@ -36,6 +36,8 @@ import {
   set_editor_mode,
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
+  tag_at,
+  tags,
   update_find_query,
   wiki_links,
   type CodeBlockViewState,
@@ -160,6 +162,10 @@ export function create_codemirror_editor_port(
           open_link,
           copy_link: options.copy_text,
           edit_key: "Alt-Enter",
+        }),
+        tags({
+          ...(events.on_tag_click ? { open_tag: events.on_tag_click } : {}),
+          ...(events.query_tags ? { query_tags: events.query_tags } : {}),
         }),
         images({
           resolve_image(source, signal) {
@@ -352,6 +358,12 @@ export function create_codemirror_editor_port(
         },
         update_find_state(query, selected_index) {
           update_find_query(view, query, selected_index);
+        },
+        // A focused table cell has its own nested editor, so the outer view
+        // does not have focus and this gives null there.
+        tag_at_cursor() {
+          if (!current.is_markdown || !view.hasFocus) return null;
+          return tag_at(view.state, view.state.selection.main.head);
         },
         open_buffer(next: BufferConfig) {
           cancel_pending();

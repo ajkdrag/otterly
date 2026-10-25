@@ -38,6 +38,8 @@ export type EditorServiceCallbacks = {
     note_path: NotePath,
     image: PastedImagePayload,
   ) => void;
+  on_tag_click: (tag: string) => void;
+  suggest_tags: (partial: string) => Promise<{ tag: string; count: number }[]>;
 };
 
 type EditorFlushResult = {
@@ -214,6 +216,10 @@ export class EditorService {
     this.session?.toggle_source_mode();
   }
 
+  tag_at_cursor(): string | null {
+    return this.session?.tag_at_cursor() ?? null;
+  }
+
   close_buffer(note_path: NotePath) {
     this.session?.close_buffer(note_path);
   }
@@ -354,6 +360,16 @@ export class EditorService {
         this.with_active_note_identity(generation, (id, path) => {
           this.callbacks.on_image_paste_requested(id, path, image);
         });
+      },
+      on_tag_click: (tag: string) => {
+        if (!this.is_generation_current(generation)) return;
+        this.callbacks.on_tag_click(tag);
+      },
+      // The editor aborts the lookup when the text changes. The index answers
+      // fast, so we let a stale answer finish and the editor drops it.
+      query_tags: async (partial: string) => {
+        if (!this.is_generation_current(generation)) return [];
+        return this.callbacks.suggest_tags(partial);
       },
     };
 

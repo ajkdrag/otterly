@@ -81,6 +81,22 @@ async function open_editor(
 }
 
 describe("CodeMirror editor port", () => {
+  it("reports the tag at the caret only while the note has focus", async () => {
+    const { session, view } = await open_editor("see #idea now\n");
+    session.set_selection(9, 9);
+    expect(view.hasFocus).toBe(true);
+    expect(session.tag_at_cursor()).toBe("idea");
+
+    view.contentDOM.blur();
+    expect(session.tag_at_cursor()).toBeNull();
+  });
+
+  it("draws tag chips that are not clickable when the host has no tag click handler", async () => {
+    const plain = await open_editor("top\n\nsee #idea");
+    expect(plain.view.dom.querySelector(".md-tag")?.textContent).toBe("#idea");
+    expect(plain.view.dom.querySelector(".md-tag-clickable")).toBeNull();
+  });
+
   it("passes malformed percent escapes through as a local asset path", async () => {
     const resolve_asset = vi.fn((_vault: unknown, path: string) => path);
     const source = "intro\n\n![broken path](assets/bad%ZZ.png)";

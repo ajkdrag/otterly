@@ -46,6 +46,7 @@ function create_session_with_find(initial_markdown: string): EditorSession {
     open_buffer: vi.fn(),
     rename_buffer: vi.fn(),
     close_buffer: vi.fn(),
+    tag_at_cursor: vi.fn(() => null),
     update_find_state: vi.fn(),
   };
 }
@@ -74,6 +75,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_tag_click: vi.fn(),
+        suggest_tags: vi.fn().mockResolvedValue([]),
       },
     );
 
@@ -110,6 +113,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_tag_click: vi.fn(),
+        suggest_tags: vi.fn().mockResolvedValue([]),
       },
     );
 
@@ -141,6 +146,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_tag_click: vi.fn(),
+        suggest_tags: vi.fn().mockResolvedValue([]),
       },
     );
 
