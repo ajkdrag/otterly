@@ -10,6 +10,7 @@
     VaultFindMatchRow,
     VaultFindRow,
   } from "$lib/features/search/types/vault_find";
+  import { format_hotkey_for_display } from "$lib/features/hotkey";
   import { trim_context_before } from "$lib/features/search/domain/match_context";
   import { build_replacement_preview } from "$lib/features/search/domain/replacement_preview";
   import { parent_folder_path } from "$lib/shared/utils/path";
@@ -69,6 +70,14 @@
     ROW_HEIGHT_REM *
     Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
 
+  // Key labels: glyphs on macOS, words elsewhere.
+  const empty_hint = [
+    `${format_hotkey_for_display("Alt+C")} Match case`,
+    `${format_hotkey_for_display("Alt+W")} Whole word`,
+    `${format_hotkey_for_display("Alt+R")} Regex`,
+    "⇥ Replace",
+  ].join(" · ");
+
   let scroll_element: HTMLDivElement | null = $state(null);
 
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -106,13 +115,7 @@
     untrack(() => $virtualizer).scrollToIndex(index, { align: "auto" });
   });
 
-  // A bad regex or glob already reads as one line. A failed walk does not.
-  const error_text = $derived.by(() => {
-    const error = results.error;
-    if (!error) return "";
-    if (error.kind === "failed") return "Couldn't search the vault. Try again.";
-    return error.message;
-  });
+  const error_text = $derived(results.error?.message ?? "");
   const is_truncated = $derived(results.stats?.truncated ?? false);
 
   const summary = $derived.by(() => {
@@ -325,9 +328,7 @@
       >
         {#if !has_pattern}
           <p>Find text in every file</p>
-          <p class="mt-1 text-xs">
-            ⌥C Match case · ⌥W Whole word · ⌥R Regex · ⇥ Replace
-          </p>
+          <p class="mt-1 text-xs">{empty_hint}</p>
         {:else if results.error}
           <p
             class="text-destructive break-words whitespace-pre-wrap"

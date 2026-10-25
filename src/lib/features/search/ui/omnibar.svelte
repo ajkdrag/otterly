@@ -109,6 +109,10 @@
     },
   ];
 
+  // Key labels: glyphs on macOS, words elsewhere.
+  const REPLACE_FILE_KEYS = format_hotkey_for_display("CmdOrCtrl+Shift+↵");
+  const REPLACE_ALL_KEYS = format_hotkey_for_display("CmdOrCtrl+↵");
+
   // UIStore.vault_find, the Text mode inputs.
   type FindInputs = VaultFindInputs & {
     replacement: string;
@@ -253,6 +257,10 @@
     is_find_mode || active_query.domain === "notes",
   );
   const active_target = $derived(is_find_mode ? "text" : active_query.target);
+  // Text walks one vault, so the all vaults scope does not offer it.
+  const visible_targets = $derived(
+    is_all_vaults ? TARGETS.filter(({ target }) => target !== "text") : TARGETS,
+  );
   // The chips only do something in tag mode, in tag suggestions and in Text
   // mode.
   const show_tag_match = $derived(
@@ -1023,7 +1031,7 @@
               aria-pressed={find_inputs[option]}
               aria-label={label}
               aria-keyshortcuts={keys}
-              title={`${label} (${keys})`}
+              title={`${label} (${format_hotkey_for_display(keys)})`}
               onmousedown={(event) => {
                 event.preventDefault();
               }}
@@ -1097,7 +1105,7 @@
           aria-label="Replace all"
           title={find_results.stats?.truncated
             ? "Too many results to replace all. Narrow the search."
-            : "Replace all (⌘↵)"}
+            : `Replace all (${REPLACE_ALL_KEYS})`}
           disabled={!find_results.can_replace_all ||
             is_replacing ||
             find_rows_stale}
@@ -1176,7 +1184,7 @@
             role="group"
             aria-label="Search in"
           >
-            {#each TARGETS as { label, target } (target)}
+            {#each visible_targets as { label, target } (target)}
               <button
                 type="button"
                 class="Omnibar__filter-btn"
@@ -1596,8 +1604,12 @@
              brings you back to the pattern. -->
         {#if focused_control === "replace"}
           <span class="Omnibar__hint"><kbd>↵</kbd> Replace</span>
-          <span class="Omnibar__hint"><kbd>⇧⌘↵</kbd> Replace in file</span>
-          <span class="Omnibar__hint"><kbd>⌘↵</kbd> Replace all</span>
+          <span class="Omnibar__hint"
+            ><kbd>{REPLACE_FILE_KEYS}</kbd> Replace in file</span
+          >
+          <span class="Omnibar__hint"
+            ><kbd>{REPLACE_ALL_KEYS}</kbd> Replace all</span
+          >
           <span class="Omnibar__hint"><kbd>Esc</kbd> Back</span>
           {#if !git_enabled}
             <span class="Omnibar__warning"

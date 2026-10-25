@@ -58,7 +58,11 @@ export class VaultFindService {
       if (revision !== this.revision) return;
       const message = error_message(error);
       log.error("Vault find failed", { error: message });
-      results.fail({ kind: "failed", message });
+      results.fail({
+        kind: "failed",
+        message: "Couldn't search the vault. Try again.",
+        details: message,
+      });
     }
   }
 

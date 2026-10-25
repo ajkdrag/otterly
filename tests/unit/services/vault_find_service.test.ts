@@ -158,6 +158,20 @@ describe("VaultFindService", () => {
     });
   });
 
+  it("shows a failed search as a one-line error and keeps the engine message as details", async () => {
+    const { service, port, results } = create_harness();
+    port.start_find.mockRejectedValueOnce(new Error("search worker is gone"));
+
+    await service.search(request("foo"));
+
+    expect(results.status).toBe("error");
+    expect(results.error).toEqual({
+      kind: "failed",
+      message: "Couldn't search the vault. Try again.",
+      details: "search worker is gone",
+    });
+  });
+
   it("replace leaves the results alone when a newer search started meanwhile", async () => {
     const { service, port, emitters, results } = create_harness();
     await service.search(request("foo"));
