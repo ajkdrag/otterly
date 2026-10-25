@@ -34,6 +34,7 @@ export function create_test_ports(): Ports {
       resolve_asset_url_for_vault: (vault_id, asset_path) =>
         assets.resolve_asset_url(vault_id, asset_path),
       copy_text: (text) => clipboard.write_text(text),
+      read_clipboard_text: () => clipboard.read_text(),
     }),
     clipboard,
     shell: create_test_shell_adapter(),

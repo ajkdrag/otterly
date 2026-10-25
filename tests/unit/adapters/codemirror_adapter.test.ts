@@ -60,12 +60,16 @@ async function open_editor(
     on_code_block_view_states_change: vi.fn(),
     on_view_mode_change:
       vi.fn<NonNullable<EditorEventHandlers["on_view_mode_change"]>>(),
-    on_vim_mode_change:
-      vi.fn<NonNullable<EditorEventHandlers["on_vim_mode_change"]>>(),
+    on_vim_status_change:
+      vi.fn<NonNullable<EditorEventHandlers["on_vim_status_change"]>>(),
+    on_save_request: vi.fn(() => Promise.resolve()),
+    on_close_request: vi.fn(),
   };
+  const read_clipboard_text = vi.fn(() => Promise.resolve("from outside"));
   const port = create_codemirror_editor_port({
     resolve_asset_url_for_vault,
     copy_text: vi.fn(async () => {}),
+    read_clipboard_text,
   });
   const session = await port.start_session({
     root,
@@ -80,7 +84,29 @@ async function open_editor(
   if (!dom) throw new Error("Missing editor");
   const view = EditorView.findFromDOM(dom);
   if (!view) throw new Error("Missing view");
-  return { root, session, view, events };
+  return { root, session, view, events, read_clipboard_text };
+}
+
+function press_vim_keys(view: EditorView, ...keys: string[]) {
+  for (const key of keys)
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    );
+}
+
+function run_ex_command(view: EditorView, command: string) {
+  press_vim_keys(view, ":");
+  const input = view.dom.querySelector<HTMLInputElement>(".cm-vim-panel input");
+  if (!input) throw new Error("The : prompt did not open");
+  input.value = command;
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Enter",
+      keyCode: 13,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 describe("CodeMirror editor port", () => {
@@ -150,6 +176,7 @@ describe("CodeMirror editor port", () => {
         is_omnibar_topmost: () => false,
         is_vault_switcher_open: () => false,
         is_hotkey_recorder_open: () => false,
+        is_vim_enabled: () => false,
         has_tabs: () => true,
         action_registry: registry,
         on_close_vault_switcher: vi.fn(),
@@ -744,10 +771,14 @@ describe("CodeMirror editor port", () => {
 
   it("turns Vim on and off for the shown buffer and for cached ones it shows later", async () => {
     const { session, view, events } = await open_editor("one");
-    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
 
     session.set_vim_enabled(true);
-    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith("normal");
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith({
+      mode: "normal",
+      showcmd: "",
+      recording: null,
+    });
     expect(view.dom.classList).toContain("md-vim");
     view.dispatch({ changes: { from: 3, insert: "!" } });
 
@@ -760,7 +791,7 @@ describe("CodeMirror editor port", () => {
     expect(view.dom.classList).toContain("md-vim");
 
     session.set_vim_enabled(false);
-    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
     session.open_buffer({
       note_path: "alpha.md",
       vault_id: as_vault_id("test-vault"),
@@ -768,9 +799,34 @@ describe("CodeMirror editor port", () => {
       restore_policy: "reuse_cache",
     });
     expect(view.dom.classList).not.toContain("md-vim");
-    expect(events.on_vim_mode_change).toHaveBeenLastCalledWith(null);
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
     source_undo(view);
     expect(session.get_markdown()).toBe("one");
+  });
+
+  it('sends :w, :q and :wq to the host, and reads the system clipboard for "+p', async () => {
+    const { session, view, events, read_clipboard_text } =
+      await open_editor("one");
+    session.set_vim_enabled(true);
+
+    run_ex_command(view, "w");
+    expect(events.on_save_request).toHaveBeenCalledOnce();
+    expect(events.on_close_request).not.toHaveBeenCalled();
+
+    run_ex_command(view, "q");
+    expect(events.on_close_request).toHaveBeenCalledOnce();
+
+    run_ex_command(view, "wq");
+    await vi.waitFor(() => {
+      expect(events.on_close_request).toHaveBeenCalledTimes(2);
+    });
+    expect(events.on_save_request).toHaveBeenCalledTimes(2);
+
+    press_vim_keys(view, '"', "+", "p");
+    await vi.waitFor(() => {
+      expect(session.get_markdown()).toBe("ofrom outsidene");
+    });
+    expect(read_clipboard_text).toHaveBeenCalledOnce();
   });
 
   it("closes an open Vim / prompt before it shows another buffer", async () => {
@@ -803,7 +859,7 @@ describe("CodeMirror editor port", () => {
   it("builds a new buffer with the current Vim setting", async () => {
     const { session, view, events } = await open_editor("one");
     session.set_vim_enabled(true);
-    events.on_vim_mode_change.mockClear();
+    events.on_vim_status_change.mockClear();
 
     session.open_buffer({
       note_path: "beta.md",
@@ -812,10 +868,12 @@ describe("CodeMirror editor port", () => {
       restore_policy: "reuse_cache",
     });
     expect(view.dom.classList).toContain("md-vim");
-    expect(events.on_vim_mode_change.mock.calls).toEqual([["normal"]]);
+    expect(events.on_vim_status_change.mock.calls).toEqual([
+      [{ mode: "normal", showcmd: "", recording: null }],
+    ]);
 
     session.set_vim_enabled(false);
-    events.on_vim_mode_change.mockClear();
+    events.on_vim_status_change.mockClear();
     session.open_buffer({
       note_path: "gamma.md",
       vault_id: as_vault_id("test-vault"),
@@ -823,7 +881,7 @@ describe("CodeMirror editor port", () => {
       restore_policy: "reuse_cache",
     });
     expect(view.dom.classList).not.toContain("md-vim");
-    expect(events.on_vim_mode_change).not.toHaveBeenCalled();
+    expect(events.on_vim_status_change).not.toHaveBeenCalled();
   });
 
   it("opens a draft note, which has no file name yet, as Markdown", async () => {

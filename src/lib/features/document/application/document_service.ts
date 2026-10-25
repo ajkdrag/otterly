@@ -13,6 +13,11 @@ const log = create_logger("document_service");
 export type DocumentServiceCallbacks = {
   on_external_link_click: (url: string) => void;
   on_unsupported_link_click: () => void;
+  // :w and :wq in the Vim editor. The promise settles when the save has
+  // finished, so :wq closes only after it.
+  on_save_request: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request: () => void;
 };
 
 // Owns the one file and the one editor of a document window.
@@ -62,8 +67,12 @@ export class DocumentService {
         on_view_mode_change: (mode) => {
           this.store.set_view_mode(mode);
         },
-        on_vim_mode_change: (mode) => {
-          this.store.set_vim_mode(mode);
+        on_vim_status_change: (status) => {
+          this.store.set_vim_status(status);
+        },
+        on_save_request: () => this.callbacks.on_save_request(),
+        on_close_request: () => {
+          this.callbacks.on_close_request();
         },
         on_external_link_click: (url) => {
           this.callbacks.on_external_link_click(url);

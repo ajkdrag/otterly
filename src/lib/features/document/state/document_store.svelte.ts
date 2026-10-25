@@ -1,7 +1,7 @@
 import type {
   CursorInfo,
   EditorViewMode,
-  VimMode,
+  VimStatus,
 } from "$lib/shared/types/editor";
 import type { DocumentFile } from "$lib/features/document/types/document";
 
@@ -23,7 +23,7 @@ export class DocumentStore {
   last_saved_at = $state<number | null>(null);
   view_mode = $state<EditorViewMode>("rich");
   // null while Vim mode is off.
-  vim_mode = $state<VimMode | null>(null);
+  vim_status = $state<VimStatus | null>(null);
   cursor = $state<CursorInfo | null>(null);
 
   set_loaded(file: DocumentFile) {
@@ -67,8 +67,8 @@ export class DocumentStore {
     this.view_mode = mode;
   }
 
-  set_vim_mode(mode: VimMode | null) {
-    this.vim_mode = mode;
+  set_vim_status(status: VimStatus | null) {
+    this.vim_status = status;
   }
 
   set_cursor(cursor: CursorInfo) {

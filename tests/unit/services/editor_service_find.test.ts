@@ -75,6 +75,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 
@@ -111,6 +113,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 
@@ -142,6 +146,8 @@ describe("EditorService update_find_state", () => {
         on_external_link_click: vi.fn(),
         on_file_link_click: vi.fn(),
         on_image_paste_requested: vi.fn(),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 

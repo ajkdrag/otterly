@@ -60,6 +60,7 @@ export function create_prod_ports(): Ports {
       resolve_asset_url_for_vault: (vault_id, asset_path) =>
         assets.resolve_asset_url(vault_id, asset_path),
       copy_text: (text) => clipboard.write_text(text),
+      read_clipboard_text: () => clipboard.read_text(),
     }),
     clipboard,
     shell,
@@ -89,6 +90,7 @@ export function create_document_window_ports(
       // Document buffers have no vault, so this never runs.
       resolve_asset_url_for_vault: () => "",
       copy_text: (text) => clipboard.write_text(text),
+      read_clipboard_text: () => clipboard.read_text(),
       resolve_document_asset_url: (relative_path) =>
         document_asset_url(window_label, relative_path),
     }),

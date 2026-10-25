@@ -10,7 +10,7 @@ import type {
   OpenNoteState,
   CursorInfo,
   PastedImagePayload,
-  VimMode,
+  VimStatus,
 } from "$lib/shared/types/editor";
 import type { MarkdownText, NoteId, NotePath } from "$lib/shared/types/ids";
 import { as_markdown_text } from "$lib/shared/types/ids";
@@ -39,6 +39,11 @@ export type EditorServiceCallbacks = {
     note_path: NotePath,
     image: PastedImagePayload,
   ) => void;
+  // :w and :wq in the Vim editor. The promise settles when the save has
+  // finished, so :wq closes only after it.
+  on_save_request: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request: () => void;
 };
 
 type EditorFlushResult = {
@@ -336,9 +341,17 @@ export class EditorService {
         if (!this.is_generation_current(generation)) return;
         this.editor_store.set_view_mode(mode);
       },
-      on_vim_mode_change: (mode: VimMode | null) => {
+      on_vim_status_change: (status: VimStatus | null) => {
         if (!this.is_generation_current(generation)) return;
-        this.editor_store.set_vim_mode(mode);
+        this.editor_store.set_vim_status(status);
+      },
+      on_save_request: () => {
+        if (!this.is_generation_current(generation)) return;
+        return this.callbacks.on_save_request();
+      },
+      on_close_request: () => {
+        if (!this.is_generation_current(generation)) return;
+        this.callbacks.on_close_request();
       },
       on_code_block_view_states_change: (heights: CodeBlockViewStates) => {
         if (!this.is_generation_current(generation)) return;

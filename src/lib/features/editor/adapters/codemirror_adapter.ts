@@ -73,6 +73,9 @@ type AdapterOptions = {
     path: AssetPath,
   ) => string | Promise<string>;
   copy_text: (text: string) => Promise<void>;
+  // Vim's "+p and set clipboard=unnamed read through this. It reads natively,
+  // because the web clipboard shows a Paste button for text from other apps.
+  read_clipboard_text: () => Promise<string>;
   // Outside a vault (a document window), relative images resolve here.
   resolve_document_asset_url?: (relative_path: string) => string;
 };
@@ -231,14 +234,15 @@ export function create_codemirror_editor_port(
       let vim_enabled = config.vim_enabled;
       // One value per session, so sync_vim_compartment can tell whether a
       // state already holds it.
+      const { on_save_request, on_close_request } = events;
       const vim_extension = vim_keybindings({
-        // @Incomplete: Only the mode reaches the app so far, and the one
-        // command after <C-o> shows as normal. showcmd and the recording
-        // register come with the status indicator.
-        on_status_change: ({ mode }) => {
-          events.on_vim_mode_change?.(
-            mode === "insert_normal" ? "normal" : mode,
-          );
+        on_status_change: (status) => events.on_vim_status_change?.(status),
+        // Without these, :w and :q tell the user they do nothing here.
+        ...(on_save_request && { on_write: on_save_request }),
+        ...(on_close_request && { on_quit: on_close_request }),
+        clipboard: {
+          read_text: options.read_clipboard_text,
+          write_text: options.copy_text,
         },
       });
       const extensions: Extension = [
@@ -304,8 +308,8 @@ export function create_codemirror_editor_port(
       refresh_word_count();
       publish_cursor();
       publish_view_mode();
-      // With Vim on, its plugin already reported "normal".
-      if (!vim_enabled) events.on_vim_mode_change?.(null);
+      // With Vim on, its plugin already reported the status.
+      if (!vim_enabled) events.on_vim_status_change?.(null);
 
       return Promise.resolve<EditorSession>({
         destroy() {
@@ -487,8 +491,8 @@ export function create_codemirror_editor_port(
             vim_enabled ? vim_extension : [],
           ),
         });
-        // Turning Vim on reports "normal" from its plugin.
-        if (!vim_enabled) events.on_vim_mode_change?.(null);
+        // Turning Vim on reports the status from its plugin.
+        if (!vim_enabled) events.on_vim_status_change?.(null);
       }
 
       function publish_dirty() {

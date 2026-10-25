@@ -5,7 +5,7 @@ import type {
   EditorBufferViewState,
   EditorViewMode,
   PastedImagePayload,
-  VimMode,
+  VimStatus,
 } from "$lib/shared/types/editor";
 
 export type BufferConfig = {
@@ -58,7 +58,12 @@ export type EditorEventHandlers = {
   on_cursor_change?: (info: CursorInfo) => void;
   on_view_mode_change?: (mode: EditorViewMode) => void;
   // null when Vim is off.
-  on_vim_mode_change?: (mode: VimMode | null) => void;
+  on_vim_status_change?: (status: VimStatus | null) => void;
+  // :w and :wq in the Vim editor. The promise settles when the save is done
+  // or has failed, and :wq closes only after it resolves.
+  on_save_request?: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request?: () => void;
   on_code_block_view_states_change?: (heights: CodeBlockViewStates) => void;
   on_internal_link_click?: (raw_path: string, base_note_path: string) => void;
   on_external_link_click?: (url: string) => void;

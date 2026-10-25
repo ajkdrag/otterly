@@ -116,6 +116,12 @@ export function create_document_window_context(input: {
       // file the OS never handed us, which the backend refuses on purpose.
       on_unsupported_link_click: () =>
         toast.info("Links to other files only open inside a vault"),
+      on_save_request: () =>
+        action_registry.execute(ACTION_IDS.note_request_save),
+      // This window's tab_close closes the window, and asks first when the
+      // file has unsaved changes.
+      on_close_request: () =>
+        void action_registry.execute(ACTION_IDS.tab_close),
     },
   );
 

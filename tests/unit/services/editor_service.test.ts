@@ -97,6 +97,8 @@ function create_setup(
     on_external_link_click: vi.fn(),
     on_file_link_click: vi.fn(),
     on_image_paste_requested: vi.fn(),
+    on_save_request: vi.fn(),
+    on_close_request: vi.fn(),
   };
 
   const service = new EditorService(
@@ -573,6 +575,35 @@ describe("EditorService", () => {
 
     expect(session_config_at(session_configs, 0).vim_enabled).toBe(false);
     expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it("shows the Vim status of the session and passes :w and :q on", async () => {
+    const session = create_session("# Alpha");
+    const { service, editor_store, callbacks, session_configs } = create_setup(
+      () => Promise.resolve(session),
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+    await service.mount({ root: {} as HTMLDivElement, note });
+    const { events } = session_config_at(session_configs, 0);
+
+    events.on_vim_status_change?.({
+      mode: "visual",
+      showcmd: "3",
+      recording: null,
+    });
+    expect(editor_store.vim_status).toEqual({
+      mode: "visual",
+      showcmd: "3",
+      recording: null,
+    });
+    events.on_vim_status_change?.(null);
+    expect(editor_store.vim_status).toBeNull();
+
+    void events.on_save_request?.();
+    events.on_close_request?.();
+    expect(callbacks.on_save_request).toHaveBeenCalledOnce();
+    expect(callbacks.on_close_request).toHaveBeenCalledOnce();
   });
 
   it("flushes session markdown and syncs editor store", async () => {

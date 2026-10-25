@@ -2,12 +2,12 @@
   import { Code, Info, FolderOpen, RefreshCw } from "@lucide/svelte";
   import * as Tooltip from "$lib/components/ui/tooltip/index.js";
   import { GitStatusWidget } from "$lib/features/git";
-  import { VimModeBadge } from "$lib/features/vim";
+  import { VimStatusIndicator } from "$lib/features/vim";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
   import type {
     CursorInfo,
     EditorViewMode,
-    VimMode,
+    VimStatus,
   } from "$lib/shared/types/editor";
   import type { IndexProgress } from "$lib/features/search";
   import type { GitSyncStatus } from "$lib/features/git";
@@ -18,7 +18,7 @@
     line_count: number;
     has_note: boolean;
     view_mode: EditorViewMode;
-    vim_mode: VimMode | null;
+    vim_status: VimStatus | null;
     is_dirty: boolean;
     last_saved_at: number | null;
     index_progress: IndexProgress;
@@ -43,7 +43,7 @@
     line_count,
     has_note,
     view_mode,
-    vim_mode,
+    vim_status,
     is_dirty,
     last_saved_at,
     index_progress,
@@ -121,8 +121,8 @@
 
 <div class="StatusBar">
   <div class="StatusBar__section">
-    {#if vim_mode && has_note}
-      <VimModeBadge mode={vim_mode} />
+    {#if vim_status && has_note}
+      <VimStatusIndicator status={vim_status} />
       <span class="StatusBar__separator" aria-hidden="true"></span>
     {/if}
     <span class="StatusBar__item">

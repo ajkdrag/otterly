@@ -47,15 +47,18 @@ function setup(
     write_document: vi.fn(() => Promise.resolve(200)),
     reveal_document: vi.fn(() => Promise.resolve()),
   };
+  const callbacks = {
+    on_external_link_click: vi.fn(),
+    on_unsupported_link_click: vi.fn(),
+    on_save_request: vi.fn(),
+    on_close_request: vi.fn(),
+  };
   const service = new DocumentService(
     document_port,
     editor_port,
     store,
     () => 5,
-    {
-      on_external_link_click: vi.fn(),
-      on_unsupported_link_click: vi.fn(),
-    },
+    callbacks,
   );
   return {
     store,
@@ -63,6 +66,11 @@ function setup(
     session,
     session_configs,
     document_port,
+    callbacks,
+    events: () => {
+      if (!events) throw new Error("The editor has not started");
+      return events;
+    },
     type: (text: string) => {
       markdown = text;
       events?.on_markdown_change(text);
@@ -105,6 +113,28 @@ describe("DocumentService", () => {
 
     expect(session_configs[0]?.vim_enabled).toBe(false);
     expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it("shows the Vim status of the editor and passes :w and :q on", async () => {
+    const { store, callbacks, events } = await open();
+
+    events().on_vim_status_change?.({
+      mode: "insert_normal",
+      showcmd: "2d",
+      recording: "q",
+    });
+    expect(store.vim_status).toEqual({
+      mode: "insert_normal",
+      showcmd: "2d",
+      recording: "q",
+    });
+    events().on_vim_status_change?.(null);
+    expect(store.vim_status).toBeNull();
+
+    void events().on_save_request?.();
+    events().on_close_request?.();
+    expect(callbacks.on_save_request).toHaveBeenCalledOnce();
+    expect(callbacks.on_close_request).toHaveBeenCalledOnce();
   });
 
   it("saves the edited text against the mtime it read", async () => {
