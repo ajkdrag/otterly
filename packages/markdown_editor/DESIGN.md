@@ -67,6 +67,7 @@ const state = create_markdown_state(source, {
     links({ open_link }),
     images({ resolve_image }),
     wiki_links({ query_wiki_links }),
+    tags({ open_tag, query_tags }),
     slash_menu(),
     find(),
     clipboard({ html_to_markdown, on_image_paste }),
@@ -122,6 +123,7 @@ render.touches(from, to); // the inline rule for any range
 render.caret_in(from, to); // the prefix rule: from <= caret < to
 render.prefix_revealed(line); // the caret is inside this line's container prefix
 render.mark(from, to, "md-strong");
+render.outer_mark(from, to, "md-tag"); // a mark that other marks nest inside
 render.hide(from, to); // hidden source is atomic for arrow keys
 render.replace(from, to, widget);
 render.widget(at, widget);
@@ -132,6 +134,8 @@ render.gap(node, { before: "1rem" }); // space above a top-level block
 ```
 
 The core owns the reveal rule, atomic ranges, the drag freeze, and forced reveal for find matches. A construct asks the core instead of checking the selection itself.
+
+`outer_mark` is for a mark that has its own box, like the tag chip (padding and a radius). A find match over part of the chip, or the chip's own dimmed `#`, would split a regular mark into two rounded halves. CodeMirror's `EditorView.outerDecorations` keeps an outer mark in one piece and nests the regular marks inside it. The collector keeps a third set for them, and they count as inline lines like any other mark.
 
 ## Line boxes
 
@@ -292,6 +296,7 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 | `links`       | `open_link`, `copy_link`, `edit_key`                                |
 | `images`      | `resolve_image(source, signal)`                                     |
 | `wiki_links`  | `query_wiki_links(query, signal)`                                   |
+| `tags`        | `open_tag`, `query_tags(partial, signal)`                           |
 | `clipboard`   | `html_to_markdown`, `on_image_paste`                                |
 | `code_blocks` | `languages`, `copy_code`, `render_diagram`, `on_view_states_change` |
 
@@ -347,7 +352,7 @@ src/
     keys.ts               context key dispatch
   plugins/
     commonmark/  gfm/  code_blocks/  frontmatter/  links/  images/
-    wiki_links/  menus/  callouts/  find.ts  clipboard.ts
+    wiki_links/  tags/  menus/  callouts/  find.ts  clipboard.ts
   testing/
     test_editor.ts        a real editor driven by key events
 ```
