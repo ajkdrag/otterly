@@ -726,9 +726,7 @@ describe("map waits", () => {
     vi.advanceTimersByTime(1000);
     expect(head()).toBe(1);
   });
-});
 
-describe("map waits across reloads and modes", () => {
   test("VIM-028 a macro that used a leader map still runs after a reload adds another prefix map", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const view = vim_editor("1\n2\n3\n4");
