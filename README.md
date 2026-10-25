@@ -79,7 +79,7 @@ set clipboard=unnamed
 set timeoutlen=500
 ```
 
-You get `map`, `nmap`, `vmap`, `xmap`, `imap`, `omap`, their `noremap` and `unmap` forms (and Vim's short names, such as `nn` and `ino`), `let mapleader`, and `set`. A vimrc pasted from terminal Vim works: Vimscript (`if`, `function`, `autocmd`, `Plug`) and terminal settings (`syntax on`, `set number`) are skipped, and Settings lists them apart from the lines that really failed.
+You get `map`, `nmap`, `vmap`, `xmap`, `imap`, `omap`, their `noremap` and `unmap` forms (and Vim's short names, such as `nn` and `ino`), `let mapleader`, and `set`. A vimrc pasted from terminal Vim works: Vimscript (`if`, `function`, `autocmd`, `Plug`), plugin maps (`<Plug>`, `<SID>`), command-line maps, and settings this editor has no use for (`syntax on`, `set number`, `set smarttab`, `set textwidth=80`) are skipped, and Settings lists them apart from the lines that really failed.
 
 ## Build From Source
 

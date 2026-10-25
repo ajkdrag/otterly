@@ -315,14 +315,15 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 
 Files in `plugins/vim/`, one job each:
 
-| File                 | Job                                                                  |
-| -------------------- | -------------------------------------------------------------------- |
-| `index.ts`           | `vim_keybindings()`, engine command patches (undo, `:w`, `o`), theme |
-| `status.ts`          | mode, showcmd and recording, reported to the host                    |
-| `undo_steps.ts`      | what one undo step is                                                |
-| `input_guards.ts`    | Esc and menus, and keys and text that must not edit in normal mode   |
-| `map_prefix_wait.ts` | maps that start with a key Vim already binds, and `timeoutlen`       |
-| `vimrc.ts`           | `apply_vimrc`                                                        |
+| File                  | Job                                                                      |
+| --------------------- | ------------------------------------------------------------------------ |
+| `index.ts`            | `vim_keybindings()`, engine command patches (undo, `:w`, `o`), theme     |
+| `status.ts`           | mode, showcmd and recording, reported to the host                        |
+| `undo_steps.ts`       | what one undo step is                                                    |
+| `input_guards.ts`     | Esc and menus, and keys and text that must not edit in normal mode       |
+| `map_prefix_wait.ts`  | maps that start with a key Vim already binds, and `timeoutlen`           |
+| `vimrc.ts`            | `apply_vimrc`                                                            |
+| `vim_option_names.ts` | every option name Vim or Neovim has, to tell a skipped `set` from a typo |
 
 ### Keys
 
@@ -400,9 +401,9 @@ Cases in the conformance table where we differ from Vim on purpose. The reason i
 `apply_vimrc(text)` applies a small vimrc subset to the global engine and returns the lines it did not apply, each with a `severity`. Each call starts clean, so a deleted line goes away on reload.
 
 - Map commands: `map nmap vmap xmap imap omap`, their `noremap` and `unmap` forms, and Vim's short names (`nn`, `xn`, `ino`, `se`). `unmap` only removes maps from the same file, because the engine's own unmap of a built-in key breaks its `mapclear()`. `let mapleader` and `let maplocalleader` (also `g:`) set the key that `<leader>` and `<localleader>` become in the lines after them, like Vim does at definition time. `set` takes the engine's options plus `clipboard` and `timeoutlen`.
-- The engine compares the exact spelling of each key, so the parser rewrites every `<...>` token first: `<esc>` becomes `<Esc>`, `<cr>` and `<Enter>` become `<CR>`, `<C-J>` becomes `<C-j>`, and `<M-x>` becomes `<A-x>`. A `<name>` it does not know is an error (`<lt>` writes a literal `<`), except in an insert-mode rhs and in a `:` rhs, which type it as text. `<Nop>` maps a key to nothing. A leading `:` on a line is fine. A `"` after a space ends a `set` line, as in Vim.
+- The engine compares the exact spelling of each key, so the parser rewrites every `<...>` token first: `<esc>` becomes `<Esc>`, `<cr>` and `<Enter>` become `<CR>`, `<C-J>` becomes `<C-j>`, and `<M-x>` becomes `<A-x>`. A `<name>` it does not know is an error (`<lt>` writes a literal `<`), except in an insert-mode rhs and in a `:` rhs, which type it as text. `<Nop>` maps a key to nothing. A leading `:` on a line is fine. A `"` after a space ends a `set` line, and a `"` after the quoted value ends a `let mapleader` line, as in Vim.
 - Recursive maps follow `:help recursive_mapping` (V16). A map whose rhs contains its own lhs anywhere but the start, and two maps that contain each other, are errors and are not applied. @Incomplete: longer loops are not found. The engine stops them quietly at run time.
-- **error** is a line you meant to work and did not: an unknown command, key or option, a bad value, a `:` map, a select-mode or command-line map, a per-editor option such as `textwidth`, a recursion loop. **skipped** is Vimscript and terminal-only settings that mean nothing here, so a vimrc pasted from terminal Vim does not drown the real errors: `syntax`, `filetype`, `colorscheme`, `autocmd`, `function`, `if`, `for`, `call`, `Plug`, `let` of anything but a leader, `try` blocks, `lua << EOF` scripts (the lines up to `EOF`), `execute`, `silent`, `setlocal`, `unlet`, `echo`, abbreviations, `<expr>` maps, every line inside an `if`, `function`, `augroup`, `for`, `while` or `try` block, and `set` of options such as `number`, `tabstop`, `mouse`, `foldmethod`, `shiftwidth`, `statusline`, `showmatch`, `path` or any `t_` option. `set ignorecase smartcase incsearch hlsearch wrapscan` apply quietly, because the engine already behaves that way. The host toasts errors only and lists skipped lines apart.
+- **error** is a line you meant to work and did not: an unknown command, key or option, a bad value, a `:` map, a recursion loop. **skipped** is Vimscript and terminal-only settings that mean nothing here, so a vimrc pasted from terminal Vim does not drown the real errors: `syntax`, `filetype`, `colorscheme`, `autocmd`, `function`, `if`, `for`, `call`, `Plug`, `let` of anything but a leader, `try` blocks, `lua << EOF` scripts (the lines up to `EOF`), `execute`, `silent`, `setlocal`, `unlet`, `echo`, abbreviations, `<expr>` maps, maps with `<Plug>` or `<SID>`, maps of a mode we do not have (`smap`, `cmap`, `map!`), every line inside an `if`, `function`, `augroup`, `for`, `while` or `try` block, and `set` of options such as `number`, `tabstop`, `mouse`, `foldmethod`, `shiftwidth`, `statusline`, `showmatch`, `path`, any `t_` option, any other option that Vim or Neovim has and the engine does not (`smarttab`, `synmaxcol`, `formatoptions+=j`, from `vim_option_names.ts`), and the engine's per-editor options (`textwidth`). Only a name that Vim lacks too is an unknown option. `set ignorecase smartcase incsearch hlsearch wrapscan` apply quietly, because the engine already behaves that way. The host toasts errors only and lists skipped lines apart.
 - An option name must match `/^[A-Za-z]+$/` and must not be a name on `Object.prototype`, because the engine keeps options in a plain object (`set __proto__=x` would corrupt it).
 - Maps that start with a key Vim binds wait for the next key (see Maps that start with a Vim key). `built_in_one_key_commands` in `map_prefix_wait.ts` pins the list of one-key commands, and VIM-016 asks the engine about every key, so an upgrade that changes it fails there. Commands that take a second key (`gg`, `f<char>`) are not listed, so a map of three or more keys that starts with one can still lose without a warning.
 

@@ -5,6 +5,7 @@ import {
   type KeyMap,
   type MapContext,
 } from "./map_prefix_wait.js";
+import { vim_option_names } from "./vim_option_names.js";
 
 // A small vimrc subset, one command per line:
 //
@@ -23,9 +24,9 @@ import {
 //
 // Every line that does not apply comes back as a problem with its line
 // number. An "error" is a line you meant to work. A "skipped" line is
-// Vimscript or a terminal Vim setting, which means nothing here (a vimrc
-// pasted from terminal Vim has lots of those). A bad line never stops the
-// good ones.
+// Vimscript, a plugin map, or a terminal Vim setting, which means nothing here
+// (a vimrc pasted from terminal Vim has lots of those). A bad line never
+// stops the good ones.
 
 export type VimrcProblem = {
   line: number;
@@ -217,6 +218,8 @@ const map_commands: readonly CommandName[] = [
   ["let", "let"],
 ];
 
+// Maps of modes we do not have. Terminal Vim users have these, so they are
+// skipped and not errors.
 const select_maps = "Select mode maps are not supported";
 const command_line_maps = "Command-line maps are not supported";
 const unsupported_maps: readonly (readonly [string, string, string])[] = [
@@ -329,9 +332,18 @@ function parse_line(
   if (command.text.startsWith("\\"))
     return problem(command, "Line continuations are not supported");
   const unsupported = find_command(unsupported_maps, typed_name);
-  if (unsupported) return problem(command, unsupported[2]);
-  const name = find_command(map_commands, typed_name)?.[0];
-  if (!name) return problem(command, `Unknown command "${typed_name}"`);
+  if (unsupported) return problem(command, unsupported[2], "skipped");
+  // map!, noremap! and unmap! also cover the command line.
+  const bang = typed_name.endsWith("!");
+  const name = find_command(map_commands, typed_name.replace(/!$/, ""))?.[0];
+  if (!name || (bang && !["map", "noremap", "unmap"].includes(name)))
+    return problem(command, `Unknown command "${typed_name}"`);
+  if (bang)
+    return problem(
+      command,
+      `${typed_name} also maps the command line, so use imap`,
+      "skipped",
+    );
 
   if (name === "set") {
     // Vim ends a set line at a " that follows a space, like a comment.
@@ -360,6 +372,10 @@ function parse_line(
     ?.find((argument) => argument !== "<silent>");
   if (unsupported_argument)
     return problem(command, `Unsupported map argument ${unsupported_argument}`);
+  // Plugin maps call into a plugin we do not run. Check before key names, or
+  // <Plug> would be an unknown key.
+  if (/<(?:plug|sid)>/i.test(typed_body))
+    return problem(command, "Plugin maps are not run here", "skipped");
   const body = typed_body
     .replace(/<leader>/gi, leaders.leader)
     .replace(/<localleader>/gi, leaders.localleader);
@@ -429,13 +445,16 @@ function parse_let(
 }
 
 // The leader in the key notation maps use, or null when the value is not
-// one quoted key. "\<Space>" and " " are both Space, "\\" is a backslash.
+// one quoted key. "\<Space>" and " " are both Space, "\\" is a backslash. A "
+// after the closing quote starts a comment, as in Vim.
 function leader_key(value: string): string | null {
-  let text: string;
-  if (/^".*"$/.test(value))
-    text = value.slice(1, -1).replace(/\\(<[^<>\s]+>|.)/g, "$1");
-  else if (/^'.*'$/.test(value)) text = value.slice(1, -1).replace(/''/g, "'");
-  else return null;
+  const quoted = /^("(?:\\.|[^"\\])*"|'(?:''|[^'])*')\s*(?:".*)?$/.exec(
+    value,
+  )?.[1];
+  if (!quoted) return null;
+  const text = quoted.startsWith('"')
+    ? quoted.slice(1, -1).replace(/\\(<[^<>\s]+>|.)/g, "$1")
+    : quoted.slice(1, -1).replace(/''/g, "'");
   if (text === " ") return "<Space>";
   if (text === "<") return "<lt>";
   const { keys, unknown } = canonical_keys(text);
@@ -662,6 +681,10 @@ function apply_set_item(
   const error = (message: string) => ({ message, severity: "error" as const });
   if (always_on_options.has(base))
     return negated || operator ? error(`${base} is always on here`) : null;
+  // Vim has the option and the engine does not (smarttab, synmaxcol,
+  // formatoptions+=j...). Only a name Vim lacks too is a typo.
+  if (vim_option_names.has(base) && !is_engine_option(base))
+    return { message: no_effect_reason, severity: "skipped" };
   if (/^[+\-^]=/.test(operator))
     return error(
       is_engine_option(typed_name)
@@ -695,9 +718,13 @@ function apply_set_item(
   const result: unknown = Vim.setOption(name, value);
   if (result instanceof Error) return error(result.message);
   // Options such as textwidth only exist per editor. Setting them globally
-  // does nothing, and we would rather say so.
+  // does nothing, and we would rather say so. Terminal Vim vimrcs set these
+  // too, so it is skipped and not an error.
   if (Vim.getOption(name) !== value)
-    return error(`${name} is a per-editor option, so vimrc cannot set it`);
+    return {
+      message: `${name} is a per-editor option, so vimrc cannot set it`,
+      severity: "skipped",
+    };
   return null;
 }
 

@@ -1074,7 +1074,7 @@ describe("vimrc", () => {
       "set ignorecase smartcase",
       "set nosmartcase",
       "set clipboard=unnamed",
-      'let mapleader = ","',
+      'let mapleader = "," " the comma',
       "nnoremap <leader>w :w<CR>",
       "nnormap Q gq",
       "xnoremap < <gv",
@@ -1118,6 +1118,18 @@ describe("vimrc", () => {
       "nohlsearch",
       "vim9script",
       "nnoremap <expr> j v:count ? 'j' : 'gj'",
+      "set smarttab shiftround magic gdefault synmaxcol=200",
+      "set guifont=Menlo:h14 ttymouse=sgr viminfo='100 showbreak=>",
+      "set formatoptions+=j nrformats-=octal matchpairs+=<:>",
+      "set fillchars+=vert:\\ ",
+      "set invsmarttab smarttab!",
+      "set textwidth=80",
+      "set tw=80",
+      "nmap <leader>c <Plug>Commentary",
+      "nnoremap <silent> <leader>t :<C-u>call <SID>Toggle()<CR>",
+      "map! <C-a> <Home>",
+      "noremap! <C-e> <End>",
+      "cnoremap <C-p> <Up>",
     ];
     const problems = apply_vimrc(
       [...real_lines, ...terminal_lines, "nnoremap Y y$"].join("\n"),
@@ -1146,6 +1158,8 @@ describe("vimrc", () => {
     ["let mapleader = ','", ",w"],
     ['let g:mapleader = "\\<Space>"', "<Space>w"],
     ['let mapleader = "\\\\"', "\\w"],
+    ['let mapleader = "," " the comma', ",w"],
+    ["let mapleader = ' ' \" a space", "<Space>w"],
   ])("VIM-004 %s sets the leader of later maps", (let_line, lhs) => {
     const { commands, problems } = parse_vimrc(
       `nnoremap <leader>a b\n${let_line}\nnnoremap <leader>w b`,
