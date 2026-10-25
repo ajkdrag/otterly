@@ -14,7 +14,7 @@
   } from "$lib/features/vault/domain/vault_switcher";
   import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
   import { onMount } from "svelte";
-  import { Plus, Check, Pin, Trash2, X } from "@lucide/svelte";
+  import { AppWindow, Plus, Check, Pin, Trash2, X } from "@lucide/svelte";
 
   interface Props {
     recent_vaults: Vault[];
@@ -24,6 +24,7 @@
     error?: string | null;
     on_choose_vault_dir: () => void;
     on_select_vault: (vault_id: VaultId) => void;
+    on_open_vault_in_new_window: (vault_id: VaultId) => void;
     on_toggle_pin_vault: (vault_id: VaultId) => void;
     on_remove_vault: (vault_id: VaultId) => void;
     on_close?: () => void;
@@ -39,6 +40,7 @@
     error = null,
     on_choose_vault_dir,
     on_select_vault,
+    on_open_vault_in_new_window,
     on_toggle_pin_vault,
     on_remove_vault,
     on_close,
@@ -100,6 +102,12 @@
     on_select_vault(vault.id);
   }
 
+  function handle_open_in_new_window(vault_id: VaultId, event: MouseEvent) {
+    event.stopPropagation();
+    event.preventDefault();
+    on_open_vault_in_new_window(vault_id);
+  }
+
   function handle_toggle_pin(vault_id: VaultId, event: MouseEvent) {
     event.stopPropagation();
     event.preventDefault();
@@ -112,7 +120,7 @@
     on_remove_vault(vault_id);
   }
 
-  function open_selected_vault() {
+  function open_selected_vault(in_new_window: boolean) {
     if (selected_vault_index < 0) {
       return;
     }
@@ -127,7 +135,11 @@
     ) {
       return;
     }
-    on_select_vault(selected_vault.id);
+    if (in_new_window) {
+      on_open_vault_in_new_window(selected_vault.id);
+    } else {
+      on_select_vault(selected_vault.id);
+    }
   }
 
   function selection_step(event: KeyboardEvent): 1 | -1 | null {
@@ -154,7 +166,7 @@
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      open_selected_vault();
+      open_selected_vault(event.metaKey || event.ctrlKey);
       return;
     }
     if (event.key === "Escape" && on_close) {
@@ -203,6 +215,12 @@
 
   function is_vault_available(vault: Vault): boolean {
     return vault.is_available !== false;
+  }
+
+  function can_open_in_new_window(vault: Vault): boolean {
+    return (
+      !is_loading && vault.id !== current_vault_id && is_vault_available(vault)
+    );
   }
 </script>
 
@@ -305,6 +323,18 @@
       </div>
     </button>
     <div class="VaultPanel__vault-actions">
+      <button
+        type="button"
+        class="VaultPanel__icon-btn"
+        onclick={(event) => {
+          handle_open_in_new_window(vault.id, event);
+        }}
+        disabled={!can_open_in_new_window(vault)}
+        aria-label={`Open ${vault.name} in a new window`}
+        title="Open in new window (Cmd/Ctrl+Enter)"
+      >
+        <AppWindow />
+      </button>
       <button
         type="button"
         class="VaultPanel__icon-btn"

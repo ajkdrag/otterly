@@ -70,6 +70,7 @@ function create_vault_actions_harness() {
       reset_change_operation: vi.fn(),
       apply_opened_vault: vi.fn().mockResolvedValue(undefined),
       focus_window_with_vault: vi.fn().mockResolvedValue(false),
+      open_new_window: vi.fn().mockResolvedValue({ status: "opened" }),
     },
     note: {
       save_note: vi.fn().mockResolvedValue({
@@ -235,6 +236,44 @@ describe("register_vault_actions", () => {
       is_loading: false,
       error: null,
     });
+  });
+
+  it("opens a vault in a new window and closes the switcher", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    const target_vault_id = as_vault_id("vault-next");
+
+    stores.ui.change_vault.open = true;
+    await registry.execute(ACTION_IDS.vault_open_new_window, target_vault_id);
+
+    expect(services.vault.open_new_window).toHaveBeenCalledWith(
+      target_vault_id,
+    );
+    expect(stores.ui.change_vault.open).toBe(false);
+  });
+
+  it("opens a window on the vault picker when no vault id is given", async () => {
+    const { registry, services } = create_vault_actions_harness();
+
+    await registry.execute(ACTION_IDS.vault_open_new_window);
+
+    expect(services.vault.open_new_window).toHaveBeenCalledWith(null);
+  });
+
+  it("shows the error and keeps the switcher open when the new window fails", async () => {
+    const { registry, stores, services } = create_vault_actions_harness();
+    services.vault.open_new_window.mockResolvedValue({
+      status: "failed",
+      error: "window failed",
+    });
+
+    stores.ui.change_vault.open = true;
+    await registry.execute(
+      ACTION_IDS.vault_open_new_window,
+      as_vault_id("vault-next"),
+    );
+
+    expect(stores.ui.change_vault.open).toBe(true);
+    expect(stores.ui.change_vault.error).toBe("window failed");
   });
 
   it("persists the current session before switching vaults", async () => {

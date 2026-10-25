@@ -124,6 +124,8 @@
       void action_registry.execute(ACTION_IDS.vault_choose)}
     on_select_vault={(vault_id: VaultId) =>
       void action_registry.execute(ACTION_IDS.vault_select, vault_id)}
+    on_open_vault_in_new_window={(vault_id: VaultId) =>
+      void action_registry.execute(ACTION_IDS.vault_open_new_window, vault_id)}
     on_toggle_pin_vault={(vault_id: VaultId) =>
       void action_registry.execute(ACTION_IDS.vault_toggle_pin, vault_id)}
     on_remove_vault={(vault_id: VaultId) =>
