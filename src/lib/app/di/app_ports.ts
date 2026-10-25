@@ -15,7 +15,6 @@ import type { WatcherPort } from "$lib/features/watcher";
 import type { UpdaterPort } from "$lib/features/updater";
 import type { ThemeFilePort } from "$lib/features/theme";
 import type { TagsPort } from "$lib/features/tags";
-import type { ProfilePort } from "$lib/features/profile";
 import type {
   PressAndHoldPort,
   VimEnginePort,
@@ -40,7 +39,6 @@ export type Ports = {
   updater: UpdaterPort;
   theme_file: ThemeFilePort;
   tags: TagsPort;
-  profile: ProfilePort;
   vimrc: VimrcPort;
   vim_engine: VimEnginePort;
   press_and_hold: PressAndHoldPort;

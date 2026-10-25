@@ -32,7 +32,7 @@ export type SearchCommandDefinition = {
     | "search_tags"
     | "show_tags_pane"
     | "check_for_updates"
-    | "open_profiles";
+    | "new_window";
   label: string;
   description: string;
   keywords: string[];

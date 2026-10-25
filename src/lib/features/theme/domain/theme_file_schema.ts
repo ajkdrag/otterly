@@ -61,7 +61,7 @@ export function build_theme_file_schema(): JsonSchema {
       'Every key is optional. Keys you leave out come from the built-in theme in "extends".',
       '"tokens" sets raw CSS custom properties and wins over every other key.',
       'An edit with errors is not applied, and the last valid theme stays on screen. To check an edit, read the end of the app log (otterly.log): "Theme file loaded" means it worked, "Theme file has errors" lines name each problem.',
-      "Log folder: macOS ~/Library/Logs/com.otterly.app/, Windows %LOCALAPPDATA%\\com.otterly.app\\logs\\, Linux ~/.local/share/com.otterly.app/logs/. A profile other than default uses com.otterly.app.profile-<name> in place of com.otterly.app.",
+      "Log folder: macOS ~/Library/Logs/com.otterly.app/, Windows %LOCALAPPDATA%\\com.otterly.app\\logs\\, Linux ~/.local/share/com.otterly.app/logs/.",
       `Errors also show in Settings > Theme. Docs: ${THEME_FILE_DOC_URL}`,
     ].join("\n"),
     type: "object",

@@ -218,11 +218,6 @@ export const ACTION_IDS = {
   document_confirm_close: "document.confirm_close",
   document_cancel_close: "document.cancel_close",
 
-  profile_open_dialog: "profile.open_dialog",
-  profile_close_dialog: "profile.close_dialog",
-  profile_update_new_name: "profile.update_new_name",
-  profile_open: "profile.open",
-  profile_check_dialog_request: "profile.check_dialog_request",
   vim_load_vimrc: "vim.load_vimrc",
   vim_open_vimrc: "vim.open_vimrc",
 } as const;

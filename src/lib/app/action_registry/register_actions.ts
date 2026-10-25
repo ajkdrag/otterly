@@ -16,7 +16,6 @@ import { register_git_actions } from "$lib/features/git";
 import { register_hotkey_actions } from "$lib/features/hotkey";
 import { register_theme_actions } from "$lib/features/theme";
 import { register_tags_actions } from "$lib/features/tags";
-import { register_profile_actions } from "$lib/features/profile";
 import { register_vim_actions } from "$lib/features/vim";
 
 export function register_actions(input: ActionRegistrationInput) {
@@ -35,6 +34,5 @@ export function register_actions(input: ActionRegistrationInput) {
   register_help_actions(input);
   register_theme_actions({ ...input, persist_file_switch: true });
   register_tags_actions(input);
-  register_profile_actions(input);
   register_vim_actions({ ...input, has_settings_dialog: true });
 }

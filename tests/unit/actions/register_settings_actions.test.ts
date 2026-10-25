@@ -10,7 +10,6 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
-import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 
 function create_harness() {
   const registry = new ActionRegistry();
@@ -23,7 +22,6 @@ function create_harness() {
     search: new SearchStore(),
     tab: new TabStore(),
     git: new GitStore(),
-    profile: new ProfileStore(),
   };
   const save_editor_zoom = vi.fn().mockResolvedValue(undefined);
 

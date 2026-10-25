@@ -28,7 +28,7 @@ export type CommandId =
   | "search_tags"
   | "show_tags_pane"
   | "check_for_updates"
-  | "open_profiles";
+  | "new_window";
 
 export type CommandIcon =
   | "file-plus"

@@ -177,12 +177,6 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
   const started_at = is_performance_logging_enabled ? performance.now() : null;
   set_startup_loading(input);
 
-  await input.services.profile.load_current_profile();
-  // The Dock's "New Profile…" may have created this window, and its event
-  // went out before we listened. Checking first shows the dialog while the
-  // vault still loads.
-  await input.registry.execute(ACTION_IDS.profile_check_dialog_request);
-
   const bootstrap_data = await load_bootstrap_data(input);
   apply_loaded_preferences(input, bootstrap_data.preferences);
   input.stores.ui.set_theme_file(bootstrap_data.theme_file);
@@ -236,47 +230,35 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
     toast.success("Otterly is up to date");
     return;
   }
-  await show_update_ready_prompt(input, result.version);
+  show_update_ready_prompt(input, result.version);
 }
 
 // "Later" stops these prompts for the session. The manual check still shows
-// the prompt. Only the default profile checks on its own, because two
-// processes installing one update into the same bundle is asking for trouble.
-// So when only another profile runs, nothing checks in the background. The
-// profile is null until it loads, which counts as not default.
+// the prompt.
+// @Speed: Every vault window runs this check, so N windows can download one
+// update N times (at most every 6 hours). One window could do it for all.
 async function execute_app_check_for_updates_in_background(
   input: ActionRegistrationInput,
 ) {
-  if (!input.stores.profile.is_default) return;
   if (input.stores.ui.update_prompt_dismissed) return;
   const result = await input.services.updater.download_update();
   if (result.status !== "ready" || input.stores.ui.update_prompt_dismissed) {
     return;
   }
-  await show_update_ready_prompt(input, result.version);
+  show_update_ready_prompt(input, result.version);
 }
 
-async function show_update_ready_prompt(
+function show_update_ready_prompt(
   input: ActionRegistrationInput,
   version: string,
 ) {
   const dismiss = () => {
     input.stores.ui.update_prompt_dismissed = true;
   };
-  // The Windows installer has to replace otterly.exe, so it force-closes every
-  // running profile without letting them save. macOS and Linux keep the others
-  // running on the old version. Say so only when there is another profile.
-  let closes_other_profiles = false;
-  if (globalThis.navigator?.platform?.startsWith("Win")) {
-    await input.services.profile.load_profiles();
-    closes_other_profiles = input.stores.profile.profile_ids.length > 1;
-  }
   // A fixed id replaces an open prompt instead of stacking another one.
   toast.info(`Otterly v${version} is ready`, {
     id: UPDATE_READY_TOAST_ID,
-    description: closes_other_profiles
-      ? "Restart to finish updating. Installing closes all open Otterly windows, including other profiles."
-      : "Restart to finish updating.",
+    description: "Restart to finish updating.",
     duration: Number.POSITIVE_INFINITY,
     action: {
       label: "Restart",
@@ -322,7 +304,7 @@ async function execute_app_confirm_quit(input: ActionRegistrationInput) {
       is_quitting: false,
     };
     log.error("Quit failed", { error: String(error) });
-    toast.error("Failed to quit Otterly");
+    toast.error("Failed to close the window");
   }
 }
 

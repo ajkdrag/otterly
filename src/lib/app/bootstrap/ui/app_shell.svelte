@@ -109,9 +109,6 @@
           vault_id,
         );
       }}
-      on_open_profiles={() => {
-        void action_registry.execute(ACTION_IDS.profile_open_dialog);
-      }}
       {hide_choose_vault_button}
     />
   </div>

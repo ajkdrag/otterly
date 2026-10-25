@@ -23,7 +23,6 @@
   import { TabCloseConfirmDialog } from "$lib/features/tab";
   import { VersionHistoryDialog, CheckpointDialog } from "$lib/features/git";
   import { HotkeyRecorderDialog } from "$lib/features/hotkey";
-  import { ProfileDialog } from "$lib/features/profile";
   import HelpDialog from "$lib/app/bootstrap/ui/help_dialog.svelte";
   import QuitConfirmDialog from "$lib/app/bootstrap/ui/quit_confirm_dialog.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
@@ -74,7 +73,6 @@
       stores.op.get("settings.load").error,
   );
   const image_paste_error = $derived(stores.op.get("asset.write").error);
-  const profile_open_error = $derived(stores.op.get("profile.open").error);
   const vimrc_error = $derived(stores.op.get("vim.load_vimrc").error);
 
   const settings_has_unsaved_changes = $derived.by(() => {
@@ -585,18 +583,4 @@
     }
   }}
   on_cancel={() => void action_registry.execute(ACTION_IDS.hotkey_close_editor)}
-/>
-
-<ProfileDialog
-  open={stores.ui.profile_dialog.open}
-  profile_ids={stores.profile.profile_ids}
-  current_profile_id={stores.profile.current_id}
-  new_name={stores.ui.profile_dialog.new_name}
-  is_opening={stores.op.is_pending("profile.open")}
-  error={profile_open_error}
-  on_update_new_name={(name: string) =>
-    void action_registry.execute(ACTION_IDS.profile_update_new_name, name)}
-  on_open_profile={(profile_id: string) =>
-    void action_registry.execute(ACTION_IDS.profile_open, profile_id)}
-  on_close={() => void action_registry.execute(ACTION_IDS.profile_close_dialog)}
 />
