@@ -685,6 +685,9 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       set_omnibar_state(input, {
         scope: new_scope,
         selected_index: 0,
+        // Picking a scope ends the detour through the tag picker. Going back
+        // to Text later would force this vault and undo the pick.
+        return_to_find: false,
         // Tags live in one vault's index, so all vaults drops the chips.
         ...(new_scope === "all_vaults" ? { tags: [] } : {}),
       });

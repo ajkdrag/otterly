@@ -874,6 +874,28 @@ describe("omnibar Text mode", () => {
     expect(stores.ui.omnibar.mode).toBe("find");
   });
 
+  it.each([
+    [ACTION_IDS.omnibar_open_all_vaults, "all_vaults"],
+    [ACTION_IDS.omnibar_open, "current_vault"],
+  ])(
+    "%s from the tag picker keeps the scope and does not go back to Text",
+    async (action_id, scope) => {
+      const { registry, stores } = create_omnibar_actions_harness();
+      stores.vault.set_vault(create_test_vault());
+      await registry.execute(ACTION_IDS.omnibar_open_find);
+      await registry.execute(ACTION_IDS.omnibar_open_tags);
+
+      await registry.execute(action_id);
+      await registry.execute(ACTION_IDS.omnibar_set_query, "");
+
+      expect(stores.ui.omnibar).toMatchObject({
+        mode: "notes",
+        scope,
+        return_to_find: false,
+      });
+    },
+  );
+
   it("goes back to Text on Space after a tag that does not exist, without the partial tag", async () => {
     const { registry, stores } = create_omnibar_actions_harness();
     stores.vault.set_vault(create_test_vault());
