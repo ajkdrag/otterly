@@ -11,6 +11,14 @@ describe("HTML clipboard import", () => {
       ),
     ).toBe("## Title\n\nSome **bold** and [link](https://example.com).");
   });
+  it("keeps #tags as typed, and only escapes a hash that would start a heading", () => {
+    expect(
+      clipboard_html_to_markdown(
+        "<p>#idea first</p><p>Planning #q3 and #work/alpha</p><p># not a tag</p>",
+        "plain",
+      ),
+    ).toBe("#idea first\n\nPlanning #q3 and #work/alpha\n\n\\# not a tag");
+  });
   it("retains Markdown copied from an editor that also offers HTML", () => {
     const markdown = "## Source\r\n\r\n*  item";
     expect(
