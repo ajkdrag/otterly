@@ -27,6 +27,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "general",
   },
   {
+    action_id: ACTION_IDS.omnibar_open_tags,
+    key: "CmdOrCtrl+T",
+    phase: "capture",
+    label: "Search Tags",
+    description: "Find notes by tag. With the caret in a #tag, search that tag",
+    category: "general",
+  },
+  {
     action_id: ACTION_IDS.note_request_save,
     key: "CmdOrCtrl+S",
     phase: "bubble",
