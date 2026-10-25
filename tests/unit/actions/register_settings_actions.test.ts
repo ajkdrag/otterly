@@ -33,7 +33,6 @@ function create_harness() {
     services: { settings: { save_editor_zoom } } as never,
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   });
 

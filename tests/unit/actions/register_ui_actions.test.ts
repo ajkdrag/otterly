@@ -23,7 +23,6 @@ function register_with_shell(shell: object) {
     services: { shell },
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   } as never);
   return registry;
@@ -82,7 +81,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -125,7 +123,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -146,7 +143,6 @@ describe("ui.set_sidebar_view", () => {
       services: {},
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     } as never);
 

@@ -114,7 +114,6 @@ function create_harness(files: VaultFindFile[]) {
     services: services as never,
     default_mount_config: {
       reset_app_state: false,
-      bootstrap_default_vault_path: null,
     },
   });
 

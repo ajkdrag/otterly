@@ -248,7 +248,6 @@ export function create_app_context(input: {
     stores.editor,
     stores.op,
     stores.search,
-    stores.profile,
     now_ms,
   );
 

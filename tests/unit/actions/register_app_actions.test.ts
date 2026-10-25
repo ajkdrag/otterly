@@ -179,7 +179,6 @@ function create_harness(options: HarnessOptions = {}) {
     services: services as never,
     default_mount_config: {
       reset_app_state: options.reset_app_state ?? false,
-      bootstrap_default_vault_path: null,
     },
   });
 

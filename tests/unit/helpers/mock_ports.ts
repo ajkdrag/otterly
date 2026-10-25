@@ -62,8 +62,14 @@ export function create_mock_vault_port(): VaultPort & {
     remember_last_vault(_vault_id: VaultId) {
       return Promise.resolve();
     },
-    get_last_vault_id() {
+    get_window_vault_id() {
       return Promise.resolve(null);
+    },
+    open_new_vault_window(_vault_id: VaultId | null) {
+      return Promise.resolve();
+    },
+    focus_window_with_vault(_vault_id: VaultId) {
+      return Promise.resolve(false);
     },
   };
   return mock;

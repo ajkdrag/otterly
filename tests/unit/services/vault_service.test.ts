@@ -5,7 +5,6 @@ import { NotesStore } from "$lib/features/note/state/note_store.svelte";
 import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
-import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 import {
   as_note_path,
   as_vault_id,
@@ -25,7 +24,6 @@ function create_deferred<T>() {
 
 function create_vault_settings_service(input: {
   stored?: Record<string, unknown>;
-  profile_store?: ProfileStore;
 }) {
   const vault_settings_port = {
     get_vault_setting: vi.fn((_vault_id: string, key: string) =>
@@ -45,13 +43,117 @@ function create_vault_settings_service(input: {
     new EditorStore(),
     new OpStore(),
     new SearchStore(),
-    input.profile_store ?? new ProfileStore(),
     () => 1,
   );
   return { service, vault_settings_port };
 }
 
+function create_window_vault_service(vault_port: Record<string, unknown>) {
+  const vault_store = new VaultStore();
+  const op_store = new OpStore();
+  const service = new VaultService(
+    {
+      list_vaults: vi.fn().mockResolvedValue([]),
+      remember_last_vault: vi.fn().mockResolvedValue(undefined),
+      get_window_vault_id: vi.fn().mockResolvedValue(null),
+      ...vault_port,
+    } as never,
+    {
+      list_folder_contents: vi.fn().mockResolvedValue({
+        notes: [],
+        subfolders: [],
+        total_count: 0,
+        has_more: false,
+      }),
+      get_folder_stats: vi.fn().mockResolvedValue({
+        note_count: 0,
+        folder_count: 0,
+      }),
+    } as never,
+    {
+      cancel_index: vi.fn().mockResolvedValue(undefined),
+      sync_index: vi.fn().mockResolvedValue(undefined),
+      subscribe_index_progress: vi.fn().mockReturnValue(() => {}),
+    } as never,
+    {
+      get_setting: vi.fn().mockResolvedValue(null),
+      set_setting: vi.fn(),
+    } as never,
+    {
+      get_vault_setting: vi.fn().mockResolvedValue(null),
+      set_vault_setting: vi.fn().mockResolvedValue(undefined),
+    } as never,
+    vault_store,
+    new NotesStore(),
+    new EditorStore(),
+    op_store,
+    new SearchStore(),
+    () => 1,
+  );
+  return { service, vault_store, op_store };
+}
+
 describe("VaultService", () => {
+  it("opens the vault that New Window opened this window for", async () => {
+    const vault_a: Vault = {
+      id: as_vault_id("vault-a"),
+      name: "Vault A",
+      path: as_vault_path("/vault/a"),
+      created_at: 1,
+    };
+    const open_vault_by_id = vi.fn().mockResolvedValue(vault_a);
+    const { service, vault_store } = create_window_vault_service({
+      list_vaults: vi.fn().mockResolvedValue([vault_a]),
+      get_window_vault_id: vi.fn().mockResolvedValue(vault_a.id),
+      open_vault_by_id,
+    });
+
+    const result = await service.initialize({ reset_app_state: false });
+
+    expect(result).toMatchObject({ status: "ready", has_vault: true });
+    expect(open_vault_by_id).toHaveBeenCalledWith(vault_a.id);
+    expect(vault_store.vault?.id).toBe(vault_a.id);
+  });
+
+  it("keeps the vault list when the window's vault fails to open", async () => {
+    const vault_a: Vault = {
+      id: as_vault_id("vault-a"),
+      name: "Vault A",
+      path: as_vault_path("/vault/a"),
+      created_at: 1,
+    };
+    const { service, vault_store } = create_window_vault_service({
+      list_vaults: vi.fn().mockResolvedValue([vault_a]),
+      get_window_vault_id: vi.fn().mockResolvedValue(vault_a.id),
+      open_vault_by_id: vi
+        .fn()
+        .mockRejectedValue(new Error("vault unavailable at path: /vault/a")),
+    });
+
+    const result = await service.initialize({ reset_app_state: false });
+
+    expect(result.status).toBe("error");
+    expect(vault_store.vault).toBeNull();
+    expect(vault_store.recent_vaults).toEqual([vault_a]);
+  });
+
+  it("reports a vault that another window has, without an error", async () => {
+    const { service, op_store } = create_window_vault_service({
+      open_vault_by_id: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "tauri invoke failed: open_vault_by_id: vault_open_in_other_window",
+          ),
+        ),
+    });
+
+    const result = await service.change_vault_by_id(as_vault_id("vault-a"));
+
+    expect(result).toEqual({ status: "in_other_window" });
+    expect(op_store.get("vault.change").status).toBe("idle");
+  });
+
   it("ignores stale vault-open completions when newer request wins", async () => {
     const vault_a: Vault = {
       id: as_vault_id("vault-a"),
@@ -78,7 +180,7 @@ describe("VaultService", () => {
       open_vault_by_id: vi.fn(),
       list_vaults: vi.fn().mockResolvedValue([vault_a, vault_b]),
       remember_last_vault: vi.fn().mockResolvedValue(undefined),
-      get_last_vault_id: vi.fn().mockResolvedValue(null),
+      get_window_vault_id: vi.fn().mockResolvedValue(null),
     };
 
     const notes_port = {
@@ -150,7 +252,6 @@ describe("VaultService", () => {
       editor_store,
       op_store,
       search_store,
-      new ProfileStore(),
       () => 1,
     );
 
@@ -183,7 +284,7 @@ describe("VaultService", () => {
       open_vault_by_id: vi.fn(),
       list_vaults: vi.fn().mockResolvedValue([vault]),
       remember_last_vault: vi.fn().mockResolvedValue(undefined),
-      get_last_vault_id: vi.fn().mockResolvedValue(null),
+      get_window_vault_id: vi.fn().mockResolvedValue(null),
     };
 
     const notes_port = {
@@ -233,7 +334,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -257,7 +357,7 @@ describe("VaultService", () => {
       open_vault_by_id: vi.fn().mockRejectedValue(new Error(unavailable_error)),
       list_vaults: vi.fn().mockResolvedValue([vault_a]),
       remember_last_vault: vi.fn(),
-      get_last_vault_id: vi.fn(),
+      get_window_vault_id: vi.fn(),
     };
 
     const service = new VaultService(
@@ -301,7 +401,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -360,40 +459,6 @@ describe("VaultService", () => {
     expect(saved).toBe(false);
   });
 
-  it("keeps recent notes of the default profile under the old key", async () => {
-    const vault_id = as_vault_id("vault-a");
-    const profile_store = new ProfileStore();
-    profile_store.set_current_id("default");
-    const { service, vault_settings_port } = create_vault_settings_service({
-      profile_store,
-    });
-
-    await service.save_recent_notes(vault_id, []);
-
-    expect(vault_settings_port.set_vault_setting).toHaveBeenCalledWith(
-      vault_id,
-      "recent_notes",
-      [],
-    );
-  });
-
-  it("keeps recent notes of another profile under its own key", async () => {
-    const vault_id = as_vault_id("vault-a");
-    const profile_store = new ProfileStore();
-    profile_store.set_current_id("work");
-    const { service, vault_settings_port } = create_vault_settings_service({
-      profile_store,
-    });
-
-    await service.save_recent_notes(vault_id, []);
-
-    expect(vault_settings_port.set_vault_setting).toHaveBeenCalledWith(
-      vault_id,
-      "recent_notes-work",
-      [],
-    );
-  });
-
   it("toggles vault pin and persists pinned IDs", async () => {
     const vault_a: Vault = {
       id: as_vault_id("vault-a"),
@@ -420,7 +485,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn(),
         list_vaults: vi.fn().mockResolvedValue([vault_a, vault_b]),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       {
         list_folder_contents: vi.fn().mockResolvedValue({
@@ -458,7 +523,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -501,7 +565,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn().mockResolvedValue(vault_b),
         list_vaults: vi.fn().mockResolvedValue([vault_a, vault_b]),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       {
         list_folder_contents: vi.fn().mockResolvedValue({
@@ -542,7 +606,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -578,7 +641,7 @@ describe("VaultService", () => {
       open_vault_by_id: vi.fn(),
       list_vaults: vi.fn().mockResolvedValue([vault_a, vault_b]),
       remember_last_vault: vi.fn().mockResolvedValue(undefined),
-      get_last_vault_id: vi.fn().mockResolvedValue(null),
+      get_window_vault_id: vi.fn().mockResolvedValue(null),
     };
 
     const notes_port = {
@@ -628,7 +691,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -676,7 +738,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn(),
         list_vaults: vi.fn(),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       { list_folder_contents: vi.fn(), get_folder_stats: vi.fn() } as never,
       index_port as never,
@@ -692,7 +754,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       search_store,
-      new ProfileStore(),
       () => 1,
     );
 
@@ -739,7 +800,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn(),
         list_vaults: vi.fn(),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       { list_folder_contents: vi.fn(), get_folder_stats: vi.fn() } as never,
       index_port as never,
@@ -755,7 +816,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       search_store,
-      new ProfileStore(),
       () => 1,
     );
 
@@ -791,7 +851,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn(),
         list_vaults: vi.fn(),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       notes_port as never,
       {
@@ -817,7 +877,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -859,7 +918,7 @@ describe("VaultService", () => {
         open_vault_by_id: vi.fn(),
         list_vaults: vi.fn(),
         remember_last_vault: vi.fn(),
-        get_last_vault_id: vi.fn(),
+        get_window_vault_id: vi.fn(),
       } as never,
       notes_port as never,
       {
@@ -885,7 +944,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -920,7 +978,7 @@ describe("VaultService", () => {
       list_vaults: vi.fn().mockResolvedValue([vault_a]),
       remove_vault: vi.fn().mockResolvedValue(undefined),
       remember_last_vault: vi.fn(),
-      get_last_vault_id: vi.fn(),
+      get_window_vault_id: vi.fn(),
     };
 
     const settings_port = {
@@ -960,7 +1018,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 
@@ -993,7 +1050,7 @@ describe("VaultService", () => {
       list_vaults: vi.fn(),
       remove_vault: vi.fn(),
       remember_last_vault: vi.fn(),
-      get_last_vault_id: vi.fn(),
+      get_window_vault_id: vi.fn(),
     };
 
     const vault_store = new VaultStore();
@@ -1026,7 +1083,6 @@ describe("VaultService", () => {
       new EditorStore(),
       new OpStore(),
       new SearchStore(),
-      new ProfileStore(),
       () => 1,
     );
 

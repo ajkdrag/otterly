@@ -26,6 +26,29 @@ export function register_vault_actions(input: ActionRegistrationInput) {
     };
   };
 
+  const close_vault_switcher = () => {
+    clear_discard_confirm_state();
+    stores.ui.change_vault = {
+      ...stores.ui.change_vault,
+      open: false,
+      error: null,
+    };
+    services.vault.reset_change_operation();
+  };
+
+  // When another window has the vault, it comes to the front and this window
+  // stays as it is: no switch and no question about unsaved changes. Rust
+  // refuses the open anyway, but only after that question.
+  // @Incomplete: a cross-vault note open stops here. The note does not open in
+  // the other window.
+  const focus_window_with_vault = async (vault_id: VaultId) => {
+    if (!(await services.vault.focus_window_with_vault(vault_id))) {
+      return false;
+    }
+    close_vault_switcher();
+    return true;
+  };
+
   const run_with_unsaved_confirm = async (run_change: () => Promise<void>) => {
     const run_change_with_session_persist = async (
       before_change?: () => boolean,
@@ -70,6 +93,16 @@ export function register_vault_actions(input: ActionRegistrationInput) {
     if (result.status === "stale") {
       return;
     }
+    if (result.status === "in_other_window") {
+      stores.ui.change_vault = {
+        ...stores.ui.change_vault,
+        open: false,
+        is_loading: false,
+        error: null,
+        unsaved_note_label: null,
+      };
+      return;
+    }
     if (result.status === "skipped") {
       stores.ui.change_vault = {
         ...stores.ui.change_vault,
@@ -109,13 +142,7 @@ export function register_vault_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.vault_close_change,
     label: "Close Change Vault Dialog",
     execute: () => {
-      clear_discard_confirm_state();
-      stores.ui.change_vault = {
-        ...stores.ui.change_vault,
-        open: false,
-        error: null,
-      };
-      services.vault.reset_change_operation();
+      close_vault_switcher();
     },
   });
 
@@ -174,6 +201,9 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       const selected_vault_id = vault_id as Parameters<
         typeof services.vault.change_vault_by_id
       >[0];
+      if (await focus_window_with_vault(selected_vault_id)) {
+        return;
+      }
       await run_with_unsaved_confirm(async () => {
         const request_revision = ++change_vault_request_revision;
         stores.ui.change_vault = {
@@ -196,6 +226,10 @@ export function register_vault_actions(input: ActionRegistrationInput) {
       if (typeof slot !== "number" || !Number.isInteger(slot) || slot < 0) {
         return;
       }
+      const pinned_vault_id = stores.vault.get_pinned_vault_id_by_slot(slot);
+      if (pinned_vault_id && (await focus_window_with_vault(pinned_vault_id))) {
+        return;
+      }
 
       await run_with_unsaved_confirm(async () => {
         stores.ui.change_vault = {
@@ -208,6 +242,24 @@ export function register_vault_actions(input: ActionRegistrationInput) {
         const result = await services.vault.select_pinned_vault_by_slot(slot);
         await handle_open_result(request_revision, result);
       });
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.vault_open_new_window,
+    label: "New Window",
+    execute: async (vault_id?: unknown) => {
+      const result = await services.vault.open_new_window(
+        typeof vault_id === "string" ? (vault_id as VaultId) : null,
+      );
+      if (result.status === "failed") {
+        stores.ui.change_vault = {
+          ...stores.ui.change_vault,
+          error: result.error,
+        };
+        return;
+      }
+      close_vault_switcher();
     },
   });
 

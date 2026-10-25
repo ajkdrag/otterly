@@ -10,14 +10,4 @@ describe("test_vault_adapter", () => {
     expect(vault.id).toBeDefined();
     expect(vault.path).toBe(as_vault_path("test-vault"));
   });
-
-  it("remembers last vault", async () => {
-    const adapter = create_test_vault_adapter();
-    const vault = await adapter.open_vault(as_vault_path("test-vault"));
-
-    await adapter.remember_last_vault(vault.id);
-    const last_id = await adapter.get_last_vault_id();
-
-    expect(last_id).toBe(vault.id);
-  });
 });
