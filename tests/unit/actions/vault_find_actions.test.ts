@@ -255,6 +255,84 @@ describe("register_vault_find_actions", () => {
     });
   });
 
+  it("replacing in a file selects the first match of the next file", async () => {
+    const { registry, stores, services } = create_harness([
+      file("a.md", 2),
+      file("b.md"),
+    ]);
+    // foo -> foobar: the fresh scan of a.md still holds foo at the same spots.
+    services.vault_find.replace.mockImplementationOnce(() => {
+      stores.search.vault_find.patch_file("a.md", file("a.md", 2));
+      return Promise.resolve({
+        status: "replaced" as const,
+        response: {
+          replaced: [{ path: "a.md", count: 2, remaining: file("a.md", 2) }],
+          skipped: [],
+        },
+      });
+    });
+    stores.ui.vault_find.replacement = "foobar";
+
+    await registry.execute(ACTION_IDS.vault_find_replace_file, "a.md");
+
+    expect(stores.ui.vault_find.selected_match).toEqual({
+      request_key: vault_find_request_key(find_request("foo")),
+      path: "b.md",
+      index: 0,
+    });
+  });
+
+  it("replacing in a file that leaves the results selects the next file too", async () => {
+    const { registry, stores } = create_harness([file("a.md"), file("b.md")]);
+
+    await registry.execute(ACTION_IDS.vault_find_replace_file, "a.md");
+
+    expect(stores.ui.vault_find.selected_match).toMatchObject({
+      path: "b.md",
+      index: 0,
+    });
+  });
+
+  it("ignores a second replace while the first one is running", async () => {
+    const { registry, stores, services } = create_harness([file("a.md", 2)]);
+    let finish_replace: () => void = () => {};
+    services.vault_find.replace.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish_replace = () => {
+            resolve({
+              status: "replaced" as const,
+              response: {
+                replaced: [{ path: "a.md", count: 1, remaining: null }],
+                skipped: [],
+              },
+            });
+          };
+        }),
+    );
+    const replace_first_match = () =>
+      registry.execute(ACTION_IDS.vault_find_replace_match, {
+        path: "a.md",
+        match_index: 0,
+      });
+
+    const first = replace_first_match();
+    await vi.waitFor(() => {
+      expect(services.vault_find.replace).toHaveBeenCalledOnce();
+    });
+    await replace_first_match();
+    await registry.execute(ACTION_IDS.vault_find_replace_file, "a.md");
+    await registry.execute(ACTION_IDS.vault_find_request_replace_all);
+
+    expect(services.vault_find.replace).toHaveBeenCalledOnce();
+    expect(stores.ui.vault_replace_dialog.open).toBe(false);
+
+    finish_replace();
+    await first;
+    await replace_first_match();
+    expect(services.vault_find.replace).toHaveBeenCalledTimes(2);
+  });
+
   it("leaves the selection alone when nothing was written", async () => {
     const { registry, stores, services } = create_harness([file("a.md", 2)]);
     services.editor.is_dirty.mockReturnValue(true);

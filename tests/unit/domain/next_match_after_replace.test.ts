@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { next_match_after_replace } from "$lib/features/search/domain/next_match_after_replace";
+import {
+  first_match_after_file,
+  next_match_after_replace,
+} from "$lib/features/search/domain/next_match_after_replace";
 import type { VaultFindFile } from "$lib/features/search/types/vault_find";
 
 // Matches as [line, column], numbered in order like Rust numbers them.
@@ -78,5 +81,27 @@ describe("next_match_after_replace", () => {
     expect(
       next_match_after_replace(files, replaced("b.md", 1, 0, 3)),
     ).toBeNull();
+  });
+});
+
+describe("first_match_after_file", () => {
+  it("skips the file itself, files without matches and earlier files", () => {
+    const files = [
+      file("a.md", [1, 0]),
+      file("b.md", [1, 0], [2, 0]),
+      file("c.md"),
+      file("d.md", [7, 3]),
+    ];
+
+    expect(first_match_after_file(files, "b.md")).toEqual({
+      path: "d.md",
+      index: 0,
+    });
+  });
+
+  it("returns null for the last file", () => {
+    const files = [file("a.md", [1, 0]), file("b.md", [1, 0])];
+
+    expect(first_match_after_file(files, "b.md")).toBeNull();
   });
 });

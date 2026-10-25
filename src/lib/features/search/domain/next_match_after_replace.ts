@@ -9,6 +9,8 @@ export type ReplacedMatch = {
   inserted_length: number;
 };
 
+type MatchPosition = { path: string; index: number };
+
 // Where the selection goes after replacing one match: the first match that
 // starts after the inserted text, else the first match of the next file, else
 // nothing. `files` are the results after the replace, so the replaced file
@@ -20,20 +22,34 @@ export type ReplacedMatch = {
 export function next_match_after_replace(
   files: VaultFindFile[],
   replaced: ReplacedMatch,
-): { path: string; index: number } | null {
+): MatchPosition | null {
   const inserted_end = replaced.column + replaced.inserted_length;
+  const replaced_file = files.find(
+    (file) => compare_paths(file.path, replaced.path) === 0,
+  );
+  const next = replaced_file?.matches.find(
+    (match) =>
+      match.line > replaced.line ||
+      (match.line === replaced.line && match.column >= inserted_end),
+  );
+  if (replaced_file && next) {
+    return { path: replaced_file.path, index: next.index };
+  }
+  return first_match_after_file(files, replaced.path);
+}
+
+// After Replace in file the whole file was rewritten, so none of its fresh
+// matches is "next" (foo -> foobar finds foo again). Move to the first match
+// of the following file, else nothing.
+export function first_match_after_file(
+  files: VaultFindFile[],
+  path: string,
+): MatchPosition | null {
   for (const file of files) {
-    const order = compare_paths(file.path, replaced.path);
-    if (order < 0) continue;
-    const next =
-      order === 0
-        ? file.matches.find(
-            (match) =>
-              match.line > replaced.line ||
-              (match.line === replaced.line && match.column >= inserted_end),
-          )
-        : file.matches[0];
-    if (next) return { path: file.path, index: next.index };
+    const first_match = file.matches[0];
+    if (compare_paths(file.path, path) > 0 && first_match) {
+      return { path: file.path, index: first_match.index };
+    }
   }
   return null;
 }
