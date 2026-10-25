@@ -224,12 +224,23 @@
 
   // The flag means "move focus into the pane now". It is one shot, so the pane
   // mounting again later does not steal focus.
+  //
+  // The palette closes the omnibar and sets the flag in the same tick. This
+  // effect runs before the dialog lets go of its focus trap (the pane comes
+  // first in the tree), so focusing right away is pulled back into the dialog
+  // and the omnibar then hands focus to the editor. Focusing one frame later
+  // wins in either order, because the omnibar's restore sees the pane has focus.
   $effect(() => {
-    if (!stores.ui.tags_pane_focus_pending) return;
+    if (!stores.ui.tags_pane_focus_pending || stores.ui.omnibar.open) return;
     const target = pane_focus_target();
     if (!target) return;
-    target.focus();
-    stores.ui.tags_pane_focus_pending = false;
+    const frame = requestAnimationFrame(() => {
+      target.focus();
+      stores.ui.tags_pane_focus_pending = false;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
   });
 
   // A pane that closes before it could take focus must not take it when it
