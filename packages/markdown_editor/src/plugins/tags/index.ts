@@ -1,5 +1,5 @@
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import type { EditorState } from "@codemirror/state";
+import type { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { current_tree } from "../../core/context.js";
 import type { MarkdownPlugin } from "../../core/plugin.js";
@@ -89,13 +89,23 @@ const source_highlighting = syntaxHighlighting(
   HighlightStyle.define([{ tag: hashtag_style, class: "md-tag-source" }]),
 );
 
-type ChipPress = { x: number; y: number; pos: number };
+type ChipPress = {
+  x: number;
+  y: number;
+  pos: number;
+  // Where the caret was before the press moved it into the tag.
+  selection: EditorSelection;
+};
 const chip_presses = new WeakMap<EditorView, ChipPress>();
 
 // A plain left click on a chip opens it. The press lets CodeMirror place the
 // caret as usual, so a drag from a chip still selects. Modified clicks keep
 // their editor meaning, like links (LINK-003). A double click opens on the
 // first click, because the tag search takes focus.
+//
+// CodeMirror puts the caret inside the tag on the press. We put it back before
+// opening, otherwise the chip stops being clickable (the caret touches it) and
+// the next click on it only moves the caret.
 function chip_clicks(open_tag: (tag: string) => void) {
   return EditorView.domEventHandlers({
     mousedown(event, view) {
@@ -108,6 +118,7 @@ function chip_clicks(open_tag: (tag: string) => void) {
         x: event.clientX,
         y: event.clientY,
         pos: view.posAtDOM(chip),
+        selection: view.state.selection,
       });
       return false;
     },
@@ -122,6 +133,7 @@ function chip_clicks(open_tag: (tag: string) => void) {
       if (moved >= 4) return false;
       const tag = tag_at(view.state, press.pos);
       if (tag === null) return false;
+      view.dispatch({ selection: press.selection });
       open_tag(tag);
       return true;
     },

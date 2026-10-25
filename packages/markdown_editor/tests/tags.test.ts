@@ -120,12 +120,22 @@ function only_chip(editor: TestEditor): HTMLElement {
   return chip;
 }
 
+const pause = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 // A press and release on the chip. `moved` is how far the pointer went.
-function click(target: HTMLElement, moved = 0, init: MouseEventInit = {}) {
+// `after_press` runs once the press is in, where CodeMirror moves the caret.
+function click(
+  target: HTMLElement,
+  moved = 0,
+  init: MouseEventInit = {},
+  after_press?: () => void,
+) {
   const at = { bubbles: true, cancelable: true, button: 0, ...init };
   target.dispatchEvent(
     new MouseEvent("mousedown", { ...at, clientX: 1, clientY: 1 }),
   );
+  after_press?.();
   const release = { ...at, clientX: 1 + moved, clientY: 1 };
   target.dispatchEvent(new MouseEvent("mouseup", release));
   target.dispatchEvent(new MouseEvent("click", release));
@@ -237,6 +247,36 @@ describe("tag clicks", () => {
     expect(open_tag).not.toHaveBeenCalled();
   });
 
+  test("TAG-004 a click puts the caret back, so the same chip opens again", async () => {
+    const open_tag = vi.fn();
+    const editor = open("‸see #project", { open_tag });
+    // The press lands on the chip and CodeMirror moves the caret into it.
+    const caret_into_tag = () => {
+      editor.view.dispatch({ selection: { anchor: "see #pro".length } });
+    };
+
+    click(only_chip(editor), 0, {}, caret_into_tag);
+    expect(open_tag).toHaveBeenCalledTimes(1);
+    expect(editor.view.state.selection.main.head).toBe(0);
+
+    // The click class follows the caret once the mouse freeze lifts.
+    await pause(150);
+    expect(only_chip(editor).classList.contains("md-tag-clickable")).toBe(true);
+    click(only_chip(editor), 0, {}, caret_into_tag);
+    expect(open_tag).toHaveBeenCalledTimes(2);
+  });
+
+  test("TAG-004 a drag from a chip keeps the selection it made", () => {
+    const open_tag = vi.fn();
+    const editor = open("‸see #project", { open_tag });
+    click(only_chip(editor), 10, {}, () => {
+      editor.view.dispatch({ selection: { anchor: 4, head: 8 } });
+    });
+    expect(open_tag).not.toHaveBeenCalled();
+    expect(editor.view.state.selection.main.from).toBe(4);
+    expect(editor.view.state.selection.main.to).toBe(8);
+  });
+
   test("TAG-004 a read-only note still opens the tag on click", () => {
     const open_tag = vi.fn();
     const editor = test_editor("top‸\n\nsee #project", [
@@ -290,9 +330,6 @@ describe("tag completion", () => {
   function menu_is_closed(editor: TestEditor) {
     return editor.view.dom.querySelector(".cm-tooltip-autocomplete") === null;
   }
-
-  const pause = (milliseconds: number) =>
-    new Promise((resolve) => setTimeout(resolve, milliseconds));
 
   test("TAG-005 # and a letter offer tags with their counts, and Enter completes", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
