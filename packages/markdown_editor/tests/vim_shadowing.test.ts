@@ -3,11 +3,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { Vim, getCM } from "@replit/codemirror-vim";
-import { vim_mode } from "../src/plugins/vim/index";
-import {
-  apply_vimrc,
-  built_in_one_key_commands,
-} from "../src/plugins/vim/vimrc";
+import { vim_keybindings } from "../src/plugins/vim/index";
+import { built_in_one_key_commands } from "../src/plugins/vim/map_prefix_wait";
+import { apply_vimrc } from "../src/plugins/vim/vimrc";
 
 // This has its own file on purpose. Every Markdown editor state adds about 80
 // theme rules to jsdom's one stylesheet, and view.setState gets slower with
@@ -68,7 +66,10 @@ describe("vimrc shadowing", () => {
   ];
 
   function probe_state() {
-    return EditorState.create({ doc: "one two", extensions: vim_mode() });
+    return EditorState.create({
+      doc: "one two",
+      extensions: vim_keybindings(),
+    });
   }
 
   // The engine runs a one-key command the moment the key is typed. A key

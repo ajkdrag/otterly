@@ -773,6 +773,33 @@ describe("CodeMirror editor port", () => {
     expect(session.get_markdown()).toBe("one");
   });
 
+  it("closes an open Vim / prompt before it shows another buffer", async () => {
+    const { session, view } = await open_editor("one");
+    session.set_vim_enabled(true);
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "/",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(view.dom.querySelector(".cm-vim-panel input")).not.toBeNull();
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    session.open_buffer({
+      note_path: "alpha.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "one",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.querySelector(".cm-vim-panel")).toBeNull();
+  });
+
   it("builds a new buffer with the current Vim setting", async () => {
     const { session, view, events } = await open_editor("one");
     session.set_vim_enabled(true);

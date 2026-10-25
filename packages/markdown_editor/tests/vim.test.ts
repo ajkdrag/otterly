@@ -8,16 +8,23 @@ import {
   test,
   vi,
 } from "vitest";
+import { completionStatus } from "@codemirror/autocomplete";
 import { Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { Vim, getCM } from "@replit/codemirror-vim";
+import { CodeMirror, Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
+import { set_editor_mode } from "../src/core/editor_mode";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
-import { vim_mode, type VimMode } from "../src/plugins/vim/index";
+import {
+  close_vim_prompt,
+  vim_keybindings,
+  type VimKeybindingsOptions,
+  type VimStatus,
+} from "../src/plugins/vim/index";
 import { apply_vimrc, parse_vimrc } from "../src/plugins/vim/vimrc";
 
 // jsdom has no layout, and the block cursor measures text. j and k also
@@ -46,20 +53,27 @@ afterAll(() => {
 const open_views = new Set<EditorView>();
 
 afterEach(() => {
+  vi.useRealTimers();
   for (const view of open_views) view.destroy();
   open_views.clear();
   document.body.replaceChildren();
   apply_vimrc("");
+  Vim.resetVimGlobalState_();
 });
 
 const table = "| a | b |\n| - | - |\n| 1 | 2 |";
 
 function vim_editor(
   source: string,
-  options: { modes?: VimMode[]; vim?: Compartment } = {},
+  options: {
+    statuses?: VimStatus[];
+    vim?: Compartment;
+    keybindings?: VimKeybindingsOptions;
+  } = {},
 ) {
-  const extension = vim_mode({
-    on_mode_change: (mode) => options.modes?.push(mode),
+  const extension = vim_keybindings({
+    on_status_change: (status) => options.statuses?.push(status),
+    ...options.keybindings,
   });
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -75,39 +89,69 @@ function vim_editor(
   return view;
 }
 
-// Keys go straight to the engine, the way its keydown handler sends them.
+// Real keydowns, so Vim, the guards and the keymaps run in their real order.
+// Keys are written the way Vim writes them: "x", "<Esc>", "<C-v>".
 function press(view: EditorView, ...keys: string[]) {
-  const cm = getCM(view);
-  if (!cm) throw new Error("Vim is not running in this view");
-  for (const key of keys) Vim.handleKey(cm, key, "user");
+  for (const key of keys) keydown(view, key);
+}
+
+const key_names: Record<string, string> = {
+  Esc: "Escape",
+  CR: "Enter",
+  Space: " ",
+  BS: "Backspace",
+  Del: "Delete",
+  Tab: "Tab",
+  Left: "ArrowLeft",
+  Right: "ArrowRight",
+  Up: "ArrowUp",
+  Down: "ArrowDown",
+};
+
+function keydown(view: EditorView, vim_key: string): KeyboardEvent {
+  const [, modifiers = "", name = vim_key] =
+    /^<((?:[CSAM]-)*)(.+)>$/.exec(vim_key) ?? [];
+  const event = new KeyboardEvent("keydown", {
+    key: key_names[name] ?? name,
+    ctrlKey: modifiers.includes("C-"),
+    shiftKey: modifiers.includes("S-"),
+    altKey: modifiers.includes("A-"),
+    metaKey: modifiers.includes("M-"),
+    bubbles: true,
+    cancelable: true,
+  });
+  view.contentDOM.dispatchEvent(event);
+  return event;
+}
+
+// Text typed in insert mode: the keydown goes to Vim first, and what it does
+// not take is inserted, like the browser would.
+function type(view: EditorView, text: string) {
+  for (const character of text) {
+    if (keydown(view, character).defaultPrevented) continue;
+    view.dispatch(
+      view.state.update(view.state.replaceSelection(character), {
+        userEvent: "input.type",
+      }),
+    );
+  }
+}
+
+// Text that arrives without a key: the accent menu, the emoji picker, an IME
+// commit. CodeMirror asks its input handlers first, like this.
+function text_input(view: EditorView, text: string) {
+  const { from, to } = view.state.selection.main;
+  const insert = () => view.state.update(view.state.replaceSelection(text));
+  const handled = view.state
+    .facet(EditorView.inputHandler)
+    .some((handler) => handler(view, from, to, text, insert));
+  if (!handled) view.dispatch(insert());
 }
 
 function ex_command(view: EditorView, command: string) {
   const cm = getCM(view);
   if (!cm) throw new Error("Vim is not running in this view");
   Vim.handleEx(cm, command);
-}
-
-// Insert mode keys Vim does not take fall through to the editor, which
-// inserts them.
-function type(view: EditorView, text: string) {
-  const cm = getCM(view);
-  if (!cm) throw new Error("Vim is not running in this view");
-  for (const character of text) {
-    if (!Vim.handleKey(cm, character, "user"))
-      view.dispatch(
-        view.state.update(view.state.replaceSelection(character), {
-          userEvent: "input.type",
-        }),
-      );
-  }
-}
-
-// A real keydown, so the DOM handlers run in their real order.
-function keydown(view: EditorView, key: string) {
-  view.contentDOM.dispatchEvent(
-    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
-  );
 }
 
 function menu_is_open(view: EditorView) {
@@ -118,23 +162,31 @@ function table_widget(view: EditorView) {
   return view.dom.querySelector("[data-md-block]");
 }
 
+function panel_text(view: EditorView) {
+  return view.dom.querySelector(".cm-vim-panel")?.textContent ?? "";
+}
+
+function doc(view: EditorView) {
+  return view.state.doc.toString();
+}
+
 describe("vim mode", () => {
   test("VIM-001 u undoes dd through the source history and <C-r> redoes it", () => {
     const view = vim_editor("one\ntwo\nthree");
     press(view, "2", "G", "d", "d");
-    expect(view.state.doc.toString()).toBe("one\nthree");
+    expect(doc(view)).toBe("one\nthree");
 
     press(view, "u");
-    expect(view.state.doc.toString()).toBe("one\ntwo\nthree");
+    expect(doc(view)).toBe("one\ntwo\nthree");
 
     press(view, "<C-r>");
-    expect(view.state.doc.toString()).toBe("one\nthree");
+    expect(doc(view)).toBe("one\nthree");
 
     ex_command(view, "undo");
-    expect(view.state.doc.toString()).toBe("one\ntwo\nthree");
+    expect(doc(view)).toBe("one\ntwo\nthree");
 
     ex_command(view, "redo");
-    expect(view.state.doc.toString()).toBe("one\nthree");
+    expect(doc(view)).toBe("one\nthree");
   });
 
   test("VIM-002 moving onto a table shows its source, and turning Vim off renders it again", () => {
@@ -190,38 +242,44 @@ describe("vim mode", () => {
 
   test("VIM-018 an insert mode arrow key steps into a rendered table on its nearest line", () => {
     const view = vim_editor(`before\n\n${table}\n\nafter`);
-    press(view, "2", "G", "i");
-    keydown(view, "ArrowDown");
+    press(view, "2", "G", "i", "<Down>");
     expect(view.state.selection.main.head).toBe(view.state.doc.line(3).from);
     expect(table_widget(view)).toBeNull();
 
-    press(view, "<Esc>", "6", "G", "i");
-    keydown(view, "ArrowUp");
+    press(view, "<Esc>", "6", "G", "i", "<Up>");
     expect(view.state.selection.main.head).toBe(view.state.doc.line(5).from);
   });
 
   test("VIM-003 reports each mode change, starting in normal", () => {
-    const modes: VimMode[] = [];
-    const view = vim_editor("text", { modes });
-    press(view, "i", "<Esc>", "V");
-    expect(modes).toEqual(["normal", "insert", "normal", "visual_line"]);
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("text", { statuses });
+    press(view, "i", "<Esc>", "V", "<Esc>", "R");
+    const modes = statuses.map((status) => status.mode);
+    expect(modes.filter((mode, index) => mode !== modes[index - 1])).toEqual([
+      "normal",
+      "insert",
+      "normal",
+      "visual_line",
+      "normal",
+      "replace",
+    ]);
   });
 
   test("VIM-006 Esc closes an open slash menu before it leaves insert mode", async () => {
-    const modes: VimMode[] = [];
-    const view = vim_editor("", { modes });
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("", { statuses });
     press(view, "i");
     type(view, "/");
     await vi.waitFor(() => {
       expect(menu_is_open(view)).toBe(true);
     });
 
-    keydown(view, "Escape");
+    press(view, "<Esc>");
     expect(menu_is_open(view)).toBe(false);
-    expect(modes.at(-1)).toBe("insert");
+    expect(statuses.at(-1)?.mode).toBe("insert");
 
-    keydown(view, "Escape");
-    expect(modes.at(-1)).toBe("normal");
+    press(view, "<Esc>");
+    expect(statuses.at(-1)?.mode).toBe("normal");
   });
 
   test("VIM-007 a caret move that reveals no other block keeps the block decorations", () => {
@@ -264,7 +322,7 @@ describe("vim mode", () => {
     );
 
     press(view, "d");
-    expect(view.state.doc.toString()).toBe("before\n\nafter");
+    expect(doc(view)).toBe("before\n\nafter");
   });
 
   test.each([
@@ -304,7 +362,7 @@ describe("vim mode", () => {
     expect(table_widget(view)).toBeNull();
 
     press(view, "u");
-    expect(view.state.doc.toString()).toBe(source);
+    expect(doc(view)).toBe(source);
 
     press(view, "G");
     expect(table_widget(view)).not.toBeNull();
@@ -386,7 +444,7 @@ describe("vim mode", () => {
       expect(view.state.selection.main.empty).toBe(false);
 
       press(view, "y");
-      expect(view.state.doc.toString()).toBe(source);
+      expect(doc(view)).toBe(source);
     },
   );
 
@@ -412,20 +470,358 @@ describe("vim mode", () => {
       expect(getCM(view)).toBeFalsy();
 
       view.dispatch(view.state.replaceSelection("X"));
-      expect(view.state.doc.toString()).toBe(expected_doc);
+      expect(doc(view)).toBe(expected_doc);
     },
   );
 });
 
+describe("keys around Vim", () => {
+  test("VIM-021 Esc right after typing leaves insert mode while completion is still pending", () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("", { statuses });
+    press(view, "i");
+    type(view, "hello");
+    expect(completionStatus(view.state)).toBe("pending");
+
+    press(view, "<Esc>");
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    expect(completionStatus(view.state)).toBeNull();
+  });
+
+  test.each(["<C-[>", "<C-c>"])(
+    "VIM-022 %s closes an open slash menu before it leaves insert mode",
+    async (key) => {
+      const statuses: VimStatus[] = [];
+      const view = vim_editor("", { statuses });
+      press(view, "i");
+      type(view, "/");
+      await vi.waitFor(() => {
+        expect(menu_is_open(view)).toBe(true);
+      });
+
+      press(view, key);
+      expect(menu_is_open(view)).toBe(false);
+      expect(statuses.at(-1)?.mode).toBe("insert");
+
+      press(view, key);
+      expect(statuses.at(-1)?.mode).toBe("normal");
+    },
+  );
+
+  test("VIM-023 keys Vim does not bind never edit the note in normal mode", () => {
+    const was_mac = CodeMirror.isMac;
+    CodeMirror.isMac = true;
+    try {
+      const source = "- a\n  - b c d";
+      const view = vim_editor(source);
+      press(view, "2", "G", "w");
+      for (const key of [
+        "<C-k>",
+        "<C-h>",
+        "<C-t>",
+        "<S-Tab>",
+        "<A-BS>",
+        "<M-BS>",
+        "<M-Del>",
+        "<A-Del>",
+        "<S-CR>",
+        "<M-CR>",
+      ]) {
+        expect(keydown(view, key).defaultPrevented, key).toBe(true);
+        expect(doc(view), key).toBe(source);
+      }
+    } finally {
+      CodeMirror.isMac = was_mac;
+    }
+  });
+
+  test("VIM-024 text that arrives without a key is dropped in normal mode, but f still takes a dead key", () => {
+    const view = vim_editor("ab é");
+    text_input(view, "😀");
+    text_input(view, "にほん");
+    expect(doc(view)).toBe("ab é");
+
+    // A dead key comes as keydown "Dead", then the composed text.
+    press(view, "f");
+    keydown(view, "Dead");
+    text_input(view, "é");
+    expect(doc(view)).toBe("ab é");
+    expect(view.state.selection.main.head).toBe(3);
+  });
+});
+
+describe("undo steps", () => {
+  test("VIM-025 one insert session is one step, however long the pauses", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const view = vim_editor("abc");
+    press(view, "A");
+    type(view, " one");
+    vi.advanceTimersByTime(2000);
+    type(view, " two");
+    press(view, "<CR>");
+    type(view, "three");
+    press(view, "<Esc>", "u");
+    expect(doc(view)).toBe("abc");
+  });
+
+  test.each([
+    { keys: ["c", "w"], typed: "X", source: "word rest" },
+    { keys: ["o"], typed: "foo", source: "abc" },
+    { keys: ["3", "i"], typed: "ab", source: "x" },
+  ])(
+    "VIM-025 the change that opens insert mode joins the session: $keys",
+    ({ keys, typed, source }) => {
+      const view = vim_editor(source);
+      press(view, ...keys);
+      type(view, typed);
+      press(view, "<Esc>", "u");
+      expect(doc(view)).toBe(source);
+    },
+  );
+
+  test("VIM-025 every typed normal mode key is its own step, a macro and a map are one", () => {
+    const view = vim_editor("abcd\nefgh\n1\n2\n3");
+    press(view, "x", "x", "u");
+    expect(doc(view)).toBe("bcd\nefgh\n1\n2\n3");
+
+    press(view, "u", "q", "a", "x", "x", "q", "2", "G", "@", "a");
+    expect(doc(view)).toBe("cd\ngh\n1\n2\n3");
+    press(view, "u");
+    expect(doc(view)).toBe("cd\nefgh\n1\n2\n3");
+
+    expect(apply_vimrc("nnoremap Q ddp")).toEqual([]);
+    press(view, "3", "G", "Q");
+    expect(doc(view)).toBe("cd\nefgh\n2\n1\n3");
+    press(view, "u");
+    expect(doc(view)).toBe("cd\nefgh\n1\n2\n3");
+  });
+});
+
+describe("status", () => {
+  test("VIM-027 showcmd shows pending keys and the visual selection size", () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("one two three\nfour five six", { statuses });
+    const showcmd = () => statuses.at(-1)?.showcmd;
+
+    press(view, "2", "d");
+    expect(showcmd()).toBe("2d");
+    press(view, "w");
+    expect(showcmd()).toBe("");
+
+    press(view, "v", "l", "l");
+    expect(showcmd()).toBe("3");
+    press(view, "<Esc>", "V", "j");
+    expect(showcmd()).toBe("2");
+    press(view, "<Esc>", "g", "g", "<C-v>", "j", "l");
+    expect(showcmd()).toBe("2x2");
+    press(view, "<Esc>", "/");
+    expect(showcmd()).toBe("");
+  });
+
+  test("VIM-027 status says when a macro records, and the one command after <C-o>", () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("text", { statuses });
+    press(view, "q", "q");
+    expect(statuses.at(-1)?.recording).toBe("q");
+    press(view, "q");
+    expect(statuses.at(-1)?.recording).toBeNull();
+
+    press(view, "i", "<C-o>");
+    expect(statuses.at(-1)?.mode).toBe("insert_normal");
+    press(view, "l");
+    expect(statuses.at(-1)?.mode).toBe("insert");
+  });
+});
+
+describe("map waits", () => {
+  const vimrc = [
+    'let mapleader = " "',
+    "nnoremap <leader>d dd",
+    "nnoremap ,x x",
+    "nmap Q <leader>d",
+  ].join("\n");
+
+  test("VIM-028 a map that starts with a Vim key waits for the next key", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("1\n2\n3\n4\n5\n6\n7", { statuses });
+    expect(apply_vimrc(vimrc)).toEqual([]);
+
+    press(view, "<Space>");
+    expect(statuses.at(-1)?.showcmd).toBe("␣");
+    press(view, "d");
+    expect(doc(view)).toBe("2\n3\n4\n5\n6\n7");
+
+    press(view, ",", "x");
+    expect(doc(view)).toBe("\n3\n4\n5\n6\n7");
+
+    press(view, "3", "<Space>", "d");
+    expect(doc(view)).toBe("5\n6\n7");
+
+    press(view, "Q");
+    expect(doc(view)).toBe("6\n7");
+  });
+
+  test("VIM-028 the key alone runs after timeoutlen, and Esc or a reload drop it", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const view = vim_editor("abcdef");
+    expect(apply_vimrc(`${vimrc}\nset timeoutlen=300`)).toEqual([]);
+    const head = () => view.state.selection.main.head;
+
+    press(view, "<Space>");
+    vi.advanceTimersByTime(299);
+    expect(head()).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(head()).toBe(1);
+
+    press(view, "<Space>", "<Esc>");
+    vi.advanceTimersByTime(1000);
+    expect(head()).toBe(1);
+
+    press(view, "<Space>");
+    apply_vimrc(vimrc);
+    vi.advanceTimersByTime(1000);
+    expect(head()).toBe(1);
+  });
+});
+
+describe("clipboard", () => {
+  test('VIM-029 "+ and "* use the host clipboard, set clipboard=unnamed uses it for every yank and put', async () => {
+    const original = Vim.clipboard;
+    let clipboard = "";
+    const write_text = vi.fn((text: string) => {
+      clipboard = text;
+      return Promise.resolve();
+    });
+    const read_text = vi.fn(() => Promise.resolve(clipboard));
+    try {
+      const view = vim_editor("one\ntwo", {
+        keybindings: { clipboard: { read_text, write_text } },
+      });
+      press(view, '"', "*", "y", "y");
+      expect(write_text).toHaveBeenLastCalledWith("one\n");
+
+      clipboard = "from\nelsewhere\n";
+      press(view, '"', "+", "p");
+      await vi.waitFor(() => {
+        expect(doc(view)).toBe("one\nfrom\nelsewhere\ntwo");
+      });
+
+      expect(apply_vimrc("set clipboard=unnamed")).toEqual([]);
+      press(view, "G", "y", "y");
+      expect(write_text).toHaveBeenLastCalledWith("two\n");
+      clipboard = "pasted";
+      press(view, "p");
+      await vi.waitFor(() => {
+        expect(doc(view)).toBe("one\nfrom\nelsewhere\ntpastedwo");
+      });
+
+      write_text.mockClear();
+      press(view, '"', "_", "d", "d");
+      expect(write_text).not.toHaveBeenCalled();
+
+      read_text.mockReturnValueOnce(Promise.reject(new Error("denied")));
+      press(view, "p");
+      await vi.waitFor(() => {
+        expect(panel_text(view)).toContain("Could not read the clipboard");
+      });
+    } finally {
+      Vim.clipboard = original;
+    }
+  });
+});
+
 describe("ex commands", () => {
-  test("VIM-020 :w says it does not save, and leaves the note alone", () => {
+  test("VIM-030 :w saves, :q closes, :wq saves and then closes", async () => {
+    const calls: string[] = [];
+    const view = vim_editor("text", {
+      keybindings: {
+        on_write: () => {
+          calls.push("write");
+          return Promise.resolve();
+        },
+        on_quit: () => calls.push("quit"),
+      },
+    });
+    ex_command(view, "w");
+    ex_command(view, "q");
+    ex_command(view, "q!");
+    expect(calls).toEqual(["write", "quit", "quit"]);
+
+    calls.length = 0;
+    ex_command(view, "wq");
+    ex_command(view, "x");
+    await vi.waitFor(() => {
+      expect(calls).toEqual(["write", "write", "quit", "quit"]);
+    });
+    expect(doc(view)).toBe("text");
+  });
+
+  test("VIM-030 without a host, :w says it does not save, without naming a shortcut", () => {
     const view = vim_editor("text");
     ex_command(view, "w");
+    expect(panel_text(view)).toBe(":w does not save here");
+    expect(doc(view)).toBe("text");
+  });
+});
 
-    expect(view.dom.querySelector(".cm-vim-panel")?.textContent).toContain(
-      "Cmd+S",
+describe("buffer switches", () => {
+  test("VIM-031 close_vim_prompt closes an open / prompt", () => {
+    const view = vim_editor("text");
+    press(view, "/");
+    expect(view.dom.querySelector(".cm-vim-panel input")).not.toBeNull();
+
+    close_vim_prompt(view);
+    expect(view.dom.querySelector(".cm-vim-panel")).toBeNull();
+  });
+
+  test("VIM-031 a buffer left in insert mode comes back with its insert session closed", () => {
+    const view = vim_editor("abc");
+    press(view, "A");
+    type(view, "X");
+    const left_in_insert = view.state;
+    view.setState(
+      create_markdown_state("other", { plugins: [], extensions: [] }),
     );
-    expect(view.state.doc.toString()).toBe("text");
+    view.setState(left_in_insert);
+
+    press(view, "0", "x", "u");
+    expect(doc(view)).toBe("abcX");
+  });
+
+  test("VIM-031 a buffer left in visual mode comes back with its selection collapsed", async () => {
+    const view = vim_editor("abc def");
+    press(view, "v", "l", "l");
+    const left_in_visual = view.state;
+    view.setState(
+      create_markdown_state("other", { plugins: [], extensions: [] }),
+    );
+    view.setState(left_in_visual);
+
+    await Promise.resolve();
+    expect(view.state.selection.main.empty).toBe(true);
+  });
+});
+
+describe("o and O", () => {
+  test.each([
+    ["- a", "- a\n- "],
+    ["- [ ] a", "- [ ] a\n- [ ] "],
+    ["> a", "> a\n> "],
+    ["- ", "- \n"],
+    ["plain", "plain\n"],
+  ])("VIM-032 o on %j continues the construct", (source, expected) => {
+    const view = vim_editor(source);
+    press(view, "o");
+    expect(doc(view)).toBe(expected);
+    expect(view.state.selection.main.head).toBe(expected.length);
+  });
+
+  test("VIM-032 o in source mode gives a plain line", () => {
+    const view = vim_editor("- a");
+    set_editor_mode(view, "source");
+    press(view, "o");
+    expect(doc(view)).toBe("- a\n");
   });
 });
 
@@ -444,43 +840,33 @@ describe("vimrc", () => {
         "nunmap Y",
         "set nopcre insertModeEscKeysTimeout=300",
         "nmap <leader>w :w<CR>",
-        "nnoremap <Space>x dd",
-        "vmap ,y y",
-        "map <CR>x dd",
-        "imap <Space>x y",
-        "nmap <Space> x",
+        "xnoremap ,y y",
+        "nn <Space>x dd",
         'set nopcre " use JS regex',
       ].join("\r\n"),
     );
 
     expect(commands).toMatchObject([
-      { kind: "map", line: 3, context: "insert", recursive: true },
-      { kind: "map", line: 4, context: "normal", recursive: false },
-      { kind: "map", line: 8, context: null, lhs: "<C-s>" },
+      { kind: "map", line: 3, context: "insert", lhs: "jk", rhs: "<Esc>" },
+      { kind: "map", line: 4, context: "normal", recursive: false, rhs: "y$" },
+      { kind: "map", line: 8, context: null, rhs: ":s/a  b/<CR>" },
       { kind: "unmap", line: 9, context: "normal", lhs: "Y" },
       {
         kind: "set",
         line: 10,
         items: ["nopcre", "insertModeEscKeysTimeout=300"],
       },
-      { kind: "map", line: 14, context: null, lhs: "<CR>x" },
-      { kind: "map", line: 15, context: "insert", lhs: "<Space>x" },
-      { kind: "map", line: 16, context: "normal", lhs: "<Space>" },
-      { kind: "set", line: 17, items: ["nopcre"] },
+      { kind: "map", line: 11, lhs: "<Space>w" },
+      { kind: "map", line: 12, context: "visual", lhs: ",y" },
+      { kind: "map", line: 13, context: "normal", lhs: "<Space>x" },
+      { kind: "set", line: 14, items: ["nopcre"] },
     ]);
-    expect(commands.slice(0, 3)).toMatchObject([
-      { lhs: "jk", rhs: "<Esc>" },
-      { lhs: "Y", rhs: "y$" },
-      { rhs: ":s/a  b/<CR>" },
-    ]);
-    expect(problems.map((problem) => [problem.line, problem.text])).toEqual([
-      [5, "let mapleader = ' '"],
-      [6, "nmap j"],
-      [7, "vmap <buffer> x y"],
-      [11, "nmap <leader>w :w<CR>"],
-      [12, "nnoremap <Space>x dd"],
-      [13, "vmap ,y y"],
-    ]);
+    expect(problems.map((problem) => [problem.line, problem.severity])).toEqual(
+      [
+        [6, "error"],
+        [7, "error"],
+      ],
+    );
   });
 
   test("VIM-004 key names are rewritten to the engine's spelling, and unknown ones are problems", () => {
@@ -490,14 +876,13 @@ describe("vimrc", () => {
         "nnoremap <C-J> 3l",
         "nnoremap Q <cr>",
         "nmap <m-x> <C-S-J>",
-        "nnoremap <space>x dd",
-        "nnoremap <foo>x dd",
         "nnoremap X :s/<b>/c/<cr>",
         "nnoremap Z <Nop>",
-        "nnoremap D x<bogus>",
         ":nmap gx dd",
-        ":set nopcre",
         "unmap <c-j>",
+        "inoremap <C-b> <b></b>",
+        "nnoremap <foo>x dd",
+        "nnoremap D x<bogus>",
       ].join("\n"),
     );
 
@@ -506,32 +891,107 @@ describe("vimrc", () => {
       { line: 2, lhs: "<C-j>", rhs: "3l" },
       { line: 3, lhs: "Q", rhs: "<CR>" },
       { line: 4, lhs: "<A-x>", rhs: "<C-S-J>" },
-      { line: 7, lhs: "X", rhs: ":s/<b>/c/<CR>" },
-      { line: 8, lhs: "Z", rhs: "" },
-      { line: 10, kind: "map", context: "normal", lhs: "gx" },
-      { line: 11, kind: "set", items: ["nopcre"] },
-      { line: 12, kind: "unmap", lhs: "<C-j>" },
+      { line: 5, lhs: "X", rhs: ":s/<b>/c/<CR>" },
+      { line: 6, lhs: "Z", rhs: "" },
+      { line: 7, kind: "map", context: "normal", lhs: "gx" },
+      { line: 8, kind: "unmap", lhs: "<C-j>" },
+      { line: 9, lhs: "<C-b>", rhs: "<b></b>" },
     ]);
-    expect(problems.map((problem) => [problem.line, problem.message])).toEqual([
-      [5, "Never fires: <Space> is already a Vim command"],
-      [6, "Unknown key <foo>"],
-      [9, "Unknown key <bogus>"],
+    expect(problems.map((problem) => problem.line)).toEqual([10, 11]);
+    expect(problems[0]?.message).toContain("<lt>");
+  });
+
+  test("VIM-004 command abbreviations follow Vim's table", () => {
+    const { commands, problems } = parse_vimrc(
+      [
+        "nn a b",
+        "nno a b",
+        "ino a b",
+        "xn a b",
+        "vn a b",
+        "no a b",
+        "se nopcre",
+        "n a b",
+        "nnoremapx a b",
+      ].join("\n"),
+    );
+    expect(commands.map((command) => command.line)).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
+    expect(problems.map((problem) => problem.line)).toEqual([8, 9]);
+  });
+
+  test("VIM-004 a pasted terminal vimrc reports only real errors, and skips the rest", () => {
+    const problems = apply_vimrc(
+      [
+        "set nocompatible",
+        "syntax on",
+        "filetype plugin indent on",
+        "set number relativenumber",
+        "set tabstop=4 shiftwidth=4 expandtab",
+        "set ignorecase smartcase",
+        "set nosmartcase",
+        "set clipboard=unnamed",
+        'let mapleader = ","',
+        "nnoremap <leader>w :w<CR>",
+        "nnormap Q gq",
+        "xnoremap < <gv",
+        "inoremap jk <Esc>",
+        'if has("gui_running")',
+        "  set guifont=Menlo:h14",
+        "  nnoremap <C-s> :w<CR>",
+        "endif",
+        "call plug#begin()",
+        "Plug 'tpope/vim-surround'",
+        "call plug#end()",
+        "autocmd BufWritePre * %s/\\s\\+$//e",
+        "let g:netrw_banner = 0",
+      ].join("\n"),
+    );
+    const lines = (severity: string) =>
+      problems
+        .filter((problem) => problem.severity === severity)
+        .map((problem) => problem.line);
+    expect(lines("error")).toEqual([7, 11]);
+    expect(lines("skipped")).toEqual([
+      1, 2, 3, 4, 5, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+    ]);
+    expect(Vim.getOption("clipboard")).toBe("unnamed");
+  });
+
+  test.each([
+    ['let mapleader = " "', "<Space>w"],
+    ["let mapleader = ','", ",w"],
+    ['let g:mapleader = "\\<Space>"', "<Space>w"],
+    ['let mapleader = "\\\\"', "\\w"],
+  ])("VIM-004 %s sets the leader of later maps", (let_line, lhs) => {
+    const { commands, problems } = parse_vimrc(
+      `nnoremap <leader>a b\n${let_line}\nnnoremap <leader>w b`,
+    );
+    expect(problems).toEqual([]);
+    expect(commands.map((command) => "lhs" in command && command.lhs)).toEqual([
+      "\\a",
+      lhs,
+    ]);
+  });
+
+  test("VIM-004 a leader of more than one key is a problem", () => {
+    expect(parse_vimrc('let mapleader = "ab"').problems).toMatchObject([
+      { line: 1, severity: "error" },
     ]);
   });
 
   test("VIM-012 a UTF-8 byte order mark before the first line is ignored", () => {
-    const { commands, problems } = parse_vimrc(
-      '\ufeff" comment\nimap jk <Esc>',
-    );
+    const { commands, problems } = parse_vimrc('﻿" comment\nimap jk <Esc>');
     expect(problems).toEqual([]);
     expect(commands).toHaveLength(1);
 
-    expect(parse_vimrc("\ufeffimap jk <Esc>").problems).toEqual([]);
+    expect(parse_vimrc("﻿imap jk <Esc>").problems).toEqual([]);
   });
 
   test("VIM-005 applies maps and options, and a reload drops what left the file", () => {
-    const modes: VimMode[] = [];
-    const view = vim_editor("text", { modes });
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("text", { statuses });
 
     expect(
       apply_vimrc("imap jk <Esc>\nset insertModeEscKeysTimeout=300"),
@@ -539,20 +999,20 @@ describe("vimrc", () => {
     expect(Vim.getOption("insertModeEscKeysTimeout")).toBe(300);
     press(view, "i");
     type(view, "jk");
-    expect(modes.at(-1)).toBe("normal");
-    expect(view.state.doc.toString()).toBe("text");
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    expect(doc(view)).toBe("text");
 
     expect(apply_vimrc("")).toEqual([]);
     expect(Vim.getOption("insertModeEscKeysTimeout")).toBe(200);
     press(view, "i");
     type(view, "jk");
-    expect(modes.at(-1)).toBe("insert");
-    expect(view.state.doc.toString()).toBe("jktext");
+    expect(statuses.at(-1)?.mode).toBe("insert");
+    expect(doc(view)).toBe("jktext");
   });
 
   test("VIM-005 maps written as <esc> and <C-J> still fire", () => {
-    const modes: VimMode[] = [];
-    const view = vim_editor("text here", { modes });
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("text here", { statuses });
 
     expect(apply_vimrc("inoremap jk <esc>\nnnoremap <C-J> 3l")).toEqual([]);
     press(view, "<C-j>");
@@ -560,8 +1020,8 @@ describe("vimrc", () => {
 
     press(view, "i");
     type(view, "jk");
-    expect(modes.at(-1)).toBe("normal");
-    expect(view.state.doc.toString()).toBe("text here");
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    expect(doc(view)).toBe("text here");
   });
 
   test("VIM-005 a plain unmap removes the normal map, and a key that was never mapped is a problem", () => {
@@ -569,9 +1029,40 @@ describe("vimrc", () => {
 
     expect(apply_vimrc("nnoremap Y x\nunmap Y")).toEqual([]);
     press(view, "Y");
-    expect(view.state.doc.toString()).toBe("text");
+    expect(doc(view)).toBe("text");
 
     expect(apply_vimrc("unmap Y").map((problem) => problem.line)).toEqual([1]);
+  });
+
+  test("VIM-005 xnoremap maps visual mode, and nmap x xp runs the built-in x first", () => {
+    const view = vim_editor("abcd");
+    expect(apply_vimrc("nmap x xp\nxnoremap > <Esc>0")).toEqual([]);
+
+    press(view, "x");
+    expect(doc(view)).toBe("bacd");
+
+    press(view, "v", "l", ">");
+    expect(doc(view)).toBe("bacd");
+    expect(view.state.selection.main.head).toBe(0);
+  });
+
+  test("VIM-005 recursive maps that loop are problems and are not applied", () => {
+    const problems = apply_vimrc(
+      [
+        "nmap a b",
+        "nmap b a",
+        "nmap Q xQ",
+        "nmap j gj",
+        "nmap Z dZ",
+        "nmap S :s/S/x/<CR>",
+      ].join("\n"),
+    );
+    expect(problems.map((problem) => problem.line)).toEqual([1, 2, 3]);
+    expect(problems[0]?.message).toContain("nnoremap");
+
+    const view = vim_editor("abc");
+    press(view, "Q");
+    expect(doc(view)).toBe("abc");
   });
 
   test("VIM-005 a reload restores an option that was set under both of its names", () => {
@@ -586,11 +1077,22 @@ describe("vimrc", () => {
 
   test("VIM-005 options it cannot set and unmaps of built-in keys are problems", () => {
     const problems = apply_vimrc(
-      ["set nosuchoption", "set textwidth=72", "set pcre=1", "unmap l"].join(
-        "\n",
-      ),
+      [
+        "set nosuchoption",
+        "set textwidth=72",
+        "set pcre=1",
+        "unmap l",
+        "set __proto__=oops",
+        "set constructor=oops",
+        "set clipboard=bogus",
+        "set clipboard+=unnamed",
+        "set timeoutlen=abc",
+      ].join("\n"),
     );
-    expect(problems.map((problem) => problem.line)).toEqual([1, 2, 3, 4]);
+    expect(problems.map((problem) => problem.line)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ]);
+    expect(({} as { value?: unknown }).value).toBeUndefined();
 
     // The built-in l still moves after another reload.
     apply_vimrc("");

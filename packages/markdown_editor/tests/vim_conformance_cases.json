@@ -1,0 +1,4880 @@
+[
+  {
+    "id": "count-3dw",
+    "text": "one two three four five",
+    "at": [1, 1],
+    "keys": "3dw",
+    "vim": {
+      "lines": ["four five"],
+      "cursor": [1, 1],
+      "register": "one two three ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-d3w",
+    "text": "one two three four five",
+    "at": [1, 1],
+    "keys": "d3w",
+    "vim": {
+      "lines": ["four five"],
+      "cursor": [1, 1],
+      "register": "one two three ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-2d2w",
+    "text": "one two three four five",
+    "at": [1, 1],
+    "keys": "2d2w",
+    "vim": {
+      "lines": ["five"],
+      "cursor": [1, 1],
+      "register": "one two three four ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-c2w",
+    "text": "one two three four five",
+    "at": [1, 1],
+    "keys": "c2wX<Esc>",
+    "vim": {
+      "lines": ["X three four five"],
+      "cursor": [1, 1],
+      "register": "one two",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-3x",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "3x",
+    "vim": {
+      "lines": ["aef"],
+      "cursor": [1, 2],
+      "register": "bcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-3X",
+    "text": "abcdef",
+    "at": [1, 5],
+    "keys": "3X",
+    "vim": {
+      "lines": ["aef"],
+      "cursor": [1, 2],
+      "register": "bcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-5x-past-end",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "5x",
+    "vim": {
+      "lines": ["a"],
+      "cursor": [1, 1],
+      "register": "bc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "count-2dd",
+    "text": "1\n2\n3\n4\n5",
+    "at": [2, 1],
+    "keys": "2dd",
+    "vim": {
+      "lines": ["1", "4", "5"],
+      "cursor": [2, 1],
+      "register": "2\n3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "count-5dd-past-end",
+    "text": "1\n2\n3\n4",
+    "at": [3, 1],
+    "keys": "5dd",
+    "vim": {
+      "lines": ["1", "2"],
+      "cursor": [2, 1],
+      "register": "3\n4\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "count-3yyP",
+    "text": "1\n2\n3\n4",
+    "at": [2, 1],
+    "keys": "3yyP",
+    "vim": {
+      "lines": ["1", "2", "3", "4", "2", "3", "4"],
+      "cursor": [2, 1],
+      "register": "2\n3\n4\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "count-d2j",
+    "text": "1\n2\n3\n4\n5",
+    "at": [2, 1],
+    "keys": "d2j",
+    "vim": {
+      "lines": ["1", "5"],
+      "cursor": [2, 1],
+      "register": "2\n3\n4\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dk-first-line",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "dk",
+    "vim": {
+      "lines": ["1", "2", "3"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dj-last-line",
+    "text": "1\n2\n3",
+    "at": [3, 1],
+    "keys": "dj",
+    "vim": {
+      "lines": ["1", "2", "3"],
+      "cursor": [3, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "j-last-line",
+    "text": "abc\nxyz",
+    "at": [2, 2],
+    "keys": "j",
+    "vim": {
+      "lines": ["abc", "xyz"],
+      "cursor": [2, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "k-first-line",
+    "text": "abc\nxyz",
+    "at": [1, 2],
+    "keys": "k",
+    "vim": {
+      "lines": ["abc", "xyz"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "5j-past-end",
+    "text": "a\nb\nc",
+    "at": [1, 1],
+    "keys": "5j",
+    "vim": {
+      "lines": ["a", "b", "c"],
+      "cursor": [3, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "count-3J",
+    "text": "a\n  b\nc\nd",
+    "at": [1, 1],
+    "keys": "3J",
+    "vim": {
+      "lines": ["a b c", "d"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-last-line",
+    "text": "a\nb",
+    "at": [2, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["a", "b"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dG",
+    "text": "1\n2\n3\n4",
+    "at": [2, 1],
+    "keys": "dG",
+    "vim": {
+      "lines": ["1"],
+      "cursor": [1, 1],
+      "register": "2\n3\n4\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dgg",
+    "text": "1\n2\n3\n4",
+    "at": [3, 1],
+    "keys": "dgg",
+    "vim": {
+      "lines": ["4"],
+      "cursor": [1, 1],
+      "register": "1\n2\n3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "D",
+    "text": "one two three",
+    "at": [1, 5],
+    "keys": "D",
+    "vim": {
+      "lines": ["one "],
+      "cursor": [1, 4],
+      "register": "two three",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "2D",
+    "text": "one two\nthree\nfour",
+    "at": [1, 5],
+    "keys": "2D",
+    "vim": {
+      "lines": ["one ", "four"],
+      "cursor": [1, 4],
+      "register": "two\nthree",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d0",
+    "text": "one two three",
+    "at": [1, 9],
+    "keys": "d0",
+    "vim": {
+      "lines": ["three"],
+      "cursor": [1, 1],
+      "register": "one two ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d^",
+    "text": "   one two",
+    "at": [1, 8],
+    "keys": "d^",
+    "vim": {
+      "lines": ["   two"],
+      "cursor": [1, 4],
+      "register": "one ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "3~",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "3~",
+    "vim": {
+      "lines": ["ABCd"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "2p-char",
+    "text": "ab",
+    "at": [1, 1],
+    "keys": "yl2p",
+    "vim": {
+      "lines": ["aaab"],
+      "cursor": [1, 3],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-dw",
+    "text": "one two three four",
+    "at": [1, 1],
+    "keys": "dw.",
+    "vim": {
+      "lines": ["three four"],
+      "cursor": [1, 1],
+      "register": "two ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-count",
+    "text": "a b c d e f",
+    "at": [1, 1],
+    "keys": "dw3.",
+    "vim": {
+      "lines": ["e f"],
+      "cursor": [1, 1],
+      "register": "b c d ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-cw",
+    "text": "one two three",
+    "at": [1, 1],
+    "keys": "cwX<Esc>w.",
+    "vim": {
+      "lines": ["X X three"],
+      "cursor": [1, 3],
+      "register": "two",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "2>>",
+    "text": "a\nb\nc",
+    "at": [1, 1],
+    "keys": "2>>",
+    "vim": {
+      "lines": ["  a", "  b", "c"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": ">j",
+    "text": "a\nb\nc",
+    "at": [1, 1],
+    "keys": ">j",
+    "vim": {
+      "lines": ["  a", "  b", "c"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "d-search",
+    "text": "one two foo three",
+    "at": [1, 1],
+    "keys": "d/foo<CR>",
+    "vim": {
+      "lines": ["foo three"],
+      "cursor": [1, 1],
+      "register": "one two ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "5G",
+    "text": "1\n2\n3\n4\n5\n6",
+    "at": [1, 1],
+    "keys": "5G",
+    "vim": {
+      "lines": ["1", "2", "3", "4", "5", "6"],
+      "cursor": [5, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "G-first-nonblank",
+    "text": "1\n2\n   3",
+    "at": [1, 1],
+    "keys": "G",
+    "vim": {
+      "lines": ["1", "2", "   3"],
+      "cursor": [3, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gg-first-nonblank",
+    "text": "  1\n2\n3",
+    "at": [3, 1],
+    "keys": "gg",
+    "vim": {
+      "lines": ["  1", "2", "3"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "50%",
+    "text": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10",
+    "at": [1, 1],
+    "keys": "50%",
+    "vim": {
+      "lines": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "cursor": [5, 1],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "{count}% is not supported.",
+      "lines": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "w-punct",
+    "text": "foo.bar(baz)",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["foo.bar(baz)"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-punct-2",
+    "text": "foo.bar(baz)",
+    "at": [1, 1],
+    "keys": "2w",
+    "vim": {
+      "lines": ["foo.bar(baz)"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-punct-4",
+    "text": "foo.bar(baz)",
+    "at": [1, 1],
+    "keys": "4w",
+    "vim": {
+      "lines": ["foo.bar(baz)"],
+      "cursor": [1, 9],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "W-punct",
+    "text": "foo.bar(baz) qux",
+    "at": [1, 1],
+    "keys": "W",
+    "vim": {
+      "lines": ["foo.bar(baz) qux"],
+      "cursor": [1, 14],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-punct",
+    "text": "foo.bar(baz)",
+    "at": [1, 1],
+    "keys": "e",
+    "vim": {
+      "lines": ["foo.bar(baz)"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-at-end",
+    "text": "foo bar",
+    "at": [1, 3],
+    "keys": "e",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-single-char",
+    "text": "a b c",
+    "at": [1, 1],
+    "keys": "e",
+    "vim": {
+      "lines": ["a b c"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "E",
+    "text": "foo.bar baz",
+    "at": [1, 1],
+    "keys": "E",
+    "vim": {
+      "lines": ["foo.bar baz"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "b-line-start",
+    "text": "one two\nthree",
+    "at": [2, 1],
+    "keys": "b",
+    "vim": {
+      "lines": ["one two", "three"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "B",
+    "text": "foo.bar baz.qux",
+    "at": [1, 13],
+    "keys": "B",
+    "vim": {
+      "lines": ["foo.bar baz.qux"],
+      "cursor": [1, 9],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ge",
+    "text": "one two three",
+    "at": [1, 9],
+    "keys": "ge",
+    "vim": {
+      "lines": ["one two three"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gE",
+    "text": "foo.bar baz.qux",
+    "at": [1, 13],
+    "keys": "gE",
+    "vim": {
+      "lines": ["foo.bar baz.qux"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-line-end",
+    "text": "foo bar\nbaz",
+    "at": [1, 5],
+    "keys": "w",
+    "vim": {
+      "lines": ["foo bar", "baz"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-empty-line",
+    "text": "foo\n\nbar",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["foo", "", "bar"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-two-empty",
+    "text": "foo\n\n\nbar",
+    "at": [1, 1],
+    "keys": "2w",
+    "vim": {
+      "lines": ["foo", "", "", "bar"],
+      "cursor": [3, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dw-last-word",
+    "text": "foo bar\nbaz",
+    "at": [1, 5],
+    "keys": "dw",
+    "vim": {
+      "lines": ["foo ", "baz"],
+      "cursor": [1, 4],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dw-empty-line",
+    "text": "foo\n\nbar",
+    "at": [2, 1],
+    "keys": "dw",
+    "vim": {
+      "lines": ["foo", "bar"],
+      "cursor": [2, 1],
+      "register": "\n",
+      "register_type": "line"
+    },
+    "deviation": {
+      "reason": "dw on an empty line yanks a characterwise line break.",
+      "lines": ["foo", "bar"],
+      "cursor": [2, 1]
+    }
+  },
+  {
+    "id": "cw-in-word",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "cwX<Esc>",
+    "vim": {
+      "lines": ["X bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cw-on-space",
+    "text": "foo   bar",
+    "at": [1, 4],
+    "keys": "cwX<Esc>",
+    "vim": {
+      "lines": ["fooXbar"],
+      "cursor": [1, 4],
+      "register": "   ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cw-last-char",
+    "text": "foo bar",
+    "at": [1, 3],
+    "keys": "cwX<Esc>",
+    "vim": {
+      "lines": ["foX bar"],
+      "cursor": [1, 3],
+      "register": "o",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dw-doc-end",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "dw",
+    "vim": {
+      "lines": ["foo "],
+      "cursor": [1, 4],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "w-unicode",
+    "text": "héllo wörld",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["héllo wörld"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-unicode",
+    "text": "héllo wörld",
+    "at": [1, 1],
+    "keys": "e",
+    "vim": {
+      "lines": ["héllo wörld"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-cjk",
+    "text": "日本語テスト ok",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["日本語テスト ok"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "Word motions treat CJK ideographs and kana as one word class.",
+      "lines": ["日本語テスト ok"],
+      "cursor": [1, 8]
+    }
+  },
+  {
+    "id": "w-emoji",
+    "text": "a 👍 b",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["a 👍 b"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "x-emoji",
+    "text": "a👍b",
+    "at": [1, 2],
+    "keys": "x",
+    "vim": {
+      "lines": ["ab"],
+      "cursor": [1, 2],
+      "register": "👍",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "l-emoji",
+    "text": "a👍b",
+    "at": [1, 1],
+    "keys": "ll",
+    "vim": {
+      "lines": ["a👍b"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-leading-indent",
+    "text": "    foo",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["    foo"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-symbols-run",
+    "text": "a==b",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["a==b"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dW",
+    "text": "foo.bar baz",
+    "at": [1, 1],
+    "keys": "dW",
+    "vim": {
+      "lines": ["baz"],
+      "cursor": [1, 1],
+      "register": "foo.bar ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dw-before-punct",
+    "text": "foo, bar",
+    "at": [1, 1],
+    "keys": "dw",
+    "vim": {
+      "lines": [", bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "de",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "de",
+    "vim": {
+      "lines": [" bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "db",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "db",
+    "vim": {
+      "lines": ["bar"],
+      "cursor": [1, 1],
+      "register": "foo ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dge",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "dge",
+    "vim": {
+      "lines": ["foar"],
+      "cursor": [1, 3],
+      "register": "o b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yw-P",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "ywP",
+    "vim": {
+      "lines": ["foo barbar"],
+      "cursor": [1, 7],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "fx",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "f,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "2fx",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "2f,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "f;",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "f,;",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "f;,",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "f,;,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "t;",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "t,;",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "T,",
+    "text": "a,b,c,d",
+    "at": [1, 7],
+    "keys": "T,,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "F",
+    "text": "a,b,c,d",
+    "at": [1, 7],
+    "keys": "F,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 6],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dfx",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "df,",
+    "vim": {
+      "lines": ["b,c,d"],
+      "cursor": [1, 1],
+      "register": "a,",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dtx",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "dt,",
+    "vim": {
+      "lines": [",b,c,d"],
+      "cursor": [1, 1],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ct)",
+    "text": "foo(bar)",
+    "at": [1, 5],
+    "keys": "ct)X<Esc>",
+    "vim": {
+      "lines": ["foo(X)"],
+      "cursor": [1, 5],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "f-missing",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "fz",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "d-f-missing",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "dfz",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "f-count-too-big",
+    "text": "a,b",
+    "at": [1, 1],
+    "keys": "3f,",
+    "vim": {
+      "lines": ["a,b"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-df",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "df,.",
+    "vim": {
+      "lines": ["c,d"],
+      "cursor": [1, 1],
+      "register": "b,",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "semicolon-after-dt",
+    "text": "a,b,c,d",
+    "at": [1, 1],
+    "keys": "dt,;",
+    "vim": {
+      "lines": [",b,c,d"],
+      "cursor": [1, 2],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dj-linewise",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "djp",
+    "vim": {
+      "lines": ["3", "1", "2"],
+      "cursor": [2, 1],
+      "register": "1\n2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yj-p",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "yjp",
+    "vim": {
+      "lines": ["1", "1", "2", "2", "3"],
+      "cursor": [2, 1],
+      "register": "1\n2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d}",
+    "text": "a b\nc d\n\ne f",
+    "at": [1, 3],
+    "keys": "d}",
+    "vim": {
+      "lines": ["a ", "", "e f"],
+      "cursor": [1, 2],
+      "register": "b\nc d",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d}-col0",
+    "text": "a b\nc d\n\ne f",
+    "at": [1, 1],
+    "keys": "d}",
+    "vim": {
+      "lines": ["", "e f"],
+      "cursor": [1, 1],
+      "register": "a b\nc d\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d{",
+    "text": "a b\n\nc d\ne f",
+    "at": [4, 3],
+    "keys": "d{",
+    "vim": {
+      "lines": ["a b", "f"],
+      "cursor": [2, 1],
+      "register": "\nc d\ne ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "y}-P",
+    "text": "a\nb\n\nc",
+    "at": [1, 1],
+    "keys": "y}P",
+    "vim": {
+      "lines": ["a", "b", "a", "b", "", "c"],
+      "cursor": [1, 1],
+      "register": "a\nb\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "diw",
+    "text": "foo bar baz",
+    "at": [1, 6],
+    "keys": "diw",
+    "vim": {
+      "lines": ["foo  baz"],
+      "cursor": [1, 5],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "daw",
+    "text": "foo bar baz",
+    "at": [1, 6],
+    "keys": "daw",
+    "vim": {
+      "lines": ["foo baz"],
+      "cursor": [1, 5],
+      "register": "bar ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "daw-last",
+    "text": "foo bar baz",
+    "at": [1, 10],
+    "keys": "daw",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 7],
+      "register": " baz",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ciw-punct",
+    "text": "foo...bar",
+    "at": [1, 5],
+    "keys": "ciwX<Esc>",
+    "vim": {
+      "lines": ["fooXbar"],
+      "cursor": [1, 4],
+      "register": "...",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dap",
+    "text": "a\nb\n\nc\nd",
+    "at": [1, 1],
+    "keys": "dap",
+    "vim": {
+      "lines": ["c", "d"],
+      "cursor": [1, 1],
+      "register": "a\nb\n\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yip-P",
+    "text": "a\nb\n\nc",
+    "at": [1, 1],
+    "keys": "yipP",
+    "vim": {
+      "lines": ["a", "b", "a", "b", "", "c"],
+      "cursor": [1, 1],
+      "register": "a\nb\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "di(",
+    "text": "f(a, b)",
+    "at": [1, 4],
+    "keys": "di(",
+    "vim": {
+      "lines": ["f()"],
+      "cursor": [1, 3],
+      "register": "a, b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "da(",
+    "text": "f(a, b)",
+    "at": [1, 4],
+    "keys": "da(",
+    "vim": {
+      "lines": ["f"],
+      "cursor": [1, 1],
+      "register": "(a, b)",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ci\"-before",
+    "text": "x = \"abc\"",
+    "at": [1, 1],
+    "keys": "ci\"X<Esc>",
+    "vim": {
+      "lines": ["x = \"X\""],
+      "cursor": [1, 6],
+      "register": "abc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "di\"",
+    "text": "x = \"abc\" y",
+    "at": [1, 7],
+    "keys": "di\"",
+    "vim": {
+      "lines": ["x = \"\" y"],
+      "cursor": [1, 6],
+      "register": "abc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "da\"",
+    "text": "x = \"abc\" y",
+    "at": [1, 7],
+    "keys": "da\"",
+    "vim": {
+      "lines": ["x = y"],
+      "cursor": [1, 5],
+      "register": "\"abc\" ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dit",
+    "text": "<a>text</a>",
+    "at": [1, 5],
+    "keys": "dit",
+    "vim": {
+      "lines": ["<a></a>"],
+      "cursor": [1, 4],
+      "register": "text",
+      "register_type": "char"
+    },
+    "deviation": {
+      "reason": "it and at need an HTML syntax tree. Notes have none.",
+      "lines": ["<a>text</a>"],
+      "cursor": [1, 5]
+    }
+  },
+  {
+    "id": "d$-count",
+    "text": "one\ntwo\nthree",
+    "at": [1, 2],
+    "keys": "2d$",
+    "vim": {
+      "lines": ["o", "three"],
+      "cursor": [1, 1],
+      "register": "ne\ntwo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d)",
+    "text": "One. Two. Three.",
+    "at": [1, 1],
+    "keys": "d)",
+    "vim": {
+      "lines": ["Two. Three."],
+      "cursor": [1, 1],
+      "register": "One. ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dl-end",
+    "text": "abc",
+    "at": [1, 3],
+    "keys": "dl",
+    "vim": {
+      "lines": ["ab"],
+      "cursor": [1, 2],
+      "register": "c",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dh-start",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "dh",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "cc",
+    "text": "  one\ntwo",
+    "at": [1, 3],
+    "keys": "ccX<Esc>",
+    "vim": {
+      "lines": ["  X", "two"],
+      "cursor": [1, 3],
+      "register": "  one\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "S",
+    "text": "  one\ntwo",
+    "at": [1, 3],
+    "keys": "SX<Esc>",
+    "vim": {
+      "lines": ["  X", "two"],
+      "cursor": [1, 3],
+      "register": "  one\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "s",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "sX<Esc>",
+    "vim": {
+      "lines": ["aXc"],
+      "cursor": [1, 2],
+      "register": "b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "C",
+    "text": "abc def",
+    "at": [1, 3],
+    "keys": "CX<Esc>",
+    "vim": {
+      "lines": ["abX"],
+      "cursor": [1, 3],
+      "register": "c def",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "r",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "rx",
+    "vim": {
+      "lines": ["xbc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "3rx",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "3rx",
+    "vim": {
+      "lines": ["xxxd"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "r-count-too-big",
+    "text": "ab",
+    "at": [1, 1],
+    "keys": "3rx",
+    "vim": {
+      "lines": ["ab"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "r<CR>",
+    "text": "ab cd",
+    "at": [1, 3],
+    "keys": "r<CR>",
+    "vim": {
+      "lines": ["ab", "cd"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "g~w",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "g~w",
+    "vim": {
+      "lines": ["FOO bar"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gUiw",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "gUiw",
+    "vim": {
+      "lines": ["foo BAR"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "guu",
+    "text": "FOO BAR",
+    "at": [1, 5],
+    "keys": "guu",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "~-end",
+    "text": "ab",
+    "at": [1, 2],
+    "keys": "~",
+    "vim": {
+      "lines": ["aB"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "yy-p",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "yyp",
+    "vim": {
+      "lines": ["1", "1", "2", "3"],
+      "cursor": [2, 1],
+      "register": "1\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yy-P",
+    "text": "1\n2\n3",
+    "at": [2, 1],
+    "keys": "yyP",
+    "vim": {
+      "lines": ["1", "2", "2", "3"],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dd-p",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "ddp",
+    "vim": {
+      "lines": ["2", "1", "3"],
+      "cursor": [2, 1],
+      "register": "1\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dd-P",
+    "text": "1\n2\n3",
+    "at": [2, 1],
+    "keys": "ddP",
+    "vim": {
+      "lines": ["1", "2", "3"],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "xp",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "xp",
+    "vim": {
+      "lines": ["bac"],
+      "cursor": [1, 2],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yw-p",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "ywp",
+    "vim": {
+      "lines": ["ffoo oo bar"],
+      "cursor": [1, 5],
+      "register": "foo ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "p-cursor-char",
+    "text": "ab",
+    "at": [1, 1],
+    "keys": "yl$p",
+    "vim": {
+      "lines": ["aba"],
+      "cursor": [1, 3],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "p-cursor-multi",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "yiw$p",
+    "vim": {
+      "lines": ["foo barfoo"],
+      "cursor": [1, 10],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "P-cursor-line",
+    "text": "  a\nb",
+    "at": [1, 1],
+    "keys": "yyjP",
+    "vim": {
+      "lines": ["  a", "  a", "b"],
+      "cursor": [2, 3],
+      "register": "  a\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "p-cursor-line",
+    "text": "  a\nb",
+    "at": [1, 1],
+    "keys": "yyjp",
+    "vim": {
+      "lines": ["  a", "b", "  a"],
+      "cursor": [3, 3],
+      "register": "  a\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "gp",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "yygp",
+    "vim": {
+      "lines": ["a", "a", "b"],
+      "cursor": [3, 1],
+      "register": "a\n",
+      "register_type": "line"
+    },
+    "deviation": {
+      "reason": "gp is not supported.",
+      "lines": ["a", "b"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "gP",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "yygP",
+    "vim": {
+      "lines": ["a", "a", "b"],
+      "cursor": [2, 1],
+      "register": "a\n",
+      "register_type": "line"
+    },
+    "deviation": {
+      "reason": "gP is not supported.",
+      "lines": ["a", "b"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "reg-a",
+    "text": "1\n2",
+    "at": [1, 1],
+    "keys": "\"ayyj\"ap",
+    "vim": {
+      "lines": ["1", "2", "1"],
+      "cursor": [3, 1],
+      "register": "1\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "reg-A-append",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "\"ayyj\"Ayyj\"ap",
+    "vim": {
+      "lines": ["1", "2", "3", "1", "2"],
+      "cursor": [4, 1],
+      "register": "1\n2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "reg-0-after-dd",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "yyjdd\"0p",
+    "vim": {
+      "lines": ["1", "3", "1"],
+      "cursor": [3, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "reg-1-after-dd",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "ddddu\"1p",
+    "vim": {
+      "lines": ["2", "2", "3"],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "reg-2",
+    "text": "1\n2\n3\n4",
+    "at": [1, 1],
+    "keys": "dddd\"2p",
+    "vim": {
+      "lines": ["3", "1", "4"],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "reg-minus",
+    "text": "foo bar\nx",
+    "at": [1, 1],
+    "keys": "dwj\"-p",
+    "vim": {
+      "lines": ["bar", "xfoo "],
+      "cursor": [2, 5],
+      "register": "foo ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "reg-black-hole",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "yyj\"_ddp",
+    "vim": {
+      "lines": ["1", "3", "1"],
+      "cursor": [3, 1],
+      "register": "1\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "visual-p-swap",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "yiwwviwp0viwp",
+    "vim": {
+      "lines": ["bar foo"],
+      "cursor": [1, 3],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "visual-p-reg",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "yiwwviwp$p",
+    "vim": {
+      "lines": ["foo foobar"],
+      "cursor": [1, 10],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "V-p",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "yyjVp",
+    "vim": {
+      "lines": ["1", "1", "3"],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "p-count-line",
+    "text": "1\n2",
+    "at": [1, 1],
+    "keys": "yy3p",
+    "vim": {
+      "lines": ["1", "1", "1", "1", "2"],
+      "cursor": [2, 1],
+      "register": "1\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "P-empty-line",
+    "text": "\nabc",
+    "at": [2, 1],
+    "keys": "yiwkP",
+    "vim": {
+      "lines": ["abc", "abc"],
+      "cursor": [1, 3],
+      "register": "abc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dd-last-line-cursor",
+    "text": "  a\n  b\nc",
+    "at": [3, 1],
+    "keys": "dd",
+    "vim": {
+      "lines": ["  a", "  b"],
+      "cursor": [2, 3],
+      "register": "c\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dd-only-line",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "ddp",
+    "vim": {
+      "lines": ["", "abc"],
+      "cursor": [2, 1],
+      "register": "abc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "vjd",
+    "text": "abc\ndef\nghi",
+    "at": [1, 2],
+    "keys": "vjd",
+    "vim": {
+      "lines": ["af", "ghi"],
+      "cursor": [1, 2],
+      "register": "bc\nde",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "Vjd",
+    "text": "abc\ndef\nghi",
+    "at": [1, 2],
+    "keys": "Vjd",
+    "vim": {
+      "lines": ["ghi"],
+      "cursor": [1, 1],
+      "register": "abc\ndef\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "vey",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "veyP",
+    "vim": {
+      "lines": ["foofoo bar"],
+      "cursor": [1, 3],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "v$d",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "v$d",
+    "vim": {
+      "lines": ["adef"],
+      "cursor": [1, 2],
+      "register": "bc\n",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "v-o",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "vllohd",
+    "vim": {
+      "lines": ["ef"],
+      "cursor": [1, 1],
+      "register": "abcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "gv",
+    "text": "abc def",
+    "at": [1, 1],
+    "keys": "vl<Esc>wgvd",
+    "vim": {
+      "lines": ["c def"],
+      "cursor": [1, 1],
+      "register": "ab",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "vip-d",
+    "text": "a\nb\n\nc",
+    "at": [1, 1],
+    "keys": "vipd",
+    "vim": {
+      "lines": ["", "c"],
+      "cursor": [1, 1],
+      "register": "a\nb\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "v>",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "vj>",
+    "vim": {
+      "lines": ["  a", "  b"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "V-J",
+    "text": "a\nb\nc",
+    "at": [1, 1],
+    "keys": "VjjJ",
+    "vim": {
+      "lines": ["a b c"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "v~",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "v3l~",
+    "vim": {
+      "lines": ["ABCD"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "vr",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "vllrx",
+    "vim": {
+      "lines": ["xxxd"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "vc",
+    "text": "abcd",
+    "at": [1, 2],
+    "keys": "vlcX<Esc>",
+    "vim": {
+      "lines": ["aXd"],
+      "cursor": [1, 2],
+      "register": "bc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "v-count",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "3vd",
+    "vim": {
+      "lines": [""],
+      "cursor": [1, 1],
+      "register": "abcdef",
+      "register_type": "char"
+    },
+    "deviation": {
+      "reason": "[count]v does not reselect a multiple of the last selection.",
+      "lines": ["def"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "v-esc-cursor",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "vll<Esc>",
+    "vim": {
+      "lines": ["abcdef"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "V-esc-cursor",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "Vj<Esc>",
+    "vim": {
+      "lines": ["abc", "def"],
+      "cursor": [2, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "block-I",
+    "text": "abc\nabc\nabc",
+    "at": [1, 2],
+    "keys": "<C-v>jjIX<Esc>",
+    "vim": {
+      "lines": ["aXbc", "aXbc", "aXbc"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "block-A",
+    "text": "ab\nabcd\nabc",
+    "at": [1, 1],
+    "keys": "<C-v>jj$A;<Esc>",
+    "vim": {
+      "lines": ["ab;", "abcd;", "abc;"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "After a block A the cursor stays where the insert went.",
+      "lines": ["ab;", "abcd;", "abc;"],
+      "cursor": [1, 3]
+    }
+  },
+  {
+    "id": "block-d",
+    "text": "abcd\nabcd\nabcd",
+    "at": [1, 2],
+    "keys": "<C-v>jjld",
+    "vim": {
+      "lines": ["ad", "ad", "ad"],
+      "cursor": [1, 2],
+      "register": "bc\nbc\nbc",
+      "register_type": "block"
+    }
+  },
+  {
+    "id": "block-c",
+    "text": "abcd\nabcd",
+    "at": [1, 2],
+    "keys": "<C-v>jlcX<Esc>",
+    "vim": {
+      "lines": ["aXd", "aXd"],
+      "cursor": [1, 2],
+      "register": "bc\nbc",
+      "register_type": "block"
+    }
+  },
+  {
+    "id": "v-y-cursor",
+    "text": "abc def",
+    "at": [1, 5],
+    "keys": "vbby",
+    "vim": {
+      "lines": ["abc def"],
+      "cursor": [1, 1],
+      "register": "abc d",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "V-y-cursor",
+    "text": "1\n2\n3",
+    "at": [3, 1],
+    "keys": "Vkky",
+    "vim": {
+      "lines": ["1", "2", "3"],
+      "cursor": [1, 1],
+      "register": "1\n2\n3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "v-swap-mode",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "vjVd",
+    "vim": {
+      "lines": [""],
+      "cursor": [1, 1],
+      "register": "abc\ndef\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "undo-insert",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "ifoo<Esc>u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "undo-insert-cr",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "ifoo<CR>bar<Esc>u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "undo-o",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "ofoo<Esc>u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "undo-3i",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "3ifoo<Esc>u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "undo-cw",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "cwX<Esc>u",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "undo-dot",
+    "text": "a b c",
+    "at": [1, 1],
+    "keys": "dw.u",
+    "vim": {
+      "lines": ["b c"],
+      "cursor": [1, 1],
+      "register": "b ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "undo-two-dd",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "dddduu<C-r>",
+    "vim": {
+      "lines": ["2", "3"],
+      "cursor": [1, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "undo-cursor",
+    "text": "one\ntwo\nthree",
+    "at": [3, 3],
+    "keys": "ggddGu",
+    "vim": {
+      "lines": ["one", "two", "three"],
+      "cursor": [1, 1],
+      "register": "one\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "undo-cursor-x",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "$xu",
+    "vim": {
+      "lines": ["abcdef"],
+      "cursor": [1, 6],
+      "register": "f",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "undo-A",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "Afoo<Esc>u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "redo-cursor",
+    "text": "abc def",
+    "at": [1, 1],
+    "keys": "wdwu0<C-r>",
+    "vim": {
+      "lines": ["abc "],
+      "cursor": [1, 4],
+      "register": "def",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "search-n",
+    "text": "foo x foo y foo",
+    "at": [1, 1],
+    "keys": "/foo<CR>n",
+    "vim": {
+      "lines": ["foo x foo y foo"],
+      "cursor": [1, 13],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-N",
+    "text": "foo x foo y foo",
+    "at": [1, 1],
+    "keys": "/foo<CR>N",
+    "vim": {
+      "lines": ["foo x foo y foo"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-wrap",
+    "text": "foo x foo",
+    "at": [1, 7],
+    "keys": "/foo<CR>",
+    "vim": {
+      "lines": ["foo x foo"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-back",
+    "text": "foo x foo y foo",
+    "at": [1, 15],
+    "keys": "?foo<CR>n",
+    "vim": {
+      "lines": ["foo x foo y foo"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-case",
+    "text": "Foo foo",
+    "at": [1, 2],
+    "keys": "/foo<CR>",
+    "vim": {
+      "lines": ["Foo foo"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-case-upper",
+    "text": "foo Foo",
+    "at": [1, 2],
+    "keys": "/Foo<CR>",
+    "vim": {
+      "lines": ["foo Foo"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "star",
+    "text": "foo bar foo",
+    "at": [1, 1],
+    "keys": "*",
+    "vim": {
+      "lines": ["foo bar foo"],
+      "cursor": [1, 9],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "star-case",
+    "text": "foo bar Foo foo",
+    "at": [1, 1],
+    "keys": "*",
+    "vim": {
+      "lines": ["foo bar Foo foo"],
+      "cursor": [1, 13],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "Search ignores case unless the pattern has a capital letter, and * and # always ignore case.",
+      "lines": ["foo bar Foo foo"],
+      "cursor": [1, 9]
+    }
+  },
+  {
+    "id": "hash",
+    "text": "foo bar foo",
+    "at": [1, 9],
+    "keys": "#",
+    "vim": {
+      "lines": ["foo bar foo"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "star-partial",
+    "text": "foo foobar foo",
+    "at": [1, 1],
+    "keys": "*",
+    "vim": {
+      "lines": ["foo foobar foo"],
+      "cursor": [1, 12],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-count",
+    "text": "a x a x a x a",
+    "at": [1, 1],
+    "keys": "/a<CR>2n",
+    "vim": {
+      "lines": ["a x a x a x a"],
+      "cursor": [1, 13],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-offset-e",
+    "text": "xx foo bar",
+    "at": [1, 1],
+    "keys": "/foo/e<CR>",
+    "vim": {
+      "lines": ["xx foo bar"],
+      "cursor": [1, 6],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "Search offsets (/foo/e) are not supported.",
+      "lines": ["xx foo bar"],
+      "cursor": [1, 4]
+    }
+  },
+  {
+    "id": "search-empty-repeat",
+    "text": "foo x foo y foo",
+    "at": [1, 1],
+    "keys": "/foo<CR>/<CR>",
+    "vim": {
+      "lines": ["foo x foo y foo"],
+      "cursor": [1, 13],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-no-match",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "/zzz<CR>",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "n-after-star",
+    "text": "a foo b foo c foo",
+    "at": [1, 3],
+    "keys": "*n",
+    "vim": {
+      "lines": ["a foo b foo c foo"],
+      "cursor": [1, 15],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gn",
+    "text": "a foo b foo",
+    "at": [1, 1],
+    "keys": "/foo<CR>cgnX<Esc>",
+    "vim": {
+      "lines": ["a X b foo"],
+      "cursor": [1, 3],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "i-esc",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "iX<Esc>",
+    "vim": {
+      "lines": ["aXbc"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "a-esc",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "aX<Esc>",
+    "vim": {
+      "lines": ["abXc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "I-esc",
+    "text": "   abc",
+    "at": [1, 5],
+    "keys": "IX<Esc>",
+    "vim": {
+      "lines": ["   Xabc"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "A-esc",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "AX<Esc>",
+    "vim": {
+      "lines": ["abcX"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "o-esc",
+    "text": "  abc",
+    "at": [1, 1],
+    "keys": "oX<Esc>",
+    "vim": {
+      "lines": ["  abc", "  X"],
+      "cursor": [2, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "O-esc",
+    "text": "  abc",
+    "at": [1, 1],
+    "keys": "OX<Esc>",
+    "vim": {
+      "lines": ["  X", "  abc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "O on the first line does not copy the indent.",
+      "lines": ["X", "  abc"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "gI",
+    "text": "   abc",
+    "at": [1, 5],
+    "keys": "gIX<Esc>",
+    "vim": {
+      "lines": ["X   abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gi",
+    "text": "abc def",
+    "at": [1, 1],
+    "keys": "iX<Esc>wwgiY<Esc>",
+    "vim": {
+      "lines": ["XYabc def"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "3o",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "3oX<Esc>",
+    "vim": {
+      "lines": ["abc", "X", "X", "X"],
+      "cursor": [4, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "a-empty-line",
+    "text": "",
+    "at": [1, 1],
+    "keys": "aX<Esc>",
+    "vim": {
+      "lines": ["X"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "i-esc-col0",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "i<Esc>",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "A-esc-empty",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "A<Esc>",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "o-esc-empty",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "o<Esc>",
+    "vim": {
+      "lines": ["abc", ""],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ctrl-bracket",
+    "text": "abc",
+    "at": [1, 2],
+    "keys": "iX<C-[>",
+    "vim": {
+      "lines": ["aXbc"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "i-ctrl-w",
+    "text": "foo bar",
+    "at": [1, 8],
+    "keys": "A<C-w>X<Esc>",
+    "vim": {
+      "lines": ["foo X"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "i-ctrl-u",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "Abaz<C-u>X<Esc>",
+    "vim": {
+      "lines": ["foo barX"],
+      "cursor": [1, 8],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "Insert-mode Ctrl-u deletes to the line start, not only the text typed in this insert.",
+      "lines": ["X"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "i-ctrl-o",
+    "text": "abc def",
+    "at": [1, 1],
+    "keys": "i<C-o>wX<Esc>",
+    "vim": {
+      "lines": ["abc Xdef"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "i-ctrl-r",
+    "text": "foo",
+    "at": [1, 1],
+    "keys": "yiwA <C-r>\"<Esc>",
+    "vim": {
+      "lines": ["foo foo"],
+      "cursor": [1, 7],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "R",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "RXY<Esc>",
+    "vim": {
+      "lines": ["aXYdef"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "R-bs",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "RXY<BS><BS><Esc>",
+    "vim": {
+      "lines": ["abcdef"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "Backspace in Replace mode moves left without restoring the replaced text.",
+      "lines": ["aXYdef"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "esc-count-cancel",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "3<Esc>x",
+    "vim": {
+      "lines": ["bcdef"],
+      "cursor": [1, 1],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "esc-op-cancel",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "d<Esc>x",
+    "vim": {
+      "lines": ["bcdef"],
+      "cursor": [1, 1],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "esc-f-cancel",
+    "text": "a,b",
+    "at": [1, 1],
+    "keys": "f<Esc>x",
+    "vim": {
+      "lines": [",b"],
+      "cursor": [1, 1],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ctrl-a",
+    "text": "x 9 y",
+    "at": [1, 1],
+    "keys": "<C-a>",
+    "vim": {
+      "lines": ["x 10 y"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ctrl-x-neg",
+    "text": "x -1 y",
+    "at": [1, 1],
+    "keys": "<C-x>",
+    "vim": {
+      "lines": ["x -2 y"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ctrl-a-octal",
+    "text": "x 007 y",
+    "at": [1, 1],
+    "keys": "<C-a>",
+    "vim": {
+      "lines": ["x 010 y"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "5-ctrl-a",
+    "text": "x 9 y",
+    "at": [1, 1],
+    "keys": "5<C-a>",
+    "vim": {
+      "lines": ["x 14 y"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ctrl-a-hex",
+    "text": "0x0f",
+    "at": [1, 1],
+    "keys": "<C-a>",
+    "vim": {
+      "lines": ["0x10"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dollar-j",
+    "text": "abcdef\nab\nabcdef",
+    "at": [1, 1],
+    "keys": "$jj",
+    "vim": {
+      "lines": ["abcdef", "ab", "abcdef"],
+      "cursor": [3, 6],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "j-goal-col",
+    "text": "abcdef\nab\nabcdef",
+    "at": [1, 5],
+    "keys": "jj",
+    "vim": {
+      "lines": ["abcdef", "ab", "abcdef"],
+      "cursor": [3, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "percent",
+    "text": "f(a[b]c)",
+    "at": [1, 2],
+    "keys": "%",
+    "vim": {
+      "lines": ["f(a[b]c)"],
+      "cursor": [1, 8],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "d%",
+    "text": "f(a[b]c) x",
+    "at": [1, 2],
+    "keys": "d%",
+    "vim": {
+      "lines": ["f x"],
+      "cursor": [1, 2],
+      "register": "(a[b]c)",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "x-empty-line",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "x",
+    "vim": {
+      "lines": ["", "abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "X-col0",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "X",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "tilde-count-past",
+    "text": "ab",
+    "at": [1, 1],
+    "keys": "5~",
+    "vim": {
+      "lines": ["AB"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ma-backtick",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "majd`a",
+    "vim": {
+      "lines": ["aef"],
+      "cursor": [1, 2],
+      "register": "bc\nd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ma-quote",
+    "text": "  abc\ndef",
+    "at": [1, 4],
+    "keys": "majd'a",
+    "vim": {
+      "lines": [""],
+      "cursor": [1, 1],
+      "register": "  abc\ndef\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "macro",
+    "text": "1\n2\n3",
+    "at": [1, 1],
+    "keys": "qaA!<Esc>jq@a@@",
+    "vim": {
+      "lines": ["1!", "2!", "3!"],
+      "cursor": [3, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "macro-count",
+    "text": "1\n2\n3\n4",
+    "at": [1, 1],
+    "keys": "qaA!<Esc>jq2@a",
+    "vim": {
+      "lines": ["1!", "2!", "3!", "4"],
+      "cursor": [4, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-A",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "A!<Esc>j.",
+    "vim": {
+      "lines": ["a!", "b!"],
+      "cursor": [2, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-o",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "ox<Esc>j.",
+    "vim": {
+      "lines": ["a", "x", "b", "x"],
+      "cursor": [4, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-visual",
+    "text": "abcdef\nabcdef",
+    "at": [1, 1],
+    "keys": "vldj0.",
+    "vim": {
+      "lines": ["cdef", "cdef"],
+      "cursor": [2, 1],
+      "register": "ab",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "zero-motion",
+    "text": "  abc",
+    "at": [1, 4],
+    "keys": "0",
+    "vim": {
+      "lines": ["  abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "caret-motion",
+    "text": "  abc",
+    "at": [1, 5],
+    "keys": "^",
+    "vim": {
+      "lines": ["  abc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "underscore",
+    "text": "  abc\n  def",
+    "at": [1, 1],
+    "keys": "d_",
+    "vim": {
+      "lines": ["  def"],
+      "cursor": [1, 3],
+      "register": "  abc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "plus",
+    "text": "a\n  b",
+    "at": [1, 1],
+    "keys": "+",
+    "vim": {
+      "lines": ["a", "  b"],
+      "cursor": [2, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "minus",
+    "text": "  a\nb",
+    "at": [2, 1],
+    "keys": "-",
+    "vim": {
+      "lines": ["  a", "b"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "pipe",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "4|",
+    "vim": {
+      "lines": ["abcdef"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dd-dot-count",
+    "text": "1\n2\n3\n4\n5",
+    "at": [1, 1],
+    "keys": "dd2.",
+    "vim": {
+      "lines": ["4", "5"],
+      "cursor": [1, 1],
+      "register": "2\n3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "Y",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "Yjp",
+    "vim": {
+      "lines": ["abc", "def", "abc"],
+      "cursor": [3, 1],
+      "register": "abc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "cw-count-end",
+    "text": "a b",
+    "at": [1, 1],
+    "keys": "3cwX<Esc>",
+    "vim": {
+      "lines": ["X"],
+      "cursor": [1, 1],
+      "register": "a b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "c$-count",
+    "text": "ab\ncd\nef",
+    "at": [1, 2],
+    "keys": "2c$X<Esc>",
+    "vim": {
+      "lines": ["aX", "ef"],
+      "cursor": [1, 2],
+      "register": "b\ncd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "x-combining",
+    "text": "aéb",
+    "at": [1, 2],
+    "keys": "x",
+    "vim": {
+      "lines": ["ab"],
+      "cursor": [1, 2],
+      "register": "é",
+      "register_type": "char"
+    },
+    "deviation": {
+      "reason": "x on a base letter leaves its combining marks behind.",
+      "lines": ["áb"],
+      "cursor": [1, 2]
+    }
+  },
+  {
+    "id": "l-combining",
+    "text": "aéb",
+    "at": [1, 1],
+    "keys": "ll",
+    "vim": {
+      "lines": ["aéb"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "x-zwj",
+    "text": "a👨‍👩‍👧b",
+    "at": [1, 2],
+    "keys": "x",
+    "vim": {
+      "lines": ["a‍👩‍👧b"],
+      "cursor": [1, 2],
+      "register": "👨",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "x-flag",
+    "text": "a🇺🇸b",
+    "at": [1, 2],
+    "keys": "x",
+    "vim": {
+      "lines": ["a🇸b"],
+      "cursor": [1, 2],
+      "register": "🇺",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "x-skin",
+    "text": "a👍🏽b",
+    "at": [1, 2],
+    "keys": "x",
+    "vim": {
+      "lines": ["a🏽b"],
+      "cursor": [1, 2],
+      "register": "👍",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "w-cjk-punct",
+    "text": "日本。テスト",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["日本。テスト"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-line-end-next",
+    "text": "foo\nbar baz",
+    "at": [1, 3],
+    "keys": "e",
+    "vim": {
+      "lines": ["foo", "bar baz"],
+      "cursor": [2, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "b-over-empty",
+    "text": "foo\n\nbar",
+    "at": [3, 1],
+    "keys": "b",
+    "vim": {
+      "lines": ["foo", "", "bar"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "b-over-two-empty",
+    "text": "foo\n\n\nbar",
+    "at": [4, 1],
+    "keys": "2b",
+    "vim": {
+      "lines": ["foo", "", "", "bar"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ge-line-start",
+    "text": "foo\nbar",
+    "at": [2, 1],
+    "keys": "ge",
+    "vim": {
+      "lines": ["foo", "bar"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-tab",
+    "text": "foo\tbar",
+    "at": [1, 1],
+    "keys": "w",
+    "vim": {
+      "lines": ["foo\tbar"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "w-md-link",
+    "text": "see [text](http://x.y) now",
+    "at": [1, 1],
+    "keys": "3w",
+    "vim": {
+      "lines": ["see [text](http://x.y) now"],
+      "cursor": [1, 10],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "star-punct",
+    "text": "foo.bar foo",
+    "at": [1, 1],
+    "keys": "*",
+    "vim": {
+      "lines": ["foo.bar foo"],
+      "cursor": [1, 9],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "percent-md-link",
+    "text": "[text](url)",
+    "at": [1, 1],
+    "keys": "%",
+    "vim": {
+      "lines": ["[text](url)"],
+      "cursor": [1, 6],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ci(-multiline",
+    "text": "f(\n  a,\n  b\n)",
+    "at": [2, 3],
+    "keys": "ci(X<Esc>",
+    "vim": {
+      "lines": ["f(", "  X", ")"],
+      "cursor": [2, 3],
+      "register": "  a,\n  b\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dap-doc-end",
+    "text": "a\n\nb\nc",
+    "at": [3, 1],
+    "keys": "dap",
+    "vim": {
+      "lines": ["a"],
+      "cursor": [1, 1],
+      "register": "\nb\nc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yiw-punct",
+    "text": "foo...bar",
+    "at": [1, 5],
+    "keys": "yiwP",
+    "vim": {
+      "lines": ["foo......bar"],
+      "cursor": [1, 6],
+      "register": "...",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "viw-y",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "viwy",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 5],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "vi\"-y",
+    "text": "a \"b c\" d",
+    "at": [1, 5],
+    "keys": "vi\"y",
+    "vim": {
+      "lines": ["a \"b c\" d"],
+      "cursor": [1, 4],
+      "register": "b c",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "va(-y",
+    "text": "x (a b) y",
+    "at": [1, 5],
+    "keys": "va(y",
+    "vim": {
+      "lines": ["x (a b) y"],
+      "cursor": [1, 3],
+      "register": "(a b)",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "gJ",
+    "text": "a\n  b",
+    "at": [1, 1],
+    "keys": "gJ",
+    "vim": {
+      "lines": ["a  b"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "g~~",
+    "text": "Ab",
+    "at": [1, 1],
+    "keys": "g~~",
+    "vim": {
+      "lines": ["aB"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "xp-end",
+    "text": "abc",
+    "at": [1, 3],
+    "keys": "xp",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 3],
+      "register": "c",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ddp-last",
+    "text": "1\n2\n3",
+    "at": [3, 1],
+    "keys": "ddp",
+    "vim": {
+      "lines": ["1", "2", "3"],
+      "cursor": [3, 1],
+      "register": "3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yyp-last",
+    "text": "1\n2",
+    "at": [2, 1],
+    "keys": "yyp",
+    "vim": {
+      "lines": ["1", "2", "2"],
+      "cursor": [3, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "J-trailing-space",
+    "text": "a   \nb",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["a   b"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-paren",
+    "text": "f(\n)",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["f()"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "cw-end-of-line",
+    "text": "foo bar\nbaz",
+    "at": [1, 5],
+    "keys": "cwX<Esc>",
+    "vim": {
+      "lines": ["foo X", "baz"],
+      "cursor": [1, 5],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dd-dot-undo",
+    "text": "1\n2\n3\n4",
+    "at": [1, 1],
+    "keys": "dd.u",
+    "vim": {
+      "lines": ["2", "3", "4"],
+      "cursor": [1, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "undo-i-arrow",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "iX<Right>Y<Esc>u",
+    "vim": {
+      "lines": ["Xabc"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "cc-autoindent",
+    "text": "  one\ntwo",
+    "at": [1, 4],
+    "keys": "ccX<Esc>",
+    "vim": {
+      "lines": ["  X", "two"],
+      "cursor": [1, 3],
+      "register": "  one\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "o-count-dot",
+    "text": "a",
+    "at": [1, 1],
+    "keys": "ox<Esc>2.",
+    "vim": {
+      "lines": ["a", "x", "x", "x"],
+      "cursor": [4, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "p-visual-line-char",
+    "text": "abc\ndef",
+    "at": [1, 1],
+    "keys": "yiwjVp",
+    "vim": {
+      "lines": ["abc", "abc"],
+      "cursor": [2, 1],
+      "register": "def\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "p-char-into-V-reg",
+    "text": "abc\ndef",
+    "at": [1, 1],
+    "keys": "yyjviwp",
+    "vim": {
+      "lines": ["abc", "", "abc", ""],
+      "cursor": [3, 1],
+      "register": "def",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-after-visual-c",
+    "text": "abcd abcd",
+    "at": [1, 1],
+    "keys": "vlcX<Esc>w.",
+    "vim": {
+      "lines": ["Xcd Xcd"],
+      "cursor": [1, 5],
+      "register": "ab",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "n-wrap-back",
+    "text": "foo x foo",
+    "at": [1, 1],
+    "keys": "?foo<CR>",
+    "vim": {
+      "lines": ["foo x foo"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dw-count-over-lines",
+    "text": "a b\nc d",
+    "at": [1, 1],
+    "keys": "3dw",
+    "vim": {
+      "lines": ["d"],
+      "cursor": [1, 1],
+      "register": "a b\nc ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cw-count-over-lines",
+    "text": "a b\nc d",
+    "at": [1, 1],
+    "keys": "3cwX<Esc>",
+    "vim": {
+      "lines": ["X d"],
+      "cursor": [1, 1],
+      "register": "a b\nc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dl-count",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "3dl",
+    "vim": {
+      "lines": ["aef"],
+      "cursor": [1, 2],
+      "register": "bcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dh-count",
+    "text": "abcdef",
+    "at": [1, 5],
+    "keys": "3dh",
+    "vim": {
+      "lines": ["aef"],
+      "cursor": [1, 2],
+      "register": "bcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d-dollar-empty",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "d$",
+    "vim": {
+      "lines": ["", "abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "tilde-unicode",
+    "text": "émile",
+    "at": [1, 1],
+    "keys": "~",
+    "vim": {
+      "lines": ["Émile"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gU-unicode",
+    "text": "straße",
+    "at": [1, 1],
+    "keys": "gUiw",
+    "vim": {
+      "lines": ["STRAẞE"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "gU uses JavaScript case mapping, so ß becomes SS.",
+      "lines": ["STRASSE"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "A-count",
+    "text": "a",
+    "at": [1, 1],
+    "keys": "3AX<Esc>",
+    "vim": {
+      "lines": ["aXXX"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "I-count",
+    "text": "a",
+    "at": [1, 1],
+    "keys": "2IX<Esc>",
+    "vim": {
+      "lines": ["XXa"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-I",
+    "text": "  a\n  b",
+    "at": [1, 1],
+    "keys": "IX<Esc>j.",
+    "vim": {
+      "lines": ["  Xa", "  Xb"],
+      "cursor": [2, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "semicolon-count",
+    "text": "a,b,c,d,e",
+    "at": [1, 1],
+    "keys": "f,2;",
+    "vim": {
+      "lines": ["a,b,c,d,e"],
+      "cursor": [1, 6],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "comma-after-t",
+    "text": "a,b,c,d",
+    "at": [1, 7],
+    "keys": "T,,",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "t-adjacent",
+    "text": "a,,b",
+    "at": [1, 1],
+    "keys": "t,;",
+    "vim": {
+      "lines": ["a,,b"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "d2aw",
+    "text": "a b c d",
+    "at": [1, 1],
+    "keys": "d2aw",
+    "vim": {
+      "lines": ["c d"],
+      "cursor": [1, 1],
+      "register": "a b ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yi\"-outside",
+    "text": "x \"abc\" y",
+    "at": [1, 1],
+    "keys": "yi\"P",
+    "vim": {
+      "lines": ["x \"abcabc\" y"],
+      "cursor": [1, 6],
+      "register": "abc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dap-mid",
+    "text": "a\nb\n\nc\nd\n\ne",
+    "at": [4, 1],
+    "keys": "dap",
+    "vim": {
+      "lines": ["a", "b", "", "e"],
+      "cursor": [4, 1],
+      "register": "c\nd\n\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": ">ip",
+    "text": "a\nb\n\nc",
+    "at": [1, 1],
+    "keys": ">ip",
+    "vim": {
+      "lines": ["  a", "  b", "", "c"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "gUU",
+    "text": "abc def",
+    "at": [1, 5],
+    "keys": "gUU",
+    "vim": {
+      "lines": ["ABC DEF"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ci<",
+    "text": "<abc>",
+    "at": [1, 3],
+    "keys": "ci<X<Esc>",
+    "vim": {
+      "lines": ["<X>"],
+      "cursor": [1, 2],
+      "register": "abc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "F;",
+    "text": "a,b,c,d",
+    "at": [1, 7],
+    "keys": "F,;",
+    "vim": {
+      "lines": ["a,b,c,d"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "cw-dot-count",
+    "text": "a b c d e",
+    "at": [1, 1],
+    "keys": "cwX<Esc>w2.",
+    "vim": {
+      "lines": ["X X d e"],
+      "cursor": [1, 3],
+      "register": "b c",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cc-empty",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "ccX<Esc>",
+    "vim": {
+      "lines": ["X", "abc"],
+      "cursor": [1, 1],
+      "register": "\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "A-empty",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "AX<Esc>",
+    "vim": {
+      "lines": ["X", "abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "o-last",
+    "text": "a\nb",
+    "at": [2, 1],
+    "keys": "oX<Esc>",
+    "vim": {
+      "lines": ["a", "b", "X"],
+      "cursor": [3, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "p-multiline-char",
+    "text": "ab\ncd\nef",
+    "at": [1, 2],
+    "keys": "vjy$p",
+    "vim": {
+      "lines": ["abb", "cd", "cd", "ef"],
+      "cursor": [1, 3],
+      "register": "b\ncd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "P-multiline-char",
+    "text": "ab\ncd\nef",
+    "at": [1, 2],
+    "keys": "vjyGP",
+    "vim": {
+      "lines": ["ab", "cd", "b", "cdef"],
+      "cursor": [3, 1],
+      "register": "b\ncd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yiw-cursor",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "yiw",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 5],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yy-cursor",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "yy",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 6],
+      "register": "foo bar\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "y$-cursor",
+    "text": "foo bar",
+    "at": [1, 2],
+    "keys": "y$",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 2],
+      "register": "oo bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yb-cursor",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "yb",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 5],
+      "register": "b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "y0-cursor",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "y0",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 1],
+      "register": "foo b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dd-blank",
+    "text": "a\n\n\nb",
+    "at": [2, 1],
+    "keys": "dd",
+    "vim": {
+      "lines": ["a", "", "b"],
+      "cursor": [2, 1],
+      "register": "\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "X-count",
+    "text": "abcdef",
+    "at": [1, 4],
+    "keys": "2X",
+    "vim": {
+      "lines": ["adef"],
+      "cursor": [1, 2],
+      "register": "bc",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "D-empty",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "D",
+    "vim": {
+      "lines": ["", "abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "cw-punct-after",
+    "text": "foo, bar",
+    "at": [1, 1],
+    "keys": "cwX<Esc>",
+    "vim": {
+      "lines": ["X, bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "ce",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "ceX<Esc>",
+    "vim": {
+      "lines": ["X bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cE",
+    "text": "foo.bar baz",
+    "at": [1, 1],
+    "keys": "cEX<Esc>",
+    "vim": {
+      "lines": ["X baz"],
+      "cursor": [1, 1],
+      "register": "foo.bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dE",
+    "text": "foo.bar baz",
+    "at": [1, 1],
+    "keys": "dE",
+    "vim": {
+      "lines": [" baz"],
+      "cursor": [1, 1],
+      "register": "foo.bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d2e",
+    "text": "foo bar baz",
+    "at": [1, 1],
+    "keys": "d2e",
+    "vim": {
+      "lines": [" baz"],
+      "cursor": [1, 1],
+      "register": "foo bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "w-doc-end",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "w",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "e-doc-end",
+    "text": "foo bar",
+    "at": [1, 7],
+    "keys": "e",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "b-doc-start",
+    "text": "foo bar",
+    "at": [1, 1],
+    "keys": "b",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "de-last",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "de",
+    "vim": {
+      "lines": ["foo "],
+      "cursor": [1, 4],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dw-trailing-ws",
+    "text": "foo   \nbar",
+    "at": [1, 4],
+    "keys": "dw",
+    "vim": {
+      "lines": ["foo", "bar"],
+      "cursor": [1, 3],
+      "register": "   ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dd-count-dot-p",
+    "text": "1\n2\n3\n4",
+    "at": [1, 1],
+    "keys": "2ddp",
+    "vim": {
+      "lines": ["3", "1", "2", "4"],
+      "cursor": [2, 1],
+      "register": "1\n2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "visual-o-y",
+    "text": "abcdef",
+    "at": [1, 2],
+    "keys": "vlloy",
+    "vim": {
+      "lines": ["abcdef"],
+      "cursor": [1, 2],
+      "register": "bcd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "V-o-d",
+    "text": "1\n2\n3\n4",
+    "at": [2, 1],
+    "keys": "Vjokd",
+    "vim": {
+      "lines": ["4"],
+      "cursor": [1, 1],
+      "register": "1\n2\n3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "v-iw-extend",
+    "text": "foo bar baz",
+    "at": [1, 1],
+    "keys": "viwiwiwd",
+    "vim": {
+      "lines": [" baz"],
+      "cursor": [1, 1],
+      "register": "foo bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "v-aw",
+    "text": "foo bar baz",
+    "at": [1, 5],
+    "keys": "vawd",
+    "vim": {
+      "lines": ["foo baz"],
+      "cursor": [1, 5],
+      "register": "bar ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-x-count",
+    "text": "abcdef",
+    "at": [1, 1],
+    "keys": "2x.",
+    "vim": {
+      "lines": ["ef"],
+      "cursor": [1, 1],
+      "register": "cd",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-p",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": "yyp.",
+    "vim": {
+      "lines": ["a", "a", "a", "b"],
+      "cursor": [3, 1],
+      "register": "a\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dot-J",
+    "text": "a\nb\nc\nd",
+    "at": [1, 1],
+    "keys": "J.",
+    "vim": {
+      "lines": ["a b c", "d"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot->",
+    "text": "a\nb",
+    "at": [1, 1],
+    "keys": ">>.",
+    "vim": {
+      "lines": ["    a", "b"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-tilde",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "~.",
+    "vim": {
+      "lines": ["ABcd"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-r",
+    "text": "abcd",
+    "at": [1, 1],
+    "keys": "rxl.",
+    "vim": {
+      "lines": ["xxcd"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "dot-visual-line",
+    "text": "1\n2\n3\n4\n5",
+    "at": [1, 1],
+    "keys": "Vjdj.",
+    "vim": {
+      "lines": ["3"],
+      "cursor": [1, 1],
+      "register": "4\n5\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "star-then-N",
+    "text": "foo x foo y foo",
+    "at": [1, 1],
+    "keys": "*N",
+    "vim": {
+      "lines": ["foo x foo y foo"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "search-then-dn",
+    "text": "a foo b foo c",
+    "at": [1, 1],
+    "keys": "/foo<CR>dn",
+    "vim": {
+      "lines": ["a foo c"],
+      "cursor": [1, 3],
+      "register": "foo b ",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "cgn-dot",
+    "text": "foo x foo y foo",
+    "at": [1, 1],
+    "keys": "/foo<CR>cgnZ<Esc>..",
+    "vim": {
+      "lines": ["Z x Z y Z"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "percent-paren-line",
+    "text": "x (a) y",
+    "at": [1, 1],
+    "keys": "%",
+    "vim": {
+      "lines": ["x (a) y"],
+      "cursor": [1, 5],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "ge-count",
+    "text": "a b c d",
+    "at": [1, 7],
+    "keys": "2ge",
+    "vim": {
+      "lines": ["a b c d"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "tilde-visual-line",
+    "text": "ab\ncd",
+    "at": [1, 1],
+    "keys": "Vj~",
+    "vim": {
+      "lines": ["AB", "CD"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-count-3",
+    "text": "a\nb\nc",
+    "at": [1, 1],
+    "keys": "3J",
+    "vim": {
+      "lines": ["a b c"],
+      "cursor": [1, 4],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "u-after-o-dot",
+    "text": "a",
+    "at": [1, 1],
+    "keys": "ox<Esc>.u",
+    "vim": {
+      "lines": ["a", "x"],
+      "cursor": [2, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "U-line-undo",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "xxU",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": "b",
+      "register_type": "char"
+    },
+    "deviation": {
+      "reason": "U (undo all changes on the line) is not supported.",
+      "lines": ["c"],
+      "cursor": [1, 1]
+    }
+  },
+  {
+    "id": "ctrl-v-dollar-A",
+    "text": "a\nbcd",
+    "at": [1, 1],
+    "keys": "<C-v>j$Ax<Esc>",
+    "vim": {
+      "lines": ["ax", "bcdx"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "After a block A the cursor stays where the insert went.",
+      "lines": ["ax", "bcdx"],
+      "cursor": [1, 2]
+    }
+  },
+  {
+    "id": "block-r",
+    "text": "abc\nabc",
+    "at": [1, 1],
+    "keys": "<C-v>jlrx",
+    "vim": {
+      "lines": ["xxc", "xxc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "block-o",
+    "text": "abc\nabc",
+    "at": [1, 1],
+    "keys": "<C-v>jlOd",
+    "vim": {
+      "lines": ["c", "c"],
+      "cursor": [1, 1],
+      "register": "ab\nab",
+      "register_type": "block"
+    }
+  },
+  {
+    "id": "count-yy-past",
+    "text": "1\n2",
+    "at": [1, 1],
+    "keys": "5yyGp",
+    "vim": {
+      "lines": ["1", "2", "1", "2"],
+      "cursor": [3, 1],
+      "register": "1\n2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yk-middle",
+    "text": "one\ntwo\nthree",
+    "at": [2, 2],
+    "keys": "yk",
+    "vim": {
+      "lines": ["one", "two", "three"],
+      "cursor": [1, 2],
+      "register": "one\ntwo\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yip-middle",
+    "text": "a1\nb2\nc3\n\nd",
+    "at": [2, 2],
+    "keys": "yip",
+    "vim": {
+      "lines": ["a1", "b2", "c3", "", "d"],
+      "cursor": [1, 1],
+      "register": "a1\nb2\nc3\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "y{-middle",
+    "text": "x\n\na1\nb2\nc3",
+    "at": [4, 2],
+    "keys": "y{",
+    "vim": {
+      "lines": ["x", "", "a1", "b2", "c3"],
+      "cursor": [2, 1],
+      "register": "\na1\nb",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yj-middle",
+    "text": "one\ntwo\nthree",
+    "at": [2, 2],
+    "keys": "yj",
+    "vim": {
+      "lines": ["one", "two", "three"],
+      "cursor": [2, 2],
+      "register": "two\nthree\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "y}-middle",
+    "text": "a1\nb2\nc3\n\nd",
+    "at": [2, 2],
+    "keys": "y}",
+    "vim": {
+      "lines": ["a1", "b2", "c3", "", "d"],
+      "cursor": [2, 2],
+      "register": "2\nc3",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dd-trailing-empty",
+    "text": "1\n2\n",
+    "at": [2, 1],
+    "keys": "dd",
+    "vim": {
+      "lines": ["1", ""],
+      "cursor": [2, 1],
+      "register": "2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dw-single-word-line",
+    "text": "foo\nbar",
+    "at": [1, 1],
+    "keys": "dw",
+    "vim": {
+      "lines": ["", "bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d/-col0",
+    "text": "a\nb\nfoo",
+    "at": [1, 1],
+    "keys": "d/foo<CR>",
+    "vim": {
+      "lines": ["foo"],
+      "cursor": [1, 1],
+      "register": "a\nb\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yiw-first-word",
+    "text": "foo bar",
+    "at": [1, 2],
+    "keys": "yiw",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 1],
+      "register": "foo",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yk-col",
+    "text": "abcdef\nxy",
+    "at": [2, 2],
+    "keys": "yk",
+    "vim": {
+      "lines": ["abcdef", "xy"],
+      "cursor": [1, 2],
+      "register": "abcdef\nxy\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d+",
+    "text": "a1\nb2\nc3",
+    "at": [1, 2],
+    "keys": "d+",
+    "vim": {
+      "lines": ["c3"],
+      "cursor": [1, 1],
+      "register": "a1\nb2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d-",
+    "text": "a1\nb2\nc3",
+    "at": [2, 2],
+    "keys": "d-",
+    "vim": {
+      "lines": ["c3"],
+      "cursor": [1, 1],
+      "register": "a1\nb2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d{-col0",
+    "text": "x\n\na1\nb2\nc3",
+    "at": [5, 1],
+    "keys": "d{",
+    "vim": {
+      "lines": ["x", "c3"],
+      "cursor": [2, 1],
+      "register": "\na1\nb2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "vjd-empty",
+    "text": "ab\n\ncd",
+    "at": [1, 1],
+    "keys": "vjd",
+    "vim": {
+      "lines": ["cd"],
+      "cursor": [1, 1],
+      "register": "ab\n\n",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "J-tab",
+    "text": "a\t\nb",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["a\tb"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-empty-current",
+    "text": "\nabc",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-paren-indent",
+    "text": "f(\n  )",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["f()"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "di(-multiline",
+    "text": "f(\n  a,\n  b\n)",
+    "at": [2, 3],
+    "keys": "di(",
+    "vim": {
+      "lines": ["f(", ")"],
+      "cursor": [2, 1],
+      "register": "  a,\n  b\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "yi(-multiline",
+    "text": "f(\n  a,\n  b\n)",
+    "at": [2, 3],
+    "keys": "yi(P",
+    "vim": {
+      "lines": ["f(", "  a,", "  b", "  a,", "  b", ")"],
+      "cursor": [2, 3],
+      "register": "  a,\n  b\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "ci{-js",
+    "text": "function f() {\n  return 1;\n}",
+    "at": [2, 3],
+    "keys": "ci{X<Esc>",
+    "vim": {
+      "lines": ["function f() {", "  X", "}"],
+      "cursor": [2, 3],
+      "register": "  return 1;\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "da\"-leading",
+    "text": "x = \"abc\"",
+    "at": [1, 7],
+    "keys": "da\"",
+    "vim": {
+      "lines": ["x ="],
+      "cursor": [1, 3],
+      "register": " \"abc\"",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yb-cursor2",
+    "text": "foo bar",
+    "at": [1, 6],
+    "keys": "yb",
+    "vim": {
+      "lines": ["foo bar"],
+      "cursor": [1, 5],
+      "register": "b",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "yap-middle",
+    "text": "a1\nb2\nc3\n\nd",
+    "at": [2, 2],
+    "keys": "yap",
+    "vim": {
+      "lines": ["a1", "b2", "c3", "", "d"],
+      "cursor": [1, 1],
+      "register": "a1\nb2\nc3\n\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "y}-col0",
+    "text": "a1\nb2\n\nd",
+    "at": [1, 1],
+    "keys": "y}",
+    "vim": {
+      "lines": ["a1", "b2", "", "d"],
+      "cursor": [1, 1],
+      "register": "a1\nb2\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "d}-mid",
+    "text": "x a b\nc d\n\ne",
+    "at": [1, 3],
+    "keys": "d}",
+    "vim": {
+      "lines": ["x ", "", "e"],
+      "cursor": [1, 2],
+      "register": "a b\nc d",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dfz-dot",
+    "text": "abc abc",
+    "at": [1, 1],
+    "keys": "dfzx",
+    "vim": {
+      "lines": ["bc abc"],
+      "cursor": [1, 1],
+      "register": "a",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "vj$d",
+    "text": "abc\ndef\nghi",
+    "at": [1, 2],
+    "keys": "vj$d",
+    "vim": {
+      "lines": ["aghi"],
+      "cursor": [1, 2],
+      "register": "bc\ndef\n",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "v$y",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "v$y",
+    "vim": {
+      "lines": ["abc", "def"],
+      "cursor": [1, 2],
+      "register": "bc\n",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "d])-missing",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "d])",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "3rx-exact",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "3rx",
+    "vim": {
+      "lines": ["xxx"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "yiw-P-cursor",
+    "text": "foo bar",
+    "at": [1, 5],
+    "keys": "yiwP",
+    "vim": {
+      "lines": ["foo barbar"],
+      "cursor": [1, 7],
+      "register": "bar",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "Vp-indented-lines",
+    "text": "  a\n  b\nx\ny",
+    "at": [1, 1],
+    "keys": "yjjjVp",
+    "vim": {
+      "lines": ["  a", "  b", "  a", "  b", "y"],
+      "cursor": [3, 3],
+      "register": "x\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "Vp-char-indented",
+    "text": "  abc\ndef",
+    "at": [1, 3],
+    "keys": "yiwjVp",
+    "vim": {
+      "lines": ["  abc", "abc"],
+      "cursor": [2, 1],
+      "register": "def\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "Vjp-two-lines",
+    "text": "a\nb\nc\nd",
+    "at": [1, 1],
+    "keys": "yyjVjp",
+    "vim": {
+      "lines": ["a", "a", "d"],
+      "cursor": [2, 1],
+      "register": "b\nc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dap-one-line-last",
+    "text": "a\n\nb",
+    "at": [3, 1],
+    "keys": "dap",
+    "vim": {
+      "lines": ["a"],
+      "cursor": [1, 1],
+      "register": "\nb\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "dap-two-blanks",
+    "text": "a\n\n\nb\nc",
+    "at": [5, 1],
+    "keys": "dap",
+    "vim": {
+      "lines": ["a"],
+      "cursor": [1, 1],
+      "register": "\n\nb\nc\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "u-A",
+    "text": "abc def",
+    "at": [1, 2],
+    "keys": "Afoo<Esc>u",
+    "vim": {
+      "lines": ["abc def"],
+      "cursor": [1, 7],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "u-o-mid",
+    "text": "abc\nxyz",
+    "at": [1, 2],
+    "keys": "ofoo<Esc>u",
+    "vim": {
+      "lines": ["abc", "xyz"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "u-O-mid",
+    "text": "abc\nxyz",
+    "at": [2, 2],
+    "keys": "Ofoo<Esc>u",
+    "vim": {
+      "lines": ["abc", "xyz"],
+      "cursor": [2, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "u-dd-mid",
+    "text": "abc\n  xyz\nend",
+    "at": [2, 4],
+    "keys": "ddu",
+    "vim": {
+      "lines": ["abc", "  xyz", "end"],
+      "cursor": [2, 3],
+      "register": "  xyz\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "u-cw-mid",
+    "text": "abc def ghi",
+    "at": [1, 6],
+    "keys": "cwX<Esc>u",
+    "vim": {
+      "lines": ["abc def ghi"],
+      "cursor": [1, 6],
+      "register": "ef",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "u-x-mid",
+    "text": "abc def",
+    "at": [1, 3],
+    "keys": "xu",
+    "vim": {
+      "lines": ["abc def"],
+      "cursor": [1, 3],
+      "register": "c",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "u-dk",
+    "text": "a\n  b\n  c",
+    "at": [3, 4],
+    "keys": "dku",
+    "vim": {
+      "lines": ["a", "  b", "  c"],
+      "cursor": [2, 3],
+      "register": "  b\n  c\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "u-p-line",
+    "text": "  a\nb",
+    "at": [1, 1],
+    "keys": "yyjpu",
+    "vim": {
+      "lines": ["  a", "b"],
+      "cursor": [2, 1],
+      "register": "  a\n",
+      "register_type": "line"
+    }
+  },
+  {
+    "id": "u-J",
+    "text": "abc\ndef",
+    "at": [1, 2],
+    "keys": "Ju",
+    "vim": {
+      "lines": ["abc", "def"],
+      "cursor": [1, 2],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "u-i-arrow-move",
+    "text": "abc",
+    "at": [1, 1],
+    "keys": "iX<Esc>$u",
+    "vim": {
+      "lines": ["abc"],
+      "cursor": [1, 1],
+      "register": null,
+      "register_type": null
+    }
+  },
+  {
+    "id": "J-dot",
+    "text": "a.\nb",
+    "at": [1, 1],
+    "keys": "J",
+    "vim": {
+      "lines": ["a.  b"],
+      "cursor": [1, 3],
+      "register": null,
+      "register_type": null
+    },
+    "deviation": {
+      "reason": "J adds one space after a period, like set nojoinspaces.",
+      "lines": ["a. b"],
+      "cursor": [1, 3]
+    }
+  }
+]
