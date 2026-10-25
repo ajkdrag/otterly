@@ -10,12 +10,12 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 
 **[Get the latest Otterly release](https://github.com/ajkdrag/otterly/releases/latest)** for macOS, Windows, or Linux. No account is needed.
 
-| Platform                       | Package to choose                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------------- |
-| macOS (Apple Silicon or Intel) | `aarch64.dmg` (Apple Silicon) or `x64.dmg` (Intel)                                |
-| Windows x64                    | `setup.exe` for most people, `.msi` for managed machines, or `portable.zip`       |
-| Linux x64                      | `.deb` on Debian and Ubuntu, `.AppImage` elsewhere                                |
-| Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage)                |
+| Platform                       | Package to choose                                                           |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| macOS (Apple Silicon or Intel) | `aarch64.dmg` (Apple Silicon) or `x64.dmg` (Intel)                          |
+| Windows x64                    | `setup.exe` for most people, `.msi` for managed machines, or `portable.zip` |
+| Linux x64                      | `.deb` on Debian and Ubuntu, `.AppImage` elsewhere                          |
+| Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage)          |
 
 Every installed copy updates itself from the same package type you installed. Your notes are plain files in your vault folders, and installing, updating or uninstalling never touches them.
 
@@ -153,6 +153,19 @@ pnpm format
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ajkdrag/otterly&type=date&legend=top-left)](https://www.star-history.com/#ajkdrag/otterly&type=date&legend=top-left)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Committers and reviewers: [Altamash Khan (@ajkdrag)](https://github.com/ajkdrag)
+- Approvers: [Altamash Khan (@ajkdrag)](https://github.com/ajkdrag)
+
+Every release is built by GitHub Actions from this repository and each signing request is approved by hand.
+
+### Privacy policy
+
+Otterly keeps your notes on your computer. The installed app checks GitHub for a newer version every few hours. That check downloads `latest.json` from this repository's releases and sends no notes, file names or other personal data. The portable copy does not check at all. Nothing else leaves your computer unless you ask for it, for example by opening a link.
 
 ## License
 
