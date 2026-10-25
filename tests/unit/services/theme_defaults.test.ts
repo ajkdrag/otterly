@@ -52,6 +52,11 @@ describe("theme defaults", () => {
       code_block_style: "default",
       code_block_radius: 0.5,
       table_cell_padding: 0.65,
+      tag_text_color: null,
+      tag_bg: null,
+      tag_border_color: null,
+      tag_radius: 1.5,
+      tag_padding_x: 0.25,
     } as const;
 
     expect(BUILTIN_NORDIC_LIGHT).toMatchObject(shared_style);

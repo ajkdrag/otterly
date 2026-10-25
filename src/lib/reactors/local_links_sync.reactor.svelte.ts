@@ -4,7 +4,7 @@ import type { LinksService } from "$lib/features/links";
 
 const LOCAL_LINKS_DEBOUNCE_MS = 220;
 
-type LocalLinksSyncState = {
+export type LocalLinksSyncState = {
   last_note_path: string | null;
   last_panel_open: boolean;
   last_markdown: string | null;
@@ -97,7 +97,12 @@ export function create_local_links_sync_reactor(
         return;
       }
 
-      if (decision.action === "cancel" || decision.action === "noop") {
+      // A save changes open_note (the mtime) but not the markdown, and that
+      // lands here as noop. Leave an armed timer alone, or the pending
+      // recompute for the last edit never runs.
+      if (decision.action === "noop") return;
+
+      if (decision.action === "cancel") {
         cancel_pending();
         return;
       }

@@ -66,7 +66,16 @@ function create_omnibar_actions_harness() {
       }),
       reset_search_notes_operation: vi.fn(),
     },
-    editor: {},
+    editor: {
+      tag_at_cursor: vi.fn((): string | null => null),
+    },
+    tags: {
+      suggest_tags: vi.fn().mockResolvedValue([]),
+      search_tagged_notes: vi.fn().mockResolvedValue({
+        status: "ok",
+        page: { notes: [], total: 0, truncated: false },
+      }),
+    },
     clipboard: {},
     shell: {},
     session: {
@@ -113,6 +122,29 @@ function create_omnibar_actions_harness() {
     execute_vault_select,
     execute_note_open,
   };
+}
+
+function tagged_page(paths: string[], truncated = false) {
+  return {
+    status: "ok" as const,
+    page: {
+      notes: paths.map((path) => ({
+        note: create_test_note(path, path),
+        snippet: `about ${path}`,
+        match_detail: path === "body" ? ("content" as const) : null,
+      })),
+      total: paths.length,
+      truncated,
+    },
+  };
+}
+
+function create_deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 function command_item(command_id: CommandId) {
@@ -432,5 +464,226 @@ describe("register_omnibar_actions", () => {
     expect(stores.ui.cross_vault_open_confirm.open).toBe(false);
     expect(execute_vault_select).not.toHaveBeenCalled();
     expect(execute_note_open).not.toHaveBeenCalled();
+  });
+});
+
+describe("omnibar tag search", () => {
+  it("opens with the given tags as chips, deduped, and lists their notes", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.search_tagged_notes.mockResolvedValue(
+      tagged_page(["a", "body"], true),
+    );
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags, {
+      tags: ["Work", "work", "home"],
+    });
+
+    expect(stores.ui.omnibar).toMatchObject({
+      open: true,
+      query: "",
+      scope: "current_vault",
+      tags: ["Work", "home"],
+      tag_match: "all",
+    });
+    expect(services.tags.search_tagged_notes).toHaveBeenCalledWith({
+      tags: ["Work", "home"],
+      match: "all",
+      text: "",
+      limit: 50,
+    });
+    expect(stores.search.omnibar_items).toMatchObject([
+      { kind: "note", snippet: "about a", match_kind: undefined },
+      { kind: "note", match_kind: "content", match_detail: "content" },
+    ]);
+    expect(stores.search.omnibar_truncated).toBe(true);
+  });
+
+  it("opens on the tag at the caret, or on the top tags when there is none", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.editor.tag_at_cursor.mockReturnValueOnce("idea");
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar.tags).toEqual(["idea"]);
+
+    await registry.execute(ACTION_IDS.omnibar_close);
+    services.tags.suggest_tags.mockResolvedValue([{ tag: "work", count: 3 }]);
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+
+    expect(stores.ui.omnibar).toMatchObject({ query: "#", tags: [] });
+    expect(services.tags.suggest_tags).toHaveBeenLastCalledWith("", [], 50);
+    expect(stores.search.omnibar_items).toEqual([
+      { kind: "tag", tag: "work", count: 3 },
+    ]);
+  });
+
+  it("toggles the # token when it is already open, and leaves all vaults", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.ui.omnibar = {
+      ...stores.ui.omnibar,
+      open: true,
+      query: "meeting",
+      scope: "all_vaults",
+    };
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar.query).toBe("meeting #");
+    expect(stores.ui.omnibar.scope).toBe("current_vault");
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar.query).toBe("meeting");
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, ">theme");
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar.query).toBe("#");
+  });
+
+  it("turns the typed # token into a chip and keeps the text before it", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.ui.omnibar = { ...stores.ui.omnibar, open: true };
+    await registry.execute(ACTION_IDS.omnibar_set_query, "kickoff #pro");
+    expect(services.tags.suggest_tags).toHaveBeenLastCalledWith("pro", [], 50);
+
+    await registry.execute(ACTION_IDS.omnibar_confirm_item, {
+      kind: "tag",
+      tag: "Project",
+      count: 4,
+    });
+    expect(stores.ui.omnibar.tags).toEqual(["Project"]);
+    expect(stores.ui.omnibar.query).toBe("kickoff ");
+    expect(services.tags.search_tagged_notes).toHaveBeenLastCalledWith({
+      tags: ["Project"],
+      match: "all",
+      text: "kickoff",
+      limit: 50,
+    });
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "kickoff #proj");
+    expect(services.tags.suggest_tags).toHaveBeenLastCalledWith(
+      "proj",
+      ["Project"],
+      50,
+    );
+  });
+
+  it("adds the tag for the typed text when Enter comes before the new suggestions", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.suggest_tags.mockImplementation((partial: string) =>
+      Promise.resolve(
+        partial === ""
+          ? [{ tag: "topic434", count: 9 }]
+          : [{ tag: "todo", count: 2 }],
+      ),
+    );
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.search.omnibar_items).toMatchObject([{ tag: "topic434" }]);
+
+    const slow = create_deferred<{ tag: string; count: number }[]>();
+    services.tags.suggest_tags.mockReturnValueOnce(slow.promise);
+    const typing = registry.execute(ACTION_IDS.omnibar_set_query, "#todo");
+    await registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion);
+    expect(stores.ui.omnibar.tags).toEqual(["todo"]);
+
+    slow.resolve([{ tag: "todo", count: 2 }]);
+    await typing;
+    expect(stores.search.omnibar_items).toEqual([]);
+  });
+
+  it("removes a chip and switches between all and any tags", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    await registry.execute(ACTION_IDS.omnibar_open_tags, {
+      tags: ["a", "b"],
+    });
+
+    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    expect(services.tags.search_tagged_notes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["a", "b"], match: "any" }),
+    );
+
+    await registry.execute(ACTION_IDS.omnibar_remove_tag, "A");
+    expect(stores.ui.omnibar.tags).toEqual(["b"]);
+    expect(services.tags.search_tagged_notes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["b"] }),
+    );
+  });
+
+  it("makes a chip when Space follows an existing tag, and plain text otherwise", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.ui.omnibar = { ...stores.ui.omnibar, open: true };
+    services.tags.suggest_tags.mockResolvedValue([
+      { tag: "Project", count: 2 },
+    ]);
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#project");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#project ");
+    expect(stores.ui.omnibar).toMatchObject({ tags: ["Project"], query: "" });
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#proj");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#proj ");
+    expect(stores.ui.omnibar).toMatchObject({
+      tags: ["Project"],
+      query: "#proj ",
+    });
+  });
+
+  it("keeps #planned followed by a space as the planned notes search", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.ui.omnibar = { ...stores.ui.omnibar, open: true };
+    services.tags.suggest_tags.mockResolvedValue([
+      { tag: "planned", count: 1 },
+    ]);
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#planned");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#planned ");
+
+    expect(stores.ui.omnibar.tags).toEqual([]);
+    expect(services.search.search_omnibar).toHaveBeenLastCalledWith(
+      "#planned ",
+    );
+  });
+
+  it("drops a tagged search answer once the chips changed", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    const slow = create_deferred<ReturnType<typeof tagged_page>>();
+    services.tags.search_tagged_notes
+      .mockReturnValueOnce(slow.promise)
+      .mockResolvedValueOnce(tagged_page(["fresh"]));
+
+    const first = registry.execute(ACTION_IDS.omnibar_open_tags, {
+      tags: ["old"],
+    });
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["new"] });
+    slow.resolve(tagged_page(["stale"]));
+    await first;
+
+    expect(stores.search.omnibar_items).toMatchObject([
+      { kind: "note", snippet: "about fresh" },
+    ]);
+  });
+
+  it("flags a failed tagged search instead of showing it as no notes", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.search_tagged_notes
+      .mockResolvedValueOnce({ status: "failed", error: "ipc down" })
+      .mockResolvedValueOnce(tagged_page(["a"]));
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+    expect(stores.search.omnibar_items).toEqual([]);
+    expect(stores.search.omnibar_failed).toBe(true);
+
+    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    expect(stores.search.omnibar_items).toHaveLength(1);
+    expect(stores.search.omnibar_failed).toBe(false);
+  });
+
+  it("clears the chips for all vaults and on close", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+    await registry.execute(ACTION_IDS.omnibar_set_scope, "all_vaults");
+    expect(stores.ui.omnibar.tags).toEqual([]);
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a", "b"] });
+    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    await registry.execute(ACTION_IDS.omnibar_close);
+    expect(stores.ui.omnibar).toMatchObject({ tags: [], tag_match: "all" });
   });
 });

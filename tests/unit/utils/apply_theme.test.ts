@@ -147,6 +147,16 @@ describe("apply_theme", () => {
     expect(store.get("--editor-bold-color")).toBe("var(--primary)");
   });
 
+  it("always sets tag shape and leaves tag colors and hover to the defaults", () => {
+    apply_theme({ ...BUILTIN_NORDIC_DARK, tag_bg: "hotpink", tag_radius: 6 });
+
+    expect(store.get("--editor-tag-radius")).toBe("calc(var(--radius) * 6)");
+    expect(store.get("--editor-tag-padding-x")).toBe("0.25em");
+    expect(store.get("--editor-tag-bg")).toBe("hotpink");
+    expect(store.has("--editor-tag-text")).toBe(false);
+    expect(store.has("--editor-tag-bg-hover")).toBe(false);
+  });
+
   it("does not throw when document is undefined", () => {
     (globalThis as { document: Document | undefined }).document = undefined;
     expect(() => {

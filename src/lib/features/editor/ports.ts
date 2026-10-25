@@ -47,6 +47,9 @@ export type EditorSession = {
   rename_buffer: (old_note_path: string, new_note_path: string) => void;
   close_buffer: (note_path: string) => void;
   update_find_state?: (query: string, selected_index: number) => void;
+  // The #tag at the caret, without its `#`. Null unless a Markdown note has
+  // focus with the caret in or right after a tag.
+  tag_at_cursor: () => string | null;
 };
 
 export type EditorEventHandlers = {
@@ -60,6 +63,13 @@ export type EditorEventHandlers = {
   on_file_link_click?: (file_path: string) => void;
   on_image_paste_requested?: (payload: PastedImagePayload) => void;
   on_wiki_suggest_query?: (query: string) => void;
+  // Without these, chips are not clickable and there is no `#` completion
+  // (the document window has no vault to search).
+  on_tag_click?: (tag: string) => void;
+  query_tags?: (
+    partial: string,
+    signal: AbortSignal,
+  ) => Promise<{ tag: string; count: number }[]>;
 };
 
 export type EditorSessionConfig = {

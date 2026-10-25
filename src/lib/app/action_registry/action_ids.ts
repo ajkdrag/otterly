@@ -117,8 +117,12 @@ export const ACTION_IDS = {
   omnibar_set_selected_index: "omnibar.set_selected_index",
   omnibar_set_scope: "omnibar.set_scope",
   omnibar_confirm_item: "omnibar.confirm_item",
+  omnibar_confirm_tag_suggestion: "omnibar.confirm_tag_suggestion",
   omnibar_confirm_cross_vault_open: "omnibar.confirm_cross_vault_open",
   omnibar_cancel_cross_vault_open: "omnibar.cancel_cross_vault_open",
+  omnibar_open_tags: "omnibar.open_tags",
+  omnibar_remove_tag: "omnibar.remove_tag",
+  omnibar_set_tag_match: "omnibar.set_tag_match",
 
   find_in_file_toggle: "find_in_file.toggle",
   find_in_file_open: "find_in_file.open",
@@ -181,6 +185,12 @@ export const ACTION_IDS = {
   hotkey_clear_binding: "hotkey.clear_binding",
   hotkey_reset_all: "hotkey.reset_all",
   hotkey_reset_single: "hotkey.reset_single",
+
+  tags_open_tag: "tags.open_tag",
+  tags_close_tag: "tags.close_tag",
+  tags_open_note: "tags.open_note",
+  tags_show_pane: "tags.show_pane",
+  tags_leave_pane: "tags.leave_pane",
 
   document_editor_mount: "document.editor_mount",
   document_editor_unmount: "document.editor_unmount",

@@ -24,6 +24,8 @@ export type CommandId =
   | "git_create_checkpoint"
   | "git_init_repo"
   | "toggle_links_panel"
+  | "search_tags"
+  | "show_tags_pane"
   | "check_for_updates";
 
 export type CommandIcon =
@@ -36,7 +38,8 @@ export type CommandIcon =
   | "bookmark"
   | "link"
   | "refresh-cw"
-  | "code";
+  | "code"
+  | "tag";
 
 export type CommandDefinition = {
   id: CommandId;

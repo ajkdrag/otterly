@@ -185,6 +185,20 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "link",
   },
   {
+    id: "search_tags",
+    label: "Search tags",
+    description: "Find notes by tag",
+    keywords: ["tag", "tags", "hashtag", "label", "filter"],
+    icon: "tag",
+  },
+  {
+    id: "show_tags_pane",
+    label: "Show tags pane",
+    description: "Open the Tags view in the sidebar",
+    keywords: ["tag", "tags", "pane", "sidebar", "browse", "list"],
+    icon: "tag",
+  },
+  {
     id: "check_for_updates",
     label: "Check for Updates",
     description: "Check if a new version of Otterly is available",

@@ -28,6 +28,8 @@ export type SearchCommandDefinition = {
     | "git_create_checkpoint"
     | "git_init_repo"
     | "toggle_links_panel"
+    | "search_tags"
+    | "show_tags_pane"
     | "check_for_updates";
   label: string;
   description: string;
@@ -42,7 +44,8 @@ export type SearchCommandDefinition = {
     | "bookmark"
     | "link"
     | "refresh-cw"
-    | "code";
+    | "code"
+    | "tag";
 };
 
 export type SearchSettingDefinition = {
@@ -54,7 +57,7 @@ export type SearchSettingDefinition = {
 };
 
 export type SearchScope = "all" | "path" | "title" | "content";
-export type SearchDomain = "notes" | "commands" | "planned";
+export type SearchDomain = "notes" | "commands" | "planned" | "tags";
 export type OmnibarScope = "current_vault" | "all_vaults";
 export type OmnibarQueryTarget = "all" | "files" | "path" | "title" | "content";
 export type NoteMatchKind = "file" | "content";
@@ -66,6 +69,8 @@ export type SearchQuery = {
   scope: SearchScope;
   domain: SearchDomain;
   target: OmnibarQueryTarget;
+  // Tags domain only: the raw text before the `#` token, trimmed at the end.
+  before_tag?: string;
 };
 
 export type NoteSearchHit = {
@@ -155,6 +160,7 @@ export type OmnibarItem =
       ref_count: number;
       score: number;
     }
+  | { kind: "tag"; tag: string; count: number }
   | { kind: "command"; command: SearchCommandDefinition; score: number }
   | { kind: "setting"; setting: SearchSettingDefinition; score: number }
   | { kind: "recent_note"; note: NoteMeta };

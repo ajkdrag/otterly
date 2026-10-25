@@ -14,6 +14,7 @@ const PALETTE_ACTIONS_WHILE_OMNIBAR_OPEN = new Set<string>([
   ACTION_IDS.omnibar_toggle,
   ACTION_IDS.omnibar_open,
   ACTION_IDS.omnibar_open_all_vaults,
+  ACTION_IDS.omnibar_open_tags,
 ]);
 
 export function use_keyboard_shortcuts(input: {
@@ -75,9 +76,14 @@ export function use_keyboard_shortcuts(input: {
     is_hotkey_recorder_open() || event.isComposing;
 
   // Ctrl/Cmd+J/K belong to the picker's own handler, whatever they are bound to.
+  // A picker in the page, like the Tags pane list, marks its focus target with
+  // data-picker-keys.
   const is_picker_navigation = (event: KeyboardEvent): boolean =>
-    (is_omnibar_topmost() || is_vault_switcher_open()) &&
-    picker_shortcut_step(event) !== null;
+    picker_shortcut_step(event) !== null &&
+    (is_omnibar_topmost() ||
+      is_vault_switcher_open() ||
+      (event.target instanceof Element &&
+        event.target.closest("[data-picker-keys]") !== null));
 
   const is_palette_action_in_omnibar = (action_id: string): boolean =>
     is_omnibar_topmost() && PALETTE_ACTIONS_WHILE_OMNIBAR_OPEN.has(action_id);

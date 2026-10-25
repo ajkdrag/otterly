@@ -29,6 +29,7 @@
   import { ACTION_IDS } from "$lib/app";
   import type { OmnibarItem } from "$lib/shared/types/search";
   import type { OmnibarScope } from "$lib/shared/types/search";
+  import type { TagMatch } from "$lib/features/tags";
   import type {
     EditorSettings,
     SettingsCategory,
@@ -343,6 +344,11 @@
   editor_settings={stores.ui.editor_settings}
   hotkeys_config={stores.ui.hotkeys_config}
   {has_multiple_vaults}
+  tags={stores.ui.omnibar.tags}
+  tag_match={stores.ui.omnibar.tag_match}
+  truncated={stores.search.omnibar_truncated}
+  failed={stores.search.omnibar_failed}
+  is_indexing={stores.search.index_progress.status === "indexing"}
   on_open_change={(open) => {
     if (open) {
       void action_registry.execute(ACTION_IDS.omnibar_open);
@@ -358,6 +364,14 @@
     void action_registry.execute(ACTION_IDS.omnibar_set_scope, scope)}
   on_confirm={(item: OmnibarItem) =>
     void action_registry.execute(ACTION_IDS.omnibar_confirm_item, item)}
+  on_confirm_tag_suggestion={() =>
+    void action_registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion)}
+  on_remove_tag={(tag: string) =>
+    void action_registry.execute(ACTION_IDS.omnibar_remove_tag, tag)}
+  on_tag_match_change={(mode: TagMatch) =>
+    void action_registry.execute(ACTION_IDS.omnibar_set_tag_match, mode)}
+  on_open_tags={() =>
+    void action_registry.execute(ACTION_IDS.omnibar_open_tags)}
 />
 
 <ImagePasteDialog

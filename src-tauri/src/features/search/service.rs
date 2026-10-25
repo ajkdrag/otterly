@@ -2,6 +2,7 @@ use crate::features::notes::service as notes_service;
 use crate::features::search::db as search_db;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
+use crate::features::search::tag_parser;
 use crate::shared::storage;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -321,6 +322,7 @@ fn handle_upsert(
     let meta = search_db::extract_meta(&abs, vault_root)?;
 
     search_db::upsert_note(conn, &meta, &markdown)?;
+    search_db::set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
     notes_cache.insert(meta.path.clone(), meta.clone());
 
     let targets = search_db::internal_link_targets(&markdown, &meta.path);
@@ -799,6 +801,60 @@ pub fn index_note_links_snapshot(
             orphan_links: search_db::get_orphan_outlinks(conn, &note_id)?,
         })
     })
+}
+
+// Async (thread pool): the tag pane reloads this on every note switch.
+#[tauri::command(async)]
+pub fn index_list_tags(
+    app: AppHandle,
+    vault_id: String,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, search_db::list_tags)
+}
+
+// Async (thread pool): the omnibar runs this on every keystroke in tag mode.
+#[tauri::command(async)]
+pub fn index_search_tagged_notes(
+    app: AppHandle,
+    vault_id: String,
+    query: search_db::TagNoteQuery,
+) -> Result<search_db::TagNotePage, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::search_tagged_notes(conn, &query)
+    })
+}
+
+// Async (thread pool): the omnibar and the editor's completion ask on every keystroke.
+#[tauri::command(async)]
+pub fn index_suggest_tags(
+    app: AppHandle,
+    vault_id: String,
+    partial: String,
+    exclude: Vec<String>,
+    limit: usize,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::suggest_tags(conn, &partial, &exclude, limit)
+    })
+}
+
+// Pure, like rewrite_note_links: the right rail asks about unsaved editor
+// text, so there is no vault or index involved. It sends tag names only,
+// the rail does not show excerpts.
+//
+// `async` makes Tauri run this plain fn on its thread pool. A sync command
+// runs on the main thread, and this parses the whole note on every typing
+// pause while the rail is open.
+//
+// @Speed: The rail also calls index_extract_local_note_links, which parses the
+// same text again, and the note crosses IPC twice. One command returning links
+// and tags would halve both.
+#[tauri::command(async)]
+pub fn extract_note_tags(markdown: String) -> Vec<String> {
+    tag_parser::extract_note_tags(&markdown)
+        .into_iter()
+        .map(|note_tag| note_tag.tag)
+        .collect()
 }
 
 #[tauri::command]

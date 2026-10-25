@@ -76,6 +76,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `hotkey`    | Custom hotkey editing and persistence                         |
 | `theme`     | Theme CRUD, switching, editing, theme file + live reload      |
 | `links`     | Backlinks, local links, link repair on rename                 |
+| `tags`      | Tag pane, tag search, current note tags                       |
 | `clipboard` | Copy markdown to clipboard                                    |
 | `shell`     | Open external URLs                                            |
 | `watcher`   | Filesystem watcher start/stop                                 |
@@ -128,7 +129,7 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 
 ## Markdown editor package
 
-`packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
+`packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, tag clicks and suggestions to `tags`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -167,7 +168,7 @@ Every feature follows this pattern. Cross-feature imports go through `index.ts` 
 
 ### Domain stores (`src/lib/features/*/state/*_store.svelte.ts`)
 
-Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`. These are `$state` classes instantiated once in `create_app_stores()`.
+Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`, `TagsStore`. These are `$state` classes instantiated once in `create_app_stores()`.
 
 - **Who writes**: Services (after IO completes) and actions (for immediate mutations).
 - **Who reads**: Components via `$derived`, reactors via `$effect`, services (to check current state before IO).
@@ -342,6 +343,8 @@ The backend is a Tauri native process. Its sole job is exposing native capabilit
 | `app/`      | Composition root: registers plugins, managed state, and all command handlers |
 | `features/` | One sub-module per capability. Each owns command handlers and managed state  |
 | `shared/`   | Vault registry persistence, constants, asset request handler                 |
+
+The search db also holds `note_tags`. Tags are parsed during indexing (`search/tag_parser.rs`), so counts are as fresh as backlinks.
 
 Stateful services (watcher, search index) use Tauri's `.manage()` system. State structs live in each feature's `service.rs` and are registered in `app/mod.rs`. Commands receive state via Tauri DI: `fn watch_vault(state: tauri::State<'_, WatcherState>, ...)`.
 

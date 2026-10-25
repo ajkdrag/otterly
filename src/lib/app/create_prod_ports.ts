@@ -19,6 +19,7 @@ import { create_git_tauri_adapter } from "$lib/features/git";
 import { create_watcher_tauri_adapter } from "$lib/features/watcher";
 import { create_updater_tauri_adapter } from "$lib/features/updater";
 import { create_theme_file_tauri_adapter } from "$lib/features/theme";
+import { create_tags_tauri_adapter } from "$lib/features/tags";
 import {
   create_document_tauri_adapter,
   document_asset_url,
@@ -40,6 +41,7 @@ export function create_prod_ports(): Ports {
   const git = create_git_tauri_adapter();
   const watcher = create_watcher_tauri_adapter();
   const updater = create_updater_tauri_adapter();
+  const tags = create_tags_tauri_adapter();
 
   return {
     vault,
@@ -61,6 +63,7 @@ export function create_prod_ports(): Ports {
     watcher,
     updater,
     theme_file: create_theme_file_tauri_adapter(),
+    tags,
   };
 }
 

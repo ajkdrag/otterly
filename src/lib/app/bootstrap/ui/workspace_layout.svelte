@@ -11,6 +11,7 @@
   import { FindInFileBar } from "$lib/features/search";
   import { EditorStatusBar } from "$lib/features/editor";
   import { ContextRail } from "$lib/features/links";
+  import { TagsPanel } from "$lib/features/tags";
   import { SvelteSet } from "svelte/reactivity";
   import { build_filetree, sort_tree } from "$lib/features/folder";
   import { flatten_filetree, scope_flat_tree } from "$lib/features/folder";
@@ -341,10 +342,21 @@
     },
   ];
 
+  // Refresh syncs the index, not just the tree, so it also picks up edits
+  // made outside the app.
+  const tags_header_actions: HeaderAction[] = [
+    {
+      icon: RefreshCw,
+      label: "Refresh",
+      onclick: () => void action_registry.execute(ACTION_IDS.vault_sync_index),
+    },
+  ];
+
   const sidebar_header_actions = $derived.by(() => {
     const view = stores.ui.sidebar_view;
     if (view === "starred") return starred_header_actions;
     if (view === "dashboard") return dashboard_header_actions;
+    if (view === "tags") return tags_header_actions;
     return explorer_header_actions;
   });
 </script>
@@ -384,6 +396,13 @@
             "starred",
           );
         }}
+        on_open_tags={() => {
+          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "tags") {
+            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
+            return;
+          }
+          void action_registry.execute(ACTION_IDS.tags_show_pane);
+        }}
         on_open_dashboard={() => {
           if (
             stores.ui.sidebar_open &&
@@ -422,6 +441,8 @@
                       <span class="SidebarHeader__title">Starred</span>
                     {:else if stores.ui.sidebar_view === "dashboard"}
                       <span class="SidebarHeader__title">Dashboard</span>
+                    {:else if stores.ui.sidebar_view === "tags"}
+                      <span class="SidebarHeader__title">Tags</span>
                     {:else}
                       <button
                         type="button"
@@ -619,6 +640,14 @@
                               ACTION_IDS.vault_reindex,
                             )}
                         />
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
+                  {#if stores.ui.sidebar_view === "tags"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        <TagsPanel />
                       </Sidebar.GroupContent>
                     </Sidebar.Group>
                   {/if}

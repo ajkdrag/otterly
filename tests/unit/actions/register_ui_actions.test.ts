@@ -132,3 +132,23 @@ describe("register_ui_actions", () => {
     expect(refresh_called).toBe(1);
   });
 });
+
+describe("ui.set_sidebar_view", () => {
+  it("accepts the tags view", async () => {
+    const stores = { ui: new UIStore() };
+    const registry = new ActionRegistry();
+    register_ui_actions({
+      registry,
+      stores,
+      services: {},
+      default_mount_config: {
+        reset_app_state: true,
+        bootstrap_default_vault_path: null,
+      },
+    } as never);
+
+    await registry.execute(ACTION_IDS.ui_set_sidebar_view, "tags");
+
+    expect(stores.ui.sidebar_view).toBe("tags");
+  });
+});

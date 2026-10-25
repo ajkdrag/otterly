@@ -57,6 +57,7 @@ Positions in the public API are UTF-16 offsets in the LF-normalized display docu
 | `links(...)`       | Clickable links, autolinks, bare URLs, wiki links, and the link editor.             |
 | `images(...)`      | Images resolved through the host, with resize.                                      |
 | `wiki_links(...)`  | `[[target]]` syntax and note completion. Requires `links`.                          |
+| `tags(...)`        | `#tag` chips, a click that opens the tag, and tag completion from the host.         |
 | `slash_menu()`     | "/" commands built from every construct's insert items.                             |
 | `find()`           | Find highlights, including inside code blocks and table cells.                      |
 | `clipboard(...)`   | Markdown-first paste, HTML conversion through the host, image paste.                |

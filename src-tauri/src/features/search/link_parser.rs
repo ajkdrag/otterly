@@ -22,7 +22,7 @@ struct ParsedLinks {
     external_links: Vec<ExternalLink>,
 }
 
-fn markdown_options() -> Options<'static> {
+pub(crate) fn markdown_options() -> Options<'static> {
     let mut options = Options::default();
     options.extension.autolink = true;
     options.extension.table = true;

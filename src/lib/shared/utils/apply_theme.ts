@@ -78,6 +78,13 @@ function build_token_entries(theme: Theme): [string, string][] {
 
     // Table cell padding
     ["--editor-table-cell-padding", String(theme.table_cell_padding)],
+
+    // Tag chips
+    [
+      "--editor-tag-radius",
+      `calc(var(--radius) * ${String(theme.tag_radius)})`,
+    ],
+    ["--editor-tag-padding-x", `${String(theme.tag_padding_x)}em`],
   ];
 
   if (theme.bold_style === "color-accent") {
@@ -131,6 +138,9 @@ function build_token_entries(theme: Theme): [string, string][] {
   apply_optional(entries, "--editor-mark-text", theme.highlight_text_color);
   apply_optional(entries, "--editor-selection-bg", theme.selection_bg);
   apply_optional(entries, "--caret-color", theme.caret_color);
+  apply_optional(entries, "--editor-tag-text", theme.tag_text_color);
+  apply_optional(entries, "--editor-tag-bg", theme.tag_bg);
+  apply_optional(entries, "--editor-tag-border", theme.tag_border_color);
   apply_optional(entries, "--editor-table-border", theme.table_border_color);
   apply_optional(entries, "--editor-table-header-bg", theme.table_header_bg);
 

@@ -41,6 +41,13 @@ tokio = { version = "1.43.0", features = ["fs", "rt-multi-thread", "sync"] }
 # pull in OpenSSL and libssh2 and slow the build down a lot.
 git2 = { version = "0.19", default-features = false }
 walkdir = "2.5.0"
+# Already built for comrak. We use it to treat combining marks as tag chars.
+unicode_categories = "0.1.1"
+# Already in Cargo.lock (comrak's caseless pulls it in). Tag keys are NFC.
+unicode-normalization = "0.1.25"
+# Already built for tauri (url's idna uses it). We use it for the emoji tag
+# chars (Extended_Pictographic), which std and unicode_categories do not have.
+icu_properties = "2.1.2"
 
 [dev-dependencies]
 tempfile = "3"

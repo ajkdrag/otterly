@@ -46,6 +46,22 @@
   --editor-mark-bg: oklch(0.95 0.08 100);
   --editor-mark-text: oklch(0.35 0.08 100);
 
+  /* #tag chips. They resolve through --interactive*, which already flips for
+     dark mode, so there is no dark block. Hover derives from the base tokens,
+     so a theme that sets only --editor-tag-bg still gets a matching hover. */
+  --editor-tag-text: var(--interactive);
+  --editor-tag-bg: var(--interactive-bg);
+  --editor-tag-border: transparent;
+  --editor-tag-radius: calc(var(--radius) * 1.5);
+  --editor-tag-padding-x: 0.25em;
+  --editor-tag-hash-opacity: 0.6;
+  --editor-tag-text-hover: var(--editor-tag-text);
+  --editor-tag-bg-hover: color-mix(
+    in oklch,
+    var(--editor-tag-bg),
+    var(--editor-tag-text) 12%
+  );
+
   /* Find-in-file match highlighting */
   --editor-find-match-bg: oklch(0.93 0.09 90);
   --editor-find-match-selected-bg: oklch(0.82 0.15 75);

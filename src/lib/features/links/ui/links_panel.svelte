@@ -1,10 +1,15 @@
 <script lang="ts">
   import LinkSection from "$lib/features/links/ui/link_section.svelte";
   import LinkItem from "$lib/features/links/ui/link_item.svelte";
+  import { NoteTagChips } from "$lib/features/tags";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
 
   const { stores, action_registry } = use_app_context();
+
+  const note_tags = $derived(
+    stores.tags.tags_for_note(stores.editor.open_note?.meta.path ?? null),
+  );
 
   const global_status = $derived(stores.links.global_status);
   const global_error = $derived(stores.links.global_error);
@@ -39,6 +44,10 @@
 </script>
 
 <div class="LinksPanel">
+  <LinkSection title="Tags" count={note_tags.length}>
+    <NoteTagChips tags={note_tags} />
+  </LinkSection>
+
   <LinkSection title="Backlinks" count={backlinks.length}>
     {#if global_status === "loading"}
       <p class="LinksPanel__loading">Loading backlinks...</p>

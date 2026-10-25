@@ -59,6 +59,7 @@ function create_session(initial_markdown: string): EditorSession {
     }),
     rename_buffer: vi.fn(),
     close_buffer: vi.fn(),
+    tag_at_cursor: vi.fn(() => null),
   };
 }
 
@@ -96,6 +97,8 @@ function create_setup(
     on_external_link_click: vi.fn(),
     on_file_link_click: vi.fn(),
     on_image_paste_requested: vi.fn(),
+    on_tag_click: vi.fn(),
+    suggest_tags: vi.fn().mockResolvedValue([]),
   };
 
   const service = new EditorService(

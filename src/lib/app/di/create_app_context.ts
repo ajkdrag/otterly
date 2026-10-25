@@ -18,6 +18,7 @@ import { GitService } from "$lib/features/git";
 import { HotkeyService } from "$lib/features/hotkey";
 import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
+import { TagsService } from "$lib/features/tags";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
 import { mount_reactors } from "$lib/reactors";
@@ -38,6 +39,13 @@ export function create_app_context(input: {
     stores.vault,
     stores.op,
     now_ms,
+  );
+
+  // Before EditorService: its tag callbacks ask this for suggestions.
+  const tags_service = new TagsService(
+    input.ports.tags,
+    stores.vault,
+    stores.tags,
   );
 
   const editor_service = new EditorService(
@@ -65,6 +73,11 @@ export function create_app_context(input: {
           note_path,
           image,
         }),
+      on_tag_click: (tag) =>
+        void action_registry.execute(ACTION_IDS.omnibar_open_tags, {
+          tags: [tag],
+        }),
+      suggest_tags: (partial) => tags_service.suggest_tags(partial, [], 20),
     },
     search_service,
   );
@@ -227,6 +240,7 @@ export function create_app_context(input: {
       hotkey: hotkey_service,
       theme: theme_service,
       updater: updater_service,
+      tags: tags_service,
     },
     default_mount_config: input.default_mount_config,
   });
@@ -250,6 +264,7 @@ export function create_app_context(input: {
     session_service,
     git_service,
     links_service,
+    tags_service,
     watcher_service,
     theme_service,
     action_registry,

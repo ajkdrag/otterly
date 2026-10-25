@@ -128,4 +128,28 @@ export const menu_theme: ThemeSpec = {
     color: "inherit",
     borderColor: "currentColor",
   },
+  ".cm-tooltip-autocomplete > ul > li.md-tag-option": {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--space-2, 0.5rem)",
+    fontSize: "var(--text-sm, 0.875rem)",
+  },
+  ".md-tag-option .cm-completionLabel": {
+    minWidth: "0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontWeight: "500",
+    color: "var(--editor-tag-text, var(--primary, #2563eb))",
+  },
+  ".md-tag-option .cm-completionLabel::before": {
+    content: '"#"',
+    opacity: "var(--editor-tag-hash-opacity, 0.6)",
+  },
+  ".md-tag-option .cm-completionDetail": {
+    flexShrink: "0",
+    marginLeft: "auto",
+    fontSize: "var(--text-xs, 0.75rem)",
+    fontVariantNumeric: "tabular-nums",
+  },
 };

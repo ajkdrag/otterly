@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
@@ -654,6 +655,20 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       shortcuts.handle_keydown(event);
       expect(was_touched()).toBe(false);
     }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("leaves Cmd+J and Cmd+K to a picker in the page that marks itself", () => {
+    const { shortcuts, execute } = build();
+    const list = document.createElement("div");
+    list.dataset.pickerKeys = "";
+    const filter = document.createElement("input");
+    list.append(filter);
+
+    const { event, was_touched } = press("j", { target: filter });
+    shortcuts.handle_keydown_capture(event);
+
+    expect(was_touched()).toBe(false);
     expect(execute).not.toHaveBeenCalled();
   });
 
