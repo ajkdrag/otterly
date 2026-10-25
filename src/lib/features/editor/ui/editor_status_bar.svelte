@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { Code, Info, FolderOpen, RefreshCw } from "@lucide/svelte";
-  import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-  import { GitStatusWidget } from "$lib/features/git";
+  import type { Snippet } from "svelte";
+  import { Code } from "@lucide/svelte";
   import { VimStatusIndicator } from "$lib/features/vim";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
   import type {
@@ -9,95 +8,42 @@
     EditorViewMode,
     VimStatus,
   } from "$lib/shared/types/editor";
-  import type { IndexProgress } from "$lib/features/search";
-  import type { GitSyncStatus } from "$lib/features/git";
 
+  // The status bar of the vault window and of a document window. It shows
+  // what every editor has. Each window adds its own items through children,
+  // in the right section before the Rich/Source toggle: vault, index and git
+  // state in the vault window, the file path in a document window. The
+  // toggle stays last so it does not slide left when a transient item like
+  // "Indexing" shows up. Those items use the StatusBar__ classes.
   interface Props {
     cursor_info: CursorInfo | null;
-    word_count: number;
-    line_count: number;
-    has_note: boolean;
+    has_open_file: boolean;
     view_mode: EditorViewMode;
     vim_status: VimStatus | null;
     is_dirty: boolean;
     last_saved_at: number | null;
-    index_progress: IndexProgress;
-    vault_name: string | null;
-    git_enabled: boolean;
-    git_branch: string;
-    git_is_dirty: boolean;
-    git_pending_files: number;
-    git_sync_status: GitSyncStatus;
-    is_repairing_links: boolean;
-    link_repair_message: string | null;
-    on_vault_click: () => void;
     on_view_mode_click: () => void;
-    on_info_click: () => void;
-    on_git_click: () => void;
-    on_sync_click: () => void;
+    children: Snippet;
   }
 
   let {
     cursor_info,
-    word_count,
-    line_count,
-    has_note,
+    has_open_file,
     view_mode,
     vim_status,
     is_dirty,
     last_saved_at,
-    index_progress,
-    vault_name,
-    git_enabled,
-    git_branch,
-    git_is_dirty,
-    git_pending_files,
-    git_sync_status,
-    is_repairing_links,
-    link_repair_message,
-    on_vault_click,
     on_view_mode_click,
-    on_info_click,
-    on_git_click,
-    on_sync_click,
+    children,
   }: Props = $props();
 
-  const line = $derived(cursor_info?.line ?? null);
-  const column = $derived(cursor_info?.column ?? null);
   const words = $derived(
-    !has_note
+    !cursor_info
       ? "--"
-      : cursor_info?.word_count_pending
+      : cursor_info.word_count_pending
         ? "…"
-        : String(word_count),
+        : String(cursor_info.total_words),
   );
-  const is_indexing = $derived(index_progress.status === "indexing");
-  const show_index_counts = $derived(
-    index_progress.total > 1 || index_progress.indexed > 0,
-  );
-  const sync_tooltip = $derived.by(() => {
-    if (is_indexing) return "Indexing in progress…";
-    if (index_progress.status === "failed")
-      return "Last index failed — click to retry";
-    return "Sync index";
-  });
-
-  let show_completed = $state(false);
-  let completed_timer: ReturnType<typeof setTimeout> | null = null;
-
-  $effect(() => {
-    if (index_progress.status === "completed") {
-      show_completed = true;
-      completed_timer = setTimeout(() => {
-        show_completed = false;
-      }, 3000);
-    }
-    return () => {
-      if (completed_timer) {
-        clearTimeout(completed_timer);
-      }
-    };
-  });
 
   let tick = $state(Date.now());
 
@@ -121,20 +67,18 @@
 
 <div class="StatusBar">
   <div class="StatusBar__section">
-    {#if vim_status && has_note}
+    {#if vim_status && has_open_file}
       <VimStatusIndicator status={vim_status} />
       <span class="StatusBar__separator" aria-hidden="true"></span>
     {/if}
     <span class="StatusBar__item">
-      Ln {line ?? "--"}, Col {column ?? "--"}
+      Ln {cursor_info?.line ?? "--"}, Col {cursor_info?.column ?? "--"}
     </span>
     <span class="StatusBar__separator" aria-hidden="true"></span>
-    <span class="StatusBar__item">
-      {words} words
-    </span>
+    <span class="StatusBar__item">{words} words</span>
     <span class="StatusBar__separator" aria-hidden="true"></span>
     <span class="StatusBar__item">
-      {has_note ? line_count : "--"} lines
+      {cursor_info?.total_lines ?? "--"} lines
     </span>
     {#if saved_label}
       <span class="StatusBar__separator" aria-hidden="true"></span>
@@ -144,38 +88,12 @@
     {/if}
   </div>
   <div class="StatusBar__section">
-    {#if is_repairing_links}
-      <span class="StatusBar__item StatusBar__item--repairing">
-        <RefreshCw class="StatusBar__spinner" />
-        <span>{link_repair_message ?? "Repairing links..."}</span>
-      </span>
+    {@render children()}
+    {#if has_open_file && view_mode !== "text"}
       <span class="StatusBar__separator" aria-hidden="true"></span>
-    {/if}
-
-    {#if is_indexing}
-      <span class="StatusBar__item StatusBar__item--indexing">
-        {#if show_index_counts}
-          <span>Indexing {index_progress.indexed}/{index_progress.total}</span>
-        {:else}
-          <span>Indexing...</span>
-        {/if}
-      </span>
-      <span class="StatusBar__separator" aria-hidden="true"></span>
-    {:else if index_progress.status === "failed"}
-      <span class="StatusBar__item StatusBar__item--failed">
-        <span>Index failed</span>
-      </span>
-      <span class="StatusBar__separator" aria-hidden="true"></span>
-    {:else if show_completed}
-      <span class="StatusBar__item StatusBar__item--completed">
-        <span>Indexed</span>
-      </span>
-      <span class="StatusBar__separator" aria-hidden="true"></span>
-    {/if}
-    {#if has_note && view_mode !== "text"}
       <button
         type="button"
-        class="StatusBar__vault-action"
+        class="StatusBar__button"
         onclick={on_view_mode_click}
         aria-pressed={view_mode === "source"}
         title="Toggle source mode"
@@ -183,60 +101,7 @@
         <Code />
         <span>{view_mode === "source" ? "Source" : "Rich"}</span>
       </button>
-      <span class="StatusBar__separator" aria-hidden="true"></span>
     {/if}
-    <button
-      type="button"
-      class="StatusBar__vault-action"
-      onclick={on_vault_click}
-      disabled={!vault_name}
-      aria-label="Switch vault"
-    >
-      <FolderOpen />
-      <span>{vault_name ?? "--"}</span>
-    </button>
-    <button
-      type="button"
-      class="StatusBar__action"
-      onclick={on_info_click}
-      disabled={!has_note}
-      aria-label="Note details"
-    >
-      <Info />
-    </button>
-    {#if git_enabled}
-      <span class="StatusBar__separator" aria-hidden="true"></span>
-      <GitStatusWidget
-        enabled={git_enabled}
-        branch={git_branch}
-        is_dirty={git_is_dirty}
-        pending_files={git_pending_files}
-        sync_status={git_sync_status}
-        on_click={on_git_click}
-      />
-    {/if}
-    <Tooltip.Provider delayDuration={0}>
-      <Tooltip.Root>
-        <Tooltip.Trigger>
-          {#snippet child({ props })}
-            <button
-              {...props}
-              type="button"
-              class="StatusBar__action"
-              class:StatusBar__action--active={is_indexing}
-              onclick={on_sync_click}
-              disabled={!vault_name || is_indexing}
-              aria-label={sync_tooltip}
-            >
-              <RefreshCw class={is_indexing ? "StatusBar__spinner" : ""} />
-            </button>
-          {/snippet}
-        </Tooltip.Trigger>
-        <Tooltip.Content side="top" sideOffset={4}>
-          {sync_tooltip}
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </Tooltip.Provider>
   </div>
 </div>
 
@@ -256,46 +121,41 @@
     color: var(--muted-foreground);
   }
 
+  /* min-width 0 lets the right section shrink, so a long file path gets its
+     ellipsis. The left section keeps its size so the counts never wrap. */
   .StatusBar__section {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    min-width: 0;
   }
 
-  .StatusBar__item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .StatusBar__item--indexing {
-    color: var(--primary);
-  }
-
-  .StatusBar__item--repairing {
-    color: var(--primary);
-  }
-
-  .StatusBar__item--failed {
-    color: var(--destructive);
-  }
-
-  .StatusBar__item--completed {
-    color: var(--muted-foreground);
+  .StatusBar__section:first-child {
+    flex-shrink: 0;
   }
 
   .StatusBar__item--unsaved {
     color: var(--indicator-dirty);
   }
 
-  .StatusBar__separator {
+  /* Markup from children carries the caller's style scope, so the rules
+     below are global under .StatusBar. Only hover sets a color, so a caller
+     can color its own items with semantic utilities, like the index state. */
+  .StatusBar :global(.StatusBar__item) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .StatusBar :global(.StatusBar__separator) {
     width: 1px;
     height: var(--space-2-5);
     background-color: currentColor;
     opacity: 0.2;
   }
 
-  .StatusBar__vault-action {
+  /* Icon and label, like the Rich/Source toggle and the vault name. */
+  .StatusBar :global(.StatusBar__button) {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -307,78 +167,46 @@
       color var(--duration-fast) var(--ease-default);
   }
 
-  .StatusBar__vault-action > span {
+  .StatusBar :global(.StatusBar__button > span) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .StatusBar__vault-action:hover:not(:disabled) {
-    opacity: 1;
-    color: var(--interactive);
-  }
-
-  .StatusBar__vault-action:focus-visible {
-    opacity: 1;
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 1px;
-  }
-
-  .StatusBar__vault-action:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .StatusBar__action {
+  /* Icon only, like note info and index sync. */
+  .StatusBar :global(.StatusBar__icon-button) {
     display: flex;
     align-items: center;
     justify-content: center;
     width: var(--size-touch-xs);
     height: var(--size-touch-xs);
     border-radius: var(--radius-sm);
-    color: var(--muted-foreground);
     opacity: 0.7;
-    transition: opacity var(--duration-fast) var(--ease-default);
+    transition:
+      opacity var(--duration-fast) var(--ease-default),
+      color var(--duration-fast) var(--ease-default);
   }
 
-  .StatusBar__action:hover:not(:disabled) {
+  .StatusBar :global(.StatusBar__button:hover:not(:disabled)),
+  .StatusBar :global(.StatusBar__icon-button:hover:not(:disabled)) {
     opacity: 1;
     color: var(--interactive);
   }
 
-  .StatusBar__action:focus-visible {
+  .StatusBar :global(.StatusBar__button:focus-visible),
+  .StatusBar :global(.StatusBar__icon-button:focus-visible) {
     opacity: 1;
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
 
-  .StatusBar__action:disabled {
+  .StatusBar :global(.StatusBar__icon-button:disabled) {
     opacity: 0.4;
     cursor: not-allowed;
   }
 
-  .StatusBar__action--active {
-    color: var(--primary);
-    opacity: 1;
-  }
-
-  :global(.StatusBar__item svg),
-  :global(.StatusBar__action svg),
-  :global(.StatusBar__vault-action svg) {
+  .StatusBar :global(svg) {
     width: var(--size-icon-xs);
     height: var(--size-icon-xs);
-  }
-
-  :global(.StatusBar__spinner) {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
   }
 </style>

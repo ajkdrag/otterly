@@ -137,6 +137,11 @@ describe("DocumentService", () => {
     expect(callbacks.on_close_request).toHaveBeenCalledOnce();
   });
 
+  it("takes the file's mtime as its last save when it opens", async () => {
+    const { store } = await open();
+    expect(store.last_saved_at).toBe(100);
+  });
+
   it("saves the edited text against the mtime it read", async () => {
     const { service, store, session, document_port, type } = await open();
     type("# Hello there");

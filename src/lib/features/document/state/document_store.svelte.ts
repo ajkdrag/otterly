@@ -33,6 +33,9 @@ export class DocumentStore {
     this.load_error = null;
     this.is_dirty = false;
     this.has_conflict = false;
+    // Same as EditorStore.set_open_note: the status bar shows when the file
+    // was last saved from the moment it opens.
+    this.last_saved_at = file.mtime_ms || null;
   }
 
   set_load_error(error: string) {

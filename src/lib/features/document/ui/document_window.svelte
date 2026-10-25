@@ -1,14 +1,12 @@
 <script lang="ts">
-  import { Code } from "@lucide/svelte";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Button } from "$lib/components/ui/button";
   import * as ContextMenu from "$lib/components/ui/context-menu";
   import { use_document_window_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
+  import { EditorStatusBar } from "$lib/features/editor";
   import { FindInFileBar } from "$lib/features/search";
-  import { VimStatusIndicator } from "$lib/features/vim";
-  import { format_relative_time } from "$lib/shared/utils/relative_time";
   import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
   const { stores, action_registry } = use_document_window_context();
@@ -41,30 +39,6 @@
       },
     };
   }
-
-  let tick = $state(Date.now());
-  $effect(() => {
-    if (!document.last_saved_at) return;
-    tick = Date.now();
-    const handle = setInterval(() => {
-      tick = Date.now();
-    }, 15_000);
-    return () => clearInterval(handle);
-  });
-
-  const words_label = $derived(
-    document.cursor?.word_count_pending
-      ? "…"
-      : String(document.cursor?.total_words ?? 0),
-  );
-
-  const saved_label = $derived(
-    document.is_dirty
-      ? "Unsaved changes"
-      : document.last_saved_at
-        ? `Saved ${format_relative_time(document.last_saved_at, tick)}`
-        : null,
-  );
 </script>
 
 <svelte:window
@@ -121,7 +95,15 @@
     <div class="DocumentWindow__message"></div>
   {/if}
 
-  <footer class="DocumentWindow__status">
+  <EditorStatusBar
+    cursor_info={document.cursor}
+    has_open_file={document.load_state === "ready"}
+    view_mode={document.view_mode}
+    vim_status={document.vim_status}
+    is_dirty={document.is_dirty}
+    last_saved_at={document.last_saved_at}
+    on_view_mode_click={() => run(ACTION_IDS.editor_toggle_source_mode)}
+  >
     <ContextMenu.Root>
       <ContextMenu.Trigger>
         {#snippet child({ props })}
@@ -153,34 +135,7 @@
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
-    <span class="DocumentWindow__status-items">
-      {#if document.cursor}
-        <span>Ln {document.cursor.line}, Col {document.cursor.column}</span>
-        <span>{words_label} words</span>
-        <span>{document.cursor.total_lines} lines</span>
-      {/if}
-      {#if saved_label}
-        <span class:DocumentWindow__unsaved={document.is_dirty}
-          >{saved_label}</span
-        >
-      {/if}
-      {#if document.vim_status}
-        <VimStatusIndicator status={document.vim_status} />
-      {/if}
-      {#if document.load_state === "ready" && document.view_mode !== "text"}
-        <button
-          type="button"
-          class="DocumentWindow__mode"
-          aria-pressed={document.view_mode === "source"}
-          title="Toggle source mode"
-          onclick={() => run(ACTION_IDS.editor_toggle_source_mode)}
-        >
-          <Code />
-          <span>{document.view_mode === "source" ? "Source" : "Rich"}</span>
-        </button>
-      {/if}
-    </span>
-  </footer>
+  </EditorStatusBar>
 </div>
 
 <Dialog.Root
@@ -254,56 +209,14 @@
     font-size: var(--text-sm);
   }
 
-  .DocumentWindow__status {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    height: var(--size-status-bar);
-    padding-inline: var(--space-3);
-    font-family: var(--font-family-mono);
-    font-size: var(--text-xs);
-    font-feature-settings: "tnum" 1;
-    flex-shrink: 0;
-    border-top: 1px solid var(--border);
-    background-color: color-mix(in oklch, var(--muted) 30%, transparent);
-    color: var(--muted-foreground);
-  }
-
+  /* The path sits where the vault window shows the vault name, just before
+     the Rich/Source toggle, with the same width cap. */
   .DocumentWindow__path {
-    min-width: 0;
+    max-width: 14rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     direction: rtl;
     text-align: left;
-  }
-
-  .DocumentWindow__status-items {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-shrink: 0;
-  }
-
-  .DocumentWindow__unsaved {
-    color: var(--foreground);
-  }
-
-  .DocumentWindow__mode {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    opacity: 0.7;
-  }
-
-  .DocumentWindow__mode:hover {
-    opacity: 1;
-    color: var(--interactive);
-  }
-
-  .DocumentWindow__mode :global(svg) {
-    width: 0.875rem;
-    height: 0.875rem;
   }
 </style>
