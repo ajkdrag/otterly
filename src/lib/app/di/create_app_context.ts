@@ -22,6 +22,7 @@ import { TagsService } from "$lib/features/tags";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
 import { ProfileService } from "$lib/features/profile";
+import { VimService } from "$lib/features/vim";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -79,6 +80,17 @@ export function create_app_context(input: {
           tags: [tag],
         }),
       suggest_tags: (partial) => tags_service.suggest_tags(partial, [], 20),
+      // :w and :wq. :wq on a draft opens the save dialog, and the tab stays
+      // open after you save it.
+      on_save_request: () =>
+        action_registry.execute(ACTION_IDS.note_request_save),
+      // :q never discards. The tab asks first when it has unsaved changes.
+      // A draft that :wq just sent to the save dialog skips the close, or its
+      // confirm dialog would pile up on the save dialog.
+      on_close_request: () => {
+        if (stores.ui.save_note_dialog.open) return;
+        void action_registry.execute(ACTION_IDS.tab_close);
+      },
     },
     search_service,
   );
@@ -217,6 +229,14 @@ export function create_app_context(input: {
     now_ms,
   );
 
+  const vim_service = new VimService(
+    input.ports.vimrc,
+    input.ports.vim_engine,
+    input.ports.press_and_hold,
+    stores.vim,
+    stores.op,
+  );
+
   const vault_service = new VaultService(
     input.ports.vault,
     input.ports.notes,
@@ -265,6 +285,7 @@ export function create_app_context(input: {
       updater: updater_service,
       tags: tags_service,
       profile: profile_service,
+      vim: vim_service,
     },
     default_mount_config: input.default_mount_config,
   });
@@ -294,6 +315,7 @@ export function create_app_context(input: {
     watcher_service,
     theme_service,
     profile_service,
+    vim_service,
     action_registry,
   });
 

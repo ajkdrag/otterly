@@ -1,6 +1,7 @@
 use crate::features::notes::service::{atomic_write, file_meta, read_text_file, safe_vault_abs};
 #[cfg(target_os = "macos")]
 use crate::features::profile::service::with_profile_data_store;
+use crate::shared::paths::display_path;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -98,7 +99,7 @@ pub fn open_document_windows(app: &AppHandle, paths: Vec<PathBuf>) {
 }
 
 // One window per file. Opening the same file again focuses its window.
-fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
+pub(crate) fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
     let path = path.canonicalize().map_err(|e| e.to_string())?;
     if !path.is_file() {
         return Err("not a file".to_string());
@@ -188,10 +189,4 @@ fn file_name(path: &Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
-}
-
-// canonicalize gives Windows verbatim paths (\\?\C:\...). Show the usual form.
-fn display_path(path: &Path) -> String {
-    let text = path.to_string_lossy();
-    text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
 }

@@ -25,6 +25,7 @@ export function use_keyboard_shortcuts(input: {
   is_omnibar_topmost: () => boolean;
   is_vault_switcher_open: () => boolean;
   is_hotkey_recorder_open: () => boolean;
+  is_vim_enabled: () => boolean;
   has_tabs: () => boolean;
   action_registry: ActionRegistry;
   on_close_vault_switcher: () => void;
@@ -38,6 +39,7 @@ export function use_keyboard_shortcuts(input: {
     is_omnibar_topmost,
     is_vault_switcher_open,
     is_hotkey_recorder_open,
+    is_vim_enabled,
     has_tabs,
     action_registry,
     on_close_vault_switcher,
@@ -71,9 +73,39 @@ export function use_keyboard_shortcuts(input: {
     return Number(event.key) - 1;
   };
 
-  // The recorder reads raw keys itself, and IME composition owns its keys.
+  const is_inside_vim_editor = (event: KeyboardEvent): boolean =>
+    (event.target as Element | null)?.closest?.(".md-vim") != null;
+
+  // On macOS the app's hotkeys are Cmd keys, but normalize_event_to_key also
+  // reads Ctrl as CmdOrCtrl. Ctrl+F, Ctrl+O, Ctrl+W and the like are Vim keys
+  // inside the Vim editor, so Ctrl goes to Vim there. On Windows and Linux
+  // CmdOrCtrl is Ctrl, so the app hotkey wins.
+  const is_ctrl_key_for_vim = (event: KeyboardEvent): boolean => {
+    if (!event.ctrlKey || event.metaKey) return false;
+    if (typeof navigator === "undefined" || !navigator.platform.includes("Mac"))
+      return false;
+    return is_inside_vim_editor(event);
+  };
+
+  // Ctrl-[ is Esc in Vim. Outside the editor (the omnibar, a dialog, the find
+  // bar) nothing handles it, so we turn it into the Escape those widgets
+  // already listen for. bits-ui and the find bar only check event.key. Inside
+  // the Vim editor, Vim takes Ctrl-[ itself.
+  const is_vim_escape_outside_editor = (event: KeyboardEvent): boolean =>
+    is_vim_enabled() &&
+    event.key === "[" &&
+    event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    !is_inside_vim_editor(event);
+
+  // The recorder reads raw keys itself, IME composition owns its keys, and
+  // the Vim editor owns Ctrl keys on macOS.
   const is_left_to_focused_widget = (event: KeyboardEvent): boolean =>
-    is_hotkey_recorder_open() || event.isComposing;
+    is_hotkey_recorder_open() ||
+    event.isComposing ||
+    is_ctrl_key_for_vim(event);
 
   // Ctrl/Cmd+J/K belong to the picker's own handler, whatever they are bound to.
   // A picker in the page, like the Tags pane list, marks its focus target with
@@ -90,6 +122,19 @@ export function use_keyboard_shortcuts(input: {
 
   const handle_keydown_capture = (event: KeyboardEvent) => {
     if (is_left_to_focused_widget(event)) return;
+
+    if (is_vim_escape_outside_editor(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.target?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      return;
+    }
 
     if (is_mod_combo(event, "w") && is_vault_switcher_open()) {
       event.preventDefault();

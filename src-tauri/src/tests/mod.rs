@@ -28,3 +28,5 @@ mod theme_file_service;
 mod profile_launch;
 #[path = "../../tests/vault_find.rs"]
 mod vault_find;
+#[path = "../../tests/vim_service.rs"]
+mod vim_service;

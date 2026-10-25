@@ -138,3 +138,12 @@ export {
   type MarkdownClipboardOptions,
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
+export {
+  vim_keybindings,
+  close_vim_prompt,
+  sync_clipboard_from_host,
+  type VimMode,
+  type VimStatus,
+  type VimKeybindingsOptions,
+} from "./plugins/vim/index.js";
+export { apply_vimrc, type VimrcProblem } from "./plugins/vim/vimrc.js";

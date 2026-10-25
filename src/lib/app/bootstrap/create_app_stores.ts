@@ -9,6 +9,7 @@ import { GitStore } from "$lib/features/git";
 import { LinksStore } from "$lib/features/links";
 import { TagsStore } from "$lib/features/tags";
 import { ProfileStore } from "$lib/features/profile";
+import { VimStore } from "$lib/features/vim";
 
 export type AppStores = {
   vault: VaultStore;
@@ -22,6 +23,7 @@ export type AppStores = {
   links: LinksStore;
   tags: TagsStore;
   profile: ProfileStore;
+  vim: VimStore;
 };
 
 export function create_app_stores(): AppStores {
@@ -37,5 +39,6 @@ export function create_app_stores(): AppStores {
     links: new LinksStore(),
     tags: new TagsStore(),
     profile: new ProfileStore(),
+    vim: new VimStore(),
   };
 }

@@ -1,2 +1,6 @@
 packages:
   - packages/*
+
+patchedDependencies:
+  "@replit/codemirror-vim-core@0.1.0": patches/@replit__codemirror-vim-core@0.1.0.patch
+  "@replit/codemirror-vim@6.4.0": patches/@replit__codemirror-vim@6.4.0.patch

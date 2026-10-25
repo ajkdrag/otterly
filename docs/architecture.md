@@ -83,6 +83,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `updater`   | Background update download, install and relaunch                                  |
 | `document`  | One file opened outside any vault, in its own window                              |
 | `profile`   | Current profile, opening other profiles, profiles dialog                          |
+| `vim`       | Vim mode settings, vimrc loading and applying, status readout                     |
 
 ### Folder structure (first 2 levels)
 
@@ -109,7 +110,7 @@ tests/
 
 ### Windows
 
-The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave), and the `document` feature, and nothing that needs a vault.
+The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
 
 It reuses the vault app's find in file, help dialog, and clipboard service, and registers the vault app's action ids where the meaning is the same. Hotkeys are the defaults filtered to the actions the window registers, so a shortcut for something missing here does nothing and does not show in Help. Reveal in the file manager is a document command (`reveal_document`) with no path argument, like read and write.
 
@@ -143,6 +144,8 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 ## Markdown editor package
 
 `packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, tag clicks and suggestions to `tags`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
+
+Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The package reports `{ mode, showcmd, recording }`, which lands in `vim_status` of `EditorStore` and `DocumentStore`. `:w` and `:q` come back as save and close requests, and the composition roots route them to `note_request_save` and `tab_close`. The `vim_mode` reactor pushes the setting into the editor, reloads the vimrc and pulls text copied in another app into the Vim register on window focus, and on macOS turns the accent menu for held keys off through `VimService`. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys, and turns Ctrl-[ into Esc in the omnibar, dialogs and find bar. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, next to `settings.json`, so each profile has its own. It is a subset of maps, unmaps, `let mapleader` and `set` (see the package design). Lines that do not apply are listed in Settings under Vim. The engine has bugs the public API cannot reach, so `patches/` holds pnpm patches for it.
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -310,6 +313,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **EditorService statefulness**: Holds persistent session state (`session`, `host_root`, `active_note`, `session_generation`) because it manages a live DOM editor session. The `session_generation` counter guards against race conditions.
 - **VaultService lifecycle state**: Stores `active_open_revision` and `index_progress_unsubscribe` for "latest vault-open intent wins" cancellation.
 - **SearchService and VaultFindService request revisions**: Store per-use-case revision counters to ignore stale async responses. `VaultFindService` also uses its counter to drop events of a cancelled streaming search. Cancellation bookkeeping only.
+- **VimService load state**: Holds `load_revision` (the latest vimrc load wins), the last applied file (a focus reload with no edit is skipped), and `force_requested` (a manual reload keeps its force when a focus load takes over).
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **Dock menu static** (`profile/dock_menu.rs`, macOS only): one `OnceLock` holds the `AppHandle` and the menu target, because the AppKit callback carries no context.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
@@ -356,7 +360,7 @@ The backend is a Tauri native process. Its sole job is exposing native capabilit
 | ----------- | ---------------------------------------------------------------------------- |
 | `app/`      | Composition root: registers plugins, managed state, and all command handlers |
 | `features/` | One sub-module per capability. Each owns command handlers and managed state  |
-| `shared/`   | Vault registry persistence, constants, asset request handler                 |
+| `shared/`   | Vault registry persistence, constants, path display, asset request handler   |
 
 The search db also holds `note_tags`. Tags are parsed during indexing (`search/tag_parser.rs`), so counts are as fresh as backlinks.
 
@@ -366,7 +370,7 @@ Backend invariants:
 
 1. All native capabilities are exposed exclusively through `#[tauri::command]` functions
 2. Managed state structs live in the feature's `service.rs` — no global statics
-3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, and `profile::service` for `ProfileState`, `session_file_name` and `with_profile_data_store`)
+3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, `profile::service` for `ProfileState`, `session_file_name` and `with_profile_data_store`, and `document::service` for `DocumentState` in search and `open_document_window` in vim)
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
 5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState`, which are explicit lifecycle-managed state, `ProfileState`, which is launch config plus one flag, and `VaultFindState`, which only holds the cancel token of the running vault search)
 

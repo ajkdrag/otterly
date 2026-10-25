@@ -225,6 +225,8 @@ export const ACTION_IDS = {
   profile_update_new_name: "profile.update_new_name",
   profile_open: "profile.open",
   profile_check_dialog_request: "profile.check_dialog_request",
+  vim_load_vimrc: "vim.load_vimrc",
+  vim_open_vimrc: "vim.open_vimrc",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

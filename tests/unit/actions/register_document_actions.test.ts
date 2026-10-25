@@ -43,7 +43,11 @@ function create_harness(options: { reveal_ok?: boolean } = {}) {
     services: {
       document: document as unknown as DocumentService,
       shell: {} as ShellService,
-      clipboard: new ClipboardService({ write_text }, stores.op, () => 0),
+      clipboard: new ClipboardService(
+        { write_text, read_text: () => Promise.resolve("") },
+        stores.op,
+        () => 0,
+      ),
     },
   });
   return { registry, stores, document, write_text };

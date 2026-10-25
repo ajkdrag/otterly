@@ -47,6 +47,7 @@ function create_session_with_find(initial_markdown: string): EditorSession {
     is_dirty: vi.fn(() => false),
     focus: vi.fn(),
     toggle_source_mode: vi.fn(),
+    set_vim_enabled: vi.fn(),
     open_buffer: vi.fn(),
     rename_buffer: vi.fn(),
     close_buffer: vi.fn(),
@@ -81,6 +82,8 @@ describe("EditorService update_find_state", () => {
         on_image_paste_requested: vi.fn(),
         on_tag_click: vi.fn(),
         suggest_tags: vi.fn().mockResolvedValue([]),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 
@@ -119,6 +122,8 @@ describe("EditorService update_find_state", () => {
         on_image_paste_requested: vi.fn(),
         on_tag_click: vi.fn(),
         suggest_tags: vi.fn().mockResolvedValue([]),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 
@@ -152,6 +157,8 @@ describe("EditorService update_find_state", () => {
         on_image_paste_requested: vi.fn(),
         on_tag_click: vi.fn(),
         suggest_tags: vi.fn().mockResolvedValue([]),
+        on_save_request: vi.fn(),
+        on_close_request: vi.fn(),
       },
     );
 

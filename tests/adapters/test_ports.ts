@@ -17,6 +17,9 @@ import { create_test_updater_adapter } from "./test_updater_adapter";
 import { create_test_theme_file_adapter } from "./test_theme_file_adapter";
 import { create_test_tags_adapter } from "./test_tags_adapter";
 import { create_test_profile_adapter } from "./test_profile_adapter";
+import { create_test_vimrc_adapter } from "./test_vimrc_adapter";
+import { create_test_vim_engine_adapter } from "./test_vim_engine_adapter";
+import { create_test_press_and_hold_adapter } from "./test_press_and_hold_adapter";
 
 export function create_test_ports(): Ports {
   const assets = create_test_assets_adapter();
@@ -36,6 +39,7 @@ export function create_test_ports(): Ports {
       resolve_asset_url_for_vault: (vault_id, asset_path) =>
         assets.resolve_asset_url(vault_id, asset_path),
       copy_text: (text) => clipboard.write_text(text),
+      read_clipboard_text: () => clipboard.read_text(),
     }),
     clipboard,
     shell: create_test_shell_adapter(),
@@ -45,5 +49,8 @@ export function create_test_ports(): Ports {
     theme_file: create_test_theme_file_adapter(),
     tags: create_test_tags_adapter(),
     profile: create_test_profile_adapter(),
+    vimrc: create_test_vimrc_adapter(),
+    vim_engine: create_test_vim_engine_adapter(),
+    press_and_hold: create_test_press_and_hold_adapter(),
   };
 }

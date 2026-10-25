@@ -72,6 +72,7 @@
   );
   const image_paste_error = $derived(stores.op.get("asset.write").error);
   const profile_open_error = $derived(stores.op.get("profile.open").error);
+  const vimrc_error = $derived(stores.op.get("vim.load_vimrc").error);
 
   const settings_has_unsaved_changes = $derived.by(() => {
     const { current_settings, persisted_settings, hotkey_draft_overrides } =
@@ -278,6 +279,9 @@
   user_themes={stores.ui.user_themes}
   active_theme={stores.ui.active_theme}
   theme_file={stores.ui.theme_file}
+  vimrc={stores.vim.vimrc}
+  {vimrc_error}
+  is_loading_vimrc={stores.op.is_pending("vim.load_vimrc")}
   on_update_settings={(settings: EditorSettings) =>
     void action_registry.execute(ACTION_IDS.settings_update, settings)}
   on_category_change={(category: SettingsCategory) => {
@@ -317,6 +321,9 @@
     void action_registry.execute(ACTION_IDS.theme_copy_file_path)}
   on_theme_create_file={() =>
     void action_registry.execute(ACTION_IDS.theme_create_file)}
+  on_open_vimrc={() => void action_registry.execute(ACTION_IDS.vim_open_vimrc)}
+  on_reload_vimrc={() =>
+    void action_registry.execute(ACTION_IDS.vim_load_vimrc)}
 />
 
 <CreateFolderDialog

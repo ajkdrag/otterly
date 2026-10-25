@@ -137,6 +137,41 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     keywords: ["vault", "dashboard", "overview", "open", "startup", "switch"],
   },
   {
+    key: "vim_mode_enabled",
+    label: "Vim Mode",
+    description:
+      "Modal editing with Vim keys in notes and text files, with a vimrc for key maps",
+    category: "Vim",
+    keywords: [
+      "vim",
+      "vi",
+      "modal",
+      "keybindings",
+      "key bindings",
+      "hjkl",
+      "vimrc",
+      "normal mode",
+      "insert mode",
+    ],
+  },
+  {
+    key: "vim_repeat_held_keys",
+    label: "Repeat Held Keys",
+    description:
+      "macOS only: holding a letter in Vim mode repeats it instead of opening the accent menu",
+    category: "Vim",
+    keywords: [
+      "vim",
+      "hold",
+      "held keys",
+      "key repeat",
+      "repeat",
+      "accent menu",
+      "press and hold",
+      "hjkl",
+    ],
+  },
+  {
     key: "max_open_tabs",
     label: "Max Open Tabs",
     description: "Maximum number of tabs that can be open at once",

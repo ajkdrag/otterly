@@ -32,6 +32,7 @@
     "@otterly/markdown-editor": "workspace:*",
     "@tanstack/svelte-virtual": "^3.13.18",
     "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2.5.3",

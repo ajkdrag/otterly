@@ -16,6 +16,11 @@ import type { UpdaterPort } from "$lib/features/updater";
 import type { ThemeFilePort } from "$lib/features/theme";
 import type { TagsPort } from "$lib/features/tags";
 import type { ProfilePort } from "$lib/features/profile";
+import type {
+  PressAndHoldPort,
+  VimEnginePort,
+  VimrcPort,
+} from "$lib/features/vim";
 
 export type Ports = {
   vault: VaultPort;
@@ -36,4 +41,7 @@ export type Ports = {
   theme_file: ThemeFilePort;
   tags: TagsPort;
   profile: ProfilePort;
+  vimrc: VimrcPort;
+  vim_engine: VimEnginePort;
+  press_and_hold: PressAndHoldPort;
 };

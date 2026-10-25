@@ -17,6 +17,7 @@ import type { ThemeService } from "$lib/features/theme";
 import type { UpdaterService } from "$lib/features/updater";
 import type { TagsService } from "$lib/features/tags";
 import type { ProfileService, ProfileStore } from "$lib/features/profile";
+import type { VimService } from "$lib/features/vim";
 import type { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import type { VaultStore } from "$lib/features/vault";
 import type { NotesStore } from "$lib/features/note";
@@ -59,6 +60,7 @@ export type ActionRegistrationInput = {
     updater: UpdaterService;
     tags: TagsService;
     profile: ProfileService;
+    vim: VimService;
   };
   default_mount_config: AppMountConfig;
 };

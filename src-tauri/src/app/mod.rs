@@ -78,6 +78,7 @@ pub fn run() {
         .manage(ProfileState::new(profile_id, base_identifier))
         .manage(features::search::service::VaultFindState::default())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(log_builder.build())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -181,6 +182,9 @@ pub fn run() {
             features::theme::service::reveal_theme_file,
             features::theme::service::watch_theme_file,
             features::theme::service::claim_theme_file_log,
+            features::vim::service::read_vimrc,
+            features::vim::service::open_vimrc,
+            features::vim::service::set_press_and_hold,
             features::vault_session::service::load_latest_vault_session,
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,

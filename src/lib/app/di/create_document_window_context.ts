@@ -30,6 +30,14 @@ import {
   register_document_actions,
   type DocumentPort,
 } from "$lib/features/document";
+import {
+  VimService,
+  VimStore,
+  register_vim_actions,
+  type PressAndHoldPort,
+  type VimEnginePort,
+  type VimrcPort,
+} from "$lib/features/vim";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
@@ -39,6 +47,8 @@ import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.
 import { create_document_autosave_reactor } from "$lib/reactors/document_autosave.reactor.svelte";
 import { create_document_close_request_reactor } from "$lib/reactors/document_close_request.reactor.svelte";
 import { create_document_window_reactor } from "$lib/reactors/document_window.reactor.svelte";
+import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { toast } from "svelte-sonner";
 
 export type DocumentWindowPorts = {
@@ -49,6 +59,9 @@ export type DocumentWindowPorts = {
   document: DocumentPort;
   editor: EditorPort;
   theme_file: ThemeFilePort;
+  vimrc: VimrcPort;
+  vim_engine: VimEnginePort;
+  press_and_hold: PressAndHoldPort;
 };
 
 export type DocumentWindowContext = ReturnType<
@@ -68,6 +81,7 @@ export function create_document_window_context(input: {
     op: new OpStore(),
     document: new DocumentStore(),
     search: new SearchStore(),
+    vim: new VimStore(),
   };
   const action_registry = new ActionRegistry();
 
@@ -109,7 +123,21 @@ export function create_document_window_context(input: {
       // file the OS never handed us, which the backend refuses on purpose.
       on_unsupported_link_click: () =>
         toast.info("Links to other files only open inside a vault"),
+      on_save_request: () =>
+        action_registry.execute(ACTION_IDS.note_request_save),
+      // This window's tab_close closes the window, and asks first when the
+      // file has unsaved changes.
+      on_close_request: () =>
+        void action_registry.execute(ACTION_IDS.tab_close),
     },
+  );
+
+  const vim_service = new VimService(
+    input.ports.vimrc,
+    input.ports.vim_engine,
+    input.ports.press_and_hold,
+    stores.vim,
+    stores.op,
   );
 
   register_document_actions({
@@ -120,6 +148,11 @@ export function create_document_window_context(input: {
       shell: shell_service,
       clipboard: clipboard_service,
     },
+  });
+  register_vim_actions({
+    registry: action_registry,
+    services: { vim: vim_service },
+    has_settings_dialog: false,
   });
   register_find_in_file_actions({
     registry: action_registry,
@@ -161,6 +194,13 @@ export function create_document_window_context(input: {
       action_registry,
     ),
     create_document_window_reactor(stores.document, document_service),
+    create_vim_mode_reactor(
+      stores.ui,
+      document_service,
+      vim_service,
+      action_registry,
+      subscribe_to_window_focus,
+    ),
     create_op_toast_reactor(stores.op),
     create_find_in_file_reactor(
       stores.ui,

@@ -23,6 +23,8 @@ import { create_window_title_reactor } from "$lib/reactors/window_title.reactor.
 import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reactor.svelte";
 import { create_update_check_reactor } from "$lib/reactors/update_check.reactor.svelte";
 import { create_profile_dialog_request_reactor } from "$lib/reactors/profile_dialog_request.reactor.svelte";
+import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { ConflictToastManager } from "$lib/reactors/conflict_toast";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorStore } from "$lib/features/editor";
@@ -50,6 +52,7 @@ import type { TagsService } from "$lib/features/tags";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ThemeService } from "$lib/features/theme";
 import type { ProfileService, ProfileStore } from "$lib/features/profile";
+import type { VimService } from "$lib/features/vim";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
 export type ReactorContext = {
@@ -77,6 +80,7 @@ export type ReactorContext = {
   watcher_service: WatcherService;
   theme_service: ThemeService;
   profile_service: ProfileService;
+  vim_service: VimService;
   action_registry: ActionRegistry;
 };
 
@@ -102,6 +106,13 @@ export function mount_reactors(context: ReactorContext): () => void {
     ),
     create_editor_width_reactor(context.ui_store),
     create_editor_zoom_reactor(context.ui_store),
+    create_vim_mode_reactor(
+      context.ui_store,
+      context.editor_service,
+      context.vim_service,
+      context.action_registry,
+      subscribe_to_window_focus,
+    ),
     create_autosave_reactor(
       context.editor_store,
       context.tab_store,

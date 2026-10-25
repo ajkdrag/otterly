@@ -7,6 +7,7 @@
   import { ACTION_IDS } from "$lib/app";
   import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
   import { FindInFileBar } from "$lib/features/search";
+  import { VimStatusIndicator } from "$lib/features/vim";
   import { format_relative_time } from "$lib/shared/utils/relative_time";
   import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 
@@ -21,6 +22,7 @@
     is_omnibar_topmost: () => false,
     is_vault_switcher_open: () => false,
     is_hotkey_recorder_open: () => false,
+    is_vim_enabled: () => stores.ui.editor_settings.vim_mode_enabled,
     has_tabs: () => false,
     action_registry,
     on_close_vault_switcher: () => {},
@@ -161,6 +163,9 @@
         <span class:DocumentWindow__unsaved={document.is_dirty}
           >{saved_label}</span
         >
+      {/if}
+      {#if document.vim_status}
+        <VimStatusIndicator status={document.vim_status} />
       {/if}
       {#if document.load_state === "ready" && document.view_mode !== "text"}
         <button

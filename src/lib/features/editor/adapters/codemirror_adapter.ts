@@ -42,6 +42,9 @@ import {
   tag_at,
   tags,
   update_find_query,
+  close_vim_prompt,
+  sync_clipboard_from_host,
+  vim_keybindings,
   wiki_links,
   type CodeBlockViewState,
   type MarkdownPlugin,
@@ -76,6 +79,9 @@ type AdapterOptions = {
     path: AssetPath,
   ) => string | Promise<string>;
   copy_text: (text: string) => Promise<void>;
+  // Vim's "+p and set clipboard=unnamed read through this. It reads natively,
+  // because the web clipboard shows a Paste button for text from other apps.
+  read_clipboard_text: () => Promise<string>;
   // Outside a vault (a document window), relative images resolve here.
   resolve_document_asset_url?: (relative_path: string) => string;
 };
@@ -102,6 +108,9 @@ const metrics_themes = [
   EditorView.theme({ "&": { "--editor-metrics": "0" } }),
   EditorView.theme({ "&": { "--editor-metrics": "1" } }),
 ];
+// Holds the Vim extension while Vim mode is on. A compartment, so the toggle
+// keeps every cached buffer state and its undo history.
+const vim_compartment = new Compartment();
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -113,6 +122,13 @@ const default_code_view: CodeBlockViewState = {
 export function create_codemirror_editor_port(
   options: AdapterOptions,
 ): EditorPort {
+  // The code block copy button and Copy link write the clipboard behind Vim's
+  // back. Under set clipboard=unnamed the next p would put an older register,
+  // so pull the copied text into it.
+  const copy_text_and_sync_vim = async (text: string) => {
+    await options.copy_text(text);
+    await sync_clipboard_from_host().catch(() => {});
+  };
   return {
     start_session(config) {
       const { root, events } = config;
@@ -151,7 +167,7 @@ export function create_codemirror_editor_port(
         callouts(),
         code_blocks({
           languages: code_languages,
-          copy_code: options.copy_text,
+          copy_code: copy_text_and_sync_vim,
           code_extensions: [
             code_block_theme,
             syntaxHighlighting(code_block_highlight),
@@ -164,7 +180,7 @@ export function create_codemirror_editor_port(
         }),
         links({
           open_link,
-          copy_link: options.copy_text,
+          copy_link: copy_text_and_sync_vim,
           edit_key: "Alt-Enter",
         }),
         tags({
@@ -233,6 +249,20 @@ export function create_codemirror_editor_port(
         }),
       ];
       let metrics_theme_index = 0;
+      let vim_enabled = config.vim_enabled;
+      // One value per session, so sync_vim_compartment can tell whether a
+      // state already holds it.
+      const { on_save_request, on_close_request } = events;
+      const vim_extension = vim_keybindings({
+        on_status_change: (status) => events.on_vim_status_change?.(status),
+        // Without these, :w and :q tell the user they do nothing here.
+        ...(on_save_request && { on_write: on_save_request }),
+        ...(on_close_request && { on_quit: on_close_request }),
+        clipboard: {
+          read_text: options.read_clipboard_text,
+          write_text: options.copy_text,
+        },
+      });
       const extensions: Extension = [
         metrics_compartment.of(metrics_themes[0] ?? []),
         // CodeMirror catches exceptions from plugins, listeners, and widgets
@@ -296,6 +326,8 @@ export function create_codemirror_editor_port(
       refresh_word_count();
       publish_cursor();
       publish_view_mode();
+      // With Vim on, its plugin already reported the status.
+      if (!vim_enabled) events.on_vim_status_change?.(null);
 
       return Promise.resolve<EditorSession>({
         destroy() {
@@ -357,6 +389,10 @@ export function create_codemirror_editor_port(
           publish_view_mode();
           focus_editor();
         },
+        set_vim_enabled(enabled) {
+          vim_enabled = enabled;
+          sync_vim_compartment();
+        },
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
@@ -393,6 +429,8 @@ export function create_codemirror_editor_port(
         open_buffer(next: BufferConfig) {
           cancel_pending();
           cancel_word_count();
+          // An open / or : prompt would come back as an empty strip.
+          close_vim_prompt(view);
           current.state = view.state;
           const cached =
             next.restore_policy === "reuse_cache"
@@ -400,6 +438,7 @@ export function create_codemirror_editor_port(
               : undefined;
           current = cached ?? create_buffer(next);
           view.setState(current.state);
+          if (cached) sync_vim_compartment();
           refresh_word_count();
           if (!cached && next.view_state) restore_view_state(next.view_state);
           reported_dirty = !get_markdown_source_document(view.state).eq(
@@ -432,10 +471,12 @@ export function create_codemirror_editor_port(
         initial_markdown: string;
       }): BufferEntry {
         const is_markdown = is_markdown_path(input.note_path);
+        // Built per buffer, so a new buffer starts with the current setting.
+        const vim = vim_compartment.of(vim_enabled ? vim_extension : []);
         const state = is_markdown
           ? create_markdown_state(input.initial_markdown, {
               plugins,
-              extensions,
+              extensions: [extensions, vim],
               source_extensions: syntaxHighlighting(markdown_source_highlight),
             })
           : create_text_state(input.initial_markdown, [
@@ -445,6 +486,7 @@ export function create_codemirror_editor_port(
               // or replace.
               find_plugin.extensions ?? [],
               find_plugin.theme ? EditorView.theme(find_plugin.theme) : [],
+              vim,
               text_language.of([]),
               syntaxHighlighting(code_block_highlight),
             ]);
@@ -487,6 +529,20 @@ export function create_codemirror_editor_port(
           ? get_editor_mode(current.state)
           : "text";
         events.on_view_mode_change?.(mode);
+      }
+
+      // Only the shown state is reconfigured. A cached buffer keeps the Vim
+      // setting it had when it was last shown, until open_buffer syncs it.
+      function sync_vim_compartment() {
+        const has_vim = vim_compartment.get(view.state) === vim_extension;
+        if (has_vim === vim_enabled) return;
+        view.dispatch({
+          effects: vim_compartment.reconfigure(
+            vim_enabled ? vim_extension : [],
+          ),
+        });
+        // Turning Vim on reports the status from its plugin.
+        if (!vim_enabled) events.on_vim_status_change?.(null);
       }
 
       function publish_dirty() {

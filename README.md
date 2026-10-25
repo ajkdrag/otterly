@@ -92,6 +92,33 @@ Delete it too if you plan to create a profile with the same name later, because 
 
 The profile also leaves files in each vault it opened: its tabs in `.otterly/sessions/latest-<name>.json`, and its recent notes under the `recent_notes-<name>` key in `.otterly/settings.json`. Delete those too if you want it all gone.
 
+## Vim Mode
+
+Turn it on in Settings, under Vim. Notes and text files then use Vim keys: `hjkl`, `w` `b` `e`, `0` `$`, `gg` `G`, `d` `c` `y` with motions and text objects, `dd` `yy` `p`, `v` `V` and Ctrl-v, `u` and Ctrl-r, `/` search, `i` `a` `o` `O`, registers, macros, counts, and `.`. The status bar shows the mode, the keys of a command you are still typing, and the register of a macro you are recording. Normal and visual mode draw a block cursor. Code blocks and tables show their Markdown source while the cursor is inside them, so Vim edits the whole file.
+
+It follows real Vim. The few places where it does not are listed in the package design (`packages/markdown_editor/DESIGN.md`).
+
+- `u` undoes one typed command or one insert session, like Vim. A macro, a map and `.` are one step each.
+- `:w` saves, `:q` closes the tab (it asks first when there are unsaved changes), and `:wq` does both. On a new note, `:wq` opens the save dialog and keeps the tab open.
+- `"+y` and `"+p` use the system clipboard. `set clipboard=unnamed` in your vimrc uses it for every yank and put.
+- `o` and `O` continue a list, task or quote, like Enter does in insert mode.
+- Search ignores case unless the pattern has a capital letter.
+
+Cmd keys stay app shortcuts. On macOS, Ctrl keys go to Vim inside the editor. On Windows and Linux the app shortcuts on Ctrl (Ctrl+F, Ctrl+O and so on) win. On macOS, Settings has a "Repeat held keys" switch that turns off the accent menu, so holding `l` keeps moving right.
+
+Key maps and options go in a `vimrc` file next to `settings.json`, at `<app config dir>/otterly/vimrc`. That is `~/Library/Application Support/com.otterly.app/otterly/vimrc` on macOS. Each [profile](#profiles) has its own config folder, so each profile has its own vimrc, like `~/Library/Application Support/com.otterly.app.profile-work/otterly/vimrc`. Settings, under Vim, shows the path of the profile you are in. "Open vimrc" there creates it with examples and opens it in its own window. The main window reloads it when you come back to it.
+
+```vim
+let mapleader = " "
+imap jk <Esc>
+nnoremap Y y$
+nnoremap <leader>w :w<CR>
+set clipboard=unnamed
+set timeoutlen=500
+```
+
+You get `map`, `nmap`, `vmap`, `xmap`, `imap`, `omap`, their `noremap` and `unmap` forms (and Vim's short names, such as `nn` and `ino`), `let mapleader`, and `set`. A vimrc pasted from terminal Vim works: Vimscript (`if`, `function`, `autocmd`, `Plug`), plugin maps (`<Plug>`, `<SID>`), command-line maps, and settings this editor has no use for (`syntax on`, `set number`, `set smarttab`, `set textwidth=80`) are skipped, and Settings lists them apart from the lines that really failed.
+
 ## Build From Source
 
 ### Prerequisites

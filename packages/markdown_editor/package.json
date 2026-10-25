@@ -47,5 +47,8 @@
     "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "^1.7.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@replit/codemirror-vim": "^6.4.0"
   }
 }

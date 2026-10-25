@@ -14,11 +14,18 @@ const log = create_logger("document_service");
 export type DocumentServiceCallbacks = {
   on_external_link_click: (url: string) => void;
   on_unsupported_link_click: () => void;
+  // :w and :wq in the Vim editor. The promise settles when the save has
+  // finished, so :wq closes only after it.
+  on_save_request: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request: () => void;
 };
 
 // Owns the one file and the one editor of a document window.
 export class DocumentService {
   private session: EditorSession | null = null;
+  // The editor starts with this. The vim_mode reactor sets it.
+  private vim_enabled = false;
 
   constructor(
     private readonly document_port: DocumentPort,
@@ -47,6 +54,7 @@ export class DocumentService {
       // images resolve through the document window's own handlers.
       note_path: file.path,
       vault_id: null,
+      vim_enabled: this.vim_enabled,
       events: {
         on_markdown_change: (markdown) => {
           this.store.note_edit(markdown);
@@ -60,6 +68,13 @@ export class DocumentService {
         on_view_mode_change: (mode) => {
           this.store.set_view_mode(mode);
         },
+        on_vim_status_change: (status) => {
+          this.store.set_vim_status(status);
+        },
+        on_save_request: () => this.callbacks.on_save_request(),
+        on_close_request: () => {
+          this.callbacks.on_close_request();
+        },
         on_external_link_click: (url) => {
           this.callbacks.on_external_link_click(url);
         },
@@ -71,6 +86,9 @@ export class DocumentService {
         },
       },
     });
+    // The setting may have changed while the editor started, before
+    // this.session could take the call. It does nothing if they match.
+    this.session.set_vim_enabled(this.vim_enabled);
     this.session.focus();
   }
 
@@ -149,6 +167,11 @@ export class DocumentService {
 
   toggle_source_mode() {
     this.session?.toggle_source_mode();
+  }
+
+  set_vim_enabled(enabled: boolean) {
+    this.vim_enabled = enabled;
+    this.session?.set_vim_enabled(enabled);
   }
 
   focus() {

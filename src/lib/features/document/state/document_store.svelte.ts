@@ -1,4 +1,8 @@
-import type { CursorInfo, EditorViewMode } from "$lib/shared/types/editor";
+import type {
+  CursorInfo,
+  EditorViewMode,
+  VimStatus,
+} from "$lib/shared/types/editor";
 import type { DocumentFile } from "$lib/features/document/types/document";
 
 export type DocumentLoadState = "loading" | "ready" | "error";
@@ -18,6 +22,8 @@ export class DocumentStore {
   has_conflict = $state(false);
   last_saved_at = $state<number | null>(null);
   view_mode = $state<EditorViewMode>("rich");
+  // null while Vim mode is off.
+  vim_status = $state<VimStatus | null>(null);
   cursor = $state<CursorInfo | null>(null);
 
   set_loaded(file: DocumentFile) {
@@ -59,6 +65,10 @@ export class DocumentStore {
 
   set_view_mode(mode: EditorViewMode) {
     this.view_mode = mode;
+  }
+
+  set_vim_status(status: VimStatus | null) {
+    this.vim_status = status;
   }
 
   set_cursor(cursor: CursorInfo) {

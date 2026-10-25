@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@replit/codemirror-vim-core@0.1.0':
+    hash: 124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c
+    path: patches/@replit__codemirror-vim-core@0.1.0.patch
+  '@replit/codemirror-vim@6.4.0':
+    hash: dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9
+    path: patches/@replit__codemirror-vim@6.4.0.patch
+
 importers:
 
   .:
@@ -32,6 +40,9 @@ importers:
       '@tauri-apps/api':
         specifier: ^2.10.1
         version: 2.10.1
+      '@tauri-apps/plugin-clipboard-manager':
+        specifier: ^2.3.3
+        version: 2.3.3
       '@tauri-apps/plugin-dialog':
         specifier: ^2.6.0
         version: 2.6.0
@@ -179,6 +190,10 @@ importers:
         version: 2.1.9(@types/node@22.19.11)(jsdom@28.1.0)(lightningcss@1.30.2)
 
   packages/markdown_editor:
+    dependencies:
+      '@replit/codemirror-vim':
+        specifier: ^6.4.0
+        version: 6.4.0(patch_hash=dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9)(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
     devDependencies:
       '@codemirror/autocomplete':
         specifier: ^6.20.3
@@ -848,6 +863,18 @@ packages:
   '@poppinss/macroable@1.1.2':
     resolution: {integrity: sha512-FAVBRzzWhYP5mA3lCwLH1A0fKBqq5anyjGet90Z81aRK5c/+LTGUE1zJhZrErjaenBSOOI9BVUs3WVmotneFQA==}
 
+  '@replit/codemirror-vim-core@0.1.0':
+    resolution: {integrity: sha512-1i6EBKpcNfDKvTmTh6N6g9lL6udD5t+uFNh4JCqozRnVlvUGOps7h/QzS2ne4zcvPUjvApKpmcP7Grc3fNbZiQ==}
+
+  '@replit/codemirror-vim@6.4.0':
+    resolution: {integrity: sha512-t9UMDNhkmeAkl0uRbiJVotv97bGD6mf4GyJJoEbrjUqa/Pov0s9eL+4AaI0Xto3OGri17i9qwIpT0JbVlVXt8A==}
+    peerDependencies:
+      '@codemirror/commands': 6.x.x
+      '@codemirror/language': 6.x.x
+      '@codemirror/search': 6.x.x
+      '@codemirror/state': 6.x.x
+      '@codemirror/view': 6.x.x
+
   '@rollup/rollup-android-arm-eabi@4.57.1':
     resolution: {integrity: sha512-A6ehUVSiSaaliTxai040ZpZ2zTevHYbvu/lDoeAteHI8QnaosIzm4qwtezfRg1jOYaUmnzLX1AOD6Z+UJjtifg==}
     cpu: [arm]
@@ -1207,6 +1234,9 @@ packages:
     resolution: {integrity: sha512-JI9bHfudSRJikGOrjbXEm6RjzzvmKuLc+JixB1NE8hNzQkNlCCIC3pTES3uypkR9lxHrsbxzcnSwhI2IxBQphw==}
     engines: {node: '>= 10'}
     hasBin: true
+
+  '@tauri-apps/plugin-clipboard-manager@2.3.3':
+    resolution: {integrity: sha512-KnyoTs9gj1yEgDkSPUNjOIOHjJTr5wk8IWcYMOWxYTIJCip6QwlyPW8u2X+6bd6kHM4fAdZNpxoal0gy/TwJbg==}
 
   '@tauri-apps/plugin-dialog@2.6.0':
     resolution: {integrity: sha512-q4Uq3eY87TdcYzXACiYSPhmpBA76shgmQswGkSVio4C82Sz2W4iehe9TnKYwbq7weHiL88Yw19XZm7v28+Micg==}
@@ -3712,6 +3742,17 @@ snapshots:
   '@poppinss/macroable@1.1.2':
     optional: true
 
+  '@replit/codemirror-vim-core@0.1.0(patch_hash=124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c)': {}
+
+  '@replit/codemirror-vim@6.4.0(patch_hash=dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9)(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)':
+    dependencies:
+      '@codemirror/commands': 6.11.1
+      '@codemirror/language': 6.12.4
+      '@codemirror/search': 6.7.2
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.13
+      '@replit/codemirror-vim-core': 0.1.0(patch_hash=124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c)
+
   '@rollup/rollup-android-arm-eabi@4.57.1':
     optional: true
 
@@ -3982,6 +4023,10 @@ snapshots:
       '@tauri-apps/cli-win32-arm64-msvc': 2.12.4
       '@tauri-apps/cli-win32-ia32-msvc': 2.12.4
       '@tauri-apps/cli-win32-x64-msvc': 2.12.4
+
+  '@tauri-apps/plugin-clipboard-manager@2.3.3':
+    dependencies:
+      '@tauri-apps/api': 2.12.0
 
   '@tauri-apps/plugin-dialog@2.6.0':
     dependencies:
