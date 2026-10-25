@@ -244,7 +244,8 @@
       active_query.domain === "notes" &&
       tags.length === 0,
   );
-  const show_target_strip = $derived(
+  // The tabs show whenever the input is text to match: not for `>` or `#...`.
+  const show_target_tabs = $derived(
     is_find_mode || active_query.domain === "notes",
   );
   const active_target = $derived(is_find_mode ? "text" : active_query.target);
@@ -667,11 +668,13 @@
     input_ref?.focus({ preventScroll: true });
   }
 
-  // The inputs are only one line tall. A press on the row padding, the icon
-  // or a chip label would move focus out of them, so keep focus in the row's
-  // input. Buttons and inputs handle their own presses.
+  // The inputs are only one line tall. A press on the head's padding, an icon
+  // or a chip label would move focus out of them, so keep focus in an input.
+  // Buttons and inputs handle their own presses, and a press the replace row
+  // already handled (defaultPrevented) stays in Replace.
   function keep_focus_in(get_input: () => HTMLInputElement | null) {
     return (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
       if (
         event.target instanceof Element &&
         event.target.closest("button, input")
@@ -914,17 +917,13 @@
       >
     </Dialog.Header>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="Omnibar__search"
-      class:Omnibar__search--with-replace={is_find_mode}
-      onmousedown={keep_focus_in(() => input_ref)}
-    >
-      <SearchIcon />
-      <div class="Omnibar__field">
-        {#if tags.length > 0}
-          <div class="contents" role="group" aria-label="Tag filters">
-            {#each tags as tag (tag)}
-              <span class="Omnibar__chip">
+    <div class="Omnibar__head" onmousedown={keep_focus_in(() => input_ref)}>
+      <div class="Omnibar__search">
+        <SearchIcon />
+        <div class="Omnibar__field">
+          {#if tags.length > 0}
+            <div class="contents" role="group" aria-label="Tag filters">
+              {#each tags as tag (tag)}
                 <TagChip
                   {tag}
                   size="md"
@@ -932,191 +931,135 @@
                     remove_tag_and_refocus(tag);
                   }}
                 />
-              </span>
+              {/each}
+            </div>
+          {/if}
+          <Input
+            bind:ref={input_ref}
+            id="omnibar-input"
+            type="text"
+            role="combobox"
+            aria-label={is_find_mode
+              ? "Find in vault"
+              : "Search notes, commands, and settings"}
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls="omnibar-results"
+            aria-activedescendant={active_option_id}
+            aria-invalid={is_find_mode && find_query_invalid}
+            autocomplete="off"
+            autocorrect={is_find_mode ? "off" : undefined}
+            autocapitalize={is_find_mode ? "off" : undefined}
+            spellcheck={is_find_mode ? "false" : undefined}
+            placeholder={main_input_placeholder}
+            value={is_find_mode ? find_inputs.query : query}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              on_query_change(e.currentTarget.value);
+            }}
+            class="h-(--omnibar-line) min-w-0 flex-[1_1_12rem] border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </div>
+        {#if is_find_mode}
+          <!-- Out of the Tab order: Tab goes from the pattern to Replace, and
+               Alt+C/W/R flip them from either input. A press keeps focus in
+               the input you were typing in. -->
+          <div
+            class="Omnibar__find-options"
+            role="group"
+            aria-label="Find options"
+          >
+            {#each FIND_OPTIONS as { option, label, keys, Icon } (option)}
+              <button
+                type="button"
+                tabindex="-1"
+                class="text-muted-foreground hover:bg-accent hover:text-accent-foreground aria-pressed:bg-accent aria-pressed:text-foreground aria-pressed:ring-ring flex size-6 items-center justify-center rounded-sm aria-pressed:ring-1"
+                aria-pressed={find_inputs[option]}
+                aria-label={label}
+                aria-keyshortcuts={keys}
+                title={`${label} (${format_hotkey_for_display(keys)})`}
+                onmousedown={(event) => {
+                  event.preventDefault();
+                }}
+                onclick={() => {
+                  on_find_inputs_change({ [option]: !find_inputs[option] });
+                }}
+              >
+                <Icon class="size-4" />
+              </button>
             {/each}
           </div>
         {/if}
-        <Input
-          bind:ref={input_ref}
-          id="omnibar-input"
-          type="text"
-          role="combobox"
-          aria-label={is_find_mode
-            ? "Find in vault"
-            : "Search notes, commands, and settings"}
-          aria-autocomplete="list"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls="omnibar-results"
-          aria-activedescendant={active_option_id}
-          aria-invalid={is_find_mode && find_query_invalid}
-          autocomplete="off"
-          autocorrect={is_find_mode ? "off" : undefined}
-          autocapitalize={is_find_mode ? "off" : undefined}
-          spellcheck={is_find_mode ? "false" : undefined}
-          placeholder={main_input_placeholder}
-          value={is_find_mode ? find_inputs.query : query}
-          oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-            on_query_change(e.currentTarget.value);
-          }}
-          class="h-(--omnibar-line) min-w-0 flex-[1_1_12rem] border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-      </div>
-      {#if is_find_mode}
-        <!-- Out of the Tab order: Tab goes from the pattern to Replace, and
-             Alt+C/W/R flip them from either input. A press keeps focus in
-             the input you were typing in. -->
+        <!-- Always in the row, so a search starting or ending does not change
+             the field width and reflow the chips. -->
         <div
-          class="Omnibar__find-options"
-          role="group"
-          aria-label="Find options"
+          class="Omnibar__spinner"
+          class:Omnibar__spinner--active={is_find_mode
+            ? find_is_busy
+            : is_searching}
+          aria-hidden="true"
+        ></div>
+      </div>
+
+      {#if is_find_mode}
+        <!-- A press here keeps focus in Replace. The head's guard sees the
+             handled press and leaves it alone. -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="Omnibar__search"
+          onmousedown={keep_focus_in(() => replace_ref)}
         >
-          {#each FIND_OPTIONS as { option, label, keys, Icon } (option)}
-            <button
-              type="button"
-              tabindex="-1"
-              class="text-muted-foreground hover:bg-accent hover:text-accent-foreground aria-pressed:bg-accent aria-pressed:text-foreground aria-pressed:ring-ring flex size-6 items-center justify-center rounded-sm aria-pressed:ring-1"
-              aria-pressed={find_inputs[option]}
-              aria-label={label}
-              aria-keyshortcuts={keys}
-              title={`${label} (${format_hotkey_for_display(keys)})`}
-              onmousedown={(event) => {
-                event.preventDefault();
+          <ReplaceIcon />
+          <div class="Omnibar__field">
+            <Input
+              bind:ref={replace_ref}
+              type="text"
+              aria-label="Replace"
+              aria-controls="omnibar-results"
+              aria-activedescendant={find_option_id}
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="Replace"
+              value={find_inputs.replacement}
+              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                on_find_inputs_change({ replacement: e.currentTarget.value });
               }}
-              onclick={() => {
-                on_find_inputs_change({ [option]: !find_inputs[option] });
-              }}
-            >
-              <Icon class="size-4" />
-            </button>
-          {/each}
+              class="h-(--omnibar-line) min-w-0 flex-1 border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+          </div>
+          <button
+            type="button"
+            class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-sm disabled:opacity-50"
+            aria-label="Replace all"
+            title={replace_all_title}
+            disabled={!find_results.can_replace_all ||
+              is_replacing ||
+              find_rows_stale}
+            onmousedown={(event) => {
+              event.preventDefault();
+            }}
+            onclick={on_replace_all}
+          >
+            <ReplaceAllIcon class="size-4" />
+          </button>
         </div>
       {/if}
-      <!-- Always in the row, so a search starting or ending does not change
-           the field width and reflow the chips. -->
-      <div
-        class="Omnibar__spinner"
-        class:Omnibar__spinner--active={is_find_mode
-          ? find_is_busy
-          : is_searching}
-        aria-hidden="true"
-      ></div>
-    </div>
 
-    {#if is_find_mode}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="Omnibar__search Omnibar__replace"
-        onmousedown={keep_focus_in(() => replace_ref)}
-      >
-        <ReplaceIcon />
-        <div class="Omnibar__field">
-          <Input
-            bind:ref={replace_ref}
-            type="text"
-            aria-label="Replace"
-            aria-controls="omnibar-results"
-            aria-activedescendant={find_option_id}
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="Replace"
-            value={find_inputs.replacement}
-            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-              on_find_inputs_change({ replacement: e.currentTarget.value });
-            }}
-            class="h-(--omnibar-line) min-w-0 flex-1 border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          />
-        </div>
-        <button
-          type="button"
-          class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-sm disabled:opacity-50"
-          aria-label="Replace all"
-          title={replace_all_title}
-          disabled={!find_results.can_replace_all ||
-            is_replacing ||
-            find_rows_stale}
-          onmousedown={(event) => {
-            event.preventDefault();
-          }}
-          onclick={on_replace_all}
-        >
-          <ReplaceAllIcon class="size-4" />
-        </button>
-      </div>
-    {/if}
-
-    {#if is_find_mode || show_scope_toggle || show_target_strip}
-      <div class="Omnibar__toolbar">
-        {#if is_find_mode}
-          <Input
-            type="text"
-            aria-label="Files to include"
-            aria-invalid={find_glob_invalid}
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Include, e.g. *.md, daily"
-            value={find_inputs.include}
-            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-              on_find_inputs_change({ include: e.currentTarget.value });
-            }}
-            class="h-7 min-w-0 flex-1 text-xs md:text-xs"
-          />
-          <Input
-            type="text"
-            aria-label="Files to exclude"
-            aria-invalid={find_glob_invalid}
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Exclude, e.g. archive/**"
-            value={find_inputs.exclude}
-            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-              on_find_inputs_change({ exclude: e.currentTarget.value });
-            }}
-            class="h-7 min-w-0 flex-1 text-xs md:text-xs"
-          />
-        {:else if show_scope_toggle}
-          <Select.Root
-            type="single"
-            value={scope}
-            onValueChange={(value) => {
-              if (value === "current_vault" || value === "all_vaults")
-                on_scope_change(value);
-            }}
-          >
-            <Select.Trigger
-              aria-label="Search scope"
-              class="h-8 w-auto gap-2 border-0 bg-transparent dark:bg-transparent px-2 shadow-none"
-              title={scope_shortcut
-                ? `Switch scope (${format_hotkey_for_display(scope_shortcut)})`
-                : "Search scope"}
-            >
-              <LibraryIcon class="size-3.5 text-muted-foreground" />
-              {is_all_vaults ? "All vaults" : "This vault"}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="current_vault" label="This vault"
-                >This vault</Select.Item
-              >
-              <Select.Item value="all_vaults" label="All vaults"
-                >All vaults</Select.Item
-              >
-            </Select.Content>
-          </Select.Root>
-        {/if}
-
-        {#if show_target_strip}
+      <!-- The tabs say what your text matches, so they come first, on column
+           A. What narrows where the search looks sits to their right. -->
+      {#if show_target_tabs}
+        <div class="mt-1 flex flex-wrap items-center gap-3">
           <div
-            class="Omnibar__filter-strip"
+            class="bg-muted inline-flex h-(--omnibar-line) items-center rounded-md p-0.5"
             role="group"
             aria-label="Search in"
           >
             {#each visible_targets as { label, target } (target)}
               <button
                 type="button"
-                class="Omnibar__filter-btn"
-                class:Omnibar__filter-btn--active={active_target === target}
+                class="text-muted-foreground hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground focus-visible:outline-ring inline-flex h-full items-center rounded-sm px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 aria-pressed:shadow-xs"
                 aria-pressed={active_target === target}
                 title={target_title(target)}
                 onclick={() => {
@@ -1127,9 +1070,70 @@
               </button>
             {/each}
           </div>
-        {/if}
-      </div>
-    {/if}
+
+          {#if is_find_mode}
+            <div class="flex min-w-0 flex-1 gap-2">
+              <Input
+                type="text"
+                aria-label="Files to include"
+                aria-invalid={find_glob_invalid}
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Include, e.g. *.md, daily"
+                value={find_inputs.include}
+                oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                  on_find_inputs_change({ include: e.currentTarget.value });
+                }}
+                class="h-(--omnibar-line) min-w-0 flex-1 py-0 text-xs md:text-xs"
+              />
+              <Input
+                type="text"
+                aria-label="Files to exclude"
+                aria-invalid={find_glob_invalid}
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Exclude, e.g. archive/**"
+                value={find_inputs.exclude}
+                oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                  on_find_inputs_change({ exclude: e.currentTarget.value });
+                }}
+                class="h-(--omnibar-line) min-w-0 flex-1 py-0 text-xs md:text-xs"
+              />
+            </div>
+          {:else if show_scope_toggle}
+            <Select.Root
+              type="single"
+              value={scope}
+              onValueChange={(value) => {
+                if (value === "current_vault" || value === "all_vaults")
+                  on_scope_change(value);
+              }}
+            >
+              <!-- The trigger sets its height per data-size, so the override
+                   has to name that variant too. -->
+              <Select.Trigger
+                aria-label="Search scope"
+                class="ml-auto w-auto gap-2 border-0 bg-transparent dark:bg-transparent px-2 text-xs shadow-none data-[size=default]:h-(--omnibar-line)"
+                title={scope_shortcut
+                  ? `Switch scope (${format_hotkey_for_display(scope_shortcut)})`
+                  : "Search scope"}
+              >
+                <LibraryIcon class="size-3.5 text-muted-foreground" />
+                {is_all_vaults ? "All vaults" : "This vault"}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="current_vault" label="This vault"
+                  >This vault</Select.Item
+                >
+                <Select.Item value="all_vaults" label="All vaults"
+                  >All vaults</Select.Item
+                >
+              </Select.Content>
+            </Select.Root>
+          {/if}
+        </div>
+      {/if}
+    </div>
 
     {#if is_find_mode}
       <OmnibarFindResults
@@ -1607,7 +1611,13 @@
 <svelte:window onkeydown={handle_keydown} />
 
 <style>
+  /* Two columns run down the whole omnibar. A at the inset: the search and
+     replace icons, the tabs track, header and row icons, footer hints. B one
+     icon and a gap further: chips and typed text, header labels, row titles.
+     Right edges sit at the inset too. */
   :global(.Omnibar) {
+    --omnibar-line: 1.5rem;
+    --omnibar-inset: var(--space-4);
     max-width: min(var(--size-dialog-xl), calc(100vw - 2rem));
     top: min(15vh, 8rem);
     translate: -50% 0;
@@ -1616,15 +1626,22 @@
     gap: 0;
   }
 
+  /* Search, Replace and the tabs. Replace sits closer to Find than the tabs
+     do, since find and replace are one group. */
+  .Omnibar__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--omnibar-inset);
+    border-bottom: 1px solid var(--border);
+  }
+
   /* Every item in the search row is one line tall, the TagChip md height.
-     The padding makes a one line row 3.5rem tall, with or without chips.
      The icon, the find options and the spinner sit on the first line. */
   .Omnibar__search {
-    --omnibar-line: 1.5rem;
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
-    padding: var(--space-4);
   }
 
   .Omnibar__search > :global(svg),
@@ -1656,24 +1673,6 @@
        Reserve it, so the chips do not reflow when a third line starts the
        scrollbar. */
     scrollbar-gutter: stable;
-  }
-
-  .Omnibar__chip {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  /* The replace row lines up under the find row: same padding, same icon
-     column. The two rows read as one block. */
-  .Omnibar__search--with-replace {
-    padding-bottom: var(--space-2);
-  }
-
-  .Omnibar__replace {
-    padding-top: 0;
   }
 
   .Omnibar__find-options {
@@ -1709,50 +1708,6 @@
     animation: spin 1s linear infinite;
   }
 
-  .Omnibar__filter-strip {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    margin-left: auto;
-  }
-
-  .Omnibar__filter-btn {
-    display: inline-flex;
-    align-items: center;
-    font-size: var(--text-xs);
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    color: var(--muted-foreground);
-    transition:
-      background-color var(--duration-fast) var(--ease-default),
-      color var(--duration-fast) var(--ease-default);
-  }
-
-  .Omnibar__filter-btn {
-    min-height: 2rem;
-    padding: var(--space-1) var(--space-2);
-  }
-
-  .Omnibar__filter-btn:hover {
-    background-color: var(--muted);
-    color: var(--foreground);
-  }
-
-  .Omnibar__filter-btn--active {
-    background-color: var(--interactive-bg);
-    color: var(--interactive);
-  }
-
-  .Omnibar__toolbar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    padding: var(--space-1) var(--space-3);
-    background: var(--background);
-    border-bottom: 1px solid var(--border);
-  }
-
   .Omnibar__list {
     min-height: 6rem;
     max-height: min(var(--size-dialog-list-height-lg), 55vh);
@@ -1765,7 +1720,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1-5) var(--space-3);
+    padding: var(--space-1-5) var(--omnibar-inset);
     font-size: var(--text-xs);
     font-weight: 500;
     text-transform: none;
@@ -1779,9 +1734,12 @@
     border-top: 1px solid var(--border);
   }
 
+  /* A small icon in a full icon box, so the label lands on column B. */
   :global(.Omnibar__header svg) {
     width: var(--size-icon-xs);
     height: var(--size-icon-xs);
+    margin-inline: calc((var(--size-icon) - var(--size-icon-xs)) / 2);
+    flex-shrink: 0;
   }
 
   .Omnibar__vault-facet {
@@ -1789,7 +1747,7 @@
     flex-direction: column;
     gap: var(--space-0-5);
     width: 100%;
-    padding: var(--space-1-5) var(--space-3);
+    padding: var(--space-1-5) var(--omnibar-inset);
     text-align: left;
   }
 
@@ -1869,6 +1827,9 @@
     flex-shrink: 0;
   }
 
+  /* The 2px selection bar is part of the left inset, so the icon sits on
+     column A selected or not. The list reserves a scrollbar gutter, so the
+     right padding leaves it out and badges end under the spinner. */
   .Omnibar__item {
     display: flex;
     flex-direction: column;
@@ -1876,7 +1837,9 @@
     width: 100%;
     min-height: 2.25rem;
     justify-content: center;
-    padding: var(--space-2) var(--space-4);
+    padding-block: var(--space-2);
+    padding-inline: calc(var(--omnibar-inset) - 2px)
+      calc(var(--omnibar-inset) - var(--scrollbar-width));
     border-inline-start: 2px solid transparent;
     text-align: left;
     border-radius: 0;
@@ -1983,7 +1946,7 @@
   }
 
   .Omnibar__empty {
-    padding: var(--space-8) var(--space-3);
+    padding: var(--space-8) var(--omnibar-inset);
     text-align: center;
     font-size: var(--text-sm);
     color: var(--muted-foreground);
@@ -1994,7 +1957,7 @@
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-2) var(--omnibar-inset);
     background: var(--background);
     border-top: 1px solid var(--border);
     font-size: var(--text-xs);
@@ -2032,7 +1995,6 @@
     color: var(--foreground);
   }
 
-  .Omnibar__filter-btn:focus-visible,
   .Omnibar__scope-hint:focus-visible,
   .Omnibar__commands:focus-visible,
   .Omnibar__item:focus-visible {
