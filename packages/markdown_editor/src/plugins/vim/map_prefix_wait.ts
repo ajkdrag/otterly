@@ -14,13 +14,14 @@ import { Vim, getCM } from "@replit/codemirror-vim";
 //   Vim.handleKey holds a typed Space while a map starts with it:
 //     next key starts one of the maps -> <OtterlyPrefix1>, then the key
 //     next key is anything else       -> Space, then that key
-//     Esc                             -> nothing, the Space is dropped
+//     Esc, Ctrl-[ or Ctrl-c           -> nothing, the Space is dropped
 //     timeoutlen passes               -> Space (the built-in, or a map of
 //                                        Space alone)
 //
 // Esc cancels instead of running the built-in first. Vim would run Space
 // and then beep, but cancelling is what people mean, and most Space leader
-// vimrcs map Space to <Nop> anyway.
+// vimrcs map Space to <Nop> anyway. Ctrl-[ and Ctrl-c are Esc in Vim, so
+// they cancel too.
 
 // The engine's key context. null means every mode except insert, like :map.
 export type MapContext =
@@ -157,13 +158,24 @@ Vim.handleKey = (cm, key, origin) => {
       : "normal";
   const held = held_keys.get(cm);
   if (held) {
-    drop_held_key(cm);
-    if (key === "<Esc>") return true;
+    if (key === "<Esc>" || key === "<C-[>" || key === "<C-c>") {
+      drop_held_key(cm);
+      return true;
+    }
+    clearTimeout(held.timer);
+    held_keys.delete(cm);
+    // The engine's view plugin already added this key to the keys showcmd
+    // shows, so they read "<Space>d" right now. Keep them for a map that
+    // goes on waiting (a leader map of three keys). The engine clears them
+    // when a command finishes.
     if (starts_aliased_map(held.alias + key, context)) {
       engine_handle_key(cm, held.alias, origin);
       return engine_handle_key(cm, key, origin);
     }
     engine_handle_key(cm, held.key, origin);
+    // The held key finished a command (Space moved right), which cleared
+    // the keys. This key starts the next command, so show it.
+    if (cm.state.vim && !cm.state.vim.status) cm.state.vim.status = key;
     return Vim.handleKey(cm, key, origin);
   }
   const alias = aliases.find(

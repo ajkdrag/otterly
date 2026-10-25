@@ -640,6 +640,25 @@ describe("status", () => {
     expect(showcmd()).toBe("");
   });
 
+  test("VIM-027 showcmd keeps the pending keys after a waiting map key resolves", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const statuses: VimStatus[] = [];
+    const view = vim_editor("one two three", { statuses });
+    expect(apply_vimrc("nnoremap <Space>w x\nnnoremap <Space>ab x")).toEqual(
+      [],
+    );
+    const showcmd = () => statuses.at(-1)?.showcmd;
+
+    press(view, "<Space>", "d");
+    expect(showcmd()).toBe("d");
+    press(view, "<Esc>");
+
+    press(view, "<Space>", "a");
+    expect(showcmd()).toBe("␣a");
+    press(view, "b");
+    expect(showcmd()).toBe("");
+  });
+
   test("VIM-027 status says when a macro records, and the one command after <C-o>", () => {
     const statuses: VimStatus[] = [];
     const view = vim_editor("text", { statuses });
@@ -696,9 +715,11 @@ describe("map waits", () => {
     vi.advanceTimersByTime(1);
     expect(head()).toBe(1);
 
-    press(view, "<Space>", "<Esc>");
-    vi.advanceTimersByTime(1000);
-    expect(head()).toBe(1);
+    for (const cancel of ["<Esc>", "<C-[>", "<C-c>"]) {
+      press(view, "<Space>", cancel);
+      vi.advanceTimersByTime(1000);
+      expect(head(), cancel).toBe(1);
+    }
 
     press(view, "<Space>");
     apply_vimrc(vimrc);
