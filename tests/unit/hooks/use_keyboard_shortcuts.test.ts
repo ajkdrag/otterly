@@ -868,7 +868,7 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
         { altKey: true, code: "KeyF" },
         "find_in_file.toggle_replace",
       ],
-      ["Cmd+Shift+F", "f", { shiftKey: true }, "vault_find.open"],
+      ["Cmd+Shift+F", "f", { shiftKey: true }, "omnibar.open_find"],
     ])(
       "runs %s inside the Vim editor on macOS",
       (_name, key, modifiers, action_id) => {
