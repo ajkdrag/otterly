@@ -205,6 +205,28 @@ describe("parse_theme_file", () => {
     ]);
   });
 
+  it("reads the tag chip keys and checks them like the other fields", () => {
+    const theme = parse_valid(
+      [
+        'tag_text_color: "#2f6f4f"',
+        'tag_bg: "oklch(0.95 0.03 150)"',
+        "tag_border_color: var(--border)",
+        "tag_radius: 6",
+        "tag_padding_x: 0.4",
+      ].join("\n"),
+    );
+
+    expect(theme).toMatchObject({
+      tag_text_color: "#2f6f4f",
+      tag_bg: "oklch(0.95 0.03 150)",
+      tag_border_color: "var(--border)",
+      tag_radius: 6,
+      tag_padding_x: 0.4,
+    });
+    const errors = parse_errors("tag_radius: 7\ntag_bg: not-a-color\n");
+    expect(errors.map((error) => error.key)).toEqual(["tag_radius", "tag_bg"]);
+  });
+
   it("rejects token names without the -- prefix", () => {
     const errors = parse_errors("tokens:\n  --ok: red\n  sidebar: blue\n");
 

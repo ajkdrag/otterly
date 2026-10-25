@@ -115,6 +115,7 @@ Every key is optional. `theme.schema.json` lists all of them with types, ranges 
 - Blockquotes: `blockquote_style`, `blockquote_border_color`, `blockquote_bg_color`, `blockquote_text_color`
 - Code: `inline_code_bg`, `inline_code_text_color`, `code_block_style`, `code_block_bg`, `code_block_text_color`, `code_block_radius`
 - Highlights and tables: `highlight_bg`, `highlight_text_color`, `selection_bg`, `caret_color`, `table_border_color`, `table_header_bg`, `table_cell_padding`
+- Tags: `tag_text_color`, `tag_bg`, `tag_border_color`, `tag_radius`, `tag_padding_x`
 - Escape hatch: `tokens`
 
 Rules worth knowing:
@@ -124,6 +125,7 @@ Rules worth knowing:
 - `editor_max_width_ch: null` and leaving it out both mean "use the Layout setting". A number overrides the Layout setting while this theme is active.
 - `file_tree_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized and places its rows from this setting, so `--size-tree-row` in `tokens` is an error.
 - `ui_radius` is in rem and sets `--radius`.
+- The tag keys style the `#tag` chips in notes and in the omnibar, the Tags pane and the links panel. `tag_radius` is a multiplier of `--radius`, and `tag_padding_x` is in em. Leave `tag_border_color` unset (or `null`) for no outline. The hover look follows the text and background colors. To set it yourself, use the `--editor-tag-text-hover` and `--editor-tag-bg-hover` tokens. `--editor-tag-hash-opacity` sets how faint the `#` is.
 - Older WebKitGTK builds (Linux) may not know `light-dark()`, so a color or color token written with it fails validation there. "Create from current theme" on a copy of Mocha writes a lot of them. I have not verified which WebKitGTK versions are affected. If you hit it, start from `nordic-dark` or `nordic-light`, or use plain colors.
 
 ## tokens
@@ -139,7 +141,7 @@ Rules worth knowing:
 | Spacing (rem)     | `--space-1`, `--space-2`, `--space-3`, `--space-4`, `--space-6`, `--space-8` (plus half steps like `--space-1-5`)                                                                                                                                                |
 | Text sizes        | `--text-xs`, `--text-sm`, `--text-base`, `--text-md`, `--text-lg`                                                                                                                                                                                                |
 | Syntax colors     | `--syntax-comment`, `--syntax-keyword`, `--syntax-string`, `--syntax-number`, `--syntax-function`, `--syntax-variable`, `--syntax-class`, `--syntax-tag`, `--syntax-operator`, `--syntax-punctuation`, `--syntax-property`, `--syntax-boolean`, `--syntax-regex` |
-| Editor extras     | `--editor-code-border`, `--editor-mark-bg`, `--editor-find-match-bg`                                                                                                                                                                                             |
+| Editor extras     | `--editor-code-border`, `--editor-mark-bg`, `--editor-find-match-bg`, `--editor-tag-text-hover`, `--editor-tag-bg-hover`, `--editor-tag-hash-opacity`                                                                                                            |
 
 This is a starting list, not all of them. The full set lives in `src/styles/design_tokens.css`, `src/styles/editor.css` and `src/app.css`.
 
