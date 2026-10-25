@@ -322,9 +322,10 @@ function on_a_character(state: EditorState, position: number): number {
 // o and O continue a list, task or quote in rich mode, like Enter in insert
 // mode does. Vim on Markdown gives a bare line, but a notes app should give
 // the next bullet. An empty item gets a plain line, because Enter there would
-// end the list. Source mode and text files stay plain, like Vim. The engine
-// prefers this command over newlineAndIndent for o, O and r<CR>. It runs
-// Enter at the end of the line, so it serves o. O has its own action below.
+// end the list. Source mode and text files stay plain, like Vim. It runs
+// Enter at the end of the line, so it serves o. open_line below calls it, and
+// the engine does not: r<CR> keeps the engine's plain newlineAndIndent, which
+// is a bare line, like Vim.
 function newline_and_continue_markers(cm: CodeMirror) {
   const view = cm.cm6;
   const { state } = view;
@@ -340,8 +341,6 @@ function newline_and_continue_markers(cm: CodeMirror) {
   }
   CodeMirror.commands.newlineAndIndent(cm);
 }
-CodeMirror.commands.newlineAndIndentContinueComment =
-  newline_and_continue_markers;
 
 // The engine runs O as Enter at the end of the previous line, which sees the
 // wrong container: above the first item of "Shopping:\n- milk" there is no
@@ -376,8 +375,8 @@ function open_line(cm: CodeMirror, after: boolean) {
 
 // Opens a line above the cursor's line with the same list, task or quote
 // marker, and puts the cursor after it. A task starts unchecked. Returns
-// false, and changes nothing, for source mode, an empty item, and a line
-// with only indentation in front of its text.
+// false, and changes nothing, for source mode, an empty item, a line with
+// only indentation in front of its text, and a callout header.
 function open_marker_line_above(cm: CodeMirror): boolean {
   const view = cm.cm6;
   const { state } = view;
@@ -388,6 +387,10 @@ function open_marker_line_above(cm: CodeMirror): boolean {
     .sliceDoc(line.from, container.content_from)
     .replace(/\[[xX]\]/, "[ ]");
   if (container.blank || marker.trim() === "") return false;
+  // A new line with the quote marker above "> [!note]" would become the first
+  // line of the quote, and the callout would turn into a plain quote.
+  if (/^\[![^\]]+\]/.test(state.sliceDoc(container.content_from, line.to)))
+    return false;
   view.dispatch({
     changes: { from: line.from, insert: marker + "\n" },
     selection: { anchor: line.from + marker.length },

@@ -958,6 +958,20 @@ describe("o and O", () => {
     expect(doc(view)).toBe("- a");
   });
 
+  test("VIM-032 O on a callout header opens a plain line, so the callout keeps its title line first", () => {
+    const view = vim_editor("intro\n\n> [!note] Title\n> body");
+    press(view, "3", "G", "O");
+    type(view, "x");
+    press(view, "<Esc>");
+    expect(doc(view)).toBe("intro\n\nx\n> [!note] Title\n> body");
+  });
+
+  test("VIM-032 r<CR> on a list item breaks the line without a marker, like Vim", () => {
+    const view = vim_editor("- abc");
+    press(view, "3", "l", "r", "<CR>");
+    expect(doc(view)).toBe("- a\nc");
+  });
+
   test("VIM-032 o and O in source mode give a plain line", () => {
     const view = vim_editor("- a");
     set_editor_mode(view, "source");
