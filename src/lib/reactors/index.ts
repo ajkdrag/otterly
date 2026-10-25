@@ -24,6 +24,7 @@ import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reac
 import { create_update_check_reactor } from "$lib/reactors/update_check.reactor.svelte";
 import { create_profile_dialog_request_reactor } from "$lib/reactors/profile_dialog_request.reactor.svelte";
 import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { create_app_settings_reload_reactor } from "$lib/reactors/app_settings_reload.reactor.svelte";
 import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { ConflictToastManager } from "$lib/reactors/conflict_toast";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -94,6 +95,10 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.action_registry,
     ),
     create_update_check_reactor(context.action_registry),
+    create_app_settings_reload_reactor(
+      context.action_registry,
+      subscribe_to_window_focus,
+    ),
     create_profile_dialog_request_reactor(
       context.profile_service,
       context.action_registry,

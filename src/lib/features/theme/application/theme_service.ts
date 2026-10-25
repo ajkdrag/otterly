@@ -176,9 +176,7 @@ export class ThemeService {
     return create_user_theme(name, base);
   }
 
-  private async load_stored_themes(): Promise<
-    Omit<ThemeLoadResult, "theme_file">
-  > {
+  async load_stored_themes(): Promise<Omit<ThemeLoadResult, "theme_file">> {
     this.op_store.start("theme.load", this.now_ms());
     try {
       const [stored_themes, stored_id] = await Promise.all([

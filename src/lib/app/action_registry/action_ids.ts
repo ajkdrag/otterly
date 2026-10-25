@@ -1,5 +1,6 @@
 export const ACTION_IDS = {
   app_mounted: "app.mounted",
+  app_reload_app_settings: "app.reload_app_settings",
   app_check_for_updates: "app.check_for_updates",
   app_check_for_updates_in_background: "app.check_for_updates_in_background",
   app_restart_to_update: "app.restart_to_update",
