@@ -20,9 +20,9 @@ import {
 // CodeMirror groups by time instead (500 ms), so every change gets a
 // source_history_group annotation here.
 //
-// The engine sends every change of one typed key through one operation, so
-// a key that makes several changes (a macro, a map, .) joins them by its
-// serial. A paste from the context menu has no key, so it starts a step.
+// A key that makes several changes (a macro, a map, .) joins them, because
+// they all happen while that key is being handled. A paste from the context
+// menu is no typed key, so it starts a step.
 //
 // A step also remembers the cursor from before its key, which u restores.
 // o moves the cursor to the line end before it changes anything, and Vim
@@ -38,6 +38,12 @@ export function undo_steps(): Extension {
 // Keys typed into any Vim editor on the page. Keys arrive one at a time, so
 // one counter is enough.
 let typed_key_serial = 0;
+
+// True while the engine handles a typed key. It runs everything for that key,
+// macros and maps included, before the microtask that clears this. We cannot
+// tell such a change by its userEvent: o on a list item changes the note
+// through the Enter construct key, which has another one.
+let key_in_progress = false;
 
 type UndoSession = {
   // Insert or replace mode, as the engine last reported it.
@@ -77,7 +83,7 @@ const group_changes = EditorState.transactionExtender.of((transaction) => {
     return null;
   const session = transaction.startState.field(undo_session, false);
   if (!session) return null;
-  const group = history_group(session, transaction);
+  const group = history_group(session);
   const { key_start } = session;
   // Only while the selection still fits this document.
   if (group === "start" && key_start?.doc === transaction.startState.doc)
@@ -90,10 +96,7 @@ const group_changes = EditorState.transactionExtender.of((transaction) => {
   return { annotations: source_history_group.of(group) };
 });
 
-function history_group(
-  session: UndoSession,
-  transaction: Transaction,
-): "start" | "join" {
+function history_group(session: UndoSession): "start" | "join" {
   if (session.open) {
     if (session.moved_since_change) return "start";
     // The key that opened insert mode changed the note itself (cw, o, s),
@@ -104,9 +107,7 @@ function history_group(
         : "start";
     return "join";
   }
-  const user_event = transaction.annotation(Transaction.userEvent) ?? "";
-  return session.last_change_serial === typed_key_serial &&
-    user_event.startsWith("input.type.compose")
+  return key_in_progress && session.last_change_serial === typed_key_serial
     ? "join"
     : "start";
 }
@@ -121,6 +122,10 @@ const session_tracker = ViewPlugin.define((view) => {
   const on_input = (event: { type?: string }) => {
     if (event.type !== "handleKey") return;
     typed_key_serial++;
+    key_in_progress = true;
+    queueMicrotask(() => {
+      key_in_progress = false;
+    });
     session.key_start = {
       doc: view.state.doc,
       selection: view.state.selection,

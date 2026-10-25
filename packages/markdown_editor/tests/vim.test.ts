@@ -608,6 +608,15 @@ describe("undo steps", () => {
     press(view, "u");
     expect(doc(view)).toBe("cd\nefgh\n1\n2\n3");
   });
+
+  test("VIM-025 a map with o on a list item is one step, though o continues the list another way", () => {
+    const view = vim_editor("- a\n- b\n- c");
+    expect(apply_vimrc("nnoremap Q ddox<Esc>")).toEqual([]);
+    press(view, "Q");
+    expect(doc(view)).toBe("- b\n- x\n- c");
+    press(view, "u");
+    expect(doc(view)).toBe("- a\n- b\n- c");
+  });
 });
 
 describe("status", () => {
