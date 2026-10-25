@@ -28,8 +28,11 @@
   import QuitConfirmDialog from "$lib/app/bootstrap/ui/quit_confirm_dialog.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
-  import type { OmnibarItem } from "$lib/shared/types/search";
-  import type { OmnibarScope } from "$lib/shared/types/search";
+  import type {
+    OmnibarItem,
+    OmnibarScope,
+    OmnibarTarget,
+  } from "$lib/shared/types/search";
   import type { TagMatch } from "$lib/features/tags";
   import type {
     EditorSettings,
@@ -335,6 +338,8 @@
 
 <Omnibar
   open={stores.ui.omnibar.open}
+  mode={stores.ui.omnibar.mode}
+  return_to_find={stores.ui.omnibar.return_to_find}
   query={stores.ui.omnibar.query}
   selected_index={stores.ui.omnibar.selected_index}
   is_searching={stores.ui.omnibar.is_searching}
@@ -351,6 +356,10 @@
   truncated={stores.search.omnibar_truncated}
   failed={stores.search.omnibar_failed}
   is_indexing={stores.search.index_progress.status === "indexing"}
+  find_inputs={stores.ui.vault_find}
+  find_results={stores.search.vault_find}
+  is_replacing={stores.op.is_pending("vault_find.replace")}
+  git_enabled={stores.git.enabled}
   on_open_change={(open) => {
     if (open) {
       void action_registry.execute(ACTION_IDS.omnibar_open);
@@ -374,6 +383,32 @@
     void action_registry.execute(ACTION_IDS.omnibar_set_tag_match, mode)}
   on_open_tags={() =>
     void action_registry.execute(ACTION_IDS.omnibar_open_tags)}
+  on_target_change={(target: OmnibarTarget) =>
+    void action_registry.execute(ACTION_IDS.omnibar_set_target, target)}
+  on_find_inputs_change={(patch) => {
+    Object.assign(stores.ui.vault_find, patch);
+  }}
+  on_open_match={(row) =>
+    void action_registry.execute(ACTION_IDS.vault_find_open_match, {
+      path: row.file.path,
+      index: row.match.index,
+      line: row.match.line,
+      column: row.match.column,
+      length: row.match.length,
+      focus_editor: true,
+    })}
+  on_replace_match={(row) =>
+    void action_registry.execute(ACTION_IDS.vault_find_replace_match, {
+      path: row.file.path,
+      match_index: row.match.index,
+    })}
+  on_replace_file={(row) =>
+    void action_registry.execute(
+      ACTION_IDS.vault_find_replace_file,
+      row.file.path,
+    )}
+  on_replace_all={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_request_replace_all)}
 />
 
 <ImagePasteDialog

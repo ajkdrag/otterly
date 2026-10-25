@@ -1,9 +1,10 @@
-const CONTEXT_WORDS = 3;
+// Sized for the omnibar's 40rem rows. @Robustness: I have not checked 6 in
+// the app yet, it may want to change.
+const CONTEXT_WORDS = 6;
 const NO_BREAK_SPACE = " ";
 
-// Rust sends up to 60 characters before a match. In a narrow sidebar that
-// text would fill the row and push the match out of view, so the list keeps
-// the last few words.
+// Rust sends up to 60 characters before a match. That text could fill the
+// row and push the match out of view, so the list keeps the last few words.
 //
 // The whitespace between those words and the match comes back as its own
 // value. The words are drawn in a right-to-left box (so the ellipsis lands on
