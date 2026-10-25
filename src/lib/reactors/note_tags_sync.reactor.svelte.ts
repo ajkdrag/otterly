@@ -46,6 +46,10 @@ export function create_note_tags_sync_reactor(
         markdown: open_note?.markdown ?? null,
       });
       state = decision.next_state;
+      // A save changes open_note (the mtime) but not the markdown, and that
+      // lands here as noop. Leave an armed timer alone, or the pending
+      // recompute for the last edit never runs.
+      if (decision.action === "noop") return;
       cancel_pending();
 
       if (decision.action === "clear") {

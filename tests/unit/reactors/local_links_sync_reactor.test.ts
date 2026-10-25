@@ -1,5 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { resolve_local_links_sync_decision } from "$lib/reactors/local_links_sync.reactor.svelte";
+/** @vitest-environment jsdom */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { tick } from "svelte";
+import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
+import { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
+import type { LinksService } from "$lib/features/links";
+import {
+  create_local_links_sync_reactor,
+  resolve_local_links_sync_decision,
+} from "$lib/reactors/local_links_sync.reactor.svelte";
+import { as_note_path } from "$lib/shared/types/ids";
+import {
+  create_open_note_state,
+  create_test_note,
+} from "../helpers/test_fixtures";
+
+const cleanups: (() => void)[] = [];
+afterEach(() => {
+  for (const cleanup of cleanups.splice(0)) cleanup();
+});
 
 function state(
   input?: Partial<{
@@ -110,5 +128,44 @@ describe("local_links_sync.reactor", () => {
     );
 
     expect(result.action).toBe("noop");
+  });
+});
+
+describe("local_links_sync reactor", () => {
+  it("still recomputes after a save changes the mtime inside the debounce window", async () => {
+    vi.useFakeTimers();
+    try {
+      const ui = new UIStore();
+      ui.context_rail_open = true;
+      const editor = new EditorStore();
+      const update_local_note_links = vi.fn().mockResolvedValue(undefined);
+      const links_service = {
+        update_local_note_links,
+        clear: vi.fn(),
+      } as unknown as LinksService;
+      cleanups.push(create_local_links_sync_reactor(editor, ui, links_service));
+      const meta = {
+        ...create_test_note("a.md", "a"),
+        path: as_note_path("a.md"),
+      };
+
+      editor.set_open_note(create_open_note_state(meta, "[[b]]"));
+      await tick();
+      expect(update_local_note_links).toHaveBeenCalledTimes(1);
+
+      editor.set_open_note(create_open_note_state(meta, "[[b]] [[c]]"));
+      await tick();
+      editor.update_mtime(meta.id, 500);
+      await tick();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(update_local_note_links).toHaveBeenCalledTimes(2);
+      expect(update_local_note_links).toHaveBeenLastCalledWith(
+        "a.md",
+        "[[b]] [[c]]",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

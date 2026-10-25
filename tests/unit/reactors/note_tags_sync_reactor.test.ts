@@ -25,23 +25,28 @@ function open_file(editor: EditorStore, path: string, markdown: string) {
   editor.set_open_note(create_open_note_state(meta, markdown));
 }
 
+function create_reactor_setup() {
+  const ui = new UIStore();
+  ui.context_rail_open = true;
+  const editor = new EditorStore();
+  const extract_note_tags = vi.fn().mockResolvedValue(["work"]);
+  const tags_port: TagsPort = {
+    list_tags: vi.fn().mockResolvedValue([]),
+    suggest_tags: vi.fn().mockResolvedValue([]),
+    search_tagged_notes: vi.fn(),
+    extract_note_tags,
+  };
+  const vault_store = new VaultStore();
+  vault_store.set_vault(create_test_vault());
+  const tags_store = new TagsStore();
+  const service = new TagsService(tags_port, vault_store, tags_store);
+  cleanups.push(create_note_tags_sync_reactor(editor, ui, service));
+  return { editor, tags_store, extract_note_tags };
+}
+
 describe("note tags sync reactor", () => {
   it("clears the chips and skips the parser for a file that is not Markdown", async () => {
-    const ui = new UIStore();
-    ui.context_rail_open = true;
-    const editor = new EditorStore();
-    const extract_note_tags = vi.fn().mockResolvedValue(["work"]);
-    const tags_port: TagsPort = {
-      list_tags: vi.fn().mockResolvedValue([]),
-      suggest_tags: vi.fn().mockResolvedValue([]),
-      search_tagged_notes: vi.fn(),
-      extract_note_tags,
-    };
-    const vault_store = new VaultStore();
-    vault_store.set_vault(create_test_vault());
-    const tags_store = new TagsStore();
-    const service = new TagsService(tags_port, vault_store, tags_store);
-    cleanups.push(create_note_tags_sync_reactor(editor, ui, service));
+    const { editor, tags_store, extract_note_tags } = create_reactor_setup();
 
     open_file(editor, "a.md", "#work");
     await tick();
@@ -55,5 +60,27 @@ describe("note tags sync reactor", () => {
     expect(tags_store.note_tags_path).toBeNull();
     expect(tags_store.tags_for_note("style.css")).toEqual([]);
     expect(extract_note_tags).toHaveBeenCalledTimes(1);
+  });
+
+  it("still recomputes after a save changes the mtime inside the debounce window", async () => {
+    vi.useFakeTimers();
+    try {
+      const { editor, extract_note_tags } = create_reactor_setup();
+
+      open_file(editor, "a.md", "#work");
+      await tick();
+      expect(extract_note_tags).toHaveBeenCalledTimes(1);
+
+      open_file(editor, "a.md", "#work #more");
+      await tick();
+      editor.update_mtime(as_note_path("a.md"), 500);
+      await tick();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(extract_note_tags).toHaveBeenCalledTimes(2);
+      expect(extract_note_tags).toHaveBeenLastCalledWith("#work #more");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
