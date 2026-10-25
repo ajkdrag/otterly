@@ -5,6 +5,8 @@ use crate::features::document::service::{
 use crate::features::profile::service::{
     profile_from_launch, profile_identifier, ProfileState, PROFILE_ENV_VAR,
 };
+use crate::features::search::service::cancel_window_vault_find;
+use crate::features::watcher::service::stop_window_watcher;
 #[cfg(target_os = "macos")]
 use crate::features::profile::service::{request_profile_dialog, with_profile_data_store};
 use crate::shared;
@@ -75,6 +77,7 @@ pub fn run() {
         .manage(features::search::service::SearchDbState::default())
         .manage(features::theme::service::ThemeFileWatcherState::default())
         .manage(features::vault_settings::service::VaultSettingsLock::default())
+        .manage(features::settings::service::SettingsLock::default())
         .manage(ProfileState::new(profile_id, base_identifier))
         .manage(features::search::service::VaultFindState::default())
         .plugin(tauri_plugin_opener::init())
@@ -111,8 +114,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // Each of these is a no-op for a window that never had one.
             if let WindowEvent::Destroyed = event {
-                forget_document_window(window.app_handle(), window.label());
+                let app = window.app_handle();
+                forget_document_window(app, window.label());
+                stop_window_watcher(app, window.label());
+                cancel_window_vault_find(app, window.label());
             }
         })
         .invoke_handler(tauri::generate_handler![
