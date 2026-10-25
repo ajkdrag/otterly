@@ -839,7 +839,7 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       vi.stubGlobal("navigator", { platform: "MacIntel" });
       const { shortcuts, execute, on_switch_to_tab } = build();
 
-      for (const key of ["f", "o", "p", "w", "j", "1"]) {
+      for (const key of ["f", "o", "p", "t", "w", "j", "1"]) {
         const { event, was_touched } = press(key, {
           ...ctrl,
           target: in_vim_editor,
@@ -856,6 +856,35 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       );
       expect(execute).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+      ["Cmd+P", "p", {}, "omnibar.toggle"],
+      ["Cmd+O", "o", {}, "omnibar.open"],
+      ["Cmd+T", "t", {}, "omnibar.open_tags"],
+      ["Cmd+F", "f", {}, "find_in_file.toggle"],
+      [
+        "Cmd+Alt+F",
+        "ƒ",
+        { altKey: true, code: "KeyF" },
+        "find_in_file.toggle_replace",
+      ],
+      ["Cmd+Shift+F", "f", { shiftKey: true }, "vault_find.open"],
+    ])(
+      "runs %s inside the Vim editor on macOS",
+      (_name, key, modifiers, action_id) => {
+        vi.stubGlobal("navigator", { platform: "MacIntel" });
+        const { shortcuts, execute } = build({ is_vim_enabled: () => true });
+        const { event, was_touched } = press(key, {
+          ...modifiers,
+          target: in_vim_editor,
+        });
+
+        shortcuts.handle_keydown_capture(event);
+
+        expect(was_touched()).toBe(true);
+        expect(execute).toHaveBeenCalledWith(action_id);
+      },
+    );
 
     it("stay app hotkeys outside the Vim editor on macOS, and everywhere elsewhere", () => {
       const { shortcuts, execute } = build();
