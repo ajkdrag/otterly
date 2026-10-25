@@ -59,8 +59,9 @@ To make Otterly the default app for Markdown:
 A profile is a separate Otterly with its own settings, vault list, window size and tabs. Use one to keep work and personal notes apart, or to get a second window on the same vault.
 
 - In the app: run "Profiles…" from the command palette, then pick a profile or type a new name. On macOS the Dock menu lists them too. Opening a profile that already runs just brings its window to the front.
-- From a terminal: `otterly --profile=work`, or `OTTERLY_PROFILE=work otterly`. The flag wins when both are set. Write it with `=`, because `--profile work` is not read as a profile.
+- From a terminal: `otterly --profile=work`, or `OTTERLY_PROFILE=work otterly`. The flag wins when both are set. Write it with `=`. `--profile work` is not read as a profile, so Otterly logs an error and starts the default profile.
 - A profile name is up to 32 lowercase letters, digits and dashes. A bad name is logged and Otterly starts the default profile.
+- A profile exists as soon as it is launched with a valid name, so a typo like `--profile=wrok` creates a new profile that stays in the list. Delete its folder to remove it (see below).
 - `default` is what you get without a flag. `--profile=default` is the same thing, and it keeps all the data you had before profiles existed.
 - Each profile is its own app instance. On macOS you get one Dock icon per running profile. On Windows the windows share the Otterly taskbar button. The window title ends with the profile name, like `notes — My Vault (work)`.
 - On macOS, launching Otterly while another profile runs brings that profile to the front. Use the Dock menu or Profiles… to start `default`.
