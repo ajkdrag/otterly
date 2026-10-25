@@ -14,7 +14,26 @@ vi.mock("svelte-sonner", () => ({
 }));
 
 const one_problem = [
-  { line: 3, text: "let x = 1", message: 'Unsupported command "let"' },
+  {
+    line: 3,
+    text: "let x = 1",
+    message: 'Unsupported command "let"',
+    severity: "error" as const,
+  },
+];
+const skipped_lines = [
+  {
+    line: 1,
+    text: "syntax on",
+    message: "Terminal Vim only",
+    severity: "skipped" as const,
+  },
+  {
+    line: 2,
+    text: "set number",
+    message: "Terminal Vim only",
+    severity: "skipped" as const,
+  },
 ];
 
 const on_focus = { force: false };
@@ -39,11 +58,12 @@ function create_harness(
   return { registry, load_vimrc };
 }
 
-const problems_found: VimrcLoadResult = {
+const problems_found = {
   status: "applied",
   problems: one_problem,
-  problems_changed: true,
-};
+  errors_changed: true,
+  forced: false,
+} as const satisfies VimrcLoadResult;
 
 describe("vim.load_vimrc", () => {
   beforeEach(() => {
@@ -53,7 +73,7 @@ describe("vim.load_vimrc", () => {
   it("warns once about new problems and links to the Vim settings", async () => {
     const { registry } = create_harness([
       problems_found,
-      { ...problems_found, status: "unchanged", problems_changed: false },
+      { ...problems_found, status: "unchanged", errors_changed: false },
     ]);
     const open_settings = vi.fn();
     registry.register({
@@ -86,10 +106,10 @@ describe("vim.load_vimrc", () => {
   });
 
   it("reloads by force when run with no argument, like the Reload button does", async () => {
-    const clean = { problems: [], problems_changed: false };
+    const clean = { problems: [], errors_changed: false };
     const { registry, load_vimrc } = create_harness([
-      { status: "applied", ...clean },
-      { status: "applied", ...clean },
+      { status: "applied", ...clean, forced: true },
+      { status: "applied", ...clean, forced: false },
     ]);
 
     await registry.execute(ACTION_IDS.vim_load_vimrc);
@@ -100,12 +120,12 @@ describe("vim.load_vimrc", () => {
     expect(load_vimrc).toHaveBeenLastCalledWith({ force: false });
   });
 
-  it("says applied only for a forced reload of an existing, clean vimrc", async () => {
-    const clean = { problems: [], problems_changed: false };
+  it("says applied only for a forced reload of an existing vimrc", async () => {
+    const clean = { problems: [], errors_changed: false };
     const { registry } = create_harness([
-      { status: "applied", ...clean },
-      { status: "applied", ...clean },
-      { status: "missing", ...clean },
+      { status: "applied", ...clean, forced: false },
+      { status: "applied", ...clean, forced: true },
+      { status: "missing", ...clean, forced: true },
     ]);
 
     await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
@@ -118,14 +138,64 @@ describe("vim.load_vimrc", () => {
     expect(toast.success).toHaveBeenCalledOnce();
   });
 
+  it("never toasts for skipped lines, but counts them on a manual reload", async () => {
+    const skipped_only = {
+      status: "applied",
+      problems: skipped_lines,
+      errors_changed: true,
+    } as const;
+    const { registry } = create_harness([
+      { ...skipped_only, forced: false },
+      { ...skipped_only, forced: true },
+    ]);
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc);
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("vimrc applied", {
+      description: "2 lines skipped",
+    });
+  });
+
+  it("counts only errors in the warning when skipped lines come along", async () => {
+    const { registry } = create_harness([
+      {
+        ...problems_found,
+        problems: [...skipped_lines, ...one_problem],
+      },
+    ]);
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+
+    const [message, options] = vi.mocked(toast.warning).mock.calls[0] ?? [];
+    expect(message).toBe("vimrc: 1 line not applied");
+    expect(options?.description).toBe('Line 3: Unsupported command "let"');
+  });
+
+  it("answers a manual reload that a focus load took over", async () => {
+    const { registry } = create_harness([{ ...problems_found, forced: true }]);
+
+    await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
+
+    expect(toast.warning).toHaveBeenCalledOnce();
+  });
+
   it("repeats a read error only when it is new or the reload was manual", async () => {
     const new_error = {
       status: "failed",
       error: "not valid UTF-8",
       error_changed: true,
+      forced: false,
     } as const;
     const same_error = { ...new_error, error_changed: false };
-    const { registry } = create_harness([new_error, same_error, same_error]);
+    const { registry } = create_harness([
+      new_error,
+      same_error,
+      { ...same_error, forced: true },
+    ]);
 
     await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
     await registry.execute(ACTION_IDS.vim_load_vimrc, on_focus);
@@ -139,9 +209,10 @@ describe("vim.load_vimrc", () => {
   });
 
   it("warns on every manual reload, even when the problems did not change", async () => {
+    const manual = { ...problems_found, forced: true };
     const { registry } = create_harness([
-      problems_found,
-      { ...problems_found, problems_changed: false },
+      manual,
+      { ...manual, errors_changed: false },
     ]);
 
     await registry.execute(ACTION_IDS.vim_load_vimrc);

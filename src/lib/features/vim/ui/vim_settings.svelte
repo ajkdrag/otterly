@@ -34,16 +34,27 @@
   const is_mac =
     typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 
+  // The lists belong to the last good load, so they are stale after a failure.
+  const problems = $derived(load_error ? [] : (vimrc?.problems ?? []));
+  const errors = $derived(problems.filter((p) => p.severity === "error"));
+  const skipped = $derived(problems.filter((p) => p.severity === "skipped"));
+
+  const lines = (count: number) => `${count} ${count === 1 ? "line" : "lines"}`;
+
   const status = $derived.by(() => {
     if (load_error) return `Could not read: ${load_error}`;
     if (!vimrc) return "Not loaded yet";
     if (!vimrc.exists) return "Not created yet";
-    const count = vimrc.problems.length;
-    if (count === 0) return "Applied";
-    return `Applied, ${count} ${count === 1 ? "line" : "lines"} not applied`;
+    const parts = ["Applied"];
+    if (errors.length > 0) parts.push(`${lines(errors.length)} not applied`);
+    if (skipped.length > 0)
+      parts.push(
+        errors.length > 0
+          ? `${skipped.length} skipped`
+          : `${lines(skipped.length)} skipped`,
+      );
+    return parts.join(", ");
   });
-  // The list belongs to the last good load, so it is stale after a failure.
-  const problems = $derived(load_error ? [] : (vimrc?.problems ?? []));
 </script>
 
 <div class="flex flex-col">
@@ -120,9 +131,9 @@
       </Button>
     </div>
 
-    {#if problems.length > 0}
+    {#if errors.length > 0}
       <ul class="flex flex-col gap-2" aria-label="vimrc lines not applied">
-        {#each problems as problem, index (index)}
+        {#each errors as problem, index (index)}
           <li class="rounded-md border px-3 py-2">
             <div class="text-sm text-foreground">
               Line {problem.line}: {problem.message}
@@ -134,5 +145,56 @@
         {/each}
       </ul>
     {/if}
+
+    {#if skipped.length > 0}
+      <details>
+        <summary class="cursor-pointer text-xs text-muted-foreground"
+          >{lines(skipped.length)} skipped (Vimscript and terminal Vim settings)</summary
+        >
+        <ul class="mt-2 flex flex-col gap-2" aria-label="vimrc lines skipped">
+          {#each skipped as problem, index (index)}
+            <li class="text-xs text-muted-foreground">
+              <div>
+                Line {problem.line}:
+                <span class="font-mono break-all">{problem.text}</span>
+              </div>
+              <div>{problem.message}</div>
+            </li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
+  </div>
+
+  <div class="flex flex-col gap-2 border-t py-4">
+    <span class="text-sm font-medium text-foreground">Good to know</span>
+    <ul
+      class="flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-muted-foreground"
+    >
+      <li>
+        <code class="font-mono">:w</code> saves the note,
+        <code class="font-mono">:q</code> closes its tab (it asks first when
+        there are unsaved changes), and <code class="font-mono">:wq</code> does both.
+      </li>
+      <li>
+        {#if is_mac}
+          Cmd shortcuts work in every mode. Ctrl keys go to Vim.
+        {:else}
+          Ctrl shortcuts of the app win over Vim's Ctrl keys.
+        {/if}
+      </li>
+      <li>
+        <code class="font-mono">"+y</code> and
+        <code class="font-mono">"+p</code> use the system clipboard. Add
+        <code class="font-mono">set clipboard=unnamed</code> to your vimrc to use
+        it for every yank and put.
+      </li>
+      <li>Search ignores case unless the pattern has a capital letter.</li>
+      <li>
+        Space, comma and other leader maps wait one second for the next key (<code
+          class="font-mono">set timeoutlen=500</code
+        > to shorten it).
+      </li>
+    </ul>
   </div>
 </div>

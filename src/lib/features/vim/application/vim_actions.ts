@@ -30,8 +30,9 @@ export function register_vim_actions(input: VimActionInput) {
 
       // A manual reload always answers. A focus reload only speaks up about
       // something new, or it would repeat itself every time you come back.
+      // result.forced also covers a manual reload that a focus load took over.
       if (result.status === "failed") {
-        if (force || result.error_changed) {
+        if (result.forced || result.error_changed) {
           toast.error("Could not read the vimrc", {
             description: result.error,
           });
@@ -39,14 +40,18 @@ export function register_vim_actions(input: VimActionInput) {
         return;
       }
 
-      const [first_problem] = result.problems;
-      if (first_problem) {
-        if (force || result.problems_changed) {
-          const count = result.problems.length;
+      // Skipped lines (Vimscript, terminal-only settings) never toast.
+      const errors = result.problems.filter(
+        (problem) => problem.severity === "error",
+      );
+      const [first_error] = errors;
+      if (first_error) {
+        if (result.forced || result.errors_changed) {
+          const count = errors.length;
           toast.warning(
             `vimrc: ${String(count)} ${count === 1 ? "line" : "lines"} not applied`,
             {
-              description: `Line ${String(first_problem.line)}: ${first_problem.message}`,
+              description: `Line ${String(first_error.line)}: ${first_error.message}`,
               ...(has_settings_dialog && {
                 action: {
                   label: "Show",
@@ -60,7 +65,17 @@ export function register_vim_actions(input: VimActionInput) {
         return;
       }
       // A missing file applies as empty, but there is nothing to call applied.
-      if (force && result.status === "applied") toast.success("vimrc applied");
+      if (result.forced && result.status === "applied") {
+        const skipped = result.problems.length;
+        toast.success(
+          "vimrc applied",
+          skipped > 0
+            ? {
+                description: `${String(skipped)} ${skipped === 1 ? "line" : "lines"} skipped`,
+              }
+            : undefined,
+        );
+      }
     },
   });
 

@@ -8,6 +8,13 @@ const problem: VimrcProblem = {
   line: 1,
   text: "let x = 1",
   message: 'Unsupported command "let"',
+  severity: "error",
+};
+const skipped_line: VimrcProblem = {
+  line: 2,
+  text: "syntax on",
+  message: "Terminal Vim only",
+  severity: "skipped",
 };
 
 function setup(
@@ -54,18 +61,20 @@ describe("VimService.load_vimrc", () => {
     expect(await service.load_vimrc()).toMatchObject({
       status: "applied",
       problems: [problem],
-      problems_changed: true,
+      errors_changed: true,
+      forced: false,
     });
     expect(await service.load_vimrc()).toMatchObject({
       status: "unchanged",
       problems: [problem],
-      problems_changed: false,
+      errors_changed: false,
     });
     expect(apply_vimrc).toHaveBeenCalledTimes(1);
 
     expect(await service.load_vimrc({ force: true })).toMatchObject({
       status: "applied",
-      problems_changed: false,
+      errors_changed: false,
+      forced: true,
     });
     expect(apply_vimrc).toHaveBeenCalledTimes(2);
     expect(vim_store.vimrc).toEqual({
@@ -126,6 +135,51 @@ describe("VimService.load_vimrc", () => {
     expect(await first).toEqual({ status: "stale" });
     expect(apply_vimrc).toHaveBeenCalledTimes(1);
     expect(vim_store.vimrc?.problems).toEqual([]);
+  });
+
+  it("hands a manual reload's force to the focus load that took over", async () => {
+    let finish_first: (file: VimrcFile) => void = () => {};
+    let reads = 0;
+    const { service, apply_vimrc } = setup(() => {
+      reads += 1;
+      if (reads === 2)
+        return new Promise((resolve) => {
+          finish_first = resolve;
+        });
+      return Promise.resolve({ path, text: "imap jk <Esc>" });
+    });
+    await service.load_vimrc();
+    apply_vimrc.mockClear();
+
+    const manual = service.load_vimrc({ force: true });
+    const on_focus = await service.load_vimrc({ force: false });
+    finish_first({ path, text: "imap jk <Esc>" });
+
+    expect(await manual).toEqual({ status: "stale" });
+    expect(on_focus).toMatchObject({ status: "applied", forced: true });
+    expect(apply_vimrc).toHaveBeenCalledTimes(1);
+    expect(await service.load_vimrc()).toMatchObject({
+      status: "unchanged",
+      forced: false,
+    });
+  });
+
+  it("does not call a changed skipped line a new error", async () => {
+    let text = "let x = 1";
+    const { service, apply_vimrc } = setup(() =>
+      Promise.resolve({ path, text }),
+    );
+    apply_vimrc.mockImplementation((applied: string) =>
+      applied.includes("syntax") ? [problem, skipped_line] : [problem],
+    );
+    await service.load_vimrc();
+
+    text = "let x = 1\nsyntax on";
+
+    expect(await service.load_vimrc()).toMatchObject({
+      status: "applied",
+      errors_changed: false,
+    });
   });
 });
 

@@ -22,6 +22,9 @@ export class VimService {
   private load_revision = 0;
   // The file the engine holds now, so a focus reload with no edit skips it.
   private applied_file: VimrcFile | null = null;
+  // A manual reload that a focus load made stale hands its force to the load
+  // that won, so the Reload button still gets its answer.
+  private force_requested = false;
 
   constructor(
     private readonly vimrc_port: VimrcPort,
@@ -36,6 +39,7 @@ export class VimService {
     // start() clears the error, so read the last one first.
     const previous_error = this.op_store.get("vim.load_vimrc").error;
     const revision = ++this.load_revision;
+    this.force_requested ||= force;
     this.op_store.start("vim.load_vimrc", Date.now());
     let file: VimrcFile;
     try {
@@ -49,17 +53,20 @@ export class VimService {
         status: "failed",
         error: message,
         error_changed: message !== previous_error,
+        forced: this.take_force_request(),
       };
     }
     if (revision !== this.load_revision) return { status: "stale" };
 
+    const forced = this.take_force_request();
     const previous = this.vim_store.vimrc?.problems ?? [];
-    if (!force && this.applied_file && this.applied_file.text === file.text) {
+    if (!forced && this.applied_file && this.applied_file.text === file.text) {
       this.op_store.succeed("vim.load_vimrc");
       return {
         status: "unchanged",
         problems: previous,
-        problems_changed: false,
+        errors_changed: false,
+        forced,
       };
     }
     // A missing file applies as empty, so deleting it drops its maps too.
@@ -74,8 +81,15 @@ export class VimService {
     return {
       status: file.text === null ? "missing" : "applied",
       problems,
-      problems_changed: !same_problems(previous, problems),
+      errors_changed: !same_errors(previous, problems),
+      forced,
     };
+  }
+
+  private take_force_request(): boolean {
+    const forced = this.force_requested;
+    this.force_requested = false;
+    return forced;
   }
 
   // Nothing to tell the user when this fails: held keys just keep opening
@@ -102,14 +116,16 @@ export class VimService {
   }
 }
 
-function same_problems(left: VimrcProblem[], right: VimrcProblem[]): boolean {
+function same_errors(left: VimrcProblem[], right: VimrcProblem[]): boolean {
+  const left_errors = left.filter((problem) => problem.severity === "error");
+  const right_errors = right.filter((problem) => problem.severity === "error");
   return (
-    left.length === right.length &&
-    left.every(
+    left_errors.length === right_errors.length &&
+    left_errors.every(
       (problem, index) =>
-        problem.line === right[index]?.line &&
-        problem.text === right[index]?.text &&
-        problem.message === right[index]?.message,
+        problem.line === right_errors[index]?.line &&
+        problem.text === right_errors[index]?.text &&
+        problem.message === right_errors[index]?.message,
     )
   );
 }
