@@ -5,7 +5,7 @@ export type TextPart = { text: string; is_tag: boolean };
 // Same chars as rule R3 (docs/markdown_editor_behavior_spec.md, section 26).
 // We do not import the editor package here, so this is a copy.
 const TAG_BODY = /[\p{Alphabetic}\p{N}\p{M}_\-/]+/uy;
-const TAG_CHAR = /[\p{Alphabetic}\p{N}\p{M}_\-/]/u;
+const BEFORE_HASH = /[\p{Alphabetic}\p{N}\p{M}_\-/#]$/u;
 
 // Splits a plain excerpt into text and `#tag` parts, for the tags in `tags`.
 // A tag matches by key and as a whole tag: `#ab` is not `#a`. Excerpts are
@@ -46,11 +46,8 @@ function tag_end_at(
   wanted_keys: Set<string>,
 ): number | null {
   // `C#project`, `a#b` and `##x` are not tags. Slice two units so an astral
-  // letter before the `#` is still one code point.
-  const before = [...text.slice(Math.max(0, hash - 2), hash)].at(-1);
-  if (before !== undefined && (before === "#" || TAG_CHAR.test(before))) {
-    return null;
-  }
+  // letter before the `#` is still one code point for the `u` regex.
+  if (BEFORE_HASH.test(text.slice(Math.max(0, hash - 2), hash))) return null;
 
   TAG_BODY.lastIndex = hash + 1;
   const run = TAG_BODY.exec(text);
