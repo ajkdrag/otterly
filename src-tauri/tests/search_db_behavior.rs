@@ -2,10 +2,10 @@ use crate::features::notes::service as notes_service;
 use crate::features::search::db::{
     compute_sync_plan, get_backlinks, get_manifest, get_orphan_outlinks, get_outlinks,
     gfm_link_targets, in_write_transaction, internal_link_targets, list_note_paths_by_prefix,
-    list_tags, open_search_db, rebuild_index, remove_note, remove_notes_by_prefix,
-    rename_folder_paths, rename_note_path, search, search_tagged_notes, set_note_tags,
-    set_outlinks, suggest_files, suggest_planned, suggest_tags, sync_index, upsert_note,
-    wiki_link_targets, IndexResult, TagMatch, TagNotePage, TagNoteQuery,
+    list_tagged_paths, list_tags, open_search_db, rebuild_index, remove_note,
+    remove_notes_by_prefix, rename_folder_paths, rename_note_path, search, search_tagged_notes,
+    set_note_tags, set_outlinks, suggest_files, suggest_planned, suggest_tags, sync_index,
+    upsert_note, wiki_link_targets, IndexResult, TagMatch, TagNotePage, TagNoteQuery,
 };
 use crate::features::search::model::{IndexNoteMeta, SearchScope};
 use crate::features::search::tag_parser::NoteTag;
@@ -637,6 +637,41 @@ fn tagged_search_all_needs_every_tag_and_any_needs_one() {
     assert_eq!(page_paths(&any), vec!["only_y.md", "only_x.md", "both.md"]);
     assert_eq!(any.total, 3);
     assert!(any.notes.iter().all(|hit| hit.match_detail.is_none()));
+}
+
+#[test]
+fn tagged_paths_for_vault_find_follow_all_any_and_tag_keys() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(
+        &conn,
+        &[
+            ("both.md", "", &["x", "Caf\u{e9}"]),
+            ("only_x.md", "", &["x"]),
+            ("only_cafe.md", "", &["cafe\u{301}"]),
+            ("neither.md", "", &["z"]),
+        ],
+    );
+    let tagged_paths = |tags: &[&str], tag_match: TagMatch| {
+        let tags: Vec<String> = tags.iter().map(|tag| tag.to_string()).collect();
+        let mut paths = list_tagged_paths(&conn, &tags, tag_match).expect("paths should load");
+        paths.sort();
+        paths
+    };
+
+    assert_eq!(
+        tagged_paths(&["X", "CAF\u{c9}"], TagMatch::All),
+        ["both.md"]
+    );
+    assert_eq!(
+        tagged_paths(&["x", "caf\u{e9}"], TagMatch::Any),
+        ["both.md", "only_cafe.md", "only_x.md"]
+    );
+    assert_eq!(
+        tagged_paths(&["x", "X"], TagMatch::All),
+        ["both.md", "only_x.md"]
+    );
+    assert!(tagged_paths(&[], TagMatch::Any).is_empty());
 }
 
 #[test]

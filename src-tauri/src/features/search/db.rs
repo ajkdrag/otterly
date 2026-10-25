@@ -1118,6 +1118,52 @@ fn tag_match_tier(key: &str, partial: &str) -> Option<u8> {
     fuzzy_subsequence_score(key, partial).map(|_| 4)
 }
 
+// The keys of `tags` in their order, each once.
+fn unique_tag_keys(tags: &[String]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for tag in tags {
+        let key = tag_parser::tag_key(tag);
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys
+}
+
+// Paths of the notes with all (or any) of `key_count` tag keys, bound as `?`
+// params. The tag mode search and vault find both use it, so All and Any mean
+// the same thing in both.
+fn tagged_paths_sql(key_count: usize, tag_match: TagMatch) -> String {
+    let key_placeholders = vec!["?"; key_count].join(", ");
+    // PRIMARY KEY (path, tag_key) makes COUNT(*) a count of distinct tags.
+    let having = match tag_match {
+        TagMatch::All => format!("HAVING COUNT(*) = {key_count}"),
+        TagMatch::Any => String::new(),
+    };
+    format!(
+        "SELECT path FROM note_tags WHERE tag_key IN ({key_placeholders}) GROUP BY path {having}"
+    )
+}
+
+// The files vault find reads when the omnibar has tag chips.
+pub fn list_tagged_paths(
+    conn: &Connection,
+    tags: &[String],
+    tag_match: TagMatch,
+) -> Result<Vec<String>, String> {
+    let keys = unique_tag_keys(tags);
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = tagged_paths_sql(keys.len(), tag_match);
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params_from_iter(&keys), |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<String>, _>>()
+        .map_err(|e| e.to_string())
+}
+
 // One query for the sidebar drill-down and the omnibar tag mode: notes with
 // all (or any) of `tags`, narrowed by `text`, at most `limit` of them.
 //
@@ -1125,13 +1171,7 @@ fn tag_match_tier(key: &str, partial: &str) -> Option<u8> {
 // title or path match come first (the same scoring as the omnibar file
 // search), then notes whose body matches, by bm25.
 pub fn search_tagged_notes(conn: &Connection, query: &TagNoteQuery) -> Result<TagNotePage, String> {
-    let mut owned_keys: Vec<String> = Vec::new();
-    for tag in &query.tags {
-        let key = tag_parser::tag_key(tag);
-        if !owned_keys.contains(&key) {
-            owned_keys.push(key);
-        }
-    }
+    let owned_keys = unique_tag_keys(&query.tags);
     let keys: Vec<&str> = owned_keys.iter().map(String::as_str).collect();
     if keys.is_empty() {
         return Ok(TagNotePage {
@@ -1141,15 +1181,8 @@ pub fn search_tagged_notes(conn: &Connection, query: &TagNoteQuery) -> Result<Ta
         });
     }
 
-    // PRIMARY KEY (path, tag_key) makes COUNT(*) a count of distinct tags.
     let key_placeholders = vec!["?"; keys.len()].join(", ");
-    let having = match query.r#match {
-        TagMatch::All => format!("HAVING COUNT(*) = {}", keys.len()),
-        TagMatch::Any => String::new(),
-    };
-    let tagged_paths = format!(
-        "SELECT path FROM note_tags WHERE tag_key IN ({key_placeholders}) GROUP BY path {having}"
-    );
+    let tagged_paths = tagged_paths_sql(keys.len(), query.r#match);
     // The excerpt is the one around the first tag. In "any" mode a note may
     // lack that tag, and then any of the other tags' excerpts will do.
     let tagged_notes = format!(

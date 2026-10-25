@@ -3,6 +3,7 @@ use crate::features::search::vault_find::{
     content_hash, find_in_text, find_in_vault, replace_in_text, CompiledFind, FindError, FindQuery,
     FindSpec, PathFilter, VaultFindEvent, VaultFindFile, VaultFindRequest, MAX_MATCHES,
 };
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -61,14 +62,30 @@ fn run_find(root: &Path, text: &str, include: &str, exclude: &str) -> FindRun {
         include: include.to_string(),
         exclude: exclude.to_string(),
     };
-    let find = CompiledFind::from_request(&request).expect("request should compile");
+    let find = CompiledFind::from_request(&request, None).expect("request should compile");
+    collect_run(root, &find)
+}
+
+// Tag chips arrive as the exact file list the walk may read.
+fn run_find_only(root: &Path, text: &str, only: &[&str]) -> FindRun {
+    let request = VaultFindRequest {
+        spec: literal(text),
+        include: String::new(),
+        exclude: String::new(),
+    };
+    let only: HashSet<String> = only.iter().map(|path| path.to_string()).collect();
+    let find = CompiledFind::from_request(&request, Some(only)).expect("request should compile");
+    collect_run(root, &find)
+}
+
+fn collect_run(root: &Path, find: &CompiledFind) -> FindRun {
     let mut run = FindRun {
         files: Vec::new(),
         match_count: 0,
         truncated: false,
     };
     let cancel = AtomicBool::new(false);
-    find_in_vault(root, &find, &cancel, |event| match event {
+    find_in_vault(root, find, &cancel, |event| match event {
         VaultFindEvent::Files { files, .. } => run.files.extend(files),
         VaultFindEvent::Done {
             match_count,
@@ -170,7 +187,7 @@ fn invalid_and_multiline_queries_are_rejected() {
         Err(FindError::InvalidQuery(_))
     ));
     assert!(matches!(
-        PathFilter::compile("{unclosed", ""),
+        PathFilter::compile("{unclosed", "", None),
         Err(FindError::InvalidGlob(_))
     ));
 }
@@ -323,6 +340,21 @@ fn exclude_globs_prune_folders_and_skip_files() {
 
     let run = run_find(root, "needle", "", "archive, *.txt");
     assert_eq!(found_paths(&run), ["keep.md"]);
+}
+
+#[test]
+fn a_file_list_from_tag_chips_limits_the_walk_to_those_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_file(root, "tagged.md", b"needle");
+    write_file(root, "notes/tagged.md", b"needle");
+    write_file(root, "untagged.md", b"needle");
+
+    let listed = run_find_only(root, "needle", &["tagged.md", "notes/tagged.md"]);
+    assert_eq!(found_paths(&listed), ["notes/tagged.md", "tagged.md"]);
+
+    let no_tagged_notes = run_find_only(root, "needle", &[]);
+    assert!(no_tagged_notes.files.is_empty());
 }
 
 #[test]
