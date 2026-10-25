@@ -122,13 +122,16 @@ export const block_field = StateField.define<BlockFieldValue>({
     // Caret-revealed blocks follow the selection. Rebuilding every widget on
     // each caret move costs about 10 ms in a note with 5000 blocks, and Vim
     // moves the caret on every key, so rebuild only when the set changed.
+    // Finding the set walks every block, so a rebuild reuses this one.
+    let revealed: number[] | undefined;
     if (
       !changed &&
       transaction.selection &&
-      !state.field(reveal_freeze, false)?.frozen &&
-      !same_positions(value.revealed, revealed_blocks(state, blocks))
-    )
-      changed = true;
+      !state.field(reveal_freeze, false)?.frozen
+    ) {
+      revealed = revealed_blocks(state, blocks);
+      changed = !same_positions(value.revealed, revealed);
+    }
     if (
       transaction.startState.field(reveal_freeze, false)?.frozen !==
         state.field(reveal_freeze, false)?.frozen ||
@@ -142,7 +145,7 @@ export const block_field = StateField.define<BlockFieldValue>({
       blocks,
       decorations: build_decorations(state, blocks, constructing),
       constructing,
-      revealed: revealed_blocks(state, blocks),
+      revealed: revealed ?? revealed_blocks(state, blocks),
     };
   },
   provide: (field) => [
