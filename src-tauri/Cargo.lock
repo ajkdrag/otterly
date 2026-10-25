@@ -2826,6 +2826,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "tokio",
+ "unicode-normalization",
  "unicode_categories",
  "walkdir",
 ]

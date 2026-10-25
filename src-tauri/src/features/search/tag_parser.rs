@@ -1,21 +1,27 @@
-// Finds #tags in a note. One parser for the whole app: the index stores what
-// this returns, and the context rail asks it about unsaved editor text.
+// Finds #tags in a note. One parser for the index: the index stores what
+// this returns, and the context rail asks it about unsaved editor text. The
+// editor's `tags` plugin has its own parser for chips. Both follow rules R1 to
+// R6 in docs/markdown_editor_behavior_spec.md, section 26, and both run the
+// cases in tests/fixtures/tag_cases.json.
+//
+// @Incomplete: Tags are flat. `#a/b` is its own tag, there is no nested tree.
 //
 // Per inline container (paragraph, heading, table cell) we build two strings
 // with the same char count. For "see `config.yml` #release":
 //
 //   plain: "see config.yml #release"   what the reader sees, used for excerpts
-//   scan:  "see ~~~~~~~~~~ #release"   code, links, HTML and escapes hidden
+//   scan:  "see ~~~~~~~~~~ #release"   code, links, HTML, escapes and entities hidden
 //
 // Tags are found in `scan`. The hidden char is not whitespace, so
 // `<span>#x</span>` or `[a](b)#x` give no tag: in the source that `#` does
 // not follow whitespace either.
 
 use crate::features::search::link_parser;
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use comrak::{parse_document, Arena, Options};
 use std::collections::HashMap;
 use unicode_categories::UnicodeCategories;
+use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteTag {
@@ -27,9 +33,11 @@ pub struct NoteTag {
 const HIDDEN: char = '\0';
 const EXCERPT_CHARS: usize = 160;
 
-// `#Work` and `#work` are the same tag. The db groups and looks up by this key.
+// R6. `#Work` and `#work` are the same tag, and so are `café` typed
+// precomposed and typed as `e` plus U+0301. The db groups and looks up by
+// this key.
 pub(crate) fn tag_key(tag: &str) -> String {
-    tag.to_lowercase()
+    tag.nfc().collect::<String>().to_lowercase()
 }
 
 // Tags are deduped by `tag_key`. The first spelling wins, frontmatter first,
@@ -44,6 +52,7 @@ pub(crate) fn tag_key(tag: &str) -> String {
 pub(crate) fn extract_note_tags(markdown: &str) -> Vec<NoteTag> {
     let arena = Arena::new();
     let root = parse_document(&arena, markdown, &tag_options());
+    let source = NoteSource::new(markdown);
     let mut tag_index_by_key: HashMap<String, usize> = HashMap::new();
     let mut tags: Vec<NoteTag> = Vec::new();
     let mut first_container_excerpt: Option<String> = None;
@@ -68,7 +77,7 @@ pub(crate) fn extract_note_tags(markdown: &str) -> Vec<NoteTag> {
 
         let mut plain: Vec<char> = Vec::new();
         let mut scan: Vec<char> = Vec::new();
-        collect_inline_text(node, &mut plain, &mut scan);
+        collect_inline_text(node, &source, &mut plain, &mut scan);
         if first_container_excerpt.is_none() && !plain.is_empty() {
             first_container_excerpt = Some(excerpt_around(&plain, 0));
         }
@@ -104,12 +113,32 @@ fn tag_options() -> Options<'static> {
     options
 }
 
-fn collect_inline_text<'a>(node: &'a AstNode<'a>, plain: &mut Vec<char>, scan: &mut Vec<char>) {
+fn collect_inline_text<'a>(
+    node: &'a AstNode<'a>,
+    source: &NoteSource,
+    plain: &mut Vec<char>,
+    scan: &mut Vec<char>,
+) {
     for child in node.children() {
-        match &child.data.borrow().value {
+        let data = child.data.borrow();
+        match &data.value {
             NodeValue::Text(text) => {
-                plain.extend(text.chars());
-                scan.extend(text.chars());
+                // Only text with a `#` can hold a tag, so only that pays for
+                // the source comparison.
+                let text_source = if text.contains('#') {
+                    source.slice(data.sourcepos)
+                } else {
+                    None
+                };
+                match text_source {
+                    Some(text_source) if text_source != text => {
+                        push_text_hiding_entities(text, text_source, plain, scan)
+                    }
+                    _ => {
+                        plain.extend(text.chars());
+                        scan.extend(text.chars());
+                    }
+                }
             }
             NodeValue::SoftBreak | NodeValue::LineBreak => {
                 plain.push('\n');
@@ -126,8 +155,84 @@ fn collect_inline_text<'a>(node: &'a AstNode<'a>, plain: &mut Vec<char>, scan: &
             | NodeValue::Image(_)
             | NodeValue::WikiLink(_)
             | NodeValue::Escaped => push_hidden(&nested_plain_text(child), plain, scan),
-            _ => collect_inline_text(child, plain, scan),
+            _ => collect_inline_text(child, source, plain, scan),
         }
+    }
+}
+
+// comrak decodes `&#35;`, `&#x23;` and `&num;` into plain Text and merges it
+// with the text around it, so the Text alone cannot tell us `&#35;x` is not a
+// tag. We walk the decoded text and its source together. A char that came
+// from an entity goes to `plain` as itself and to `scan` as HIDDEN. That also
+// keeps `a &nbsp;#x` from being a tag: the `#` does not follow real
+// whitespace in the source.
+//
+// Any other difference means something else rewrote the text, and we push the
+// rest as decoded text, like before entities were handled.
+//
+// @Robustness: A named entity that decodes to two chars (`&NotEqualTilde;`)
+// hides only the first, and an `&name;` that comrak left as text throws the
+// walk off by a few chars. Both end up in the fallback or hide a char that is
+// not whitespace anyway. I have not seen either in a real note.
+fn push_text_hiding_entities(
+    text: &str,
+    text_source: &str,
+    plain: &mut Vec<char>,
+    scan: &mut Vec<char>,
+) {
+    let mut decoded = text.chars();
+    let mut rest = text_source;
+    while let Some(ch) = decoded.next() {
+        if let Some(entity_len) = entity_len(rest) {
+            rest = &rest[entity_len..];
+            plain.push(ch);
+            scan.push(HIDDEN);
+        } else if let Some(after) = rest.strip_prefix(ch) {
+            rest = after;
+            plain.push(ch);
+            scan.push(ch);
+        } else {
+            for ch in std::iter::once(ch).chain(decoded) {
+                plain.push(ch);
+                scan.push(ch);
+            }
+            return;
+        }
+    }
+}
+
+// Byte length of the `&name;`, `&#35;` or `&#x23;` that starts `source`.
+fn entity_len(source: &str) -> Option<usize> {
+    let body = source.strip_prefix('&')?;
+    let name_len = body.find(|ch: char| ch != '#' && !ch.is_ascii_alphanumeric())?;
+    (name_len > 0 && body[name_len..].starts_with(';')).then_some(name_len + 2)
+}
+
+// The note text with a line table, so a node's sourcepos maps back to its
+// source bytes. Built once per note.
+struct NoteSource<'a> {
+    markdown: &'a str,
+    line_starts: Vec<usize>,
+}
+
+impl<'a> NoteSource<'a> {
+    fn new(markdown: &'a str) -> Self {
+        let line_starts = std::iter::once(0)
+            .chain(markdown.match_indices('\n').map(|(idx, _)| idx + 1))
+            .collect();
+        NoteSource {
+            markdown,
+            line_starts,
+        }
+    }
+
+    // comrak lines and columns are 1-based, columns count bytes, and the end
+    // is inclusive. Nodes comrak made up have 0:0, which gives None.
+    fn slice(&self, pos: Sourcepos) -> Option<&'a str> {
+        let line_start = |line: usize| self.line_starts.get(line.checked_sub(1)?).copied();
+        let start = line_start(pos.start.line)? + pos.start.column.checked_sub(1)?;
+        let end = line_start(pos.end.line)? + pos.end.column;
+        self.markdown.get(start..end)
     }
 }
 
@@ -156,8 +261,7 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     let mut idx = 0;
     while idx < scan.len() {
-        let starts_tag = scan[idx] == '#' && (idx == 0 || scan[idx - 1].is_whitespace());
-        if !starts_tag {
+        if scan[idx] != '#' || !starts_tag(scan, idx) {
             idx += 1;
             continue;
         }
@@ -167,7 +271,8 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
             body_end += 1;
         }
         let body: String = scan[body_start..body_end].iter().collect();
-        if let Some(tag) = validate_tag_body(&body) {
+        let after_underscore = idx > 0 && scan[idx - 1] == '_';
+        if let Some(tag) = validate_tag_body(&body, after_underscore) {
             found.push((tag, idx));
         }
         idx = body_end;
@@ -175,28 +280,50 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
     found
 }
 
-// Combining marks count because whole scripts spell words with them: the
+// R2. A `#` starts a tag at the start of the text, after whitespace, or
+// after a run of `*`, `_`, `~` that is itself at the start or after
+// whitespace. comrak has already turned matched delimiters into Strong or
+// Emph, so `**#bold**` reaches us as `#bold`. The run only matters for
+// delimiters comrak left as text (`**#open`), but the editor sees the raw
+// `*` in every case, and stating the rule on the source keeps both parsers
+// on the same answer. HIDDEN stops the walk, so `` `c`*#x* `` and `\*#x` stay
+// plain text.
+fn starts_tag(scan: &[char], idx: usize) -> bool {
+    let mut run_start = idx;
+    while run_start > 0 && matches!(scan[run_start - 1], '*' | '_' | '~') {
+        run_start -= 1;
+    }
+    run_start == 0 || scan[run_start - 1].is_whitespace()
+}
+
+// R3. Combining marks count because whole scripts spell words with them: the
 // Devanagari virama in `क्या` and the Thai tone mark in `ไม่` are not
 // alphabetic, and without them the tag would stop after one letter.
 //
-// @Incomplete: Text is not Unicode-normalized, so `café` typed precomposed and
-// typed as `e` plus U+0301 gives two tags that look the same.
+// @Robustness: unicode_categories and the WebView's ICU can disagree on marks
+// added in recent Unicode versions, so a tag with one of those may end in a
+// different place in the editor. Not worth a table of our own.
 fn is_tag_char(ch: char) -> bool {
     ch.is_alphanumeric() || ch.is_mark() || matches!(ch, '_' | '-' | '/')
 }
 
-// `a/b/` is `a/b`. Rejects `/a`, `a//b`, bodies with no letter or digit
-// (`#_`, `#---`), and all digits (`#123` is an issue number or a year, not a
-// tag). `#1st` and `#v2` are fine.
-fn validate_tag_body(body: &str) -> Option<String> {
-    let body = body.trim_end_matches('/');
+// R4 and R5. `a/b/` is `a/b`. When the `#` follows `_`, that `_` opens
+// emphasis, so trailing `_` closes it: `_#x_` is `x`. Rejects `/a`, `a//b`,
+// bodies with no letter or number (`#_`, `#---`), and numbers only (`#123`
+// is an issue number or a year, and `#١٢٣` too). `#1st` and `#v2` are fine.
+fn validate_tag_body(body: &str, after_underscore: bool) -> Option<String> {
+    let body = if after_underscore {
+        body.trim_end_matches(['_', '/'])
+    } else {
+        body.trim_end_matches('/')
+    };
     if !body.chars().all(is_tag_char) || !body.chars().any(char::is_alphanumeric) {
         return None;
     }
     if body.split('/').any(str::is_empty) {
         return None;
     }
-    if body.chars().all(|ch| ch.is_ascii_digit()) {
+    if body.chars().all(char::is_numeric) {
         return None;
     }
     Some(body.to_string())
@@ -266,7 +393,7 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
         .filter_map(|value| {
             let value = value.trim();
             let value = strip_matching_quotes(value).trim();
-            validate_tag_body(value.strip_prefix('#').unwrap_or(value))
+            validate_tag_body(value.strip_prefix('#').unwrap_or(value), false)
         })
         .collect()
 }
@@ -319,6 +446,7 @@ fn strip_matching_quotes(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
 
     fn tags(markdown: &str) -> Vec<String> {
         extract_note_tags(markdown)
@@ -327,107 +455,50 @@ mod tests {
             .collect()
     }
 
-    fn none() -> Vec<String> {
-        Vec::new()
+    // The editor's tests read the same file. `editor` and `note` are theirs.
+    #[derive(Deserialize)]
+    struct TagCases {
+        cases: Vec<TagCase>,
+    }
+
+    #[derive(Deserialize)]
+    struct TagCase {
+        name: String,
+        markdown: String,
+        index: Vec<String>,
     }
 
     #[test]
-    fn code_is_not_scanned() {
-        assert_eq!(tags("see `#x` here"), none());
-        assert_eq!(tags("```\n#x\n```\n"), none());
-        assert_eq!(tags("para\n\n    #x\n"), none());
-        assert_eq!(tags("`code`#x"), none());
+    fn shared_tag_cases() {
+        let fixture: TagCases = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/tag_cases.json"
+        )))
+        .expect("tag_cases.json parses");
+
+        let failures: Vec<String> = fixture
+            .cases
+            .iter()
+            .filter_map(|case| {
+                let found = tags(&case.markdown);
+                (found != case.index)
+                    .then(|| format!("{}: expected {:?}, got {:?}", case.name, case.index, found))
+            })
+            .collect();
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     #[test]
-    fn heading_marker_is_not_a_tag_but_heading_text_is_scanned() {
-        assert_eq!(tags("# Heading"), none());
-        assert_eq!(tags("#"), none());
-        assert_eq!(tags("# "), none());
-        assert_eq!(tags("## Plan #work"), vec!["work"]);
-    }
-
-    #[test]
-    fn hash_must_start_the_text_or_follow_whitespace() {
-        assert_eq!(tags("#start of line"), vec!["start"]);
-        assert_eq!(tags("first line\n#second"), vec!["second"]);
-        assert_eq!(tags("foo#bar and C# code"), none());
-        assert_eq!(tags("(#y)"), none());
-    }
-
-    #[test]
-    fn urls_links_and_wikilinks_are_not_scanned() {
-        assert_eq!(tags("https://a.com/#frag and www.a.com/#f"), none());
-        assert_eq!(tags("<https://a.com/#x> and example.com/#y"), none());
-        assert_eq!(tags("[#x](url) [[note#h]] [[#h]] ![#alt](a.png)"), none());
-        assert_eq!(tags("[[note#h|#alias]] then #real"), vec!["real"]);
-    }
-
-    #[test]
-    fn escapes_and_html_are_not_scanned() {
-        assert_eq!(tags("\\#x"), none());
-        assert_eq!(tags("<span>#x</span>"), none());
-        assert_eq!(tags("<div>\n#x\n</div>\n"), none());
-    }
-
-    #[test]
-    fn body_validation() {
-        assert_eq!(tags("#123 #2024"), none());
-        assert_eq!(tags("#1st #v2"), vec!["1st", "v2"]);
-        assert_eq!(tags("#a/b and #a/b/"), vec!["a/b"]);
-        assert_eq!(tags("x #/a #a//b # #"), none());
-        assert_eq!(tags("#日本語 #café"), vec!["日本語", "café"]);
-        assert_eq!(tags("#party🎉 #ok"), vec!["party", "ok"]);
-        assert_eq!(tags("#क्या hello #ไม่ ok"), vec!["क्या", "ไม่"]);
-        assert_eq!(tags("#_ #- #---"), none());
-        assert_eq!(tags("#done. #x, #a,b"), vec!["done", "x", "a"]);
-    }
-
-    #[test]
-    fn tags_inside_emphasis_tables_quotes_and_tasks_count() {
-        assert_eq!(tags("**#bold**"), vec!["bold"]);
-        assert_eq!(tags("| h |\n| --- |\n| #cell |\n"), vec!["cell"]);
-        assert_eq!(tags("> #quote"), vec!["quote"]);
-        assert_eq!(tags("- [ ] #task"), vec!["task"]);
-        assert_eq!(tags("> [!note] Title\n> body #callout"), vec!["callout"]);
-    }
-
-    #[test]
-    fn same_tag_with_different_case_is_one_tag_keeping_first_spelling() {
-        assert_eq!(tags("#Work and #work"), vec!["Work"]);
-    }
-
-    #[test]
-    fn frontmatter_forms() {
-        assert_eq!(
-            tags("---\ntags: [a, \"b\", '#c']\n---\n"),
-            vec!["a", "b", "c"]
-        );
-        assert_eq!(tags("---\ntags: a, b\n---\n"), vec!["a", "b"]);
-        assert_eq!(tags("---\ntags: a b\n---\n"), vec!["a", "b"]);
-        assert_eq!(
-            tags("---\ntitle: x\ntags:\n  - a\n  - \"#b\"\n- c\nother: 1\n---\n"),
-            vec!["a", "b", "c"]
-        );
-        assert_eq!(tags("---\ntags: [123, ok, bad tag]\n---\n"), vec!["ok"]);
-        assert_eq!(tags("---\ntags: a # comment\n---\n"), vec!["a"]);
-        assert_eq!(tags("---\ntags: [a, b] # x\n---\n"), vec!["a", "b"]);
-        assert_eq!(
-            tags("---\ntags: # why\n  - a # first\n  - \"#b\"\n---\n"),
-            vec!["a", "b"]
-        );
-        assert_eq!(tags("---\ntags: [a, b\n  , c]\n---\n"), vec!["a", "b", "c"]);
-        assert_eq!(
-            tags("---\ntags: [a, # why\n  b,\n  c] # end\n---\n"),
-            vec!["a", "b", "c"]
-        );
-        assert_eq!(tags("---\ntags: [ok, ab\n  cd]\n---\n"), vec!["ok"]);
-        assert_eq!(tags("---\ntags: [a, b\ntitle: x\n---\n"), none());
-        assert_eq!(tags("---\ntag: a\nmeta:\n  tags: [b]\n---\n"), none());
+    fn crlf_frontmatter_and_body() {
         assert_eq!(
             tags("---\r\ntags:\r\n  - a\r\n  - b\r\n---\r\n#c\r\n"),
             vec!["a", "b", "c"]
         );
+    }
+
+    #[test]
+    fn tag_key_folds_case_and_normalizes() {
+        assert_eq!(tag_key("Cafe\u{301}"), tag_key("café"));
     }
 
     #[test]
@@ -461,11 +532,6 @@ mod tests {
     }
 
     #[test]
-    fn dashes_later_in_the_doc_are_not_frontmatter() {
-        assert_eq!(tags("text\n\n---\ntags: [a]\n---\n"), none());
-    }
-
-    #[test]
     fn excerpt_is_cut_on_char_boundaries_and_marks_cuts() {
         let before = "é".repeat(200);
         let after = "日".repeat(200);
@@ -481,5 +547,11 @@ mod tests {
     fn excerpt_collapses_whitespace_and_shows_link_text() {
         let found = extract_note_tags("See [the   doc](a.md)\nand `code` #x");
         assert_eq!(found[0].excerpt.as_deref(), Some("See the doc and code #x"));
+    }
+
+    #[test]
+    fn excerpt_shows_entities_decoded() {
+        let found = extract_note_tags("Tom &amp; Jerry &#35;1 #show");
+        assert_eq!(found[0].excerpt.as_deref(), Some("Tom & Jerry #1 #show"));
     }
 }
