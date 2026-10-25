@@ -271,8 +271,7 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
             body_end += 1;
         }
         let body: String = scan[body_start..body_end].iter().collect();
-        let after_underscore = idx > 0 && scan[idx - 1] == '_';
-        if let Some(tag) = validate_tag_body(&body, after_underscore) {
+        if let Some(tag) = validate_tag_body(&body) {
             found.push((tag, idx));
         }
         idx = body_end;
@@ -307,16 +306,14 @@ fn is_tag_char(ch: char) -> bool {
     ch.is_alphanumeric() || ch.is_mark() || matches!(ch, '_' | '-' | '/')
 }
 
-// R4 and R5. `a/b/` is `a/b`. When the `#` follows `_`, that `_` opens
-// emphasis, so trailing `_` closes it: `_#x_` is `x`. Rejects `/a`, `a//b`,
-// bodies with no letter or number (`#_`, `#---`), and numbers only (`#123`
-// is an issue number or a year, and `#١٢٣` too). `#1st` and `#v2` are fine.
-fn validate_tag_body(body: &str, after_underscore: bool) -> Option<String> {
-    let body = if after_underscore {
-        body.trim_end_matches(['_', '/'])
-    } else {
-        body.trim_end_matches('/')
-    };
+// R4 and R5. Trailing `_` and `/` go: `a/b/` is `a/b`. A trailing `_` is
+// often the closer of `_..._` emphasis. comrak resolves that before we scan
+// and the editor's Lezer parser after it reads the tag, so dropping it always
+// is the only rule both sides can compute. Then rejects `/a`, `a//b`, bodies
+// with no letter or number (`#_`, `#---`), and numbers only (`#123` is an
+// issue number or a year, and `#١٢٣` too). `#1st` and `#v2` are fine.
+fn validate_tag_body(body: &str) -> Option<String> {
+    let body = body.trim_end_matches(['_', '/']);
     if !body.chars().all(is_tag_char) || !body.chars().any(char::is_alphanumeric) {
         return None;
     }
@@ -393,7 +390,7 @@ fn frontmatter_tags(raw: &str) -> Vec<String> {
         .filter_map(|value| {
             let value = value.trim();
             let value = strip_matching_quotes(value).trim();
-            validate_tag_body(value.strip_prefix('#').unwrap_or(value), false)
+            validate_tag_body(value.strip_prefix('#').unwrap_or(value))
         })
         .collect()
 }

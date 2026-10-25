@@ -234,8 +234,15 @@
     },
     {
       "name": "tags in emphasis",
-      "markdown": "**#bold** *#em* _#under_ ~~#strike~~ ~#tilde~",
+      "markdown": "**#bold** *#em* _#under_ ~~#strike~~ ~see #tilde~",
       "index": ["bold", "em", "under", "strike", "tilde"]
+    },
+    {
+      "name": "single tilde around one tag",
+      "markdown": "~#tilde~",
+      "index": ["tilde"],
+      "editor": [],
+      "note": "@Incomplete: Lezer reads ~x~ with no space inside as subscript and does not parse inside it. The editor shows it as plain text"
     },
     {
       "name": "emphasis glued to a word",
@@ -253,9 +260,14 @@
       "index": ["x", "a_b", "a"]
     },
     {
-      "name": "trailing separators stay",
+      "name": "trailing underscore goes, trailing dash stays",
       "markdown": "#snake_case_ #kebab-case-",
-      "index": ["snake_case_", "kebab-case-"]
+      "index": ["snake_case", "kebab-case-"]
+    },
+    {
+      "name": "tag at the end of emphasis",
+      "markdown": "_see #todo_ and *ask #bob*",
+      "index": ["todo", "bob"]
     },
     {
       "name": "table cell",
