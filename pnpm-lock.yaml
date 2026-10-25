@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@replit/codemirror-vim-core@0.1.0':
-    hash: 54247d8be5302c85daffb4c1b012356c10ee16ccbd93fb63f6f0ca49dc0687cf
+    hash: 124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c
     path: patches/@replit__codemirror-vim-core@0.1.0.patch
   '@replit/codemirror-vim@6.4.0':
     hash: dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9
@@ -3734,7 +3734,7 @@ snapshots:
   '@poppinss/macroable@1.1.2':
     optional: true
 
-  '@replit/codemirror-vim-core@0.1.0(patch_hash=54247d8be5302c85daffb4c1b012356c10ee16ccbd93fb63f6f0ca49dc0687cf)': {}
+  '@replit/codemirror-vim-core@0.1.0(patch_hash=124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c)': {}
 
   '@replit/codemirror-vim@6.4.0(patch_hash=dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9)(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)':
     dependencies:
@@ -3743,7 +3743,7 @@ snapshots:
       '@codemirror/search': 6.7.2
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@replit/codemirror-vim-core': 0.1.0(patch_hash=54247d8be5302c85daffb4c1b012356c10ee16ccbd93fb63f6f0ca49dc0687cf)
+      '@replit/codemirror-vim-core': 0.1.0(patch_hash=124c962a728a349d7015cd1d55dfb21790cc59d5b75413c520c961663ecbeb0c)
 
   '@rollup/rollup-android-arm-eabi@4.57.1':
     optional: true

@@ -4369,13 +4369,13 @@
     }
   },
   {
-    "id": "dd-trailing-empty",
+    "id": "dd-last-line-before-final-break",
     "text": "1\n2\n",
     "at": [2, 1],
     "keys": "dd",
     "vim": {
-      "lines": ["1", ""],
-      "cursor": [2, 1],
+      "lines": ["1"],
+      "cursor": [1, 1],
       "register": "2\n",
       "register_type": "line"
     }

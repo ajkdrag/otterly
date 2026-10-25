@@ -1,9 +1,10 @@
 import {
+  EditorState,
   Facet,
   Prec,
-  type EditorState,
   type Extension,
   type StateCommand,
+  type Text,
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
@@ -83,6 +84,7 @@ export function vim_keybindings(
     // One Vim instance edits the whole document. Code blocks and tables show
     // their source under the caret instead of handing keys to a nested view.
     reveal_surfaces_at_caret.of(true),
+    caret_stays_off_final_empty_line,
     // These plugins come after vim(), so getCM(view) exists when they are
     // built.
     undo_steps(),
@@ -402,6 +404,45 @@ function open_marker_line_above(cm: CodeMirror): boolean {
   });
   return true;
 }
+
+// Vim reads the line break at the end of a file as the end of its last line.
+// CodeMirror has one more, empty line after it, and a saved note almost always
+// ends with a line break. So the engine's last line is the one before that
+// empty line: G and j stop on the last line with text, and dG or Gdd delete
+// that line and keep the final line break (patch V1 looks at the deleted
+// text for that). An empty note is one empty line.
+CodeMirror.prototype.lastLine = function () {
+  const { doc } = this.cm6.state;
+  return has_final_line_break(doc) ? doc.lines - 2 : doc.lines - 1;
+};
+
+function has_final_line_break(doc: Text): boolean {
+  return doc.lines > 1 && doc.line(doc.lines).length === 0;
+}
+
+// The caret can still reach that empty line without Vim, by a click under
+// the last line or an arrow key in insert mode. dd or p from there would eat
+// the final line break, so the caret goes to the end of the last line
+// instead, like a click below the text in Vim. Only those moves are fixed
+// up ("select" user events). Vim's own moves have none, and they may go
+// there on purpose: o at the end of a note with no final line break opens
+// exactly that line.
+const caret_stays_off_final_empty_line = EditorState.transactionFilter.of(
+  (transaction) => {
+    const { selection, newDoc: doc } = transaction;
+    if (
+      !selection ||
+      transaction.docChanged ||
+      !transaction.isUserEvent("select") ||
+      selection.ranges.length > 1 ||
+      !selection.main.empty ||
+      selection.main.head !== doc.length ||
+      !has_final_line_break(doc)
+    )
+      return transaction;
+    return [transaction, { selection: { anchor: doc.length - 1 } }];
+  },
+);
 
 // j and k ask findPosV where the screen takes the caret, and the engine
 // follows an answer past the target line (that is meant for folded text).

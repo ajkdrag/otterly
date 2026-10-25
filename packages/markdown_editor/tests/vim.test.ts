@@ -903,6 +903,20 @@ describe("ex commands", () => {
   });
 });
 
+describe("the final line break", () => {
+  test("VIM-033 a click on the empty line after the final line break lands on the last line, so dd keeps the break", () => {
+    const view = vim_editor("one\ntwo\n");
+    view.dispatch({
+      selection: { anchor: view.state.doc.length },
+      userEvent: "select.pointer",
+    });
+    expect(view.state.selection.main.head).toBe(7);
+
+    press(view, "d", "d");
+    expect(doc(view)).toBe("one\n");
+  });
+});
+
 describe("buffer switches", () => {
   test("VIM-031 close_vim_prompt closes an open / prompt", () => {
     const view = vim_editor("text");

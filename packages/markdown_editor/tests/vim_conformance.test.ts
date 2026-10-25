@@ -92,13 +92,19 @@ test.each(cases.map((c) => [c.id, c] as const))("%s", (_id, c) => {
   if (!cm) throw new Error("Vim is not running in this view");
   const cursor = cm.getCursor();
   const line_text = cm.getLine(cursor.line);
+  // A text that ends with a line break is a file. Vim keeps that break after
+  // its last line, so the document must too.
+  const final_break = c.text.endsWith("\n") ? "\n" : "";
   expect({
-    lines: view.state.doc.toString().split("\n"),
+    text: view.state.doc.toString(),
     cursor: [
       cursor.line + 1,
       Array.from(line_text.slice(0, cursor.ch)).length + 1,
     ],
-  }).toEqual({ lines: expected.lines, cursor: expected.cursor });
+  }).toEqual({
+    text: expected.lines.join("\n") + final_break,
+    cursor: expected.cursor,
+  });
 
   if (expected.register === undefined) return;
   const register = Vim.getRegisterController().unnamedRegister;

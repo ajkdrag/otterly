@@ -9,7 +9,8 @@
 //
 // Each case is a text, a cursor and keys. Vim runs the keys with
 // feedkeys(keys, 'xt'), so undo steps close the way they do when you type.
-// -Nu NONE keeps your vimrc out of it.
+// -Nu NONE keeps your vimrc out of it. A text that ends with a line break is
+// a file, and that break ends its last line, like Vim reads a file.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -67,7 +68,7 @@ function run_vim(cases) {
   for (const { id, text, at, keys } of cases) {
     lines.push(
       "enew!",
-      `call setline(1, json_decode(${vim_string(JSON.stringify(text.split("\n")))}))`,
+      `call setline(1, json_decode(${vim_string(JSON.stringify(text.replace(/\n$/, "").split("\n")))}))`,
       "let &undolevels = &undolevels",
       `call setcharpos('.', [0, ${at[0]}, ${at[1]}, 0])`,
       "let @/ = ''",

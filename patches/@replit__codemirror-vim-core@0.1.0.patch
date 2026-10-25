@@ -1,5 +1,5 @@
 diff --git a/vim.js b/vim.js
-index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889c1e48a4a 100644
+index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..69d1310dc9ab71c2239b85275b40656b66304a4d 100644
 --- a/vim.js
 +++ b/vim.js
 @@ -140,9 +140,11 @@ export function initVim(CM) {
@@ -246,14 +246,16 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        } else if (selfPaired[character]) {
          move = true;
          tmp = findBeginningAndEnd(cm, head, character, inclusive);
-@@ -2761,18 +2881,16 @@ export function initVim(CM) {
+@@ -2761,18 +2881,18 @@ export function initVim(CM) {
        if (!vim.visualBlock) {
          var anchor = ranges[0].anchor,
              head = ranges[0].head;
-+        // otterly patch V1: a linewise delete that reaches the last line
-+        // (dd, 5dd, dG, dap, Vjd) also removes the line break before it, so
-+        // no empty line is left behind. The register still gets the deleted
-+        // lines themselves ("3\n4\n", not "\n3\n4\n").
++        // otterly patch V1: a linewise delete whose text has no line break
++        // at its end ran into the end of a document without a final line
++        // break (dd, 5dd, dG, dap, Vjd on the last line). It also takes the
++        // line break before it, so no empty line is left behind. The
++        // register still gets the deleted lines themselves ("3\n4\n", not
++        // "\n3\n4\n").
 +        text = cm.getRange(anchor, head);
          if (args.linewise &&
 -            head.line != cm.firstLine() &&
@@ -265,7 +267,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
 -          } else {
 -            anchor = new Pos(anchor.line - 1, lineLength(cm, anchor.line - 1));
 -          }
-+            head.line > cm.lastLine() &&
++            !text.endsWith('\n') &&
 +            anchor.line > cm.firstLine()) {
 +          anchor = new Pos(anchor.line - 1, lineLength(cm, anchor.line - 1));
          }
@@ -273,7 +275,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
          cm.replaceRange('', anchor, head);
          finalHead = anchor;
          if (args.linewise) {
-@@ -2784,9 +2902,13 @@ export function initVim(CM) {
+@@ -2784,9 +2904,13 @@ export function initVim(CM) {
          cm.replaceSelections(replacement);
          finalHead = cursorMin(ranges[0].head, ranges[0].anchor);
        }
@@ -290,7 +292,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        return clipCursorToContent(cm, finalHead);
      },
      indent: function(cm, args, ranges) {
-@@ -2887,7 +3009,9 @@ export function initVim(CM) {
+@@ -2887,7 +3011,9 @@ export function initVim(CM) {
        }
        cm.replaceSelections(swapped);
        if (args.shouldMoveCursor){
@@ -301,7 +303,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        } else if (!cm.state.vim.visualMode && args.linewise && ranges[0].anchor.line + 1 == ranges[0].head.line) {
          return motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
        } else if (args.linewise){
-@@ -3213,9 +3337,14 @@ export function initVim(CM) {
+@@ -3213,9 +3339,14 @@ export function initVim(CM) {
          if (!actionArgs.keepSpaces) {
            var nextLine = cm.getLine(curStart.line + 1);
            nextStartCh = nextLine.search(/\S/);
@@ -317,7 +319,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
              text = " ";
            }
          }
-@@ -3250,10 +3379,11 @@ export function initVim(CM) {
+@@ -3250,10 +3381,11 @@ export function initVim(CM) {
      paste: function(cm, actionArgs, vim) {
        var register = vimGlobalState.registerController.getRegister(
            actionArgs.registerName);
@@ -332,7 +334,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        } else {
          var text = register.toString();
          this.continuePaste(cm, actionArgs, vim, text, register);
-@@ -3340,7 +3470,11 @@ export function initVim(CM) {
+@@ -3340,7 +3472,11 @@ export function initVim(CM) {
            lastSelectionCurEnd = vim.lastSelection.headMark.find();
          }
          // push the previously selected text to unnamed register
@@ -345,7 +347,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
          if (blockwise) {
            // first delete the selected text
            cm.replaceSelections(emptyStrings);
-@@ -3364,7 +3498,12 @@ export function initVim(CM) {
+@@ -3364,7 +3500,12 @@ export function initVim(CM) {
          if(lastSelectionCurEnd) {
            vim.lastSelection.headMark = cm.setBookmark(lastSelectionCurEnd);
          }
@@ -359,7 +361,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
            curPosFinal.ch=0;
          }
        } else {
-@@ -3392,8 +3531,10 @@ export function initVim(CM) {
+@@ -3392,8 +3533,10 @@ export function initVim(CM) {
              curPosFinal = new Pos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
            } else {
              curPosFinal = copyCursor(cur);
@@ -371,7 +373,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
              }
            }
          }
-@@ -3413,10 +3554,19 @@ export function initVim(CM) {
+@@ -3413,10 +3556,19 @@ export function initVim(CM) {
        repeatFn(cm, CM.commands.redo, actionArgs.repeat)();
      },
      setRegister: function(_cm, actionArgs, vim) {
@@ -392,7 +394,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        var register = vimGlobalState.registerController.getRegister(registerName);
        var text = register && register.toString();
        if (text) {
-@@ -3453,8 +3603,10 @@ export function initVim(CM) {
+@@ -3453,8 +3605,10 @@ export function initVim(CM) {
        } else {
          var line = cm.getLine(curStart.line);
          replaceTo = curStart.ch + actionArgs.repeat;
@@ -404,7 +406,19 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
          }
          curEnd = new Pos(curStart.line, replaceTo);
        }
-@@ -3826,7 +3978,11 @@ export function initVim(CM) {
+@@ -3736,7 +3890,10 @@ export function initVim(CM) {
+   }
+   /** @arg {string} s */
+   function escapeRegex(s) {
+-    return s.replace(/([.?*+$\[\]\/\\(){}|\-])/g, '\\$1');
++    // otterly patch V22: no backslash before "-". Search compiles the
++    // pattern with the u flag, where "\-" outside brackets is an error, so
++    // * on "---" threw instead of searching.
++    return s.replace(/([.?*+$\[\]\/\\(){}|])/g, '\\$1');
+   }
+   /** @arg {CodeMirror} cm  @arg {number} lineNum  @arg {number} column */
+   function extendLineToColumn(cm, lineNum, column) {
+@@ -3826,7 +3983,11 @@ export function initVim(CM) {
      var head = vim.sel.head;
      // To accommodate the effect of lastPastedText in the last selection
      if (vim.lastPastedText) {
@@ -417,7 +431,20 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
        vim.lastPastedText = undefined;
      }
      vim.lastSelection = {'anchorMark': cm.setBookmark(anchor),
-@@ -4561,8 +4717,11 @@ export function initVim(CM) {
+@@ -4537,6 +4698,12 @@ export function initVim(CM) {
+         if (isBoundary(i, dir)) { repeat--; }
+         i += dir;
+       }
++      // otterly patch V23: past the last paragraph, } goes to the last
++      // character of the last line, and d} deletes to its end and keeps the
++      // final line break. The original went to the start of the line after
++      // it, which is past the end of the document, or CodeMirror's empty
++      // line after a final line break.
++      if (i > max) { return {start: new Pos(max, lineLength(cm, max)), end: head}; }
+       return {start: new Pos(i, 0), end: head};
+     }
+ 
+@@ -4561,8 +4728,11 @@ export function initVim(CM) {
      // select boundary before paragraph for the last one
      if (i > max && !startState) { startState = true; }
      else { inclusive = false; }
@@ -430,7 +457,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889
          if (isBoundary(i, -1, true)) { break; }
        }
      }
-@@ -5014,6 +5173,16 @@ export function initVim(CM) {
+@@ -5014,6 +5184,16 @@ export function initVim(CM) {
      // include the symbols
      if (inclusive) {
        --start; ++end;
