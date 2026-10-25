@@ -35,11 +35,12 @@
   // (drill-down). The active row is an active descendant of either.
   let active_tag_index = $state(0);
   let active_note_index = $state(0);
-  // After entering a tag, put the active row on the open note once the notes
-  // arrive.
-  let pick_open_note_row = $state(false);
+  // Set by enter_tag. The notes arrive over IPC and the list does not exist
+  // before that, so the focus move waits for them (see the effect below).
+  let entering_tag = $state(false);
   let filter_input: HTMLInputElement | null = $state(null);
   let notes_listbox: HTMLElement | null = $state(null);
+  let back_button: HTMLElement | null = $state(null);
 
   const tags = $derived(stores.tags.tags);
   const tags_status = $derived(stores.tags.tags_status);
@@ -113,13 +114,13 @@
 
   function enter_tag(tag: string) {
     active_note_index = 0;
-    pick_open_note_row = true;
+    entering_tag = true;
     void action_registry.execute(ACTION_IDS.tags_open_tag, tag);
-    void tick().then(() => notes_listbox?.focus());
   }
 
   function leave_tag() {
     const tag = selected_tag;
+    entering_tag = false;
     void action_registry.execute(ACTION_IDS.tags_close_tag);
     active_tag_index = Math.max(
       0,
@@ -211,23 +212,46 @@
     }
   }
 
+  // Where focus goes when the pane is entered: the filter, the notes list, or
+  // the Back button for a tag with no notes. Null while the notes still load
+  // or the element is not bound yet.
+  function pane_focus_target(): HTMLElement | null {
+    if (selected_tag === null) return filter_input;
+    if (tagged_notes_status === "idle" || tagged_notes_status === "loading")
+      return null;
+    return tagged_notes.length > 0 ? notes_listbox : back_button;
+  }
+
   // The flag means "move focus into the pane now". It is one shot, so the pane
   // mounting again later does not steal focus.
   $effect(() => {
     if (!stores.ui.tags_pane_focus_pending) return;
-    const target = selected_tag === null ? filter_input : notes_listbox;
+    const target = pane_focus_target();
     if (!target) return;
     target.focus();
     stores.ui.tags_pane_focus_pending = false;
   });
 
+  // A pane that closes before it could take focus must not take it when it
+  // opens later.
+  $effect(() => () => {
+    stores.ui.tags_pane_focus_pending = false;
+  });
+
+  // After entering a tag, with the notes in: put the active row on the open
+  // note and focus the list.
   $effect(() => {
-    if (!pick_open_note_row || tagged_notes_status !== "ready") return;
-    active_note_index = Math.max(
-      0,
-      tagged_notes.findIndex((entry) => entry.note.path === open_note_path),
-    );
-    pick_open_note_row = false;
+    if (!entering_tag) return;
+    const target = pane_focus_target();
+    if (!target) return;
+    if (target === notes_listbox) {
+      active_note_index = Math.max(
+        0,
+        tagged_notes.findIndex((entry) => entry.note.path === open_note_path),
+      );
+    }
+    target.focus();
+    entering_tag = false;
   });
 </script>
 
@@ -328,6 +352,7 @@
   {:else}
     <div class="flex flex-col gap-1 px-2 pb-2">
       <Button
+        bind:ref={back_button}
         variant="ghost"
         size="sm"
         class="h-7 self-start px-2 text-muted-foreground"
