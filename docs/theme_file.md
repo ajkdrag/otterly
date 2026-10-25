@@ -154,6 +154,7 @@ line 2: duplicate key "font_size"
 line 4: comments like // and /* */ are not allowed. Remove it, or write the file as YAML and start comments with #
 line 1: extends must be one of mocha, nordic-light, nordic-dark (got "my-theme")
 line 1: the file must be a mapping of keys to values, like font_size: 1.1
+line 3: the file must be one YAML document, so a second "---" is not allowed. Remove this line
 Found both theme.yaml and theme.json. Delete one.
 theme.yaml is 300 KB. The limit is 256 KB.
 theme.yaml can't be read: Permission denied (os error 13)

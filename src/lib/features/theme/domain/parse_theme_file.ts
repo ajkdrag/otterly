@@ -381,7 +381,18 @@ function syntax_error(
   error: YAMLError,
   line_at: (offset: number) => number,
 ): ThemeFileError {
-  return { line: line_at(error.pos[0]), key: null, message: error.message };
+  const line = line_at(error.pos[0]);
+  // yaml's own text tells the caller to use parseAllDocuments(), which a
+  // person or agent editing the file can't act on. The line is the second ---.
+  if (error.code === "MULTIPLE_DOCS") {
+    return {
+      line,
+      key: null,
+      message:
+        'the file must be one YAML document, so a second "---" is not allowed. Remove this line',
+    };
+  }
+  return { line, key: null, message: error.message };
 }
 
 // Duplicate keys are found before the other checks run, so put the errors

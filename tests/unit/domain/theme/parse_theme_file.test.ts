@@ -302,6 +302,19 @@ describe("parse_theme_file", () => {
     expect(errors[0]?.line).toBe(4);
   });
 
+  it("says a second document is not allowed instead of naming a yaml function", () => {
+    const errors = parse_errors("accent_hue: 40\n---\nfont_size: 1\n");
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.line).toBe(2);
+    expect(errors[0]?.message).toContain("one YAML document");
+    expect(errors[0]?.message).not.toContain("parseAllDocuments");
+  });
+
+  it("ignores a leading --- line", () => {
+    expect(parse_valid("---\naccent_hue: 40\n").accent_hue).toBe(40);
+  });
+
   it("rejects a top level that is not a mapping", () => {
     expect(parse_errors("- font_size\n- 1.1\n")).toEqual([
       {
