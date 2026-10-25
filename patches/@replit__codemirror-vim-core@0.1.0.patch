@@ -1,0 +1,435 @@
+diff --git a/vim.js b/vim.js
+index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce3ff0a09e 100644
+--- a/vim.js
++++ b/vim.js
+@@ -140,9 +140,11 @@ export function initVim(CM) {
+     { keys: "g0", type: "motion", motion: "moveToStartOfDisplayLine" },
+     { keys: '0', type: 'motion', motion: 'moveToStartOfLine' },
+     { keys: '^', type: 'motion', motion: 'moveToFirstNonWhiteSpaceCharacter' },
+-    { keys: '+', type: 'motion', motion: 'moveByLines', motionArgs: { forward: true, toFirstChar:true }},
+-    { keys: '-', type: 'motion', motion: 'moveByLines', motionArgs: { forward: false, toFirstChar:true }},
+-    { keys: '_', type: 'motion', motion: 'moveByLines', motionArgs: { forward: true, toFirstChar:true, repeatOffset:-1 }},
++    // otterly patch V11: +, - and _ are linewise, so d_ is dd and d+ takes
++    // two whole lines.
++    { keys: '+', type: 'motion', motion: 'moveByLines', motionArgs: { forward: true, toFirstChar:true, linewise: true }},
++    { keys: '-', type: 'motion', motion: 'moveByLines', motionArgs: { forward: false, toFirstChar:true, linewise: true }},
++    { keys: '_', type: 'motion', motion: 'moveByLines', motionArgs: { forward: true, toFirstChar:true, repeatOffset:-1, linewise: true }},
+     { keys: '$', type: 'motion', motion: 'moveToEol', motionArgs: { inclusive: true }},
+     { keys: '%', type: 'motion', motion: 'moveToMatchedSymbol', motionArgs: { inclusive: true, toJumplist: true }},
+     { keys: 'f<character>', type: 'motion', motion: 'moveToCharacter', motionArgs: { forward: true , inclusive: true }},
+@@ -827,6 +829,15 @@ export function initVim(CM) {
+ 
+     suppressErrorLogging: false,
+ 
++    // otterly patch V17: how "+ reaches the system clipboard. A host
++    // replaces this to read and write natively. See writeClipboard.
++    clipboard: {
++      /** @returns {Promise<string>} */
++      readText: function() { return navigator.clipboard.readText(); },
++      /** @arg {string} text */
++      writeText: function(text) { return navigator.clipboard.writeText(text); }
++    },
++
+     InsertModeKey: InsertModeKey,
+     /**@type {(lhs: string, rhs: string, ctx: string) => void} */
+     map: function(lhs, rhs, ctx) {
+@@ -1151,6 +1162,12 @@ export function initVim(CM) {
+     try {
+       var vim = maybeInitVimState(cm);
+       var keyRe = /<(?:[CSMA]-)*\w+>|./gi;
++      // otterly patch V16: :help recursive_mapping. When the rhs of a
++      // recursive map starts with its own lhs, those first keys are not
++      // mapped again, so nmap x xp runs the built-in x and then p.
++      var mapNoremap = noremap;
++      var ownPrefixEnd = fromKey && fromKey.noremap === false && fromKey.keys &&
++          keys.indexOf(fromKey.keys) === 0 ? fromKey.keys.length : 0;
+ 
+       var match;
+       // Pull off one command key, which is either a single character
+@@ -1158,6 +1175,7 @@ export function initVim(CM) {
+       while ((match = keyRe.exec(keys))) {
+         var key = match[0];
+         var wasInsert = vim.insertMode;
++        if (ownPrefixEnd) noremap = match.index < ownPrefixEnd || mapNoremap;
+         if (virtualPrompt) {
+           sendKeyToPrompt(key);
+           continue;
+@@ -1444,6 +1462,46 @@ export function initVim(CM) {
+     validRegisters.push(name);
+   }
+ 
++  // otterly patch V17: the system clipboard. "+ and "* are one register
++  // (macOS has one clipboard), and set clipboard=unnamed or unnamedplus
++  // sends every unnamed yank, delete and change there too, and makes a plain
++  // p read it, like Vim.
++  defineOption('clipboard', '', 'string');
++  /** @type {Register | undefined} */
++  var lastClipboardWrite;
++  function clipboardHoldsUnnamed() {
++    return /(^|,)unnamed(plus)?(,|$)/.test(getOption('clipboard') || '');
++  }
++  /** @arg {Register} register */
++  function writeClipboard(register) {
++    lastClipboardWrite = new Register(register.toString(), register.linewise, register.blockwise);
++    // A write that fails leaves the clipboard as it was. There is no good
++    // place to say so in the middle of a keystroke.
++    try {
++      Promise.resolve(vimApi.clipboard.writeText(register.toString())).catch(function() {});
++    } catch (e) {}
++  }
++  /** @arg {CodeMirrorV} cm @arg {(register: Register) => void} onRead */
++  function readClipboard(cm, onRead) {
++    var reading;
++    try {
++      reading = Promise.resolve(vimApi.clipboard.readText());
++    } catch (e) {
++      reading = Promise.reject(e);
++    }
++    reading.then(function(value) {
++      if (!cm.state.vim) return;
++      var text = typeof value == 'string' ? value.replace(/\r\n?/g, '\n') : '';
++      // Our own last write keeps its type. Text from another app is
++      // linewise when it ends in a line break.
++      var register = lastClipboardWrite && lastClipboardWrite.toString() == text
++          ? lastClipboardWrite : new Register(text, /\n$/.test(text));
++      onRead(register);
++    }, function() {
++      if (cm.state.vim) showConfirm(cm, 'Could not read the clipboard');
++    });
++  }
++
+   /**
+    * vim registers allow you to keep many independent copy and paste buffers.
+    * See http://usevim.com/2012/04/13/registers/ for an introduction.
+@@ -1502,6 +1560,8 @@ export function initVim(CM) {
+         }
+         // Make sure the unnamed register is set to what just happened
+         this.unnamedRegister.setText(text, linewise, blockwise);
++        // otterly patch V17: see writeClipboard.
++        if (clipboardHoldsUnnamed()) writeClipboard(this.unnamedRegister);
+         return;
+       }
+ 
+@@ -1513,7 +1573,8 @@ export function initVim(CM) {
+         register.setText(text, linewise, blockwise);
+       }
+       if (registerName === '+') {
+-        navigator.clipboard.writeText(text);
++        // otterly patch V17: see writeClipboard.
++        writeClipboard(register);
+       }
+       // The unnamed register always has the same value as the last used
+       // register.
+@@ -2143,6 +2204,14 @@ export function initVim(CM) {
+             anchor: newPositions.start,
+             head: newPositions.end
+           }, mode);
++          // otterly patch V9: a characterwise selection that ends on the
++          // line break (v$, or the end on an empty line) takes the line
++          // break too, so v$d joins the next line.
++          var selEnd = cmSel.ranges[0].head;
++          if (mode == 'char' && selEnd.line < cm.lastLine() &&
++              selEnd.ch > lineLength(cm, selEnd.line)) {
++            cmSel.ranges[0].head = new Pos(selEnd.line + 1, 0);
++          }
+           if (linewise) {
+             var ranges = cmSel.ranges;
+             if (mode == 'block') {
+@@ -2163,7 +2232,21 @@ export function initVim(CM) {
+             curStart = curEnd;
+             curEnd = tmp;
+           }
++          // otterly patch V14: y leaves the cursor at the start of what it
++          // yanked, before the range grows to whole lines.
++          var motionStart = copyCursor(curStart);
+           linewise = motionArgs.linewise || operatorArgs.linewise;
++          // otterly patch V4: :help exclusive-linewise. An exclusive motion
++          // that ends in column 0 of a later line, and starts at or before
++          // the first non-blank, is linewise without its end line. So d}
++          // and y} from column 0 take whole lines. w has its own rule (the
++          // end of the last word ends the range), which clipToLine applies.
++          if (!linewise && !motionArgs.inclusive && motion != 'moveByWords' &&
++              curEnd.ch == 0 && curEnd.line > curStart.line &&
++              curStart.ch <= findFirstNonWhiteSpaceCharacter(cm.getLine(curStart.line))) {
++            linewise = true;
++            curEnd = new Pos(curEnd.line - 1, 0);
++          }
+           if (linewise) {
+             // Expand selection to entire line.
+             expandSelectionToLine(cm, curStart, curEnd);
+@@ -2187,6 +2270,9 @@ export function initVim(CM) {
+         operatorArgs.linewise = linewise;
+         var operatorMoveTo = operators[operator](
+           cm, operatorArgs, cmSel.ranges, oldAnchor, newHead);
++        if (operator == 'yank' && motionStart) {
++          operatorMoveTo = clipCursorToContent(cm, motionStart);
++        }
+         if (vim.visualMode) {
+           exitVisualMode(cm, operatorMoveTo != null);
+         }
+@@ -2425,12 +2511,13 @@ export function initVim(CM) {
+         line = posV.line;
+         endCh = posV.ch;
+       }
+-      // Vim go to line begin or line end when cursor at first/last line and
+-      // move to previous/next line is triggered.
++      // otterly patch V2: k on the first line and j on the last line fail,
++      // so the cursor stays and dk / dj delete nothing. A count that only
++      // overshoots still moves as far as it can.
+       if (line < first && cur.line == first){
+-        return this.moveToStartOfLine(cm, head, motionArgs, vim);
++        return null;
+       } else if (line > last && cur.line == last){
+-          return moveToEol(cm, head, motionArgs, vim, true);
++        return null;
+       }
+       if (motionArgs.toFirstChar){
+         endCh=findFirstNonWhiteSpaceCharacter(cm.getLine(line));
+@@ -2511,14 +2598,19 @@ export function initVim(CM) {
+     moveToCharacter: function(cm, head, motionArgs) {
+       var repeat = motionArgs.repeat;
+       recordLastCharacterSearch(0, motionArgs);
++      // otterly patch V3: f and F fail when the character is not on the
++      // line, so dfz deletes nothing.
+       return moveToCharacter(cm, repeat, motionArgs.forward,
+-          motionArgs.selectedCharacter, head) || head;
++          motionArgs.selectedCharacter, head) || null;
+     },
+     moveToSymbol: function(cm, head, motionArgs) {
+       var repeat = motionArgs.repeat;
+-      return motionArgs.selectedCharacter
++      var found = motionArgs.selectedCharacter
+        && findSymbol(cm, repeat, motionArgs.forward,
+-          motionArgs.selectedCharacter) || head;
++          motionArgs.selectedCharacter);
++      // otterly patch V3: findSymbol answers with the cursor when it finds
++      // nothing. ]) and friends fail then, so d]) deletes nothing.
++      return found && !cursorEqual(found, cm.getCursor()) ? found : null;
+     },
+     moveToColumn: function(cm, head, motionArgs, vim) {
+       var repeat = motionArgs.repeat;
+@@ -2620,6 +2712,21 @@ export function initVim(CM) {
+             tmp = selectCompanionObject(cm, sc.from(), character, inclusive);
+           }
+         }
++        // otterly patch V13: when the open bracket ends its line and the
++        // close bracket starts its line, i( and friends take the lines in
++        // between as whole lines. So ci{ in a function body keeps both
++        // braces on their own lines.
++        if (tmp && !inclusive && !vim.visualMode &&
++            tmp.start.ch == lineLength(cm, tmp.start.line) &&
++            tmp.end.ch <= findFirstNonWhiteSpaceCharacter(cm.getLine(tmp.end.line)) &&
++            tmp.end.line > tmp.start.line) {
++          if (tmp.end.line == tmp.start.line + 1) return null;
++          tmp = {
++            start: new Pos(tmp.start.line + 1, 0),
++            end: new Pos(tmp.end.line - 1, lineLength(cm, tmp.end.line - 1))
++          };
++          motionArgs.linewise = true;
++        }
+       } else if (selfPaired[character]) {
+         move = true;
+         tmp = findBeginningAndEnd(cm, head, character, inclusive);
+@@ -2761,18 +2868,16 @@ export function initVim(CM) {
+       if (!vim.visualBlock) {
+         var anchor = ranges[0].anchor,
+             head = ranges[0].head;
++        // otterly patch V1: a linewise delete that reaches the last line
++        // (dd, 5dd, dG, dap, Vjd) also removes the line break before it, so
++        // no empty line is left behind. The register still gets the deleted
++        // lines themselves ("3\n4\n", not "\n3\n4\n").
++        text = cm.getRange(anchor, head);
+         if (args.linewise &&
+-            head.line != cm.firstLine() &&
+-            anchor.line == cm.lastLine() &&
+-            anchor.line == head.line - 1) {
+-          // Special case for dd on last line (and first line).
+-          if (anchor.line == cm.firstLine()) {
+-            anchor.ch = 0;
+-          } else {
+-            anchor = new Pos(anchor.line - 1, lineLength(cm, anchor.line - 1));
+-          }
++            head.line > cm.lastLine() &&
++            anchor.line > cm.firstLine()) {
++          anchor = new Pos(anchor.line - 1, lineLength(cm, anchor.line - 1));
+         }
+-        text = cm.getRange(anchor, head);
+         cm.replaceRange('', anchor, head);
+         finalHead = anchor;
+         if (args.linewise) {
+@@ -2784,9 +2889,13 @@ export function initVim(CM) {
+         cm.replaceSelections(replacement);
+         finalHead = cursorMin(ranges[0].head, ranges[0].anchor);
+       }
+-      vimGlobalState.registerController.pushText(
+-          args.registerName, 'delete', text,
+-          args.linewise, vim.visualBlock);
++      // otterly patch V15: insert mode <C-w> and <C-u> delete text without
++      // touching any register.
++      if (!vim.insertMode) {
++        vimGlobalState.registerController.pushText(
++            args.registerName, 'delete', text,
++            args.linewise, vim.visualBlock);
++      }
+       return clipCursorToContent(cm, finalHead);
+     },
+     indent: function(cm, args, ranges) {
+@@ -2887,7 +2996,9 @@ export function initVim(CM) {
+       }
+       cm.replaceSelections(swapped);
+       if (args.shouldMoveCursor){
+-        return newHead;
++        // otterly patch V7: ~ at the end of a line leaves the cursor on the
++        // last character, not past it.
++        return clipCursorToContent(cm, newHead);
+       } else if (!cm.state.vim.visualMode && args.linewise && ranges[0].anchor.line + 1 == ranges[0].head.line) {
+         return motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
+       } else if (args.linewise){
+@@ -3213,9 +3324,14 @@ export function initVim(CM) {
+         if (!actionArgs.keepSpaces) {
+           var nextLine = cm.getLine(curStart.line + 1);
+           nextStartCh = nextLine.search(/\S/);
++          // otterly patch V12: like Vim, no space goes in when the line is
++          // empty or already ends in a space or tab, or when the next line
++          // starts with ")".
++          var lastCh = cm.getLine(curStart.line).slice(-1);
+           if (nextStartCh == -1) {
+             nextStartCh = nextLine.length;
+-          } else {
++          } else if (finalCh > 0 && lastCh != ' ' && lastCh != '\t' &&
++              nextLine.charAt(nextStartCh) != ')') {
+             text = " ";
+           }
+         }
+@@ -3250,10 +3366,12 @@ export function initVim(CM) {
+     paste: function(cm, actionArgs, vim) {
+       var register = vimGlobalState.registerController.getRegister(
+           actionArgs.registerName);
+-      if (actionArgs.registerName === '+') {
+-        navigator.clipboard.readText().then((value) => {
+-          this.continuePaste(cm, actionArgs, vim, value, register);
+-        })
++      // otterly patch V17: see writeClipboard.
++      if (actionArgs.registerName === '+' ||
++          (!actionArgs.registerName && clipboardHoldsUnnamed())) {
++        readClipboard(cm, (clipboard) => {
++          this.continuePaste(cm, actionArgs, vim, clipboard.toString(), clipboard);
++        });
+       } else {
+         var text = register.toString();
+         this.continuePaste(cm, actionArgs, vim, text, register);
+@@ -3340,7 +3458,11 @@ export function initVim(CM) {
+           lastSelectionCurEnd = vim.lastSelection.headMark.find();
+         }
+         // push the previously selected text to unnamed register
+-        vimGlobalState.registerController.unnamedRegister.setText(selectedText);
++        // otterly patch V10: with its own type, so the lines replaced by Vp
++        // paste back as lines.
++        vimGlobalState.registerController.unnamedRegister.setText(
++            vim.visualLine ? selectedText + '\n' : selectedText,
++            vim.visualLine, vim.visualBlock);
+         if (blockwise) {
+           // first delete the selected text
+           cm.replaceSelections(emptyStrings);
+@@ -3364,7 +3486,12 @@ export function initVim(CM) {
+         if(lastSelectionCurEnd) {
+           vim.lastSelection.headMark = cm.setBookmark(lastSelectionCurEnd);
+         }
+-        if (linewise) {
++        // otterly patch V10: over a linewise selection the cursor goes to
++        // the first pasted line, like a linewise put.
++        if (vim.visualLine) {
++          curPosFinal = new Pos(selectionStart.line,
++              findFirstNonWhiteSpaceCharacter(cm.getLine(selectionStart.line)));
++        } else if (linewise) {
+           curPosFinal.ch=0;
+         }
+       } else {
+@@ -3392,8 +3519,10 @@ export function initVim(CM) {
+             curPosFinal = new Pos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
+           } else {
+             curPosFinal = copyCursor(cur);
++            // otterly patch V8: p and P both leave the cursor on the last
++            // pasted character. cur already moved one right for p.
+             if (!/\n/.test(text)) {
+-              curPosFinal.ch += text.length - (actionArgs.after ? 1 : 0);
++              curPosFinal.ch += text.length - 1;
+             }
+           }
+         }
+@@ -3413,10 +3542,19 @@ export function initVim(CM) {
+       repeatFn(cm, CM.commands.redo, actionArgs.repeat)();
+     },
+     setRegister: function(_cm, actionArgs, vim) {
+-      vim.inputState.registerName = actionArgs.selectedCharacter;
++      // otterly patch V17: "* is "+.
++      var registerName = actionArgs.selectedCharacter;
++      vim.inputState.registerName = registerName == '*' ? '+' : registerName;
+     },
+     insertRegister: function(cm, actionArgs, vim) {
+       var registerName = actionArgs.selectedCharacter;
++      // otterly patch V17: <C-r>+ and <C-r>* insert the system clipboard.
++      if (registerName == '+' || registerName == '*') {
++        readClipboard(cm, function(clipboard) {
++          if (clipboard.toString()) cm.replaceSelection(clipboard.toString());
++        });
++        return;
++      }
+       var register = vimGlobalState.registerController.getRegister(registerName);
+       var text = register && register.toString();
+       if (text) {
+@@ -3453,8 +3591,10 @@ export function initVim(CM) {
+       } else {
+         var line = cm.getLine(curStart.line);
+         replaceTo = curStart.ch + actionArgs.repeat;
++        // otterly patch V6: a count that runs past the line end fails, and
++        // the line stays as it was.
+         if (replaceTo > line.length) {
+-          replaceTo=line.length;
++          return;
+         }
+         curEnd = new Pos(curStart.line, replaceTo);
+       }
+@@ -3826,7 +3966,11 @@ export function initVim(CM) {
+     var head = vim.sel.head;
+     // To accommodate the effect of lastPastedText in the last selection
+     if (vim.lastPastedText) {
+-      head = cm.posFromIndex(cm.indexFromPos(anchor) + vim.lastPastedText.length);
++      // otterly patch V10: clamped. After Vp from mid-line the anchor plus
++      // the pasted text can run past the end of the document, and
++      // posFromIndex throws there.
++      var docEnd = cm.indexFromPos(new Pos(cm.lastLine(), Infinity));
++      head = cm.posFromIndex(Math.min(cm.indexFromPos(anchor) + vim.lastPastedText.length, docEnd));
+       vim.lastPastedText = undefined;
+     }
+     vim.lastSelection = {'anchorMark': cm.setBookmark(anchor),
+@@ -4561,8 +4705,11 @@ export function initVim(CM) {
+     // select boundary before paragraph for the last one
+     if (i > max && !startState) { startState = true; }
+     else { inclusive = false; }
++    // otterly patch V20: for the last paragraph, ap takes the blank lines
++    // before it, also when the cursor is on its first line. The original
++    // stopped at the cursor's line.
+     for (i = line; i > min; i--) {
+-      if (!inclusive || isEmpty(i) == startState || i == line) {
++      if (!inclusive || isEmpty(i) == startState) {
+         if (isBoundary(i, -1, true)) { break; }
+       }
+     }
+@@ -5014,6 +5161,16 @@ export function initVim(CM) {
+     // include the symbols
+     if (inclusive) {
+       --start; ++end;
++      // otterly patch V5: a" also takes the white space after the closing
++      // quote, or the white space before the opening one when there is none
++      // after, so da" leaves one space between the words around it.
++      var spaceEnd = end;
++      while (spaceEnd < chars.length && /\s/.test(chars[spaceEnd])) spaceEnd++;
++      if (spaceEnd > end) {
++        end = spaceEnd;
++      } else {
++        while (start > 0 && /\s/.test(chars[start - 1])) start--;
++      }
+     }
+ 
+     return {

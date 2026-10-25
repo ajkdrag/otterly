@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@replit/codemirror-vim-core@0.1.0':
+    hash: b9ca99c5306b3be2a56a8ae4441984997102b89ed7ad73675bc499911a042774
+    path: patches/@replit__codemirror-vim-core@0.1.0.patch
+  '@replit/codemirror-vim@6.4.0':
+    hash: dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9
+    path: patches/@replit__codemirror-vim@6.4.0.patch
+
 importers:
 
   .:
@@ -179,7 +187,7 @@ importers:
     dependencies:
       '@replit/codemirror-vim':
         specifier: ^6.4.0
-        version: 6.4.0(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
+        version: 6.4.0(patch_hash=dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9)(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
     devDependencies:
       '@codemirror/autocomplete':
         specifier: ^6.20.3
@@ -3720,16 +3728,16 @@ snapshots:
   '@poppinss/macroable@1.1.2':
     optional: true
 
-  '@replit/codemirror-vim-core@0.1.0': {}
+  '@replit/codemirror-vim-core@0.1.0(patch_hash=b9ca99c5306b3be2a56a8ae4441984997102b89ed7ad73675bc499911a042774)': {}
 
-  '@replit/codemirror-vim@6.4.0(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)':
+  '@replit/codemirror-vim@6.4.0(patch_hash=dcd9d7f37050d42428349f1b62a1ee8edd816da127ddac435490041ff0ce6ab9)(@codemirror/commands@6.11.1)(@codemirror/language@6.12.4)(@codemirror/search@6.7.2)(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)':
     dependencies:
       '@codemirror/commands': 6.11.1
       '@codemirror/language': 6.12.4
       '@codemirror/search': 6.7.2
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
-      '@replit/codemirror-vim-core': 0.1.0
+      '@replit/codemirror-vim-core': 0.1.0(patch_hash=b9ca99c5306b3be2a56a8ae4441984997102b89ed7ad73675bc499911a042774)
 
   '@rollup/rollup-android-arm-eabi@4.57.1':
     optional: true
