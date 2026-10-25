@@ -59,6 +59,11 @@ export type Theme = {
   highlight_text_color: string | null;
   selection_bg: string | null;
   caret_color: string | null;
+  tag_text_color: string | null;
+  tag_bg: string | null;
+  tag_border_color: string | null;
+  tag_radius: number;
+  tag_padding_x: number;
   table_border_color: string | null;
   table_header_bg: string | null;
   table_cell_padding: number;
@@ -109,6 +114,11 @@ const SHARED_DEFAULTS: Omit<
   highlight_text_color: null,
   selection_bg: null,
   caret_color: null,
+  tag_text_color: null,
+  tag_bg: null,
+  tag_border_color: null,
+  tag_radius: 1.5,
+  tag_padding_x: 0.25,
   table_border_color: null,
   table_header_bg: null,
   table_cell_padding: 0.65,

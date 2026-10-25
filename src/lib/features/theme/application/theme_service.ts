@@ -165,6 +165,11 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
     highlight_text_color: nullable_str(raw.highlight_text_color),
     selection_bg: nullable_str(raw.selection_bg),
     caret_color: nullable_str(raw.caret_color),
+    tag_text_color: nullable_str(raw.tag_text_color),
+    tag_bg: nullable_str(raw.tag_bg),
+    tag_border_color: nullable_str(raw.tag_border_color),
+    tag_radius: num(raw.tag_radius, defaults.tag_radius),
+    tag_padding_x: num(raw.tag_padding_x, defaults.tag_padding_x),
     table_border_color: nullable_str(raw.table_border_color),
     table_header_bg: nullable_str(raw.table_header_bg),
     table_cell_padding: num(
