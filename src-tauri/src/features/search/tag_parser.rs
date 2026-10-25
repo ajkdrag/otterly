@@ -31,6 +31,12 @@ pub struct NoteTag {
     pub excerpt: Option<String>,
 }
 
+// The index stores this next to the tags it parsed. Bump it whenever the rules
+// in this file change, so the next open of an older index parses every note
+// again. Without a bump, an old index keeps its old tags until each note
+// happens to be edited.
+pub(crate) const TAG_PARSER_VERSION: u32 = 2;
+
 // Drawn as `~` above.
 const HIDDEN: char = '\0';
 const EXCERPT_CHARS: usize = 160;

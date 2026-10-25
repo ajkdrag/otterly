@@ -371,7 +371,7 @@ The backend is a Tauri native process. Its sole job is exposing native capabilit
 | `features/` | One sub-module per capability. Each owns command handlers and managed state  |
 | `shared/`   | Vault registry persistence, constants, path display, asset request handler   |
 
-The search db also holds `note_tags`. Tags are parsed during indexing (`search/tag_parser.rs`), so counts are as fresh as backlinks.
+The search db also holds `note_tags`. Tags are parsed during indexing (`search/tag_parser.rs`), so counts are as fresh as backlinks. The db keeps `TAG_PARSER_VERSION` in `PRAGMA user_version`. Bump it when the parser rules change, and the next open empties the manifest so one sync parses every note again.
 
 Stateful services (watcher, search index) use Tauri's `.manage()` system. State structs live in each feature's `service.rs` and are registered in `app/mod.rs`. Commands receive state via Tauri DI: `fn watch_vault(state: tauri::State<'_, WatcherState>, ...)`.
 

@@ -8,7 +8,7 @@ use crate::features::search::db::{
     upsert_note, wiki_link_targets, IndexResult, TagMatch, TagNotePage, TagNoteQuery,
 };
 use crate::features::search::model::{IndexNoteMeta, SearchScope};
-use crate::features::search::tag_parser::NoteTag;
+use crate::features::search::tag_parser::{NoteTag, TAG_PARSER_VERSION};
 use crate::shared::constants;
 use rusqlite::Connection;
 use std::cell::RefCell;
@@ -613,6 +613,43 @@ fn db_from_before_tags_gets_its_manifest_cleared_once() {
     assert!(get_manifest(&reopened)
         .expect("manifest should load")
         .contains_key("new.md"));
+}
+
+fn stored_tag_rows(conn: &Connection) -> i64 {
+    conn.query_row("SELECT COUNT(*) FROM note_tags", [], |row| row.get(0))
+        .expect("tag rows should be counted")
+}
+
+#[test]
+fn index_from_older_tag_parser_rules_is_rebuilt_on_open() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let root = tmp.path();
+    write_md(root, "note.md", "Ship it #release");
+    let conn = open_search_db(root).expect("db should open");
+    run_sync(&conn, root);
+    assert_eq!(tag_counts(&conn), vec![("release".to_string(), 1)]);
+
+    // Same parser version: a reopen leaves the manifest and the tags alone.
+    set_note_tags(&conn, "note.md", &[note_tag("kept")]).expect("tags should be set");
+    drop(conn);
+    let conn = open_search_db(root).expect("db should reopen");
+    assert!(get_manifest(&conn)
+        .expect("manifest should load")
+        .contains_key("note.md"));
+    assert_eq!(tag_counts(&conn), vec![("kept".to_string(), 1)]);
+
+    // Older parser version: the manifest and the tags go, and sync parses again.
+    conn.pragma_update(None, "user_version", TAG_PARSER_VERSION - 1)
+        .expect("version should be set");
+    drop(conn);
+    let conn = open_search_db(root).expect("db should reopen");
+    assert!(get_manifest(&conn)
+        .expect("manifest should load")
+        .is_empty());
+    assert_eq!(stored_tag_rows(&conn), 0);
+
+    run_sync(&conn, root);
+    assert_eq!(tag_counts(&conn), vec![("release".to_string(), 1)]);
 }
 
 #[test]

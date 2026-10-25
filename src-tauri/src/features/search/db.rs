@@ -1,7 +1,7 @@
 use crate::features::notes::service as notes_service;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
-use crate::features::search::tag_parser::{self, NoteTag};
+use crate::features::search::tag_parser::{self, NoteTag, TAG_PARSER_VERSION};
 use crate::shared::constants;
 use crate::shared::storage;
 use rusqlite::{params, params_from_iter, Connection};
@@ -148,15 +148,27 @@ fn table_exists(conn: &Connection, name: &str) -> bool {
     .is_ok()
 }
 
+// PRAGMA user_version holds the tag parser rules the stored tags came from.
+// A new db has 0, and so does one from before we stored a version.
+fn stored_tag_parser_version(conn: &Connection) -> Result<u32, String> {
+    conn.pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
 fn init_schema(conn: &Connection) -> Result<(), String> {
-    // A db from before tags has every note in the manifest, so sync would
-    // skip unchanged notes and they would never get tags. Empty the manifest
-    // and the next sync re-parses the whole vault once.
-    if table_exists(conn, "notes") && !table_exists(conn, "note_tags") {
+    // Stored tags are only as good as the parser rules that made them. A db
+    // from before tags, or from other rules, has every note in the manifest,
+    // so sync would skip unchanged notes and they would keep their old tags.
+    // Empty the manifest and the next sync re-parses the whole vault once.
+    // note_tags is dropped, not emptied, because a db from before tags does
+    // not have it. The CREATE below makes it again.
+    let stored_version = stored_tag_parser_version(conn)?;
+    if table_exists(conn, "notes") && stored_version != TAG_PARSER_VERSION {
         conn.execute_batch(
             "DELETE FROM notes;
              DELETE FROM notes_fts;
-             DELETE FROM outlinks;",
+             DELETE FROM outlinks;
+             DROP TABLE IF EXISTS note_tags;",
         )
         .map_err(|e| e.to_string())?;
     }
@@ -201,7 +213,14 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
 
         CREATE INDEX IF NOT EXISTS idx_note_tags_key ON note_tags(tag_key);"
     ))
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    // Last, so a failure above repeats the clearing on the next open.
+    if stored_version == TAG_PARSER_VERSION {
+        return Ok(());
+    }
+    conn.pragma_update(None, "user_version", TAG_PARSER_VERSION)
+        .map_err(|e| e.to_string())
 }
 
 pub fn open_search_db(vault_root: &Path) -> Result<Connection, String> {
