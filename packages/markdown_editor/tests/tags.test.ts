@@ -11,7 +11,7 @@ import {
 } from "vitest";
 import { currentCompletions, startCompletion } from "@codemirror/autocomplete";
 import { ensureSyntaxTree } from "@codemirror/language";
-import type { EditorState } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { create_markdown_state } from "../src/core/editor";
 import { set_editor_mode } from "../src/core/editor_mode";
 import { commonmark } from "../src/plugins/commonmark/index";
@@ -148,10 +148,12 @@ describe("tag chips", () => {
     expect(chip.classList.contains("md-tag-clickable")).toBe(true);
     expect(chip.querySelector(".md-tag-hash")?.textContent).toBe("#");
 
+    // The caret in the tag only takes the click class away. Same chip, same
+    // text, so nothing moves.
     editor.view.dispatch({ selection: { anchor: "top\n\nsee #pro".length } });
-    expect(only_chip(editor).classList.contains("md-tag-clickable")).toBe(
-      false,
-    );
+    const active = only_chip(editor);
+    expect(active.textContent).toBe("#project");
+    expect(active.classList.contains("md-tag-clickable")).toBe(false);
   });
 
   test("TAG-002 without open_tag a chip is not clickable", () => {
@@ -171,37 +173,19 @@ describe("tag chips", () => {
     expect(only_chip(editor).textContent).toBe("#z");
   });
 
-  test("TAG-003 source mode colors the tag text and draws no chip", () => {
-    const editor = open("top‸\n\nsee #project", { open_tag: vi.fn() });
-    set_editor_mode(editor.view, "source");
-    expect(chips(editor)).toEqual([]);
-    expect(editor.view.dom.classList.contains("md-source-mode")).toBe(true);
-    const colored = [
-      ...editor.view.contentDOM.querySelectorAll(".md-tag-source"),
-    ].map((element) => element.textContent);
-    expect(colored.join("")).toBe("#project");
+  test("TAG-002 a find match over part of a tag leaves the chip in one piece", () => {
+    const editor = open("top‸\n\nsee #project now");
+    editor.view.dispatch({
+      effects: set_find_query.of({ query: "ject n", selected_index: -1 }),
+    });
+    const chip = only_chip(editor);
+    expect(chip.textContent).toBe("#project");
+    expect(chip.querySelector(".find-match")?.textContent).toBe("ject");
   });
+});
 
-  test("TAG-004 a plain click opens the tag, a drag or a modified click does not", () => {
-    const open_tag = vi.fn();
-    const editor = open("top‸\n\nsee #project now", { open_tag });
-    click(only_chip(editor));
-    expect(open_tag).toHaveBeenCalledWith("project");
-
-    click(only_chip(editor), 10);
-    click(only_chip(editor), 0, { metaKey: true });
-    click(only_chip(editor), 0, { shiftKey: true });
-    expect(open_tag).toHaveBeenCalledTimes(1);
-  });
-
-  test("TAG-004 clicking the tag the caret is in places the caret instead", () => {
-    const open_tag = vi.fn();
-    const editor = open("see #pro‸ject", { open_tag });
-    click(only_chip(editor));
-    expect(open_tag).not.toHaveBeenCalled();
-  });
-
-  test("TAG-005 typing, deleting and undo or redo keep the exact source", () => {
+describe("tag editing", () => {
+  test("TAG-003 typing, deleting and undo or redo keep the exact source", () => {
     const editor = open("note ‸");
     editor.type("#");
     expect(chips(editor)).toEqual([]);
@@ -222,7 +206,7 @@ describe("tag chips", () => {
     expect(only_chip(editor).textContent).toBe("#x");
   });
 
-  test("TAG-006 arrows step through a tag one char at a time", () => {
+  test("TAG-003 arrows step through a tag one char at a time", () => {
     const editor = open("a ‸#tag b");
     for (const head of [3, 4, 5, 6, 7]) {
       editor.press("ArrowRight");
@@ -231,8 +215,39 @@ describe("tag chips", () => {
     editor.press("ArrowLeft");
     expect(editor.view.state.selection.main.head).toBe(6);
   });
+});
 
-  test("TAG-007 tag_at finds the tag from its hash through the char after it", () => {
+describe("tag clicks", () => {
+  test("TAG-004 a plain click opens the tag, a drag or a modified click does not", () => {
+    const open_tag = vi.fn();
+    const editor = open("top‸\n\nsee #project now", { open_tag });
+    click(only_chip(editor));
+    expect(open_tag).toHaveBeenCalledWith("project");
+
+    click(only_chip(editor), 10);
+    click(only_chip(editor), 0, { metaKey: true });
+    click(only_chip(editor), 0, { shiftKey: true });
+    expect(open_tag).toHaveBeenCalledTimes(1);
+  });
+
+  test("TAG-004 clicking the tag the caret is in places the caret instead", () => {
+    const open_tag = vi.fn();
+    const editor = open("see #pro‸ject", { open_tag });
+    click(only_chip(editor));
+    expect(open_tag).not.toHaveBeenCalled();
+  });
+
+  test("TAG-004 a read-only note still opens the tag on click", () => {
+    const open_tag = vi.fn();
+    const editor = test_editor("top‸\n\nsee #project", [
+      ...plugins({ open_tag }),
+      { name: "read_only", extensions: [EditorState.readOnly.of(true)] },
+    ]);
+    click(only_chip(editor));
+    expect(open_tag).toHaveBeenCalledWith("project");
+  });
+
+  test("TAG-004 tag_at finds the tag from its hash through the char after it", () => {
     const state = create_markdown_state("see #idea and [x #no](u)", {
       plugins: plugins(),
     });
@@ -242,31 +257,6 @@ describe("tag chips", () => {
     expect(tag_at(state, 3)).toBeNull();
     expect(tag_at(state, 10)).toBeNull();
     expect(tag_at(state, "see #idea and [x #n".length)).toBeNull();
-  });
-
-  test("TAG-008 a tag in an inactive table cell is a chip that opens without editing the cell", () => {
-    const open_tag = vi.fn();
-    const editor = open("| a |\n| - |\n| see #cell |\n\nafter‸", {
-      open_tag,
-    });
-    const chip = editor.view.dom.querySelector<HTMLElement>(
-      "[data-row][data-col] .md-tag.md-tag-clickable",
-    );
-    if (!chip) throw new Error("Expected a chip in the table cell");
-    expect(chip.textContent).toBe("#cell");
-    click(chip);
-    expect(open_tag).toHaveBeenCalledWith("cell");
-    expect(editor.view.dom.querySelector(".md-table-cell-active")).toBeNull();
-  });
-
-  test("TAG-009 a find match over part of a tag leaves the chip in one piece", () => {
-    const editor = open("top‸\n\nsee #project now");
-    editor.view.dispatch({
-      effects: set_find_query.of({ query: "ject n", selected_index: -1 }),
-    });
-    const chip = only_chip(editor);
-    expect(chip.textContent).toBe("#project");
-    expect(chip.querySelector(".find-match")?.textContent).toBe("ject");
   });
 });
 
@@ -304,7 +294,7 @@ describe("tag completion", () => {
   const pause = (milliseconds: number) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-  test("TAG-010 # and a letter offer tags with their counts, and Enter completes", async () => {
+  test("TAG-005 # and a letter offer tags with their counts, and Enter completes", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing("see ‸", query);
     editor.type("#p");
@@ -324,7 +314,8 @@ describe("tag completion", () => {
     ["in inline code", "`a ‸`"],
     ["in a URL", "see https://a.com/‸"],
     ["in link text", "[see ‸](https://e.com)"],
-  ])("TAG-011 no lookup %s", async (_where, source) => {
+    ["in frontmatter", "---\ntags: ‸\n---\n"],
+  ])("TAG-005 no lookup %s", async (_where, source) => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing(source, query);
     editor.type("#p");
@@ -333,7 +324,7 @@ describe("tag completion", () => {
     expect(menu_is_closed(editor)).toBe(true);
   });
 
-  test("TAG-012 a lone # waits for a letter, Ctrl-Space shows the top tags", async () => {
+  test("TAG-005 a lone # waits for a letter, Ctrl-Space shows the top tags", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing("see ‸", query);
     editor.type("#");
@@ -344,7 +335,7 @@ describe("tag completion", () => {
     expect(query).toHaveBeenCalledWith("", expect.any(AbortSignal));
   });
 
-  test("TAG-013 a finished tag is not offered again, so Enter makes a new line", async () => {
+  test("TAG-005 a finished tag is not offered again, so Enter makes a new line", async () => {
     const query = vi.fn(() => Promise.resolve([{ tag: "Project", count: 2 }]));
     const editor = completing("see ‸", query);
     editor.type("#project");
@@ -360,7 +351,7 @@ describe("tag completion", () => {
     expect(editor.saved()).toMatch(/^see #project\n/);
   });
 
-  test("TAG-014 completing in the middle of a tag replaces the whole tag", async () => {
+  test("TAG-005 completing in the middle of a tag replaces the whole tag", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing("see #p‸oj later", query);
     editor.type("r");
@@ -368,5 +359,76 @@ describe("tag completion", () => {
     expect(query).toHaveBeenLastCalledWith("pr", expect.any(AbortSignal));
     editor.press("Enter");
     expect(editor.source()).toBe("see #project‸ later");
+  });
+
+  test("TAG-006 completion still works in source mode", async () => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing("see ‸", query);
+    set_editor_mode(editor.view, "source");
+    editor.type("#p");
+    await menu_opens(editor);
+    editor.press("Enter");
+    expect(editor.source()).toBe("see #project‸");
+  });
+});
+
+describe("tags in source mode", () => {
+  test("TAG-006 source mode colors the tag text, draws no chip and a click does not open", () => {
+    const open_tag = vi.fn();
+    const editor = open("top‸\n\nsee #project", { open_tag });
+    set_editor_mode(editor.view, "source");
+    expect(chips(editor)).toEqual([]);
+    expect(editor.view.dom.classList.contains("md-source-mode")).toBe(true);
+    const colored = [
+      ...editor.view.contentDOM.querySelectorAll<HTMLElement>(".md-tag-source"),
+    ];
+    expect(colored.map((element) => element.textContent).join("")).toBe(
+      "#project",
+    );
+
+    for (const element of colored) click(element);
+    expect(open_tag).not.toHaveBeenCalled();
+  });
+});
+
+describe("tags in tables", () => {
+  test("TAG-007 a tag in an inactive table cell is a chip that opens without editing the cell", () => {
+    const open_tag = vi.fn();
+    const editor = open("| a |\n| - |\n| see #cell |\n\nafter‸", {
+      open_tag,
+    });
+    const chip = editor.view.dom.querySelector<HTMLElement>(
+      "[data-row][data-col] .md-tag.md-tag-clickable",
+    );
+    if (!chip) throw new Error("Expected a chip in the table cell");
+    expect(chip.textContent).toBe("#cell");
+    click(chip);
+    expect(open_tag).toHaveBeenCalledWith("cell");
+    expect(editor.view.dom.querySelector(".md-table-cell-active")).toBeNull();
+  });
+});
+
+describe("tags in large notes", () => {
+  test("TAG-009 chips are drawn for the visible part only", () => {
+    const paragraphs = Array.from(
+      { length: 5000 },
+      (_, index) => `paragraph ${String(index)} with #tag${String(index)}`,
+    );
+    const editor = open(`${paragraphs.join("\n\n")}‸`, { open_tag: vi.fn() });
+
+    const tree = ensureSyntaxTree(
+      editor.view.state,
+      editor.view.state.doc.length,
+      5000,
+    );
+    let hashtags = 0;
+    tree?.iterate({
+      enter(node) {
+        if (node.name === "Hashtag") hashtags++;
+      },
+    });
+    expect(hashtags).toBe(5000);
+    expect(chips(editor).length).toBeGreaterThan(0);
+    expect(chips(editor).length).toBeLessThan(200);
   });
 });
