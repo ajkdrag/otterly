@@ -253,6 +253,13 @@
   const visible_targets = $derived(
     is_all_vaults ? TARGETS.filter(({ target }) => target !== "text") : TARGETS,
   );
+  // The active tab is the one Tab stop. A `@path` or `title:` query matches no
+  // tab, so "all" (always shown) takes the stop and Tab can still reach them.
+  const tab_stop_target = $derived(
+    visible_targets.some(({ target }) => target === active_target)
+      ? active_target
+      : "all",
+  );
 
   // "#a #b", like the chips.
   const tag_list_label = $derived(tags.map((tag) => `#${tag}`).join(" "));
@@ -640,6 +647,32 @@
   function choose_target(target: OmnibarTarget) {
     on_target_change(target);
     input_ref?.focus({ preventScroll: true });
+  }
+
+  // Arrows, Home and End move focus between the tabs and wrap at the ends.
+  // They do not activate. Text swaps the whole mode, and the mode effect then
+  // pulls focus into the input, which would end the arrow walk. Enter and
+  // Space click the focused tab.
+  function move_focus_between_target_tabs(
+    event: KeyboardEvent & { currentTarget: HTMLElement },
+  ) {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+      return;
+    const tabs = [
+      ...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]'),
+    ];
+    const from = tabs.findIndex((tab) => tab === event.target);
+    if (from === -1) return;
+
+    let to: number;
+    if (event.key === "ArrowRight") to = (from + 1) % tabs.length;
+    else if (event.key === "ArrowLeft")
+      to = (from - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") to = 0;
+    else if (event.key === "End") to = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    tabs[to]?.focus();
   }
 
   function target_title(target: OmnibarTarget): string | undefined {
@@ -1057,16 +1090,22 @@
            A. What narrows where the search looks sits to their right. -->
       {#if show_target_tabs}
         <div class="mt-1 flex flex-wrap items-center gap-3">
+          <!-- The keys come from the tabs, which are the focusable part. The
+               track itself stays out of the Tab order. -->
+          <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             class="bg-muted inline-flex h-(--omnibar-line) items-center rounded-md p-0.5"
-            role="group"
+            role="tablist"
             aria-label="Search in"
+            onkeydown={move_focus_between_target_tabs}
           >
             {#each visible_targets as { label, target } (target)}
               <button
                 type="button"
-                class="text-muted-foreground hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground focus-visible:outline-ring inline-flex h-full items-center rounded-sm px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 aria-pressed:shadow-xs"
-                aria-pressed={active_target === target}
+                role="tab"
+                class="text-muted-foreground hover:text-foreground aria-selected:bg-background aria-selected:text-foreground focus-visible:outline-ring inline-flex h-full items-center rounded-sm px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 aria-selected:shadow-xs"
+                aria-selected={active_target === target}
+                tabindex={tab_stop_target === target ? 0 : -1}
                 title={target_title(target)}
                 onclick={() => {
                   choose_target(target);
