@@ -118,13 +118,14 @@ export function close_vim_prompt(view: EditorView) {
 // type (linewise or not). Without the option this does nothing. A failed
 // read rejects.
 export async function sync_clipboard_from_host() {
-  const option = Vim.getOption("clipboard");
+  const option: unknown = Vim.getOption("clipboard");
   if (typeof option !== "string" || !option.includes("unnamed")) return;
   const unnamed = Vim.getRegisterController().unnamedRegister;
   const before = unnamed.toString();
   const text = (await Vim.clipboard.readText()).replace(/\r\n?/g, "\n");
-  // A yank or delete that landed while we read is newer than the clipboard.
-  if (text === before || unnamed.toString() !== before) return;
+  // Nothing to put when the clipboard holds no text (an image). A yank or
+  // delete that landed while we read is newer than the clipboard.
+  if (!text || text === before || unnamed.toString() !== before) return;
   unnamed.setText(text, text.endsWith("\n"));
 }
 
@@ -324,7 +325,7 @@ function on_a_character(state: EditorState, position: number): number {
 // end the list. Source mode and text files stay plain, like Vim. The engine
 // prefers this command over newlineAndIndent for o, O and r<CR>. It runs
 // Enter at the end of the line, so it serves o. O has its own action below.
-CodeMirror.commands.newlineAndIndentContinueComment = (cm: CodeMirror) => {
+function newline_and_continue_markers(cm: CodeMirror) {
   const view = cm.cm6;
   const { state } = view;
   if (is_rich(state)) {
@@ -338,7 +339,9 @@ CodeMirror.commands.newlineAndIndentContinueComment = (cm: CodeMirror) => {
       return;
   }
   CodeMirror.commands.newlineAndIndent(cm);
-};
+}
+CodeMirror.commands.newlineAndIndentContinueComment =
+  newline_and_continue_markers;
 
 // The engine runs O as Enter at the end of the previous line, which sees the
 // wrong container: above the first item of "Shopping:\n- milk" there is no
@@ -351,26 +354,32 @@ Vim.defineAction(
   function (this: { enterInsertMode: ActionFn }, cm, action_args, vim) {
     if (!(cm instanceof CodeMirror)) return;
     vim.insertMode = true;
-    const cursor = cm.getCursor();
-    if (!action_args.after && open_marker_line_above(cm.cm6)) {
-      // The new line is there, with the cursor at its end.
-    } else if (!action_args.after && cursor.line === cm.firstLine()) {
-      cm.replaceRange("\n", new CodeMirror.Pos(cm.firstLine(), 0));
-      cm.setCursor(cm.firstLine(), 0);
-    } else {
-      const line = action_args.after ? cursor.line : cursor.line - 1;
-      cm.setCursor(new CodeMirror.Pos(line, cm.getLine(line).length));
-      CodeMirror.commands.newlineAndIndentContinueComment(cm);
-    }
+    open_line(cm, action_args.after ?? false);
     this.enterInsertMode(cm, { repeat: action_args.repeat }, vim);
   },
 );
+
+// Leaves the cursor on the new, empty line: below the cursor's line for o,
+// above it for O.
+function open_line(cm: CodeMirror, after: boolean) {
+  if (!after && open_marker_line_above(cm)) return;
+  const cursor = cm.getCursor();
+  if (!after && cursor.line === cm.firstLine()) {
+    cm.replaceRange("\n", new CodeMirror.Pos(cm.firstLine(), 0));
+    cm.setCursor(cm.firstLine(), 0);
+    return;
+  }
+  const line = after ? cursor.line : cursor.line - 1;
+  cm.setCursor(new CodeMirror.Pos(line, cm.getLine(line).length));
+  newline_and_continue_markers(cm);
+}
 
 // Opens a line above the cursor's line with the same list, task or quote
 // marker, and puts the cursor after it. A task starts unchecked. Returns
 // false, and changes nothing, for source mode, an empty item, and a line
 // with only indentation in front of its text.
-function open_marker_line_above(view: EditorView): boolean {
+function open_marker_line_above(cm: CodeMirror): boolean {
+  const view = cm.cm6;
   const { state } = view;
   if (!is_rich(state)) return false;
   const line = state.doc.lineAt(state.selection.main.head);
