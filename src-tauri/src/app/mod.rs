@@ -1,18 +1,20 @@
+#[cfg(target_os = "macos")]
+mod dock_menu;
+
 use crate::features;
 use crate::features::document::service::{
     files_from_args, forget_document_window, open_document_windows,
 };
-use crate::features::profile::service::{
-    profile_from_launch, profile_identifier, ProfileState, PROFILE_ENV_VAR,
-};
 use crate::features::search::service::cancel_window_vault_find;
+use crate::features::vault::service::{forget_vault_window, open_vault_window, show_vault_window};
 use crate::features::watcher::service::stop_window_watcher;
-#[cfg(target_os = "macos")]
-use crate::features::profile::service::{request_profile_dialog, with_profile_data_store};
 use crate::shared;
 use std::path::Path;
-use tauri::{AppHandle, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
+
+#[cfg(target_os = "macos")]
+const NEW_WINDOW_MENU_ID: &str = "new_window";
 
 include!(concat!(env!("OUT_DIR"), "/icon_stamp.rs"));
 
@@ -43,33 +45,32 @@ pub fn run() {
         });
     }
 
-    let mut context = tauri::generate_context!();
-    let base_identifier = context.config().identifier.clone();
-    let args: Vec<String> = std::env::args().collect();
-    let env_profile = std::env::var(PROFILE_ENV_VAR).ok();
-    // The logger does not exist yet, so setup logs a bad profile id.
-    let (profile_id, profile_error) = match profile_from_launch(&args, env_profile.as_deref()) {
-        Ok(profile_id) => (profile_id, None),
-        Err(error) => (None, Some(error)),
-    };
-    // A profile runs under its own identifier. Tauri derives the config dir
-    // (settings, vault list), logs, window state, the webview data dir and the
-    // single-instance lock from it, so profiles share none of those. This has
-    // to happen before the builder and its plugins see the config.
-    if let Some(profile_id) = &profile_id {
-        context.config_mut().identifier = profile_identifier(&base_identifier, profile_id);
-    }
-
     let builder = tauri::Builder::default();
-    // Each profile has its own identifier, so this lock is per profile. A
-    // second launch of the same profile (a file double click on Windows and
-    // Linux, or open_profile spawning us on any platform) hands its args to the
-    // running process and exits. LaunchServices dedupes Finder launches on
-    // macOS, but not a direct exec. It has to be the first plugin.
+    // A second launch (a file double click on Windows and Linux, or starting
+    // Otterly again) hands its args to the running process and exits. A file
+    // opens as a document window, and a plain launch opens a new vault window,
+    // which is how New Window works on Windows and Linux. It has to be the
+    // first plugin.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-        open_files_or_main_window(app, files_from_args(&args, Path::new(&cwd)));
+        let files = files_from_args(&args, Path::new(&cwd));
+        if !files.is_empty() {
+            open_document_windows(app, files);
+        } else if let Err(error) = open_vault_window(app, None) {
+            log::error!("Could not open a new window: {}", error);
+        }
     }));
+
+    // The File menu only exists on macOS. On Windows and Linux Builder::menu
+    // would put a menu bar on every window.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(build_app_menu).on_menu_event(|app, event| {
+        if event.id() == NEW_WINDOW_MENU_ID {
+            if let Err(error) = open_vault_window(app, None) {
+                log::error!("Could not open a new window: {}", error);
+            }
+        }
+    });
 
     builder
         .manage(features::watcher::service::WatcherState::default())
@@ -78,7 +79,7 @@ pub fn run() {
         .manage(features::theme::service::ThemeFileWatcherState::default())
         .manage(features::vault_settings::service::VaultSettingsLock::default())
         .manage(features::settings::service::SettingsLock::default())
-        .manage(ProfileState::new(profile_id, base_identifier))
+        .manage(features::vault::service::VaultWindowState::default())
         .manage(features::search::service::VaultFindState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -96,20 +97,19 @@ pub fn run() {
                 )
                 .build(),
         )
-        .setup(move |app| {
-            if let Some(error) = &profile_error {
-                log::error!("{error}. Starting the default profile instead.");
-            }
-            log::info!("Profile {}", app.state::<ProfileState>().id);
+        .setup(|app| {
             #[cfg(target_os = "macos")]
-            features::profile::dock_menu::install_dock_menu(app.handle(), open_profiles_dialog);
+            dock_menu::install_dock_menu(app.handle());
 
+            let args: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             let files = files_from_args(&args, &cwd);
             // macOS delivers opened files as events after setup, so it decides
-            // about the main window on Ready instead.
-            if !files.is_empty() || !cfg!(target_os = "macos") {
-                open_files_or_main_window(app.handle(), files);
+            // about the vault window on Ready instead.
+            if !files.is_empty() {
+                open_document_windows(app.handle(), files);
+            } else if !cfg!(target_os = "macos") {
+                show_vault_window(app.handle());
             }
             Ok(())
         })
@@ -118,6 +118,7 @@ pub fn run() {
             if let WindowEvent::Destroyed = event {
                 let app = window.app_handle();
                 forget_document_window(app, window.label());
+                forget_vault_window(app, window.label());
                 stop_window_watcher(app, window.label());
                 cancel_window_vault_find(app, window.label());
             }
@@ -128,7 +129,9 @@ pub fn run() {
             features::vault::service::list_vaults,
             features::vault::service::remove_vault_from_registry,
             features::vault::service::remember_last_vault,
-            features::vault::service::get_last_vault_id,
+            features::vault::service::get_window_vault_id,
+            features::vault::service::focus_window_with_vault,
+            features::vault::service::open_new_vault_window,
             features::watcher::service::watch_vault,
             features::watcher::service::unwatch_vault,
             features::search::service::index_build,
@@ -204,16 +207,12 @@ pub fn run() {
             features::git::service::git_diff,
             features::git::service::git_show_file_at_commit,
             features::git::service::git_restore_file,
-            features::git::service::git_create_tag,
-            features::profile::service::get_current_profile,
-            features::profile::service::list_profiles,
-            features::profile::service::open_profile,
-            features::profile::service::take_profile_dialog_request
+            features::git::service::git_create_tag
         ])
         .register_uri_scheme_protocol("otterly-asset", |ctx, req| {
             shared::storage::handle_asset_request(ctx.app_handle(), req)
         })
-        .build(context)
+        .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(handle_run_event);
 }
@@ -231,50 +230,41 @@ fn handle_run_event(app: &AppHandle, event: RunEvent) {
         }
         // Launching by opening a file delivers Opened before Ready, so a plain
         // launch is the one that reaches Ready with no windows.
-        RunEvent::Ready if app.webview_windows().is_empty() => show_main_window(app),
+        RunEvent::Ready if app.webview_windows().is_empty() => show_vault_window(app),
         // Clicking the dock icon with every window closed.
         RunEvent::Reopen {
             has_visible_windows: false,
             ..
-        } => show_main_window(app),
+        } => show_vault_window(app),
         _ => {}
     }
 }
 
-// The Dock's "New Profile…". The main window shows the profiles dialog, and
-// gets created first when it was closed.
+// Tauri's default macOS menu with New Window at the top of the File menu.
+// Cmd+N is Create Note, so New Window takes Shift+Cmd+N.
 #[cfg(target_os = "macos")]
-fn open_profiles_dialog(app: &AppHandle) {
-    request_profile_dialog(app);
-    show_main_window(app);
-}
+fn build_app_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 
-fn open_files_or_main_window(app: &AppHandle, files: Vec<std::path::PathBuf>) {
-    if files.is_empty() {
-        show_main_window(app);
-    } else {
-        open_document_windows(app, files);
+    let menu = Menu::default(app)?;
+    let new_window = MenuItem::with_id(
+        app,
+        NEW_WINDOW_MENU_ID,
+        "New Window",
+        true,
+        Some("CmdOrCtrl+Shift+N"),
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    // The default File submenu has no id, so we find it by its title.
+    for item in menu.items()? {
+        let Some(submenu) = item.as_submenu() else {
+            continue;
+        };
+        if submenu.text()? == "File" {
+            submenu.prepend_items(&[&new_window, &separator])?;
+            return Ok(menu);
+        }
     }
-}
-
-// The vault window. tauri.conf.json declares it with create: false, so a
-// launch that only opens a file does not show an empty vault picker too.
-fn show_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-        return;
-    }
-    let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") else {
-        log::error!("tauri.conf.json has no main window");
-        return;
-    };
-    let built = WebviewWindowBuilder::from_config(app, config).and_then(|builder| {
-        #[cfg(target_os = "macos")]
-        let builder = with_profile_data_store(builder, app);
-        builder.build()
-    });
-    if let Err(error) = built {
-        log::error!("Could not create the main window: {}", error);
-    }
+    log::error!("The default menu has no File menu, so there is no New Window item");
+    Ok(menu)
 }
