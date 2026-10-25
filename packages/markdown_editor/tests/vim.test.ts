@@ -14,11 +14,13 @@ import { EditorView } from "@codemirror/view";
 import { CodeMirror, Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
+import type { MarkdownPlugin } from "../src/core/plugin";
 import { set_editor_mode } from "../src/core/editor_mode";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
+import { tags } from "../src/plugins/tags/index";
 import {
   close_vim_prompt,
   sync_clipboard_from_host,
@@ -70,6 +72,7 @@ function vim_editor(
     statuses?: VimStatus[];
     vim?: Compartment;
     keybindings?: VimKeybindingsOptions;
+    plugins?: MarkdownPlugin[];
   } = {},
 ) {
   const extension = vim_keybindings({
@@ -81,7 +84,12 @@ function vim_editor(
   const view = new EditorView({
     parent,
     state: create_markdown_state(source, {
-      plugins: [commonmark(), gfm(), code_blocks(), slash_menu()],
+      plugins: options.plugins ?? [
+        commonmark(),
+        gfm(),
+        code_blocks(),
+        slash_menu(),
+      ],
       extensions: options.vim ? options.vim.of(extension) : extension,
     }),
   });
@@ -564,6 +572,77 @@ describe("keys around Vim", () => {
     text_input(view, "é");
     expect(doc(view)).toBe("ab é");
     expect(view.state.selection.main.head).toBe(3);
+  });
+});
+
+describe("tags", () => {
+  const source = "a #tag and #tag b";
+
+  function tag_editor(statuses: VimStatus[] = []) {
+    const view = vim_editor(source, {
+      plugins: [
+        commonmark(),
+        tags({
+          query_tags: () => Promise.resolve([{ tag: "project", count: 3 }]),
+        }),
+      ],
+      statuses,
+    });
+    expect(view.dom.querySelectorAll(".md-tag")).toHaveLength(2);
+    return view;
+  }
+
+  function cursor_after(view: EditorView, keys: string) {
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+    press(view, ...keys.split(""));
+    return view.state.selection.main.head;
+  }
+
+  // The positions are what Vim 9.1 does on the same line. A chip is a mark,
+  // so the motions see plain text: # is punctuation and tag is a word.
+  test.each([
+    ["w", 2],
+    ["ww", 3],
+    ["www", 7],
+    ["wwwb", 3],
+    ["wwwbb", 2],
+    ["e", 2],
+    ["ee", 5],
+    ["eee", 9],
+    ["ll", 2],
+    ["lll", 3],
+    ["lllllll", 7],
+    ["lllllllhhh", 4],
+  ])("VIM-035 %s steps over a tag chip like Vim", (keys, expected) => {
+    expect(cursor_after(tag_editor(), keys)).toBe(expected);
+  });
+
+  test.each([
+    ["ll*", 12],
+    ["llll*", 12],
+    ["llll*n", 3],
+    ["l*N", 3],
+    ["l#", 12],
+  ])("VIM-035 %s searches for the tag word like Vim", (keys, expected) => {
+    expect(cursor_after(tag_editor(), keys)).toBe(expected);
+  });
+
+  test("VIM-036 Esc closes an open tag menu before it leaves insert mode", async () => {
+    const statuses: VimStatus[] = [];
+    const view = tag_editor(statuses);
+    press(view, "G", "A");
+    type(view, " #p");
+    await vi.waitFor(() => {
+      expect(menu_is_open(view)).toBe(true);
+    });
+
+    press(view, "<Esc>");
+    expect(menu_is_open(view)).toBe(false);
+    expect(statuses.at(-1)?.mode).toBe("insert");
+    expect(doc(view)).toBe(`${source} #p`);
+
+    press(view, "<Esc>");
+    expect(statuses.at(-1)?.mode).toBe("normal");
   });
 });
 
