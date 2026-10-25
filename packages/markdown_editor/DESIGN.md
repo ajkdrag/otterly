@@ -237,6 +237,7 @@ inner:  a = 1\nb = 2          the "> " prefixes stay outside the window
 - A code body window strips container prefixes and adds them back on new lines. A body line that looks like a closing fence grows the fence.
 - A table cell window unescapes pipes, escapes typed pipes, and keeps padding outside the window.
 - `surface_highlights` lets a plugin publish outer ranges, such as find matches, that every surface draws inside its own text.
+- `surface_keydown` handlers see keys typed in a surface before the surface does. A handler that takes a key wants the keyboard in the outer editor, so the reveal freeze ends and focus goes back there. Vim uses it.
 
 The core owns focus and scroll:
 
@@ -255,7 +256,7 @@ Inactive table cells are static rendered HTML. Only the active cell has a nested
 | block `surface` | Only while constructing or after `edit_block_source`.                                             |
 | block `surface` | With `reveal_surfaces_at_caret`: like a `caret` block, and also while a selection lies inside it. |
 
-Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret`: it keeps the source, so Vim's visual mode in a code block does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer.
+Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret`: it keeps the source, so Vim's visual mode in a code block does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer. A key taken by a `surface_keydown` handler ends that early (`end_reveal_freeze`).
 
 Images draw their widget after the source and keep it visible while the source is revealed, so the caret entering an image does not make the layout jump.
 
@@ -311,25 +312,29 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 
 ## Vim
 
-`vim_keybindings({ on_status_change, on_write, on_quit, clipboard })` (`plugins/vim`) is an extension, not a construct plugin, so it works on Markdown and text states. Hosts usually put it in a compartment to toggle it. It wraps `@replit/codemirror-vim`. The goal is real Vim: `tests/vim_conformance_cases.json` holds 402 cases (text, cursor, keys) with what Vim 9.1 did, and `vim_conformance.test.ts` runs the engine against them. `scripts/vim_ground_truth.mjs` re-checks the table against a real `vim` (dev only, not in CI).
+`vim_keybindings({ on_status_change, on_write, on_quit, clipboard })` (`plugins/vim`) is an extension, not a construct plugin, so it works on Markdown and text states. Hosts usually put it in a compartment to toggle it. It wraps `@replit/codemirror-vim`. The goal is real Vim: `tests/vim_conformance_cases.json` holds 402 cases (text, cursor, keys) with what Vim 9.1 did, and `vim_conformance.test.ts` runs the engine against them. A text that ends with a line break is a file there, and that break ends its last line. `scripts/vim_ground_truth.mjs` re-checks the table against a real `vim` (dev only, not in CI). `vim_note_conformance.test.ts` runs key sequences on a whole note in rich mode, with tables, code and frontmatter, and compares the saved text with the file Vim wrote.
 
 Files in `plugins/vim/`, one job each:
 
-| File                  | Job                                                                      |
-| --------------------- | ------------------------------------------------------------------------ |
-| `index.ts`            | `vim_keybindings()`, engine command patches (undo, `:w`, `o`), theme     |
-| `status.ts`           | mode, showcmd and recording, reported to the host                        |
-| `undo_steps.ts`       | what one undo step is                                                    |
-| `input_guards.ts`     | Esc and menus, and keys and text that must not edit in normal mode       |
-| `map_prefix_wait.ts`  | maps that start with a key Vim already binds, and `timeoutlen`           |
-| `vimrc.ts`            | `apply_vimrc`                                                            |
-| `vim_option_names.ts` | every option name Vim or Neovim has, to tell a skipped `set` from a typo |
+| File                  | Job                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| `index.ts`            | `vim_keybindings()`, engine command patches (undo, `:w`, `o`), theme                        |
+| `status.ts`           | mode, showcmd and recording, reported to the host                                           |
+| `undo_steps.ts`       | what one undo step is                                                                       |
+| `input_guards.ts`     | Esc and menus, keys typed in a surface, and keys and text that must not edit in normal mode |
+| `map_prefix_wait.ts`  | maps that start with a key Vim already binds, and `timeoutlen`                              |
+| `vimrc.ts`            | `apply_vimrc`                                                                               |
+| `vim_option_names.ts` | every option name Vim or Neovim has, to tell a skipped `set` from a typo                    |
 
 ### Keys
 
 - `vim()` sits at `Prec.highest`, so Vim keys beat `context_keymap`. All keymaps run from one `Prec.default` DOM handler, the menus' `Prec.highest` keymap included, so Vim sees every key first. Enter and the arrows are not Vim keys in insert mode, so they already reach the menu.
 - `close_menu_before_leaving_insert` runs before Vim. Esc, Ctrl-[ and Ctrl-c in insert mode close a menu you can see and stay in insert mode. A menu that is only pending (`activateOnTypingDelay` after every key, or a wiki query running) is closed too, but the key goes on to Vim. Before this, Esc within 100 ms of typing was eaten and you stayed in insert mode. A mode change by other routes (`jk`, `<C-o>`) closes the menu too.
 - `normal_mode_guards` runs right after Vim, so it only sees what Vim did not take. In normal, visual and operator-pending mode it swallows Tab, Enter, Backspace and Delete with any modifier, and on macOS every Ctrl combo without Cmd. It also swallows the editing keys of CodeMirror's `defaultKeymap` (Alt-Up and Alt-Down move a line, Shift-Alt-Up and Shift-Alt-Down copy it, Cmd-[ and Cmd-] indent, and so on). It finds them by command, so a key that an upgrade gives one of those commands is guarded too. Without the guards CodeMirror's emacs keys (Ctrl-k, Ctrl-h, Ctrl-t), Shift-Tab and Alt-Backspace edit the note behind Vim's back. Text that arrives without a key (the accent menu, the emoji picker, dictation, an IME commit) is dropped, except right after `f`, `t` and `r`, where the engine handles dead keys itself.
+
+### The final line break
+
+Vim reads the line break at the end of a file as the end of its last line. CodeMirror has one more, empty line after it, and a saved note almost always ends with a line break. So `index.ts` makes the engine's `lastLine()` the line before that empty line. `G`, `99G`, `j`, `}` and `:$` stop on the last line with text, and `dG`, `Gdd`, `VGd` and `p` on the last line keep the final line break. A delete of every line leaves an empty note, which is what Vim writes. A click under the last line, or an arrow key in insert mode, would still put the caret on the empty line, and `dd` there would eat the break, so a `select` move onto it goes to the end of the last line. Vim's own moves may go there: `o` at the end of a note with no final line break opens exactly that line.
 
 ### Undo
 
@@ -358,31 +363,34 @@ The engine runs a full built-in match before it looks at a longer map, so `nnore
 ### Rich Markdown
 
 - It turns on `reveal_surfaces_at_caret`. Code blocks and tables show their source while the caret, or a whole selection, is in them, so one Vim instance edits the whole document and no key lands in a nested editor. `j`, `k` and the up and down arrows step onto the block's nearest line. CodeMirror's vertical motion skips widgets, so the plugin wraps the engine's `findPosV` (what `j` and `k` ask) to answer with the target line when the screen step would jump over a rendered block. The arrow keys do the same in `enter_adjacent_block`. Left and right already land on the block's edge. A click inside a rendered surface still focuses its nested editor. The block keeps its widget until the reveal freeze ends, about 100 ms after the button comes up. Then the block turns into source, for a caret and for a range selection (double click, drag) alike, and the nested view is destroyed with its focus. The core hands focus back to the outer view and keeps the outer selection.
+- A key typed in a code body or table cell editor still goes to Vim. Focus sits there after a click into a rendered block until the reveal freeze ends, and keys typed then used to land in the cell as text while the status said NORMAL. Every `NestedEditor` asks the `surface_keydown` handlers (`core/surface.ts`) first. `vim_keys_in_surfaces` runs the key through the engine's own keydown handler. In insert mode a text key Vim turns down stays with the cell, which writes the same source. In the other modes a key Vim turns down is swallowed, except Cmd (Ctrl off macOS). A key taken there ends the freeze (`end_reveal_freeze`), so the block shows its source, and focus goes back to the note.
 - The theme uses host variables (`--primary`, `--muted`, `--font-mono`) for the block cursor and the `/` prompt. The editor root gets `md-vim`. The host reads it to keep Ctrl keys for Vim on macOS (`use_keyboard_shortcuts`). On Windows and Linux the app's Ctrl hotkeys win over Vim's Ctrl keys. The engine leaves Ctrl-v alone in insert mode and lets Ctrl-c copy a selection, so paste and copy should still work there. I read that in its source and have not tried it on Windows or Linux.
 
 ### Engine patches
 
 The fixes below live in closures of `@replit/codemirror-vim-core` and `@replit/codemirror-vim` that the public API does not reach. They are pnpm patches (`patches/`, `patchedDependencies` in `pnpm-workspace.yaml`). Every hunk starts with `// otterly patch Vn: <what Vim does>`, so an upgrade can find and re-check them, and the conformance suite fails when an upgrade drops one. They are fixes the engine's authors would probably take, which is a follow-up.
 
-| Id      | What Vim does that the engine did not                                                                               |
-| ------- | ------------------------------------------------------------------------------------------------------------------- |
-| V1      | a linewise delete that reaches the last line (`5dd`, `dG`, `dap`) leaves no empty line                              |
-| V2, V3  | `dk` on line 1, `dj` on the last line, `dfz` with no `z` and `d])` with no match fail                               |
-| V4      | `d}` from column 0 is linewise (`:help exclusive-linewise`)                                                         |
-| V5      | `da"` takes the white space after the closing quote, or before the opening one                                      |
-| V6, V7  | `3rx` past the line end fails; `~` at the line end keeps the cursor on a character                                  |
-| V8, V14 | the cursor after `p` and `P`, and after `y` with a backward motion or text object                                   |
-| V9, V10 | `v$d` takes the line break; `Vp` stores the replaced text with its type and fixes the cursor                        |
-| V11     | `_`, `+` and `-` are linewise (`d_` is `dd`)                                                                        |
-| V12     | `J` adds no space before `)` or after a trailing blank                                                              |
-| V13     | `ci{` on a function body keeps both braces on their own lines                                                       |
-| V21     | a `.` repeat works out linewise again, so `ci{` on a one-line pair after a multi-line one                           |
-| V15     | insert `<C-w>` and `<C-u>` delete into the black hole register                                                      |
-| V16     | a recursive map whose rhs starts with its lhs runs those keys unmapped (`nmap x xp`)                                |
-| V17     | `"+`, `"*`, `<C-r>+` and `set clipboard`, through a clipboard hook the host replaces. A plain `p` stays synchronous |
-| V18     | a backward search from inside a match skips that match                                                              |
-| V19     | the half block cursor shows only while an operator waits                                                            |
-| V20     | `dap` on the last paragraph takes the blank lines before it                                                         |
+| Id      | What Vim does that the engine did not                                                                                |
+| ------- | -------------------------------------------------------------------------------------------------------------------- |
+| V1      | a linewise delete that reaches the last line (`5dd`, `dG`, `dap`) leaves no empty line, and keeps a final line break |
+| V2, V3  | `dk` on line 1, `dj` on the last line, `dfz` with no `z` and `d])` with no match fail                                |
+| V4      | `d}` from column 0 is linewise (`:help exclusive-linewise`)                                                          |
+| V5      | `da"` takes the white space after the closing quote, or before the opening one                                       |
+| V6, V7  | `3rx` past the line end fails; `~` at the line end keeps the cursor on a character                                   |
+| V8, V14 | the cursor after `p` and `P`, and after `y` with a backward motion or text object                                    |
+| V9, V10 | `v$d` takes the line break; `Vp` stores the replaced text with its type and fixes the cursor                         |
+| V11     | `_`, `+` and `-` are linewise (`d_` is `dd`)                                                                         |
+| V12     | `J` adds no space before `)` or after a trailing blank                                                               |
+| V13     | `ci{` on a function body keeps both braces on their own lines                                                        |
+| V21     | a `.` repeat works out linewise again, so `ci{` on a one-line pair after a multi-line one                            |
+| V15     | insert `<C-w>` and `<C-u>` delete into the black hole register                                                       |
+| V16     | a recursive map whose rhs starts with its lhs runs those keys unmapped (`nmap x xp`)                                 |
+| V17     | `"+`, `"*`, `<C-r>+` and `set clipboard`, through a clipboard hook the host replaces. A plain `p` stays synchronous  |
+| V18     | a backward search from inside a match skips that match                                                               |
+| V19     | the half block cursor shows only while an operator waits                                                             |
+| V20     | `dap` on the last paragraph takes the blank lines before it                                                          |
+| V22     | `*` and `#` on a word with `-` (`---`) search for it. The engine wrote `\-`, which the `u` flag rejects              |
+| V23     | `}` past the last paragraph goes to the last character of the last line, and `d}` there keeps the final line break   |
 
 ### Accepted deviations
 
