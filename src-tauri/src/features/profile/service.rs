@@ -16,8 +16,10 @@ use tauri::{AppHandle, Manager, State};
 pub const DEFAULT_PROFILE_ID: &str = "default";
 pub const PROFILE_ENV_VAR: &str = "OTTERLY_PROFILE";
 // Only the `=` form. With `--profile work`, files_from_args would take `work`
-// for a file to open.
+// for a file to open. A bare `--profile` is an error so the default profile
+// does not start silently.
 const PROFILE_ARG_PREFIX: &str = "--profile=";
+const BARE_PROFILE_ARG: &str = "--profile";
 const PROFILE_DIR_INFIX: &str = ".profile-";
 const MAX_PROFILE_ID_LEN: usize = 32;
 
@@ -60,10 +62,14 @@ pub fn profile_from_launch(
     args: &[String],
     env_profile: Option<&str>,
 ) -> Result<Option<String>, String> {
-    let from_args = args
-        .iter()
-        .skip(1)
+    let user_args = args.iter().skip(1);
+    let from_args = user_args
+        .clone()
         .find_map(|arg| arg.strip_prefix(PROFILE_ARG_PREFIX));
+    let has_bare_flag = user_args.clone().any(|arg| arg == BARE_PROFILE_ARG);
+    if from_args.is_none() && has_bare_flag {
+        return Err("Use --profile=<id> with an equals sign, not --profile <id>".to_string());
+    }
     let Some(profile_id) = from_args.or(env_profile) else {
         return Ok(None);
     };

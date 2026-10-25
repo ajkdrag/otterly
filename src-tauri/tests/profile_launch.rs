@@ -55,11 +55,9 @@ fn explicit_default_is_the_default_profile() {
 }
 
 #[test]
-fn space_separated_flag_is_not_a_profile() {
-    assert_eq!(
-        profile_from_launch(&args(&["--profile", "work"]), None),
-        Ok(None)
-    );
+fn space_separated_flag_is_an_error() {
+    assert!(profile_from_launch(&args(&["--profile", "work"]), None).is_err());
+    assert!(profile_from_launch(&args(&["--profile"]), Some("home")).is_err());
 }
 
 #[test]
