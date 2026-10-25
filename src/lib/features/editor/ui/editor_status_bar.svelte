@@ -99,7 +99,9 @@
         title="Toggle source mode"
       >
         <Code />
-        <span>{view_mode === "source" ? "Source" : "Rich"}</span>
+        <span class="StatusBar__view-mode-label"
+          >{view_mode === "source" ? "Source" : "Rich"}</span
+        >
       </button>
     {/if}
   </div>
@@ -171,6 +173,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Wide enough for "Source", so the toggle keeps its size and the items to
+     its left do not move when you switch modes. The font is mono, so 6ch is
+     exact. */
+  .StatusBar__view-mode-label {
+    min-width: 6ch;
   }
 
   /* Icon only, like note info and index sync. */
