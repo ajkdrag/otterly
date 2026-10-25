@@ -274,6 +274,7 @@
   hotkeys_config={stores.ui.settings_dialog.hotkey_draft_config}
   user_themes={stores.ui.user_themes}
   active_theme={stores.ui.active_theme}
+  theme_file={stores.ui.theme_file}
   on_update_settings={(settings: EditorSettings) =>
     void action_registry.execute(ACTION_IDS.settings_update, settings)}
   on_category_change={(category: SettingsCategory) => {
@@ -305,6 +306,14 @@
     void action_registry.execute(ACTION_IDS.theme_delete, id)}
   on_theme_update={(theme: Theme) =>
     void action_registry.execute(ACTION_IDS.theme_update, theme)}
+  on_theme_open_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_open_file)}
+  on_theme_reveal_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_reveal_file)}
+  on_theme_copy_file_path={() =>
+    void action_registry.execute(ACTION_IDS.theme_copy_file_path)}
+  on_theme_create_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_create_file)}
 />
 
 <CreateFolderDialog

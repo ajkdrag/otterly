@@ -74,6 +74,9 @@ importers:
       turndown-plugin-gfm:
         specifier: ^1.0.2
         version: 1.0.2
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@codemirror/autocomplete':
         specifier: ^6.20.3
@@ -2995,6 +2998,11 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yup@1.7.1:
     resolution: {integrity: sha512-GKHFX2nXul2/4Dtfxhozv701jLQHdf6J34YDh2cEkpqoo8le5Mg6/LrdseVLrFarmFygZTlfIhHx/QKfb/QWXw==}
 
@@ -5873,6 +5881,8 @@ snapshots:
   xml-name-validator@5.0.0: {}
 
   xmlchars@2.2.0: {}
+
+  yaml@2.9.1: {}
 
   yup@1.7.1:
     dependencies:

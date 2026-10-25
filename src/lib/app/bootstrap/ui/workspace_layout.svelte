@@ -15,6 +15,7 @@
   import { build_filetree, sort_tree } from "$lib/features/folder";
   import { flatten_filetree, scope_flat_tree } from "$lib/features/folder";
   import { as_note_path } from "$lib/shared/types/ids";
+  import { TREE_ROW_HEIGHT_PX } from "$lib/shared/types/theme";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { NoteMeta } from "$lib/shared/types/note";
@@ -80,6 +81,10 @@
       show_hidden_files: stores.ui.editor_settings.show_hidden_files,
       pagination: stores.ui.filetree.pagination,
     }),
+  );
+
+  const tree_row_height_px = $derived(
+    TREE_ROW_HEIGHT_PX[stores.ui.active_theme.file_tree_density],
   );
 
   const scoped_flat_nodes = $derived.by(() =>
@@ -489,6 +494,7 @@
                       <Sidebar.GroupContent class="h-full">
                         <VirtualFileTree
                           nodes={starred_nodes}
+                          row_height_px={tree_row_height_px}
                           selected_path={stores.ui.selected_folder_path}
                           revealed_note_path={stores.ui
                             .filetree_revealed_note_path}
@@ -624,6 +630,7 @@
                     <Sidebar.GroupContent class="h-full">
                       <VirtualFileTree
                         nodes={scoped_flat_nodes}
+                        row_height_px={tree_row_height_px}
                         selected_path={stores.ui.selected_folder_path}
                         revealed_note_path={stores.ui
                           .filetree_revealed_note_path}

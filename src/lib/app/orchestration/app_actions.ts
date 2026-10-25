@@ -88,6 +88,7 @@ function apply_loaded_preferences(
   const { stores, services } = input;
   stores.ui.set_user_themes(data.theme_result.user_themes);
   stores.ui.set_active_theme_id(data.theme_result.active_theme_id);
+  stores.ui.set_theme_file(data.theme_result.theme_file);
   stores.ui.set_recent_command_ids(data.recent_command_ids);
 
   stores.ui.hotkey_overrides = data.hotkey_overrides;

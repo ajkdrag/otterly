@@ -6,7 +6,18 @@ const log = create_logger("op_toast_reactor");
 
 type ToastCommand =
   | { kind: "success"; message: string }
-  | { kind: "error"; message: string; log_label: string; error: string };
+  | { kind: "dismiss"; toast_id: string }
+  | {
+      kind: "error";
+      message: string;
+      error: string;
+      // Left out when the service already logged the failure.
+      log_label?: string;
+      // A toast with the same id replaces the old one instead of stacking.
+      toast_id?: string;
+    };
+
+const TOASTED_OP_KEYS = ["clipboard.write", "links.repair", "theme.file_load"];
 
 export function resolve_op_toast_commands(input: {
   key: string;
@@ -57,12 +68,34 @@ export function resolve_op_toast_commands(input: {
     }
   }
 
+  // No success toast: every save of the theme file would show one. The error
+  // is already "<first error> (+N more)".
+  if (key === "theme.file_load" && current_status === "error") {
+    const reason = error ?? "unknown error";
+    return [
+      {
+        kind: "error",
+        message: `Theme file: ${reason}`,
+        error: reason,
+        toast_id: key,
+      },
+    ];
+  }
+
+  // A fixed file clears its error toast, so it does not read as "still
+  // broken". Every load goes through "pending" first, so the previous status
+  // is never "error" here. Dismissing a toast that is not up does nothing.
+  if (key === "theme.file_load" && current_status === "success") {
+    return [{ kind: "dismiss", toast_id: key }];
+  }
+
   return [];
 }
 
 export function create_op_toast_reactor(op_store: OpStore): () => void {
-  let last_clipboard_status = op_store.get("clipboard.write").status;
-  let last_link_repair_status = op_store.get("links.repair").status;
+  const last_status = new Map(
+    TOASTED_OP_KEYS.map((key) => [key, op_store.get(key).status]),
+  );
 
   const apply_commands = (commands: ToastCommand[]) => {
     for (const command of commands) {
@@ -70,35 +103,35 @@ export function create_op_toast_reactor(op_store: OpStore): () => void {
         toast.success(command.message);
         continue;
       }
+      if (command.kind === "dismiss") {
+        toast.dismiss(command.toast_id);
+        continue;
+      }
 
-      log.error(command.log_label, { error: command.error });
-      toast.error(command.message);
+      if (command.log_label) {
+        log.error(command.log_label, { error: command.error });
+      }
+      toast.error(
+        command.message,
+        command.toast_id === undefined ? {} : { id: command.toast_id },
+      );
     }
   };
 
   return $effect.root(() => {
     $effect(() => {
-      const clipboard = op_store.get("clipboard.write");
-      const clipboard_commands = resolve_op_toast_commands({
-        key: "clipboard.write",
-        previous_status: last_clipboard_status,
-        current_status: clipboard.status,
-        error: clipboard.error,
-        message: clipboard.message,
-      });
-      last_clipboard_status = clipboard.status;
-      apply_commands(clipboard_commands);
-
-      const link_repair = op_store.get("links.repair");
-      const link_repair_commands = resolve_op_toast_commands({
-        key: "links.repair",
-        previous_status: last_link_repair_status,
-        current_status: link_repair.status,
-        error: link_repair.error,
-        message: link_repair.message,
-      });
-      last_link_repair_status = link_repair.status;
-      apply_commands(link_repair_commands);
+      for (const key of TOASTED_OP_KEYS) {
+        const op = op_store.get(key);
+        const commands = resolve_op_toast_commands({
+          key,
+          previous_status: last_status.get(key) ?? "idle",
+          current_status: op.status,
+          error: op.error,
+          message: op.message,
+        });
+        last_status.set(key, op.status);
+        apply_commands(commands);
+      }
     });
   });
 }

@@ -3,6 +3,7 @@ import { create_editor_sync_reactor } from "$lib/reactors/editor_sync.reactor.sv
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
 import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
+import { create_theme_file_reactor } from "$lib/reactors/theme_file.reactor.svelte";
 import { create_autosave_reactor } from "$lib/reactors/autosave.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_recent_notes_persist_reactor } from "$lib/reactors/recent_notes_persist.reactor.svelte";
@@ -38,6 +39,7 @@ import type { LinksService } from "$lib/features/links";
 import type { SearchService, SearchStore } from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { WatcherService } from "$lib/features/watcher";
+import type { ThemeService } from "$lib/features/theme";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
 export type ReactorContext = {
@@ -60,6 +62,7 @@ export type ReactorContext = {
   git_service: GitService;
   links_service: LinksService;
   watcher_service: WatcherService;
+  theme_service: ThemeService;
   action_registry: ActionRegistry;
 };
 
@@ -91,6 +94,7 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.editor_service,
     ),
     create_theme_reactor(context.ui_store),
+    create_theme_file_reactor(context.theme_service, context.action_registry),
     create_op_toast_reactor(context.op_store),
     create_recent_notes_persist_reactor(
       context.notes_store,

@@ -169,6 +169,11 @@ export const ACTION_IDS = {
   theme_update: "theme.update",
   theme_save: "theme.save",
   theme_revert: "theme.revert",
+  theme_reload_file: "theme.reload_file",
+  theme_create_file: "theme.create_file",
+  theme_open_file: "theme.open_file",
+  theme_reveal_file: "theme.reveal_file",
+  theme_copy_file_path: "theme.copy_file_path",
 
   hotkey_open_editor: "hotkey.open_editor",
   hotkey_close_editor: "hotkey.close_editor",

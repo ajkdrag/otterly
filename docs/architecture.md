@@ -74,7 +74,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `git`       | Git init, status, commit, history, checkpoint, restore        |
 | `settings`  | App and vault settings read/write                             |
 | `hotkey`    | Custom hotkey editing and persistence                         |
-| `theme`     | Theme CRUD, switching, custom theme editing                   |
+| `theme`     | Theme CRUD, switching, editing, theme file + live reload      |
 | `links`     | Backlinks, local links, link repair on rename                 |
 | `clipboard` | Copy markdown to clipboard                                    |
 | `shell`     | Open external URLs                                            |
@@ -298,6 +298,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
+- **Rust theme feature imports from notes**: `features/theme/service.rs` uses `atomic_write` from `features/notes/service.rs`, and `theme_file_dir` copies the config folder lines from `settings_path`. The document feature already imports `atomic_write` the same way, so this bends backend invariant 3 for a second consumer. Moving `atomic_write` and a `config_dir` helper into `shared/` is a follow-up that touches notes, document, settings and theme at once.
 
 ## Worked example: rename note
 
@@ -350,7 +351,7 @@ Backend invariants:
 2. Managed state structs live in the feature's `service.rs` — no global statics
 3. Cross-feature shared code goes in `shared/`, not inside a feature module
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
-5. Backend holds no domain state between calls (exceptions: `WatcherState` and `SearchDbState` which are explicit lifecycle-managed state)
+5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState` which are explicit lifecycle-managed state)
 
 ## Validation checklist
 
