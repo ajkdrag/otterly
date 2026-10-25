@@ -63,26 +63,26 @@ When a user clicks a button, presses a shortcut, or picks a command:
 
 Each feature is a vertical slice owning its own stores, services, actions, ports, adapters, domain logic, and UI:
 
-| Feature     | Owns                                                                              |
-| ----------- | --------------------------------------------------------------------------------- |
-| `vault`     | Vault registry, open/close lifecycle, settings, watcher setup                     |
-| `note`      | Note CRUD, save/rename/delete, image assets                                       |
-| `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves                             |
-| `editor`    | CodeMirror session, buffer management, source sync                                |
-| `search`    | Full-text search, omnibar, find-in-file, vault find and replace, wiki suggestions |
-| `tab`       | Tab bar, tab lifecycle, tab caching and persistence                               |
-| `git`       | Git init, status, commit, history, checkpoint, restore                            |
-| `settings`  | App and vault settings read/write                                                 |
-| `hotkey`    | Custom hotkey editing and persistence                                             |
-| `theme`     | Theme CRUD, switching, editing, theme file + live reload                          |
-| `links`     | Backlinks, local links, link repair on rename                                     |
-| `tags`      | Tag pane, tag search, current note tags                                           |
-| `clipboard` | Copy markdown to clipboard                                                        |
-| `shell`     | Open external URLs                                                                |
-| `watcher`   | Filesystem watcher start/stop                                                     |
-| `updater`   | Background update download, install and relaunch                                  |
-| `document`  | One file opened outside any vault, in its own window                              |
-| `profile`   | Current profile, opening other profiles, profiles dialog                          |
+| Feature     | Owns                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `vault`     | Vault registry, open/close lifecycle, settings, watcher setup                                                |
+| `note`      | Note CRUD, save/rename/delete, image assets                                                                  |
+| `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves                                                        |
+| `editor`    | CodeMirror session, buffer management, source sync                                                           |
+| `search`    | Full-text search, omnibar (notes, tags, commands, find and replace in files), find-in-file, wiki suggestions |
+| `tab`       | Tab bar, tab lifecycle, tab caching and persistence                                                          |
+| `git`       | Git init, status, commit, history, checkpoint, restore                                                       |
+| `settings`  | App and vault settings read/write                                                                            |
+| `hotkey`    | Custom hotkey editing and persistence                                                                        |
+| `theme`     | Theme CRUD, switching, editing, theme file + live reload                                                     |
+| `links`     | Backlinks, local links, link repair on rename                                                                |
+| `tags`      | Tag pane, tag search, current note tags                                                                      |
+| `clipboard` | Copy markdown to clipboard                                                                                   |
+| `shell`     | Open external URLs                                                                                           |
+| `watcher`   | Filesystem watcher start/stop                                                                                |
+| `updater`   | Background update download, install and relaunch                                                             |
+| `document`  | One file opened outside any vault, in its own window                                                         |
+| `profile`   | Current profile, opening other profiles, profiles dialog                                                     |
 
 ### Folder structure (first 2 levels)
 
@@ -139,6 +139,15 @@ The "Profiles…" command opens the dialog. On macOS the Dock menu lists the pro
 ### Cross-runtime split
 
 Features exist in both runtimes but stay physically separate: TypeScript in `src/lib/features/<name>/`, Rust in `src-tauri/src/features/<name>/`. Feature names match across runtimes when they represent the same capability. TS calls Rust exclusively through feature adapters (`*_tauri_adapter.ts`) that invoke `@tauri-apps/api` IPC. Rust exposes only `#[tauri::command]` functions — no direct frontend coupling.
+
+### Omnibar search
+
+Cmd+O is the one search surface. Its input has two modes, and tag chips and the vault scope filter both.
+
+- **Notes** parses what you type: `>` runs commands, `#` picks a tag, `@file` and `title:` narrow to names. The `All | Files` strip and the scope select belong to it. It reads the SQLite search db: FTS5 for file names and ranked content, `note_tags` for tags. All vaults runs the same search over every vault.
+- **Text** (Cmd+Shift+F, or the `Text` button) takes the input as a raw pattern, so `>` and `#todo` are literal. It runs the Rust vault find engine (ripgrep crates) over the files on disk: substring, regex, case, whole word, include and exclude globs, and replace across files. One vault only.
+
+Chips go to Rust with the find request. Rust resolves them through the search db into a file set and walks only those files. The find reactor starts the search while the omnibar is open in Text mode, and `VaultFindResults` holds the streaming results. `run_replace` in `vault_find_actions.ts` is the only code that writes. It works by match ordinal and content hash, skips files with unsaved edits, and takes a git checkpoint first for Replace in file and Replace all.
 
 ## Markdown editor package
 

@@ -25,6 +25,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
+// @Speed: 10,000 matches with full previews is about 3 MB of JSON per search.
+// If one-letter patterns feel slow in the app, cap the previews or the matches
+// harder for short patterns. Measure first.
 pub const MAX_MATCHES: usize = 10_000;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(50);
 const MAX_FILE_BYTES: u64 = 20 * 1024 * 1024;
