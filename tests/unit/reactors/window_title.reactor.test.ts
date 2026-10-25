@@ -33,35 +33,69 @@ function mock_tab(title: string, is_dirty = false): Tab {
 describe("window_title.reactor", () => {
   describe("resolve_window_title", () => {
     it("returns app name when no vault is open", () => {
-      expect(resolve_window_title(null, null)).toBe("otterly");
+      expect(resolve_window_title(null, null, "default")).toBe("otterly");
     });
 
     it("returns app name when no vault is open even with active tab", () => {
-      expect(resolve_window_title(null, mock_tab("notes"))).toBe("otterly");
+      expect(resolve_window_title(null, mock_tab("notes"), "default")).toBe(
+        "otterly",
+      );
     });
 
     it("returns vault name when vault is open but no note", () => {
-      expect(resolve_window_title(mock_vault("My Notes"), null)).toBe(
-        "My Notes",
-      );
+      expect(
+        resolve_window_title(mock_vault("My Notes"), null, "default"),
+      ).toBe("My Notes");
     });
 
     it("returns note title and vault name when note is open", () => {
       expect(
-        resolve_window_title(mock_vault("My Notes"), mock_tab("hello")),
+        resolve_window_title(
+          mock_vault("My Notes"),
+          mock_tab("hello"),
+          "default",
+        ),
       ).toBe("hello — My Notes");
     });
 
     it("prefixes with dirty indicator when note has unsaved changes", () => {
       expect(
-        resolve_window_title(mock_vault("My Notes"), mock_tab("hello", true)),
+        resolve_window_title(
+          mock_vault("My Notes"),
+          mock_tab("hello", true),
+          "default",
+        ),
       ).toBe("∘ hello — My Notes");
     });
 
     it("has no dirty indicator when note is clean", () => {
       expect(
-        resolve_window_title(mock_vault("My Notes"), mock_tab("hello", false)),
+        resolve_window_title(
+          mock_vault("My Notes"),
+          mock_tab("hello", false),
+          "default",
+        ),
       ).toBe("hello — My Notes");
+    });
+
+    it("adds the profile name for a non-default profile", () => {
+      expect(resolve_window_title(null, null, "work")).toBe("otterly (work)");
+      expect(resolve_window_title(mock_vault("My Notes"), null, "work")).toBe(
+        "My Notes (work)",
+      );
+      expect(
+        resolve_window_title(
+          mock_vault("My Notes"),
+          mock_tab("hello", true),
+          "work",
+        ),
+      ).toBe("∘ hello — My Notes (work)");
+    });
+
+    it("adds nothing before the profile is known", () => {
+      expect(resolve_window_title(mock_vault("My Notes"), null, null)).toBe(
+        "My Notes",
+      );
     });
   });
 
@@ -69,6 +103,7 @@ describe("window_title.reactor", () => {
     const unmount = create_window_title_reactor(
       { vault: null } as never,
       { active_tab: null } as never,
+      { current_id: null } as never,
       () => {},
     );
 

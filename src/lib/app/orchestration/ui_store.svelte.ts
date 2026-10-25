@@ -373,6 +373,12 @@ export class UIStore {
     is_closing: false,
   });
 
+  // Not reset with the vault: the Dock can ask for it while a vault opens.
+  profile_dialog = $state<{ open: boolean; new_name: string }>({
+    open: false,
+    new_name: "",
+  });
+
   // Set when the user picks "Later" on the update prompt. Lasts for the session.
   update_prompt_dismissed = $state(false);
 

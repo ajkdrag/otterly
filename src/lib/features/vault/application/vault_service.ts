@@ -14,6 +14,8 @@ import type { NotesStore } from "$lib/features/note";
 import type { EditorStore } from "$lib/features/editor";
 import type { OpStore } from "$lib/app";
 import type { SearchStore } from "$lib/features/search";
+import { DEFAULT_PROFILE_ID, type ProfileStore } from "$lib/features/profile";
+import { apply_starred_paths_change } from "$lib/features/vault/domain/apply_starred_paths_change";
 import type { NoteMeta } from "$lib/shared/types/note";
 import type { FolderStats } from "$lib/shared/types/filetree";
 import {
@@ -73,6 +75,7 @@ export class VaultService {
     private readonly editor_store: EditorStore,
     private readonly op_store: OpStore,
     private readonly search_store: SearchStore,
+    private readonly profile_store: ProfileStore,
     private readonly now_ms: () => number,
   ) {}
 
@@ -577,6 +580,18 @@ export class VaultService {
     );
   }
 
+  // Vault settings are shared by every profile that opens the vault, and
+  // recent notes change on every note open. Each profile gets its own key, like
+  // its own tabs file, so profiles do not overwrite each other's list. The
+  // default profile keeps the old key, and so does a profile that failed to load.
+  private recent_notes_key(): string {
+    const profile_id = this.profile_store.current_id;
+    if (profile_id === null || profile_id === DEFAULT_PROFILE_ID) {
+      return RECENT_NOTES_KEY;
+    }
+    return `${RECENT_NOTES_KEY}-${profile_id}`;
+  }
+
   async save_recent_notes(
     vault_id: VaultId,
     recent_notes: NoteMeta[],
@@ -584,7 +599,7 @@ export class VaultService {
     try {
       await this.vault_settings_port.set_vault_setting(
         vault_id,
-        RECENT_NOTES_KEY,
+        this.recent_notes_key(),
         recent_notes,
       );
     } catch (error) {
@@ -596,7 +611,7 @@ export class VaultService {
     try {
       const stored = await this.vault_settings_port.get_vault_setting<unknown>(
         vault_id,
-        RECENT_NOTES_KEY,
+        this.recent_notes_key(),
       );
       if (!stored || !Array.isArray(stored)) {
         return [];
@@ -620,37 +635,54 @@ export class VaultService {
     }
   }
 
+  // Stars are shared by every profile that opens the vault, and another
+  // profile may have changed them since we loaded. So we apply only the
+  // difference between `previous_paths` and `starred_paths` to the list on disk.
+  // Returns false when nothing was written. If we cannot read the list on disk
+  // we skip the write, because merging over an empty list would drop every
+  // star the other profiles saved.
   async save_starred_paths(
     vault_id: VaultId,
+    previous_paths: string[],
     starred_paths: string[],
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
+      const stored_paths = await this.read_starred_paths(vault_id);
       await this.vault_settings_port.set_vault_setting(
         vault_id,
         STARRED_PATHS_KEY,
-        starred_paths,
+        apply_starred_paths_change(stored_paths, previous_paths, starred_paths),
       );
+      return true;
     } catch (error) {
       log.error("Save starred paths failed", { error });
+      return false;
     }
   }
 
+  // A failed read while opening a vault just shows no stars. A later save
+  // reads the list again and changes only the paths we starred or unstarred,
+  // so the stars on disk survive.
   private async load_starred_paths(vault_id: VaultId): Promise<string[]> {
     try {
-      const stored = await this.vault_settings_port.get_vault_setting<unknown>(
-        vault_id,
-        STARRED_PATHS_KEY,
-      );
-      if (!stored || !Array.isArray(stored)) {
-        return [];
-      }
-      return stored.filter(
-        (entry): entry is string => typeof entry === "string",
-      );
+      return await this.read_starred_paths(vault_id);
     } catch (error) {
       log.error("Load starred paths failed", { error });
       return [];
     }
+  }
+
+  // Throws when the settings file cannot be read. A vault with no stars saved
+  // yet is an empty list, not an error.
+  private async read_starred_paths(vault_id: VaultId): Promise<string[]> {
+    const stored = await this.vault_settings_port.get_vault_setting<unknown>(
+      vault_id,
+      STARRED_PATHS_KEY,
+    );
+    if (!stored || !Array.isArray(stored)) {
+      return [];
+    }
+    return stored.filter((entry): entry is string => typeof entry === "string");
   }
 
   private async save_pinned_vault_ids(vault_ids: VaultId[]): Promise<void> {

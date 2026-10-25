@@ -24,3 +24,5 @@ mod portable_install;
 
 #[path = "../../tests/theme_file_service.rs"]
 mod theme_file_service;
+#[path = "../../tests/profile_launch.rs"]
+mod profile_launch;

@@ -390,8 +390,12 @@ pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
         log::error!("Failed to create directory {}: {}", dir.display(), e);
         e.to_string()
     })?;
+    // The counter starts at 0 in every process, and two profiles can save in
+    // the same folder in the same millisecond. The process id keeps their temp
+    // files apart, or one rename would move the other's content onto its note.
     let name = format!(
-        "{}.{}.tmp",
+        "{}.{}.{}.tmp",
+        std::process::id(),
         storage::now_ms(),
         NEXT_TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );

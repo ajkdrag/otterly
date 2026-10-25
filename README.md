@@ -54,6 +54,44 @@ To make Otterly the default app for Markdown:
 - **Windows:** Right-click a `.md` file, choose "Open with" > "Choose another app", pick Otterly, and tick "Always use this app".
 - **Linux:** Right-click a `.md` file in your file manager, open its properties, and set Otterly as the default for "Markdown". From a terminal: `xdg-mime default otterly.desktop text/markdown`. The desktop file name depends on how you installed Otterly.
 
+## Profiles
+
+A profile is a separate Otterly with its own settings, vault list, window size and tabs. Use one to keep work and personal notes apart, or to get a second window on the same vault.
+
+- In the app: run "Profiles…" from the command palette, then pick a profile or type a new name. On macOS the Dock menu lists them too. Opening a profile that already runs just brings its window to the front.
+- From a terminal: `otterly --profile=work`, or `OTTERLY_PROFILE=work otterly`. The flag wins when both are set. Write it with `=`. `--profile work` is not read as a profile, so Otterly logs an error and starts the default profile.
+- A profile name is up to 32 lowercase letters, digits and dashes. A bad name is logged and Otterly starts the default profile.
+- A profile exists as soon as it is launched with a valid name, so a typo like `--profile=wrok` creates a new profile that stays in the list. Delete its folder to remove it (see below).
+- `default` is what you get without a flag. `--profile=default` is the same thing, and it keeps all the data you had before profiles existed.
+- Each profile is its own app instance. On macOS you get one Dock icon per running profile. On Windows the windows share the Otterly taskbar button. The window title ends with the profile name, like `notes — My Vault (work)`.
+- On macOS, launching Otterly while another profile runs brings that profile to the front. Use the Dock menu or Profiles… to start `default`.
+- Two profiles can open the same vault. The notes, the search index, the git history and the starred notes are shared. The open tabs and the recent notes are kept per profile. Treat it like having the vault open in Otterly and another editor.
+- Vault settings are shared too. A running profile reads them when it opens the vault and when you open its settings dialog, so avoid saving settings in two profiles on one vault at the same time. The last save wins.
+- Only the default profile checks for updates in the background. "Check for Updates" works in any profile. On macOS and Linux, a running profile keeps the old version until you restart it. On Windows, installing an update closes every running profile, because the installer has to replace `otterly.exe`. Save your work in the other profiles first.
+- A `.md` file opened from the file manager goes to the default profile on Windows and Linux. On macOS the system picks a running Otterly, and I have not checked which.
+- On macOS before 14, profiles share the webview storage, so a profile may flash the wrong theme for a moment on start.
+- The Windows jump list and Linux desktop actions do not list profiles. Use the command palette or the flag.
+
+Profile data lives in a folder named after the profile in the same place as the default one:
+
+| Platform | Folder                                                         |
+| -------- | -------------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/com.otterly.app.profile-<name>` |
+| Windows  | `%APPDATA%\com.otterly.app.profile-<name>`                     |
+| Linux    | `~/.config/com.otterly.app.profile-<name>`                     |
+
+To delete a profile, quit it and delete that folder. That is also what removes it from the list. Logs and webview data live in a second folder, named the same way:
+
+| Platform | Logs and webview data                                       |
+| -------- | ----------------------------------------------------------- |
+| macOS    | `~/Library/Logs/com.otterly.app.profile-<name>` (logs only) |
+| Windows  | `%LOCALAPPDATA%\com.otterly.app.profile-<name>`             |
+| Linux    | `~/.local/share/com.otterly.app.profile-<name>`             |
+
+Delete it too if you plan to create a profile with the same name later, because the new one picks up the old webview data. On macOS 14 and later the webview data (the cached theme) sits in WebKit's own store, not in a folder you can pick out by name.
+
+The profile also leaves files in each vault it opened: its tabs in `.otterly/sessions/latest-<name>.json`, and its recent notes under the `recent_notes-<name>` key in `.otterly/settings.json`. Delete those too if you want it all gone.
+
 ## Build From Source
 
 ### Prerequisites

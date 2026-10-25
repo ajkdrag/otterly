@@ -15,6 +15,7 @@ import { register_git_actions } from "$lib/features/git";
 import { register_hotkey_actions } from "$lib/features/hotkey";
 import { register_theme_actions } from "$lib/features/theme";
 import { register_tags_actions } from "$lib/features/tags";
+import { register_profile_actions } from "$lib/features/profile";
 
 export function register_actions(input: ActionRegistrationInput) {
   register_app_actions(input);
@@ -31,4 +32,5 @@ export function register_actions(input: ActionRegistrationInput) {
   register_help_actions(input);
   register_theme_actions({ ...input, persist_file_switch: true });
   register_tags_actions(input);
+  register_profile_actions(input);
 }

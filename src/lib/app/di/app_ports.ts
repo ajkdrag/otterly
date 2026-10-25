@@ -11,6 +11,7 @@ import type { WatcherPort } from "$lib/features/watcher";
 import type { UpdaterPort } from "$lib/features/updater";
 import type { ThemeFilePort } from "$lib/features/theme";
 import type { TagsPort } from "$lib/features/tags";
+import type { ProfilePort } from "$lib/features/profile";
 
 export type Ports = {
   vault: VaultPort;
@@ -29,4 +30,5 @@ export type Ports = {
   updater: UpdaterPort;
   theme_file: ThemeFilePort;
   tags: TagsPort;
+  profile: ProfilePort;
 };

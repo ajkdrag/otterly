@@ -249,6 +249,30 @@ pub fn remove_note(conn: &Connection, path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// Runs `write` as one transaction. Another profile can have this vault open,
+// and then it is a second writer on this file. Without the transaction its
+// statements can land between ours: after our DELETE and before our INSERT,
+// say, which leaves a note with two search rows, or makes our INSERT hit a
+// row it just wrote. An error from `write` rolls everything back.
+//
+// Do not call this where a transaction is already open. SQLite has no nested
+// BEGIN.
+pub fn in_write_transaction<T>(
+    conn: &Connection,
+    write: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|e| e.to_string())?;
+    let result = write().and_then(|value| {
+        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        Ok(value)
+    });
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK");
+    }
+    result
+}
+
 pub fn remove_notes(conn: &Connection, paths: &[String]) -> Result<(), String> {
     for path in paths {
         remove_note(conn, path)?;
@@ -430,14 +454,17 @@ pub fn rebuild_index(
     on_progress: &dyn Fn(usize, usize),
     yield_fn: &mut dyn FnMut(),
 ) -> Result<IndexResult, String> {
-    conn.execute("DELETE FROM notes", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM notes_fts", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM outlinks", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM note_tags", [])
-        .map_err(|e| e.to_string())?;
+    in_write_transaction(conn, || {
+        conn.execute("DELETE FROM notes", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM notes_fts", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM outlinks", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM note_tags", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })?;
 
     let paths = list_markdown_files(vault_root);
     let total = paths.len();
@@ -448,37 +475,35 @@ pub fn rebuild_index(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
-
-        conn.execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
-
-        for abs in batch {
-            indexed += 1;
-            let markdown = match std::fs::read_to_string(abs) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
+        // Notes and their outlinks go in together, so an error undoes the
+        // whole batch and another profile never sees one without the other.
+        in_write_transaction(conn, || {
+            let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
+            for abs in batch {
+                indexed += 1;
+                let markdown = match std::fs::read_to_string(abs) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                let meta = match extract_meta(abs, vault_root) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                upsert_note(conn, &meta, &markdown)?;
+                set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
+                let targets = internal_link_targets(&markdown, &meta.path);
+                if !targets.is_empty() {
+                    pending_links.push((meta.path.clone(), targets));
                 }
-            };
-            let meta = match extract_meta(abs, vault_root) {
-                Ok(m) => m,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
-                }
-            };
-            upsert_note(conn, &meta, &markdown)?;
-            set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
-            let targets = internal_link_targets(&markdown, &meta.path);
-            if !targets.is_empty() {
-                pending_links.push((meta.path.clone(), targets));
             }
-        }
-
-        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
-        resolve_batch_outlinks(conn, &pending_links)?;
+            resolve_batch_outlinks(conn, &pending_links)
+        })?;
         on_progress(indexed, total);
         yield_fn();
     }
@@ -531,13 +556,13 @@ pub fn sync_index(
                     indexed,
                 });
             }
-            conn.execute_batch("BEGIN IMMEDIATE")
-                .map_err(|e| e.to_string())?;
-            for path in batch {
-                remove_note(conn, path)?;
-                indexed += 1;
-            }
-            conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+            in_write_transaction(conn, || {
+                for path in batch {
+                    remove_note(conn, path)?;
+                    indexed += 1;
+                }
+                Ok(())
+            })?;
             on_progress(indexed, total);
             yield_fn();
         }
@@ -549,37 +574,34 @@ pub fn sync_index(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
-
-        conn.execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
-
-        for abs in batch {
-            indexed += 1;
-            let markdown = match std::fs::read_to_string(abs) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
+        // Same as rebuild_index: notes and outlinks share one transaction.
+        in_write_transaction(conn, || {
+            let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
+            for abs in batch {
+                indexed += 1;
+                let markdown = match std::fs::read_to_string(abs) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                let meta = match extract_meta(abs, vault_root) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                upsert_note(conn, &meta, &markdown)?;
+                set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
+                let targets = internal_link_targets(&markdown, &meta.path);
+                if !targets.is_empty() {
+                    pending_links.push((meta.path.clone(), targets));
                 }
-            };
-            let meta = match extract_meta(abs, vault_root) {
-                Ok(m) => m,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
-                }
-            };
-            upsert_note(conn, &meta, &markdown)?;
-            set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
-            let targets = internal_link_targets(&markdown, &meta.path);
-            if !targets.is_empty() {
-                pending_links.push((meta.path.clone(), targets));
             }
-        }
-
-        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
-        resolve_batch_outlinks(conn, &pending_links)?;
+            resolve_batch_outlinks(conn, &pending_links)
+        })?;
         on_progress(indexed, total);
         yield_fn();
     }
