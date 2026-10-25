@@ -20,6 +20,7 @@
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import { find_option_for_shortcut } from "$lib/features/search/domain/find_option_shortcut";
+  import { trim_context_before } from "$lib/features/search/domain/match_context";
   import { build_replacement_preview } from "$lib/features/search/domain/replacement_preview";
   import { parent_folder_path } from "$lib/shared/utils/path";
   import { plural } from "$lib/shared/utils/plural";
@@ -598,21 +599,39 @@
                 {row.file.matches.length}
               </span>
             {:else}
+              <!--
+                The match never gets cut unless it alone is wider than the row.
+                Width goes to the match first, then to the words before it
+                (they shrink from the left: rtl puts the ellipsis there), and
+                the text after it gets what is left. That box has a basis of 0,
+                so it can never take width from the other two.
+                Keep the tags hugging their text: white-space pre shows any gap.
+              -->
               <span
-                class="min-w-0 flex-1 truncate pl-7"
+                class="flex min-w-0 flex-1 pl-7"
                 title="Line {String(row.match.line)}"
               >
-                <!-- No whitespace between these tags: it would show up in the preview. -->
-                <span class="text-muted-foreground">{row.match.before}</span
-                >{#if inputs.replace_open}<del
-                    class="bg-destructive/15 text-destructive line-through"
-                    >{row.match.text}</del
-                  ><ins class="bg-primary/15 text-foreground no-underline"
-                    >{replacement_preview(row.match)}</ins
-                  >{:else}<mark
-                    class="text-foreground rounded-sm bg-(--editor-find-match-bg)"
-                    >{row.match.text}</mark
-                  >{/if}<span class="text-muted-foreground"
+                <span class="flex min-w-0">
+                  <span
+                    class="text-muted-foreground overflow-hidden text-ellipsis whitespace-pre [direction:rtl]"
+                    ><bdo dir="ltr">{trim_context_before(row.match.before)}</bdo
+                    ></span
+                  >
+                  <span
+                    class="max-w-full shrink-0 overflow-hidden text-ellipsis whitespace-pre"
+                    >{#if inputs.replace_open}<del
+                        class="bg-destructive/15 text-destructive line-through"
+                        >{row.match.text}</del
+                      ><ins class="bg-primary/15 text-foreground no-underline"
+                        >{replacement_preview(row.match)}</ins
+                      >{:else}<mark
+                        class="text-foreground rounded-sm bg-(--editor-find-match-bg)"
+                        >{row.match.text}</mark
+                      >{/if}</span
+                  >
+                </span>
+                <span
+                  class="text-muted-foreground flex-1 overflow-hidden text-ellipsis whitespace-pre"
                   >{row.match.after}</span
                 >
               </span>
