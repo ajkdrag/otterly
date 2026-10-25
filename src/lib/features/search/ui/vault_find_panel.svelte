@@ -51,6 +51,10 @@
   // Collapsed files and the keyboard cursor are view state, so they stay here.
   const collapsed = new SvelteSet<string>();
   let active_index = $state(-1);
+  // @Incomplete: This panel is retired. Text mode in the omnibar replaces it,
+  // and the panel goes away with its sidebar view and actions.
+  let replace_open = $state(false);
+  let filters_open = $state(false);
 
   const rows = $derived.by(() => {
     const out: ResultRow[] = [];
@@ -193,6 +197,7 @@
     if (row.kind !== "match") return;
     await action_registry.execute(ACTION_IDS.vault_find_open_match, {
       path: row.file.path,
+      index: row.match.index,
       line: row.match.line,
       column: row.match.column,
       length: row.match.length,
@@ -315,14 +320,14 @@
     <button
       type="button"
       class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex w-4 shrink-0 items-start justify-center rounded-sm pt-1.5"
-      aria-label={inputs.replace_open ? "Hide replace" : "Show replace"}
-      aria-expanded={inputs.replace_open}
+      aria-label={replace_open ? "Hide replace" : "Show replace"}
+      aria-expanded={replace_open}
       title="Toggle replace"
       onclick={() => {
-        inputs.replace_open = !inputs.replace_open;
+        replace_open = !replace_open;
       }}
     >
-      {#if inputs.replace_open}
+      {#if replace_open}
         <ChevronDown class="size-3.5" />
       {:else}
         <ChevronRight class="size-3.5" />
@@ -368,7 +373,7 @@
         </div>
       </div>
 
-      {#if inputs.replace_open}
+      {#if replace_open}
         <div class="flex items-center gap-1">
           <Input
             class="h-7 text-xs md:text-xs"
@@ -421,17 +426,17 @@
       type="button"
       class="text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-sm px-1"
       aria-label="Toggle files to include and exclude"
-      aria-expanded={inputs.filters_open}
+      aria-expanded={filters_open}
       title="Toggle search details"
       onclick={() => {
-        inputs.filters_open = !inputs.filters_open;
+        filters_open = !filters_open;
       }}
     >
       <Ellipsis class="size-3.5" />
     </button>
   </div>
 
-  {#if inputs.filters_open}
+  {#if filters_open}
     <div class="flex flex-col gap-1 px-2 pb-1 pl-7">
       <label class="text-muted-foreground text-xs" for="vault-find-include">
         files to include
@@ -622,7 +627,7 @@
                   <span class="shrink-0">{context.gap}</span>
                   <span
                     class="max-w-full shrink-0 overflow-hidden text-ellipsis whitespace-pre"
-                    >{#if inputs.replace_open}<del
+                    >{#if replace_open}<del
                         class="bg-destructive/15 text-destructive line-through"
                         >{row.match.text}</del
                       ><ins class="bg-primary/15 text-foreground no-underline"
@@ -642,7 +647,7 @@
             <span
               class="hidden shrink-0 items-center group-hover:flex group-aria-selected:flex"
             >
-              {#if inputs.replace_open}
+              {#if replace_open}
                 <button
                   type="button"
                   class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-5 items-center justify-center rounded-sm"

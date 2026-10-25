@@ -42,7 +42,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
   let replace_all_plan: ReplacePlan | null = null;
 
   function current_request() {
-    return build_vault_find_request(stores.ui.vault_find);
+    return build_vault_find_request(stores.ui.vault_find, stores.ui.omnibar);
   }
 
   // Lowercased, since the tab store compares paths ignoring case.

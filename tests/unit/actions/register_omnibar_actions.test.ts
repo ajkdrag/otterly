@@ -689,3 +689,228 @@ describe("omnibar tag search", () => {
     expect(stores.ui.omnibar).toMatchObject({ tags: [], tag_match: "all" });
   });
 });
+
+describe("omnibar Text mode", () => {
+  function open_in_notes(
+    stores: ReturnType<typeof create_omnibar_actions_harness>["stores"],
+    query: string,
+  ) {
+    stores.ui.omnibar = { ...stores.ui.omnibar, open: true, query };
+  }
+
+  it("opens in Text mode on the last pattern", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    expect(stores.ui.omnibar).toMatchObject({
+      open: true,
+      mode: "find",
+      query: "",
+      scope: "current_vault",
+    });
+    expect(stores.ui.vault_find.query).toBe("kickoff");
+  });
+
+  it("brings a plain notes query into Text mode without its prefix", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "old";
+    open_in_notes(stores, "@file kickoff notes");
+
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    expect(stores.ui.omnibar.mode).toBe("find");
+    expect(stores.ui.vault_find.query).toBe("kickoff notes");
+  });
+
+  it("leaves commands and tag tokens behind and brings the last pattern back", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "old";
+
+    for (const query of [">theme", "meeting #pro", ""]) {
+      open_in_notes(stores, query);
+      await registry.execute(ACTION_IDS.omnibar_open_find);
+      expect(stores.ui.omnibar.mode).toBe("find");
+      expect(stores.ui.vault_find.query).toBe("old");
+      await registry.execute(ACTION_IDS.omnibar_close);
+    }
+  });
+
+  it("asks for focus on the pattern when Find in Vault runs again in Text mode", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+    const nonce = stores.ui.vault_find.focus_nonce;
+
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    expect(stores.ui.omnibar.mode).toBe("find");
+    expect(stores.ui.vault_find.focus_nonce).toBe(nonce + 1);
+  });
+
+  it("takes typing as a raw pattern: no notes search and no tag chips", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    services.tags.suggest_tags.mockResolvedValue([{ tag: "todo", count: 1 }]);
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#todo");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#todo ");
+
+    expect(stores.ui.vault_find.query).toBe("#todo ");
+    expect(stores.ui.omnibar).toMatchObject({ mode: "find", tags: [] });
+    expect(services.search.search_omnibar).not.toHaveBeenCalled();
+    expect(services.tags.suggest_tags).not.toHaveBeenCalled();
+  });
+
+  it("goes back to Notes with the pattern as the query, after @file for Files", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "files");
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "notes",
+      query: "@file kickoff",
+    });
+    expect(services.search.search_omnibar).toHaveBeenLastCalledWith(
+      "@file kickoff",
+    );
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "all");
+    expect(stores.ui.omnibar.query).toBe("kickoff");
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "text");
+    expect(stores.ui.omnibar.mode).toBe("find");
+    await registry.execute(ACTION_IDS.omnibar_open);
+    expect(stores.ui.omnibar).toMatchObject({ mode: "notes", query: "kickoff" });
+  });
+
+  it("keeps the chips across both switches", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "text");
+    expect(stores.ui.omnibar).toMatchObject({ mode: "find", tags: ["a"] });
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "all");
+    expect(stores.ui.omnibar).toMatchObject({ mode: "notes", tags: ["a"] });
+  });
+
+  it("Cmd+T in Text mode picks a tag and comes back to Text with the chip", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+    services.tags.suggest_tags.mockResolvedValue([{ tag: "work", count: 3 }]);
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "notes",
+      query: "#",
+      return_to_find: true,
+    });
+    expect(services.tags.suggest_tags).toHaveBeenLastCalledWith("", [], 50);
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#wo");
+    expect(stores.ui.omnibar.mode).toBe("notes");
+
+    await registry.execute(ACTION_IDS.omnibar_confirm_item, {
+      kind: "tag",
+      tag: "work",
+      count: 3,
+    });
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "find",
+      tags: ["work"],
+      return_to_find: false,
+    });
+    expect(stores.ui.vault_find.query).toBe("kickoff");
+  });
+
+  it("goes back to Text when the tag picker is dropped", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    // Esc and Backspace over the `#` both leave an empty query.
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    await registry.execute(ACTION_IDS.omnibar_set_query, "");
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "find",
+      return_to_find: false,
+    });
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.ui.omnibar.mode).toBe("find");
+  });
+
+  it("leaves Text mode for all vaults and drops the chips", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+
+    await registry.execute(ACTION_IDS.omnibar_open_all_vaults);
+
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "notes",
+      scope: "all_vaults",
+      query: "kickoff",
+      tags: [],
+    });
+    expect(services.search.search_notes_all_vaults).toHaveBeenCalledWith(
+      "kickoff",
+    );
+  });
+
+  it("runs no notes search for chip changes in Text mode", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a", "b"] });
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+    services.tags.search_tagged_notes.mockClear();
+
+    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    await registry.execute(ACTION_IDS.omnibar_remove_tag, "a");
+
+    expect(stores.ui.omnibar).toMatchObject({ tags: ["b"], tag_match: "any" });
+    expect(services.tags.search_tagged_notes).not.toHaveBeenCalled();
+  });
+
+  it("close resets the mode and keeps the pattern for next time", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+    await registry.execute(ACTION_IDS.omnibar_set_query, "kickoff");
+
+    await registry.execute(ACTION_IDS.omnibar_close);
+
+    expect(stores.ui.omnibar).toMatchObject({ open: false, mode: "notes" });
+    expect(stores.ui.vault_find.query).toBe("kickoff");
+  });
+
+  it("drops content hits for the Files button in tag mode", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.search_tagged_notes.mockResolvedValue(
+      tagged_page(["name", "body"], true),
+    );
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+
+    await registry.execute(ACTION_IDS.omnibar_set_target, "files");
+
+    expect(stores.ui.omnibar.query).toBe("@file ");
+    expect(stores.search.omnibar_items).toMatchObject([
+      { kind: "note", snippet: "about name" },
+    ]);
+    expect(stores.search.omnibar_truncated).toBe(false);
+  });
+});

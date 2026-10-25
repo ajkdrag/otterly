@@ -114,6 +114,8 @@ function create_harness(files: VaultFindFile[]) {
     whole_word: false,
     include: "",
     exclude: "",
+    tags: [],
+    tag_match: "all",
   });
   results.add_files(files, []);
   results.finish({
@@ -315,6 +317,8 @@ describe("register_vault_find_actions", () => {
       whole_word: false,
       include: "",
       exclude: "",
+      tags: [],
+      tag_match: "all",
     });
     stores.search.vault_find.add_files([file("b.md")], []);
     await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);

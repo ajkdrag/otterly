@@ -19,6 +19,8 @@ function request(text: string): VaultFindRequest {
     whole_word: false,
     include: "",
     exclude: "",
+    tags: [],
+    tag_match: "all",
   };
 }
 

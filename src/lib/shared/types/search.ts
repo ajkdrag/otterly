@@ -62,6 +62,11 @@ export type SearchSettingDefinition = {
 export type SearchScope = "all" | "path" | "title" | "content";
 export type SearchDomain = "notes" | "commands" | "planned" | "tags";
 export type OmnibarScope = "current_vault" | "all_vaults";
+// Notes parses the text (`>`, `#`, `@file`). Find is Text mode: the text is a
+// raw pattern for the vault find engine.
+export type OmnibarMode = "notes" | "find";
+// The filter strip. All and Files are Notes mode, Text is find mode.
+export type OmnibarTarget = "all" | "files" | "text";
 export type OmnibarQueryTarget = "all" | "files" | "path" | "title" | "content";
 export type NoteMatchKind = "file" | "content";
 export type NoteMatchDetail = "filename" | "title" | "path" | "content";

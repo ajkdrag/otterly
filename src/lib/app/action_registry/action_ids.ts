@@ -123,6 +123,8 @@ export const ACTION_IDS = {
   omnibar_open_tags: "omnibar.open_tags",
   omnibar_remove_tag: "omnibar.remove_tag",
   omnibar_set_tag_match: "omnibar.set_tag_match",
+  omnibar_open_find: "omnibar.open_find",
+  omnibar_set_target: "omnibar.set_target",
 
   find_in_file_toggle: "find_in_file.toggle",
   find_in_file_open: "find_in_file.open",

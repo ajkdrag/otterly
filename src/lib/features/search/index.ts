@@ -4,7 +4,10 @@ export { register_find_in_file_actions } from "$lib/features/search/application/
 export { VaultFindService } from "$lib/features/search/application/vault_find_service";
 export type { VaultReplaceResult } from "$lib/features/search/application/vault_find_service";
 export { register_vault_find_actions } from "$lib/features/search/application/vault_find_actions";
-export { build_vault_find_request } from "$lib/features/search/domain/vault_find_request";
+export {
+  build_vault_find_request,
+  vault_find_request_key,
+} from "$lib/features/search/domain/vault_find_request";
 export { search_within_text } from "$lib/features/search/domain/search_within_text";
 export { SearchStore } from "$lib/features/search/state/search_store.svelte";
 export type {
@@ -37,6 +40,7 @@ export type {
 } from "$lib/features/search/types/command_palette";
 export type {
   VaultFindRequest,
+  VaultFindSelection,
   VaultFindMatch,
   VaultFindFile,
   VaultFindStats,
