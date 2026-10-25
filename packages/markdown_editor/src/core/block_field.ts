@@ -441,8 +441,11 @@ function find_blocks(state: EditorState, previous: readonly Block[]): Block[] {
     }
   };
   visit(tree.topNode);
+  // A block whose text was deleted maps to a point and is no block. dG over a
+  // table at the end of the note left one at the very end, which counts as
+  // past the parsed end even for a complete tree, and drawing it threw.
   for (const block of previous) {
-    if (block.from >= parsed_to) blocks.push(block);
+    if (block.from >= parsed_to && block.to > block.from) blocks.push(block);
   }
   return blocks;
 }
