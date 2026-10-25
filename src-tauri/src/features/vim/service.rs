@@ -9,22 +9,24 @@ use tauri::{AppHandle, Manager};
 // a path from the webview.
 
 const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quote are comments.
-" Save this file with Cmd+S (Ctrl+S on Windows and Linux), because :w does not
-" save. Then come back to the main window. It reloads on focus.
+" Save with :w, then come back to the main window. It reloads on focus.
 "
-" Supported commands, one per line:
-"   map nmap vmap imap omap and their noremap forms
-"   unmap nunmap vunmap iunmap ounmap
+" Supported, one per line:
+"   map nmap vmap xmap imap omap, their noremap and unmap forms (nn, xn, ino...)
 "   set option, set option=value, set nooption
+"   let mapleader = " "    then use <leader> in maps
 " A map line takes the rest of the line as the mapping, so it cannot end in
-" a comment. <leader> is not supported, and a map of two or more keys never
-" fires when its first key already does something (<Space>, <BS>, j, s, a
-" comma and so on). Lines that do not apply are listed in Settings, under Vim.
+" a comment.
+" Vimscript (if, function, autocmd) and terminal settings (syntax, number)
+" are skipped. Settings, under Vim, lists every line that does not apply.
 "
 " Examples (remove the leading quote to turn one on):
 " imap jk <Esc>
-" nmap j gj
-" nmap k gk
+" nnoremap j gj
+" nnoremap k gk
+" set clipboard=unnamed
+" let mapleader = " "
+" nnoremap <leader>w :w<CR>
 "#;
 
 #[derive(Debug, Serialize)]

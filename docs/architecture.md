@@ -81,7 +81,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `watcher`   | Filesystem watcher start/stop                                 |
 | `updater`   | Background update download, install and relaunch              |
 | `document`  | One file opened outside any vault, in its own window          |
-| `vim`       | Vim mode settings, vimrc loading and applying, mode readout   |
+| `vim`       | Vim mode settings, vimrc loading and applying, status readout |
 
 ### Folder structure (first 2 levels)
 
@@ -131,7 +131,7 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 
 `packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
 
-Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The `vim_mode` reactor pushes the setting into the editor and reloads the vimrc on window focus. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, a subset of maps, unmaps, and `set` (see the package design). Lines that do not apply are listed in Settings under Vim.
+Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The package reports `{ mode, showcmd, recording }`, which lands in `vim_status` of `EditorStore` and `DocumentStore`. `:w` and `:q` come back as save and close requests, and the composition roots route them to `note_request_save` and `tab_close`. The `vim_mode` reactor pushes the setting into the editor, reloads the vimrc on window focus, and on macOS turns the accent menu for held keys off through `VimService`. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys, and turns Ctrl-[ into Esc in the omnibar, dialogs and find bar. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, a subset of maps, unmaps, `let mapleader` and `set` (see the package design). Lines that do not apply are listed in Settings under Vim. The engine has bugs the public API cannot reach, so `patches/` holds pnpm patches for it.
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -299,7 +299,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **EditorService statefulness**: Holds persistent session state (`session`, `host_root`, `active_note`, `session_generation`) because it manages a live DOM editor session. The `session_generation` counter guards against race conditions.
 - **VaultService lifecycle state**: Stores `active_open_revision` and `index_progress_unsubscribe` for "latest vault-open intent wins" cancellation.
 - **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
-- **VimService load state**: Holds `load_revision` (the latest vimrc load wins) and the last applied file (a focus reload with no edit is skipped).
+- **VimService load state**: Holds `load_revision` (the latest vimrc load wins), the last applied file (a focus reload with no edit is skipped), and `force_requested` (a manual reload keeps its force when a focus load takes over).
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
 
