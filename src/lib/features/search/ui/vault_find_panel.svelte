@@ -605,8 +605,11 @@
                 (they shrink from the left: rtl puts the ellipsis there), and
                 the text after it gets what is left. That box has a basis of 0,
                 so it can never take width from the other two.
-                Keep the tags hugging their text: white-space pre shows any gap.
+                The gap before the match is its own box, because the rtl box
+                drops a trailing space. Keep the tags hugging their text: pre
+                would show any space the formatter adds.
               -->
+              {@const context = trim_context_before(row.match.before)}
               <span
                 class="flex min-w-0 flex-1 pl-7"
                 title="Line {String(row.match.line)}"
@@ -614,9 +617,9 @@
                 <span class="flex min-w-0">
                   <span
                     class="text-muted-foreground overflow-hidden text-ellipsis whitespace-pre [direction:rtl]"
-                    ><bdo dir="ltr">{trim_context_before(row.match.before)}</bdo
-                    ></span
+                    ><bdo dir="ltr">{context.text}</bdo></span
                   >
+                  <span class="shrink-0">{context.gap}</span>
                   <span
                     class="max-w-full shrink-0 overflow-hidden text-ellipsis whitespace-pre"
                     >{#if inputs.replace_open}<del
