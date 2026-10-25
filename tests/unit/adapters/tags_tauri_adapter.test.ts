@@ -18,14 +18,31 @@ describe("tags_tauri_adapter", () => {
   it("sends camelCase argument names that match the Rust commands", async () => {
     tauri_invoke_mock.mockResolvedValue([]);
     const adapter = create_tags_tauri_adapter();
+    const vault_id = as_vault_id("vault-1");
+    const query = {
+      tags: ["work"],
+      match: "any" as const,
+      text: "plan",
+      limit: 50,
+    };
 
-    await adapter.list_tags(as_vault_id("vault-1"));
-    await adapter.list_notes_with_tag(as_vault_id("vault-1"), "work");
+    await adapter.list_tags(vault_id);
+    await adapter.suggest_tags(vault_id, "wo", ["home"], 20);
+    tauri_invoke_mock.mockResolvedValueOnce({
+      notes: [],
+      total: 0,
+      truncated: false,
+    });
+    await adapter.search_tagged_notes(vault_id, query);
     await adapter.extract_note_tags("#work");
 
     expect(tauri_invoke_mock.mock.calls).toEqual([
       ["index_list_tags", { vaultId: "vault-1" }],
-      ["index_list_notes_with_tag", { vaultId: "vault-1", tag: "work" }],
+      [
+        "index_suggest_tags",
+        { vaultId: "vault-1", partial: "wo", exclude: ["home"], limit: 20 },
+      ],
+      ["index_search_tagged_notes", { vaultId: "vault-1", query }],
       ["extract_note_tags", { markdown: "#work" }],
     ]);
   });

@@ -5,4 +5,11 @@ export { create_tags_tauri_adapter } from "$lib/features/tags/adapters/tags_taur
 export { default as TagsPanel } from "$lib/features/tags/ui/tags_panel.svelte";
 export { default as NoteTagChips } from "$lib/features/tags/ui/note_tag_chips.svelte";
 export type { TagsPort } from "$lib/features/tags/ports";
-export type { TagCount, TaggedNote } from "$lib/features/tags/types/tag";
+export type {
+  TagCount,
+  TagMatch,
+  TagNotePage,
+  TagNoteQuery,
+  TagNoteSearchResult,
+  TaggedNote,
+} from "$lib/features/tags/types/tag";

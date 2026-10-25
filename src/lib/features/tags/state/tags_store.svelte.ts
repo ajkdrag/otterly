@@ -1,14 +1,23 @@
-import type { TagCount, TaggedNote } from "$lib/features/tags/types/tag";
+import type {
+  TagCount,
+  TaggedNote,
+  TagNotePage,
+} from "$lib/features/tags/types/tag";
 
 export type TagsLoadStatus = "idle" | "loading" | "ready" | "error";
 
 export class TagsStore {
-  tags = $state<TagCount[]>([]);
+  // `tags` and `tagged_notes` are raw: they are replaced, never mutated, and
+  // deep proxies over thousands of rows cost time on every reload.
+  tags = $state.raw<TagCount[]>([]);
   tags_status = $state<TagsLoadStatus>("idle");
   tags_error = $state<string | null>(null);
 
   selected_tag = $state<string | null>(null);
-  tagged_notes = $state<TaggedNote[]>([]);
+  tagged_notes = $state.raw<TaggedNote[]>([]);
+  // How many notes have the tag. tagged_notes holds at most the drill-down
+  // limit of them.
+  tagged_notes_total = $state(0);
   tagged_notes_status = $state<TagsLoadStatus>("idle");
 
   // Tags of the open note, from the live editor text.
@@ -39,23 +48,27 @@ export class TagsStore {
     if (tag !== this.selected_tag) {
       this.selected_tag = tag;
       this.tagged_notes = [];
+      this.tagged_notes_total = 0;
     }
     if (this.tagged_notes.length === 0) this.tagged_notes_status = "loading";
   }
 
-  set_tagged_notes(notes: TaggedNote[]) {
-    this.tagged_notes = notes;
+  set_tagged_notes(page: TagNotePage) {
+    this.tagged_notes = page.notes;
+    this.tagged_notes_total = page.total;
     this.tagged_notes_status = "ready";
   }
 
   set_tagged_notes_error() {
     this.tagged_notes = [];
+    this.tagged_notes_total = 0;
     this.tagged_notes_status = "error";
   }
 
   clear_selected_tag() {
     this.selected_tag = null;
     this.tagged_notes = [];
+    this.tagged_notes_total = 0;
     this.tagged_notes_status = "idle";
   }
 

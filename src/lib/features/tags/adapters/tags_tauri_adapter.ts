@@ -1,6 +1,11 @@
 import type { TagsPort } from "$lib/features/tags/ports";
-import type { TagCount, TaggedNote } from "$lib/features/tags/types/tag";
+import type {
+  TagCount,
+  TaggedNote,
+  TagNotePage,
+} from "$lib/features/tags/types/tag";
 import type { NoteId } from "$lib/shared/types/ids";
+import type { NoteMatchDetail } from "$lib/shared/types/search";
 import { tauri_invoke } from "$lib/shared/adapters/tauri_invoke";
 
 type TauriNoteMeta = {
@@ -14,7 +19,14 @@ type TauriNoteMeta = {
 
 type TauriTaggedNote = {
   note: TauriNoteMeta;
-  excerpt: string | null;
+  snippet: string | null;
+  match_detail: NoteMatchDetail | null;
+};
+
+type TauriTagNotePage = {
+  notes: TauriTaggedNote[];
+  total: number;
+  truncated: boolean;
 };
 
 function to_tagged_note(entry: TauriTaggedNote): TaggedNote {
@@ -27,7 +39,8 @@ function to_tagged_note(entry: TauriTaggedNote): TaggedNote {
       mtime_ms: entry.note.mtime_ms,
       size_bytes: entry.note.size_bytes,
     },
-    excerpt: entry.excerpt,
+    snippet: entry.snippet,
+    match_detail: entry.match_detail,
   };
 }
 
@@ -39,12 +52,25 @@ export function create_tags_tauri_adapter(): TagsPort {
       });
     },
 
-    async list_notes_with_tag(vault_id, tag) {
-      const entries = await tauri_invoke<TauriTaggedNote[]>(
-        "index_list_notes_with_tag",
-        { vaultId: vault_id, tag },
+    suggest_tags(vault_id, partial, exclude, limit) {
+      return tauri_invoke<TagCount[]>("index_suggest_tags", {
+        vaultId: vault_id,
+        partial,
+        exclude,
+        limit,
+      });
+    },
+
+    async search_tagged_notes(vault_id, query): Promise<TagNotePage> {
+      const page = await tauri_invoke<TauriTagNotePage>(
+        "index_search_tagged_notes",
+        { vaultId: vault_id, query },
       );
-      return entries.map(to_tagged_note);
+      return {
+        notes: page.notes.map(to_tagged_note),
+        total: page.total,
+        truncated: page.truncated,
+      };
     },
 
     extract_note_tags(markdown) {

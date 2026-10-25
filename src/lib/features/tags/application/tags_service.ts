@@ -1,10 +1,19 @@
 import type { TagsPort } from "$lib/features/tags/ports";
 import type { TagsStore } from "$lib/features/tags/state/tags_store.svelte";
+import type {
+  TagCount,
+  TagNoteQuery,
+  TagNoteSearchResult,
+} from "$lib/features/tags/types/tag";
 import type { VaultStore } from "$lib/features/vault";
 import { create_logger } from "$lib/shared/utils/logger";
 import { error_message } from "$lib/shared/utils/error_message";
 
 const log = create_logger("tags_service");
+
+// The sidebar drill-down shows at most this many notes of one tag. The header
+// shows the total, and the omnibar narrows a bigger tag down.
+const DRILL_DOWN_LIMIT = 500;
 
 // Each load kind has its own revision counter. A response whose revision is
 // no longer current is dropped, so a vault switch or fast clicks never show
@@ -42,21 +51,60 @@ export class TagsService {
 
   async select_tag(tag: string): Promise<void> {
     const revision = ++this.tagged_notes_revision;
-    const vault_id = this.vault_store.vault?.id;
-    if (!vault_id) return;
+    if (!this.vault_store.vault) return;
 
     this.tags_store.start_tagged_notes_load(tag);
+    const result = await this.search_tagged_notes({
+      tags: [tag],
+      match: "all",
+      text: "",
+      limit: DRILL_DOWN_LIMIT,
+    });
+    if (revision !== this.tagged_notes_revision) return;
+    if (result.status === "ok") this.tags_store.set_tagged_notes(result.page);
+    if (result.status === "failed") this.tags_store.set_tagged_notes_error();
+  }
+
+  // Asked on every keystroke by the omnibar and the editor's completion. A
+  // failure only means no suggestions, so it returns [] after logging.
+  async suggest_tags(
+    partial: string,
+    exclude: string[],
+    limit: number,
+  ): Promise<TagCount[]> {
+    const vault_id = this.vault_store.vault?.id;
+    if (!vault_id) return [];
     try {
-      const notes = await this.tags_port.list_notes_with_tag(vault_id, tag);
-      if (revision !== this.tagged_notes_revision) return;
-      this.tags_store.set_tagged_notes(notes);
+      return await this.tags_port.suggest_tags(
+        vault_id,
+        partial,
+        exclude,
+        limit,
+      );
     } catch (error) {
-      if (revision !== this.tagged_notes_revision) return;
-      log.error("Failed to load notes with tag", {
-        tag,
+      log.error("Failed to suggest tags", {
+        partial,
         error: error_message(error),
       });
-      this.tags_store.set_tagged_notes_error();
+      return [];
+    }
+  }
+
+  // No store writes and no revision here: the omnibar action that calls this
+  // drops stale answers itself, and select_tag has its own guard.
+  async search_tagged_notes(query: TagNoteQuery): Promise<TagNoteSearchResult> {
+    const vault_id = this.vault_store.vault?.id;
+    if (!vault_id) return { status: "skipped" };
+    try {
+      const page = await this.tags_port.search_tagged_notes(vault_id, query);
+      return { status: "ok", page };
+    } catch (error) {
+      const message = error_message(error);
+      log.error("Failed to search tagged notes", {
+        tags: query.tags,
+        error: message,
+      });
+      return { status: "failed", error: message };
     }
   }
 

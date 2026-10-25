@@ -5,8 +5,11 @@ export function create_test_tags_adapter(): TagsPort {
     list_tags() {
       return Promise.resolve([]);
     },
-    list_notes_with_tag() {
+    suggest_tags() {
       return Promise.resolve([]);
+    },
+    search_tagged_notes() {
+      return Promise.resolve({ notes: [], total: 0, truncated: false });
     },
     extract_note_tags() {
       return Promise.resolve([]);

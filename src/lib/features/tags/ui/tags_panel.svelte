@@ -174,9 +174,9 @@
                 {folder}
               </span>
             {/if}
-            {#if entry.excerpt}
+            {#if entry.snippet}
               <span class="line-clamp-2 text-xs text-muted-foreground">
-                {entry.excerpt}
+                {entry.snippet}
               </span>
             {/if}
           </button>

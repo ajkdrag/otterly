@@ -33,7 +33,8 @@ describe("note tags sync reactor", () => {
     const extract_note_tags = vi.fn().mockResolvedValue(["work"]);
     const tags_port: TagsPort = {
       list_tags: vi.fn().mockResolvedValue([]),
-      list_notes_with_tag: vi.fn().mockResolvedValue([]),
+      suggest_tags: vi.fn().mockResolvedValue([]),
+      search_tagged_notes: vi.fn(),
       extract_note_tags,
     };
     const vault_store = new VaultStore();
