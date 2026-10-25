@@ -169,7 +169,7 @@ Base unit: **4px** (`0.25rem`)
 | ---------------------- | ----- | ---------------------------------- |
 | `--size-activity-bar`  | 44px  | Activity bar width and button size |
 | `--size-activity-icon` | 20px  | Activity bar icon size             |
-| `--size-status-bar`    | 22px  | Status bar height                  |
+| `--size-status-bar`    | 26px  | Status bar height                  |
 | `--size-tree-row`      | 30px  | File tree row height               |
 | `--size-tree-indent`   | 16px  | Tree folder indent                 |
 | `--size-dialog-sm`     | 24rem | Small dialog width                 |
