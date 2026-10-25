@@ -26,8 +26,6 @@ type OpenMatchInput = {
   line: number;
   column: number;
   length: number;
-  // Click moves focus to the editor. Enter in the result list keeps it there.
-  focus_editor: boolean;
 };
 
 type ReplaceScope = "match" | "file" | "all";
@@ -68,7 +66,6 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     return results.files.find((file) => file.path === path);
   }
 
-  // Replace what the panel shows: dismissed matches are left alone.
   function replace_target(
     file: VaultFindFile,
     match_indexes = file.matches.map((match) => match.index),
@@ -203,51 +200,6 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     }
   }
 
-  registry.register({
-    id: ACTION_IDS.vault_find_open,
-    label: "Find in Vault",
-    when: () => stores.vault.vault !== null,
-    execute: () => {
-      stores.ui.set_sidebar_view("search");
-      stores.ui.vault_find.focus_nonce += 1;
-    },
-  });
-
-  // Escape in the panel's find input hands the keyboard back to the editor.
-  registry.register({
-    id: ACTION_IDS.vault_find_focus_editor,
-    label: "Focus Editor",
-    execute: () => {
-      services.editor.focus();
-    },
-  });
-
-  registry.register({
-    id: ACTION_IDS.vault_find_refresh,
-    label: "Refresh Find in Vault",
-    execute: async () => {
-      const request = current_request();
-      if (request) await services.vault_find.search(request);
-    },
-  });
-
-  registry.register({
-    id: ACTION_IDS.vault_find_cancel,
-    label: "Stop Find in Vault",
-    execute: () => {
-      services.vault_find.cancel();
-    },
-  });
-
-  registry.register({
-    id: ACTION_IDS.vault_find_clear,
-    label: "Clear Find in Vault",
-    execute: () => {
-      stores.ui.vault_find.query = "";
-      services.vault_find.clear();
-    },
-  });
-
   // One-shot results: the omnibar closes, then the note opens. The match
   // becomes the selection, so reopening Text mode lands on it and Down Enter
   // opens the next one.
@@ -276,24 +228,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
       // Opening can fail or hand the file to another app. Do not select a
       // range in whatever note is still open then.
       if (stores.editor.open_note?.meta.path !== match.path) return;
-      services.editor.select_line_range(
-        match.line,
-        match.column,
-        match.length,
-        match.focus_editor,
-      );
-    },
-  });
-
-  registry.register({
-    id: ACTION_IDS.vault_find_dismiss,
-    label: "Dismiss Find in Vault Result",
-    execute: (raw: unknown) => {
-      const { path, match_index } = raw as {
-        path: string;
-        match_index?: number;
-      };
-      results.dismiss(path, match_index);
+      services.editor.select_line_range(match.line, match.column, match.length);
     },
   });
 

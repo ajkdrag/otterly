@@ -748,12 +748,12 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
     expect(execute).toHaveBeenCalledWith("omnibar.open_all_vaults");
   });
 
-  it("keeps find in vault behind the omnibar", () => {
+  it("runs find in vault while the omnibar is open, to switch to Text mode", () => {
     const { shortcuts, execute } = build(open_omnibar);
 
     shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
 
-    expect(execute).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith("omnibar.open_find");
   });
 
   it("does not run palette keys when another dialog is in front of the omnibar", () => {

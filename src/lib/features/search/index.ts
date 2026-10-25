@@ -25,7 +25,6 @@ export { create_vault_find_tauri_adapter } from "$lib/features/search/adapters/v
 export { create_workspace_index_tauri_adapter } from "$lib/features/search/adapters/workspace_index_tauri_adapter";
 export { default as Omnibar } from "$lib/features/search/ui/omnibar.svelte";
 export { default as FindInFileBar } from "$lib/features/search/ui/find_in_file_bar.svelte";
-export { default as VaultFindPanel } from "$lib/features/search/ui/vault_find_panel.svelte";
 export { default as VaultReplaceDialog } from "$lib/features/search/ui/vault_replace_dialog.svelte";
 export type {
   SearchNotesResult,

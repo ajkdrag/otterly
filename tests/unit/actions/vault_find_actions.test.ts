@@ -296,7 +296,6 @@ describe("register_vault_find_actions", () => {
       line: 2,
       column: 0,
       length: 3,
-      focus_editor: true,
     });
 
     expect(close_omnibar).toHaveBeenCalledOnce();
@@ -305,12 +304,7 @@ describe("register_vault_find_actions", () => {
       path: "a.md",
       index: 1,
     });
-    expect(services.editor.select_line_range).toHaveBeenCalledWith(
-      2,
-      0,
-      3,
-      true,
-    );
+    expect(services.editor.select_line_range).toHaveBeenCalledWith(2, 0, 3);
   });
 
   it("reloads the active note and closes background buffers after a write", async () => {
@@ -331,18 +325,17 @@ describe("register_vault_find_actions", () => {
     expect(invalidate).toHaveBeenCalledWith("other.md");
   });
 
-  it("replace in file leaves dismissed matches alone", async () => {
-    const { registry, services } = create_harness([file("a.md", 3)]);
+  it("replace in file sends every match ordinal of that file only", async () => {
+    const { registry, services } = create_harness([
+      file("a.md", 3),
+      file("b.md", 2),
+    ]);
 
-    await registry.execute(ACTION_IDS.vault_find_dismiss, {
-      path: "a.md",
-      match_index: 1,
-    });
     await registry.execute(ACTION_IDS.vault_find_replace_file, "a.md");
 
     const request = services.vault_find.replace.mock.calls[0]?.[0];
     expect(request?.files).toEqual([
-      { path: "a.md", content_hash: "hash:a.md", match_indexes: [0, 2] },
+      { path: "a.md", content_hash: "hash:a.md", match_indexes: [0, 1, 2] },
     ]);
     expect(request?.replacement).toBe("bar");
   });
@@ -413,7 +406,7 @@ describe("register_vault_find_actions", () => {
     });
   });
 
-  it("replace all writes what the dialog showed, not what the panel shows by then", async () => {
+  it("replace all writes what the dialog showed, not what the results show by then", async () => {
     const { registry, stores, services } = create_harness([file("a.md")]);
     await registry.execute(ACTION_IDS.vault_find_request_replace_all);
 

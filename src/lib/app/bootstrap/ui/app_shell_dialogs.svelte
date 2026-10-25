@@ -395,7 +395,6 @@
       line: row.match.line,
       column: row.match.column,
       length: row.match.length,
-      focus_editor: true,
     })}
   on_replace_match={(row) =>
     void action_registry.execute(ACTION_IDS.vault_find_replace_match, {

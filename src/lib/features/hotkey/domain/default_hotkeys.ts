@@ -91,11 +91,11 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
-    action_id: ACTION_IDS.vault_find_open,
+    action_id: ACTION_IDS.omnibar_open_find,
     key: "CmdOrCtrl+Shift+F",
     phase: "capture",
     label: "Find in Vault",
-    description: "Search and replace across every file in the vault",
+    description: "Find and replace text in every file",
     category: "navigation",
   },
   {

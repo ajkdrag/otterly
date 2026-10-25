@@ -33,7 +33,7 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   open_hotkeys: ACTION_IDS.settings_open,
   toggle_sidebar: ACTION_IDS.ui_toggle_sidebar,
   find_in_note: ACTION_IDS.find_in_file_open,
-  find_in_vault: ACTION_IDS.vault_find_open,
+  find_in_vault: ACTION_IDS.omnibar_open_find,
   open_help: ACTION_IDS.help_open,
   next_tab: ACTION_IDS.tab_next,
   previous_tab: ACTION_IDS.tab_prev,
@@ -300,7 +300,7 @@ async function fetch_omnibar_items(
   }
 
   if (tags.length > 0 && parsed.domain === "notes") {
-    // @Incomplete: tag mode ignores the title:/path:/@content prefixes. Only
+    // @Incomplete: tag mode ignores the title:/path: prefixes. Only
     // parsed.text goes to the index, so the text matches every field. The
     // Files button is the one exception, below.
     const result = await services.tags.search_tagged_notes({

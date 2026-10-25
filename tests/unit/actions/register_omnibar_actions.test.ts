@@ -714,6 +714,25 @@ describe("omnibar Text mode", () => {
     expect(stores.ui.vault_find.query).toBe("kickoff");
   });
 
+  it("opens Text mode from the Find in Vault command", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+    open_in_notes(stores, ">find in");
+
+    await registry.execute(
+      ACTION_IDS.omnibar_confirm_item,
+      command_item("find_in_vault"),
+    );
+
+    expect(stores.ui.omnibar).toMatchObject({
+      open: true,
+      mode: "find",
+      query: "",
+    });
+    expect(stores.ui.vault_find.query).toBe("kickoff");
+  });
+
   it("brings a plain notes query into Text mode without its prefix", async () => {
     const { registry, stores } = create_omnibar_actions_harness();
     stores.vault.set_vault(create_test_vault());
@@ -853,6 +872,24 @@ describe("omnibar Text mode", () => {
     await registry.execute(ACTION_IDS.omnibar_open_tags);
     await registry.execute(ACTION_IDS.omnibar_open_tags);
     expect(stores.ui.omnibar.mode).toBe("find");
+  });
+
+  it("goes back to Text on Space after a tag that does not exist, without the partial tag", async () => {
+    const { registry, stores } = create_omnibar_actions_harness();
+    stores.vault.set_vault(create_test_vault());
+    stores.ui.vault_find.query = "kickoff";
+    await registry.execute(ACTION_IDS.omnibar_open_find);
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#xyz");
+
+    await registry.execute(ACTION_IDS.omnibar_set_query, "#xyz ");
+
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "find",
+      tags: [],
+      return_to_find: false,
+    });
+    expect(stores.ui.vault_find.query).toBe("kickoff");
   });
 
   it("leaves Text mode for all vaults and drops the chips", async () => {

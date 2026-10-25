@@ -100,19 +100,6 @@ export class VaultFindResults {
       : this.files.filter((current) => current.path !== path);
   }
 
-  // Hides a whole file, or one match by its ordinal. A file without matches
-  // left goes away too.
-  dismiss(path: string, match_index?: number) {
-    if (match_index === undefined) {
-      this.patch_file(path, null);
-      return;
-    }
-    const file = this.files.find((current) => current.path === path);
-    if (!file) return;
-    const matches = file.matches.filter((match) => match.index !== match_index);
-    this.patch_file(path, matches.length > 0 ? { ...file, matches } : null);
-  }
-
   reset() {
     this.files = [];
     this.status = "idle";
