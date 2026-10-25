@@ -33,10 +33,11 @@ export const menu_support = [
       currentCompletions(state).some(is_icon_completion)
         ? "md-slash-menu"
         : "md-wiki-menu",
-    optionClass: (completion) =>
-      is_icon_completion(completion)
-        ? "md-slash-option"
-        : `md-wiki-option${completion.type === "wiki-planned" ? " md-wiki-planned" : ""}`,
+    optionClass: (completion) => {
+      if (is_icon_completion(completion)) return "md-slash-option";
+      if (completion.type === "tag") return "md-tag-option";
+      return `md-wiki-option${completion.type === "wiki-planned" ? " md-wiki-planned" : ""}`;
+    },
     addToOptions: [
       {
         position: 20,

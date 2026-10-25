@@ -3,6 +3,7 @@ import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { current_tree } from "../../core/context.js";
 import type { MarkdownPlugin } from "../../core/plugin.js";
+import { tag_completion } from "./tag_completion.js";
 import { hashtag_style, inside_link, tag_syntax } from "./tag_syntax.js";
 import { tags_theme } from "./theme.js";
 
@@ -31,7 +32,7 @@ export type TagOptions = {
 // @Incomplete: Frontmatter is literal, so its `tags:` get no chips and no
 // completion.
 export function tags(options: TagOptions = {}): MarkdownPlugin {
-  const { open_tag } = options;
+  const { open_tag, query_tags } = options;
   return {
     name: "tags",
     syntax: tag_syntax,
@@ -61,7 +62,11 @@ export function tags(options: TagOptions = {}): MarkdownPlugin {
         },
       },
     ],
-    extensions: [source_highlighting, open_tag ? chip_clicks(open_tag) : []],
+    extensions: [
+      source_highlighting,
+      open_tag ? chip_clicks(open_tag) : [],
+      query_tags ? tag_completion(query_tags) : [],
+    ],
     theme: tags_theme,
   };
 }

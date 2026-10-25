@@ -19,7 +19,12 @@ import { find, set_find_query } from "../src/plugins/find";
 import { frontmatter } from "../src/plugins/frontmatter/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { links } from "../src/plugins/links/index";
-import { tag_at, tags, type TagOptions } from "../src/plugins/tags/index";
+import {
+  tag_at,
+  tags,
+  type TagOptions,
+  type TagSuggestion,
+} from "../src/plugins/tags/index";
 import { inside_link } from "../src/plugins/tags/tag_syntax";
 import { wiki_links } from "../src/plugins/wiki_links/index";
 import {
@@ -28,7 +33,8 @@ import {
   type TestEditor,
 } from "../src/testing/test_editor";
 
-// jsdom has no layout, and CodeMirror measures ranges for mouse selection.
+// jsdom has no layout, and CodeMirror measures ranges for mouse selection and
+// the completion tooltip.
 const original_get_client_rects = Object.getOwnPropertyDescriptor(
   Range.prototype,
   "getClientRects",
@@ -261,5 +267,106 @@ describe("tag chips", () => {
     const chip = only_chip(editor);
     expect(chip.textContent).toBe("#project");
     expect(chip.querySelector(".find-match")?.textContent).toBe("ject");
+  });
+});
+
+describe("tag completion", () => {
+  const suggestions: TagSuggestion[] = [
+    { tag: "project", count: 12 },
+    { tag: "work/projects", count: 3 },
+  ];
+
+  function completing(
+    source: string,
+    query_tags: NonNullable<TagOptions["query_tags"]>,
+  ) {
+    return open(source, { query_tags });
+  }
+
+  function menu_labels(editor: TestEditor) {
+    return currentCompletions(editor.view.state).map(
+      (completion) => completion.label,
+    );
+  }
+
+  async function menu_opens(editor: TestEditor) {
+    await vi.waitFor(() => {
+      expect(
+        editor.view.dom.querySelector(".cm-tooltip-autocomplete"),
+      ).not.toBeNull();
+    });
+  }
+
+  function menu_is_closed(editor: TestEditor) {
+    return editor.view.dom.querySelector(".cm-tooltip-autocomplete") === null;
+  }
+
+  const pause = (milliseconds: number) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+  test("TAG-010 # and a letter offer tags with their counts, and Enter completes", async () => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing("see ‸", query);
+    editor.type("#p");
+    await menu_opens(editor);
+    expect(query).toHaveBeenLastCalledWith("p", expect.any(AbortSignal));
+    expect(menu_labels(editor)).toEqual(["#project", "#work/projects"]);
+    const option = editor.view.dom.querySelector(".md-tag-option");
+    expect(option?.querySelector(".cm-completionDetail")?.textContent).toBe(
+      "12",
+    );
+    editor.press("Enter");
+    expect(editor.source()).toBe("see #project‸");
+  });
+
+  test.each([
+    ["after a letter", "C‸"],
+    ["in inline code", "`a ‸`"],
+    ["in a URL", "see https://a.com/‸"],
+    ["in link text", "[see ‸](https://e.com)"],
+  ])("TAG-011 no lookup %s", async (_where, source) => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing(source, query);
+    editor.type("#p");
+    await pause(30);
+    expect(query).not.toHaveBeenCalled();
+    expect(menu_is_closed(editor)).toBe(true);
+  });
+
+  test("TAG-012 a lone # waits for a letter, Ctrl-Space shows the top tags", async () => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing("see ‸", query);
+    editor.type("#");
+    await pause(30);
+    expect(query).not.toHaveBeenCalled();
+    startCompletion(editor.view);
+    await menu_opens(editor);
+    expect(query).toHaveBeenCalledWith("", expect.any(AbortSignal));
+  });
+
+  test("TAG-013 a finished tag is not offered again, so Enter makes a new line", async () => {
+    const query = vi.fn(() => Promise.resolve([{ tag: "Project", count: 2 }]));
+    const editor = completing("see ‸", query);
+    editor.type("#project");
+    await vi.waitFor(() => {
+      expect(query).toHaveBeenLastCalledWith(
+        "project",
+        expect.any(AbortSignal),
+      );
+    });
+    await pause(30);
+    expect(menu_is_closed(editor)).toBe(true);
+    editor.press("Enter");
+    expect(editor.saved()).toMatch(/^see #project\n/);
+  });
+
+  test("TAG-014 completing in the middle of a tag replaces the whole tag", async () => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing("see #p‸oj later", query);
+    editor.type("r");
+    await menu_opens(editor);
+    expect(query).toHaveBeenLastCalledWith("pr", expect.any(AbortSignal));
+    editor.press("Enter");
+    expect(editor.source()).toBe("see #project‸ later");
   });
 });
