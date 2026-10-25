@@ -361,6 +361,26 @@ describe("tag completion", () => {
     expect(menu_is_closed(editor)).toBe(true);
   });
 
+  test.each([
+    ["a quote with no space", ">‸"],
+    ["a quote with a space", "> ‸"],
+  ])("TAG-005 completes where the parser draws a chip: %s", async (_where, source) => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing(source, query);
+    editor.type("#p");
+    await menu_opens(editor);
+    expect(query).toHaveBeenLastCalledWith("p", expect.any(AbortSignal));
+  });
+
+  test("TAG-005 completes in a source mode table row, which has no space after the pipe", async () => {
+    const query = vi.fn(() => Promise.resolve(suggestions));
+    const editor = completing("| a |\n| - |\n|‸|", query);
+    set_editor_mode(editor.view, "source");
+    editor.type("#p");
+    await menu_opens(editor);
+    expect(query).toHaveBeenLastCalledWith("p", expect.any(AbortSignal));
+  });
+
   test("TAG-005 a lone # waits for a letter, Ctrl-Space shows the top tags", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing("see ‸", query);

@@ -3,7 +3,7 @@ import type {
   CompletionResult,
 } from "@codemirror/autocomplete";
 import { markdownLanguage } from "@codemirror/lang-markdown";
-import type { EditorState, Extension } from "@codemirror/state";
+import type { EditorState, Extension, Line } from "@codemirror/state";
 import { ViewPlugin, type EditorView } from "@codemirror/view";
 import { current_tree, has_ancestor, is_literal } from "../../core/context.js";
 import { menu_support } from "../menus/menu_support.js";
@@ -49,12 +49,8 @@ function tag_source(query_tags: QueryTags) {
     if (!typed) return null;
     const partial = typed[1] ?? "";
     if (!partial && !context.explicit) return null;
-    // R2 against the line: `C#` and `a#b` are not tags. Same BOM rule as
-    // the parser.
-    const text_start =
-      line.from === 0 && line.text.charCodeAt(0) === 0xfeff ? 1 : 0;
-    if (!starts_tag(line.text, typed.index, text_start)) return null;
     const hash = line.from + typed.index;
+    if (!starts_a_tag(state, line, typed.index)) return null;
     if (in_link(state, hash)) return null;
 
     const abort = new AbortController();
@@ -118,6 +114,20 @@ function apply_tag(view: EditorView, hash: number, tag: string) {
     selection: { anchor: hash + insert.length },
     userEvent: "input.complete",
   });
+}
+
+// Is the `#` at `line.text[idx]` the start of a tag? A Hashtag node says so
+// with the parser's own R2, which sees through the `>` of a quote and the `|`
+// of a table row (`>#ta`, `|#ta|`). A bare `#` and a numbers-only `#12` have
+// no node yet, so those fall back to R2 on the line: `C#` and `a#b` are not
+// tags. Same BOM rule as the parser.
+function starts_a_tag(state: EditorState, line: Line, idx: number): boolean {
+  const hash = line.from + idx;
+  if (current_tree(state, hash).resolveInner(hash, 1).name === "Hashtag")
+    return true;
+  const text_start =
+    line.from === 0 && line.text.charCodeAt(0) === 0xfeff ? 1 : 0;
+  return starts_tag(line.text, idx, text_start);
 }
 
 // No completion in a URL, an autolink, a wiki link, or link text whose `#`
