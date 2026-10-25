@@ -10,6 +10,8 @@ export type IndexProgress = {
 
 export class SearchStore {
   omnibar_items = $state<OmnibarItem[]>([]);
+  // The tagged notes search found more than it returned.
+  omnibar_truncated = $state(false);
   in_file_matches = $state<InFileMatch[]>([]);
   index_progress = $state<IndexProgress>({
     status: "idle",
@@ -55,8 +57,9 @@ export class SearchStore {
     }
   }
 
-  set_omnibar_items(items: OmnibarItem[]) {
+  set_omnibar_items(items: OmnibarItem[], truncated = false) {
     this.omnibar_items = items;
+    this.omnibar_truncated = truncated;
   }
 
   set_in_file_matches(matches: InFileMatch[]) {
@@ -65,6 +68,7 @@ export class SearchStore {
 
   clear_omnibar() {
     this.omnibar_items = [];
+    this.omnibar_truncated = false;
   }
 
   clear_in_file_matches() {
@@ -73,6 +77,7 @@ export class SearchStore {
 
   reset() {
     this.omnibar_items = [];
+    this.omnibar_truncated = false;
     this.in_file_matches = [];
     this.index_progress = { status: "idle", indexed: 0, total: 0, error: null };
   }

@@ -66,9 +66,41 @@ describe("parse_search_query", () => {
   });
 
   it("detects planned domain case-insensitively", () => {
-    const result = parse_search_query("#Planned");
+    const result = parse_search_query("#Planned docs");
     expect(result.domain).toBe("planned");
-    expect(result.text).toBe("");
+    expect(result.text).toBe("docs");
+  });
+
+  it("keeps #planned with a trailing space in the planned domain", () => {
+    expect(parse_search_query("#planned ").domain).toBe("planned");
+  });
+
+  it("reads a last token that starts with # as a tag filter", () => {
+    expect(parse_search_query("#pro")).toMatchObject({
+      domain: "tags",
+      text: "pro",
+      before_tag: "",
+    });
+    expect(parse_search_query("meeting  #pro")).toMatchObject({
+      domain: "tags",
+      text: "pro",
+      before_tag: "meeting",
+    });
+    expect(parse_search_query("#")).toMatchObject({
+      domain: "tags",
+      text: "",
+    });
+    expect(parse_search_query("#planned")).toMatchObject({
+      domain: "tags",
+      text: "planned",
+    });
+  });
+
+  it("ends the tag token at a trailing space and ignores # inside a word", () => {
+    expect(parse_search_query("#pro ").domain).toBe("notes");
+    expect(parse_search_query("#pro meeting").domain).toBe("notes");
+    expect(parse_search_query("C#").domain).toBe("notes");
+    expect(parse_search_query("> #x").domain).toBe("commands");
   });
 
   it("preserves raw value", () => {

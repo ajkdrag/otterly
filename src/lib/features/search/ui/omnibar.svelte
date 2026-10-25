@@ -312,6 +312,8 @@
         return `omni-xv-${item.vault_id}-${item.note.id}`;
       case "planned_note":
         return `omni-planned-${encodeURIComponent(item.target_path)}`;
+      case "tag":
+        return `omni-tag-${encodeURIComponent(item.tag)}`;
       case "recent_note":
         return `omni-recent-${item.note.id}`;
       case "command":

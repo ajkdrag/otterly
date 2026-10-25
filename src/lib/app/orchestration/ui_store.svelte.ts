@@ -27,6 +27,7 @@ import type {
   HotkeyOverride,
   HotkeyRecorderState,
 } from "$lib/features/hotkey";
+import type { TagMatch } from "$lib/features/tags";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 type AsyncStatus = "idle" | "loading" | "error";
@@ -85,6 +86,9 @@ const INITIAL_OMNIBAR = {
   selected_index: 0,
   is_searching: false,
   scope: "current_vault",
+  // Tag filter chips. Replaced, never mutated, so resets can share this array.
+  tags: [] as string[],
+  tag_match: "all" as TagMatch,
 } as const;
 
 const INITIAL_FIND_IN_FILE = {
@@ -288,6 +292,8 @@ export class UIStore {
     selected_index: number;
     is_searching: boolean;
     scope: OmnibarScope;
+    tags: string[];
+    tag_match: TagMatch;
   }>({ ...INITIAL_OMNIBAR });
 
   find_in_file = $state<{

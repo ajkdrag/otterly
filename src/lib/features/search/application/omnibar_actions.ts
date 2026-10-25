@@ -1,9 +1,14 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
-import type { OmnibarItem, OmnibarScope } from "$lib/shared/types/search";
+import type {
+  OmnibarItem,
+  OmnibarScope,
+  SearchQuery,
+} from "$lib/shared/types/search";
 import type { CommandId } from "$lib/features/search/types/command_palette";
 import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
 import { parse_search_query } from "$lib/features/search/domain/search_query_parser";
+import { tag_key, type TagMatch, type TaggedNote } from "$lib/features/tags";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -41,6 +46,9 @@ const COMMAND_ACTION_ARGUMENTS: Partial<Record<CommandId, unknown[]>> = {
   open_theme_settings: ["theme"],
   open_hotkeys: ["hotkeys"],
 };
+
+// Rows in tag suggestions and in tag mode. The header shows "50+" past this.
+const TAG_RESULT_LIMIT = 50;
 
 function set_omnibar_state(
   input: ActionRegistrationInput,
@@ -108,6 +116,8 @@ function close_omnibar(input: ActionRegistrationInput) {
     selected_index: 0,
     is_searching: false,
     scope: "current_vault",
+    tags: [],
+    tag_match: "all",
   });
   input.stores.search.clear_omnibar();
   input.services.search.reset_search_notes_operation();
@@ -149,33 +159,169 @@ function mark_vault_unavailable(
   );
 }
 
-async function search_omnibar_query(
+// What the omnibar is showing decides the search:
+//
+//   last token is `#...`        tag suggestions, chips excluded
+//   chips, notes query          notes with the chip tags, narrowed by the text
+//   otherwise                   notes, commands, planned notes, as before
+//
+// Every caller goes through here. An answer that comes back after the query,
+// the chips, the match mode or the scope changed is dropped.
+async function run_omnibar_search(input: ActionRegistrationInput) {
+  const { stores, services } = input;
+  const omnibar = stores.ui.omnibar;
+  if (!omnibar.query.trim() && omnibar.tags.length === 0) {
+    set_omnibar_searching(input, false);
+    stores.search.clear_omnibar();
+    services.search.reset_search_notes_operation();
+    return;
+  }
+
+  const key = omnibar_search_key(input);
+  const parsed = parse_search_query(omnibar.query);
+  const started_at = is_performance_logging_enabled ? performance.now() : null;
+  set_omnibar_searching(input, true);
+  const result = await fetch_omnibar_items(input, parsed);
+  if (omnibar_search_key(input) !== key) return;
+
+  stores.search.set_omnibar_items(result.items, result.truncated);
+  set_omnibar_state(input, {
+    is_searching: false,
+    selected_index: clamp_selected_index(input),
+  });
+  if (started_at !== null) {
+    log.debug("Omnibar query results ready", {
+      query_length: parsed.raw.length,
+      result_count: result.items.length,
+      duration_ms: performance.now() - started_at,
+    });
+  }
+}
+
+function omnibar_search_key(input: ActionRegistrationInput): string {
+  const { query, tags, tag_match, scope } = input.stores.ui.omnibar;
+  return JSON.stringify([query, tags, tag_match, scope]);
+}
+
+async function fetch_omnibar_items(
   input: ActionRegistrationInput,
-  query: string,
-  scope: OmnibarScope,
+  parsed: SearchQuery,
+): Promise<{ items: OmnibarItem[]; truncated: boolean }> {
+  const { services } = input;
+  const { tags, tag_match, scope } = input.stores.ui.omnibar;
+
+  if (parsed.domain === "tags") {
+    const suggestions = await services.tags.suggest_tags(
+      parsed.text,
+      tags,
+      TAG_RESULT_LIMIT,
+    );
+    const items = suggestions.map((entry) => ({
+      kind: "tag" as const,
+      tag: entry.tag,
+      count: entry.count,
+    }));
+    return { items, truncated: false };
+  }
+
+  if (tags.length > 0 && parsed.domain === "notes") {
+    const result = await services.tags.search_tagged_notes({
+      tags,
+      match: tag_match,
+      text: parsed.text,
+      limit: TAG_RESULT_LIMIT,
+    });
+    if (result.status !== "ok") return { items: [], truncated: false };
+    return {
+      items: result.page.notes.map(tagged_note_item),
+      truncated: result.page.truncated,
+    };
+  }
+
+  if (scope === "all_vaults" && parsed.domain === "notes") {
+    const result = await services.search.search_notes_all_vaults(parsed.raw);
+    return { items: map_cross_vault_items(result), truncated: false };
+  }
+
+  const result = await services.search.search_omnibar(parsed.raw);
+  return { items: result.items, truncated: false };
+}
+
+// The index already ordered these, so the score only keeps that order.
+function tagged_note_item(
+  entry: TaggedNote,
+  index: number,
+  entries: TaggedNote[],
+): OmnibarItem {
+  const detail = entry.match_detail ?? undefined;
+  return {
+    kind: "note",
+    note: entry.note,
+    score: entries.length - index,
+    snippet: entry.snippet ?? undefined,
+    match_kind: detail && (detail === "content" ? "content" : "file"),
+    match_detail: detail,
+  };
+}
+
+function has_tag(tags: string[], tag: string): boolean {
+  const key = tag_key(tag);
+  return tags.some((existing) => tag_key(existing) === key);
+}
+
+// Chips replace the `#...` token: the query keeps the text typed before it.
+// Tags live in each vault's index, so a chip scopes the search to this vault.
+async function add_tag_chip(
+  input: ActionRegistrationInput,
+  tag: string,
+  before_tag: string,
 ) {
-  const parsed_query = parse_search_query(query);
+  const { tags } = input.stores.ui.omnibar;
+  set_omnibar_state(input, {
+    tags: has_tag(tags, tag) ? tags : [...tags, tag],
+    query: before_tag ? `${before_tag} ` : "",
+    scope: "current_vault",
+    selected_index: 0,
+  });
+  await run_omnibar_search(input);
+}
 
-  if (scope === "all_vaults" && parsed_query.domain === "notes") {
-    const result = await input.services.search.search_notes_all_vaults(query);
-    if (input.stores.ui.omnibar.query.trim() !== query.trim()) {
-      return;
-    }
-    if (input.stores.ui.omnibar.scope !== "all_vaults") {
-      return;
-    }
-    input.stores.search.set_omnibar_items(map_cross_vault_items(result));
-    return;
-  }
+// Space after an existing tag makes it a chip. The previous query must have
+// been that `#tag` token and the shown suggestions must hold it exactly.
+// Without chips, `#planned ` stays the planned notes search.
+function tag_completed_by_space(
+  input: ActionRegistrationInput,
+  previous_query: string,
+  next_query: string,
+): { tag: string; before_tag: string } | null {
+  if (next_query !== `${previous_query} `) return null;
+  const previous = parse_search_query(previous_query);
+  if (previous.domain !== "tags" || !previous.text) return null;
+  const { tags } = input.stores.ui.omnibar;
+  if (tags.length === 0 && previous.text.toLowerCase() === "planned")
+    return null;
+  const key = tag_key(previous.text);
+  const match = input.stores.search.omnibar_items.find(
+    (item) => item.kind === "tag" && tag_key(item.tag) === key,
+  );
+  if (match?.kind !== "tag") return null;
+  return { tag: match.tag, before_tag: previous.before_tag ?? "" };
+}
 
-  const result = await input.services.search.search_omnibar(query);
-  if (input.stores.ui.omnibar.query.trim() !== query.trim()) {
-    return;
+function read_tags_arg(arg: unknown): string[] {
+  if (typeof arg !== "object" || arg === null || !("tags" in arg)) return [];
+  const { tags } = arg;
+  if (!Array.isArray(tags)) return [];
+  const unique: string[] = [];
+  for (const tag of tags) {
+    if (typeof tag === "string" && tag && !has_tag(unique, tag))
+      unique.push(tag);
   }
-  if (input.stores.ui.omnibar.scope !== scope) {
-    return;
-  }
-  input.stores.search.set_omnibar_items(result.items);
+  return unique;
+}
+
+function is_tag_match(value: unknown): value is TagMatch {
+  return value === "all" || value === "any";
 }
 
 async function execute_command(
@@ -194,6 +340,11 @@ async function confirm_item(input: ActionRegistrationInput, item: OmnibarItem) {
   const { registry } = input;
 
   switch (item.kind) {
+    case "tag": {
+      const parsed = parse_search_query(input.stores.ui.omnibar.query);
+      await add_tag_chip(input, item.tag, parsed.before_tag ?? "");
+      break;
+    }
     case "note":
     case "recent_note":
       close_omnibar(input);
@@ -316,40 +467,22 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.omnibar_set_query,
     label: "Set Omnibar Query",
     execute: async (query: unknown) => {
-      const normalized_query = String(query);
-      set_omnibar_state(input, {
-        query: normalized_query,
-        selected_index: 0,
-      });
-
-      if (!normalized_query.trim()) {
-        set_omnibar_searching(input, false);
-        stores.search.clear_omnibar();
-        services.search.reset_search_notes_operation();
+      const next_query = String(query);
+      const previous_query = stores.ui.omnibar.query;
+      const completed = tag_completed_by_space(
+        input,
+        previous_query,
+        next_query,
+      );
+      if (completed) {
+        await add_tag_chip(input, completed.tag, completed.before_tag);
         return;
       }
-
-      set_omnibar_searching(input, true);
-      const scope = stores.ui.omnibar.scope;
-      const started_at = is_performance_logging_enabled
-        ? performance.now()
-        : null;
-      await search_omnibar_query(input, normalized_query, scope);
       set_omnibar_state(input, {
-        is_searching: false,
-        selected_index: clamp_selected_index(input),
+        query: next_query,
+        selected_index: 0,
       });
-      if (
-        started_at !== null &&
-        stores.ui.omnibar.query.trim() === normalized_query.trim() &&
-        stores.ui.omnibar.scope === scope
-      ) {
-        log.debug("Omnibar query results ready", {
-          query_length: normalized_query.length,
-          result_count: stores.search.omnibar_items.length,
-          duration_ms: performance.now() - started_at,
-        });
-      }
+      await run_omnibar_search(input);
     },
   });
 
@@ -369,18 +502,105 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       set_omnibar_state(input, {
         scope: new_scope,
         selected_index: 0,
+        // Tags live in one vault's index, so all vaults drops the chips.
+        ...(new_scope === "all_vaults" ? { tags: [] } : {}),
       });
       stores.search.clear_omnibar();
+      await run_omnibar_search(input);
+    },
+  });
 
-      const current_query = stores.ui.omnibar.query.trim();
-      if (!current_query) return;
+  registry.register({
+    id: ACTION_IDS.omnibar_open_tags,
+    label: "Search Tags",
+    execute: async (arg: unknown) => {
+      const requested = read_tags_arg(arg);
+      const caret_tag =
+        requested.length === 0 && !stores.ui.omnibar.open
+          ? services.editor.tag_at_cursor()
+          : null;
+      const tags = caret_tag ? [caret_tag] : requested;
 
-      set_omnibar_searching(input, true);
-      await search_omnibar_query(input, current_query, new_scope);
+      // A chip, the rail, the sidebar or the caret in a #tag: search that tag.
+      if (tags.length > 0) {
+        set_omnibar_state(input, {
+          open: true,
+          query: "",
+          selected_index: 0,
+          is_searching: false,
+          scope: "current_vault",
+          tags,
+          tag_match: "all",
+        });
+        stores.search.clear_omnibar();
+        await run_omnibar_search(input);
+        return;
+      }
+
+      if (!stores.ui.omnibar.open) {
+        set_omnibar_state(input, {
+          open: true,
+          query: "#",
+          selected_index: 0,
+          is_searching: false,
+          scope: "current_vault",
+        });
+        stores.search.clear_omnibar();
+        await run_omnibar_search(input);
+        return;
+      }
+
+      // Already open: toggle the `#` token at the end of the query.
+      const { query } = stores.ui.omnibar;
+      const parsed = parse_search_query(query);
+      let next_query = query.trim() ? `${query.trimEnd()} #` : "#";
+      if (parsed.domain === "tags") next_query = parsed.before_tag ?? "";
+      if (parsed.domain === "commands") next_query = "#";
       set_omnibar_state(input, {
-        is_searching: false,
-        selected_index: clamp_selected_index(input),
+        query: next_query,
+        selected_index: 0,
+        scope: "current_vault",
       });
+      await run_omnibar_search(input);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.omnibar_add_tag,
+    label: "Add Omnibar Tag Filter",
+    execute: async (tag: unknown) => {
+      if (typeof tag !== "string" || !tag) return;
+      const { query } = stores.ui.omnibar;
+      const parsed = parse_search_query(query);
+      const before_tag =
+        parsed.domain === "tags" ? (parsed.before_tag ?? "") : query.trimEnd();
+      await add_tag_chip(input, tag, before_tag);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.omnibar_remove_tag,
+    label: "Remove Omnibar Tag Filter",
+    execute: async (tag: unknown) => {
+      if (typeof tag !== "string") return;
+      const key = tag_key(tag);
+      set_omnibar_state(input, {
+        tags: stores.ui.omnibar.tags.filter(
+          (existing) => tag_key(existing) !== key,
+        ),
+        selected_index: 0,
+      });
+      await run_omnibar_search(input);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.omnibar_set_tag_match,
+    label: "Set Omnibar Tag Match",
+    execute: async (mode: unknown) => {
+      if (!is_tag_match(mode) || mode === stores.ui.omnibar.tag_match) return;
+      set_omnibar_state(input, { tag_match: mode, selected_index: 0 });
+      await run_omnibar_search(input);
     },
   });
 
