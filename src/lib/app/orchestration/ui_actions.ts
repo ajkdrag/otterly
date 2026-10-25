@@ -4,7 +4,7 @@ import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_lab
 import { is_program_file } from "$lib/features/shell";
 import { toast } from "svelte-sonner";
 
-type SidebarView = "explorer" | "dashboard" | "starred" | "tags";
+type SidebarView = "explorer" | "dashboard" | "starred" | "tags" | "search";
 
 export function register_ui_actions(input: ActionRegistrationInput) {
   const { registry, stores, services } = input;
@@ -19,6 +19,9 @@ export function register_ui_actions(input: ActionRegistrationInput) {
     }
     if (value === "tags") {
       return "tags";
+    }
+    if (value === "search") {
+      return "search";
     }
     return "explorer";
   }

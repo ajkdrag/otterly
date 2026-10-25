@@ -1,8 +1,10 @@
+use crate::features::document::service::DocumentState;
 use crate::features::notes::service as notes_service;
 use crate::features::search::db as search_db;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
 use crate::features::search::tag_parser;
+use crate::features::search::vault_find::{self, FindQuery, FindSpec, VaultFindFile};
 use crate::shared::storage;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -12,7 +14,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Serialize)]
@@ -891,4 +894,211 @@ pub fn rewrite_note_links(
 #[tauri::command]
 pub fn resolve_note_link(source_path: String, raw_target: String) -> Option<String> {
     link_parser::resolve_wiki_target(&source_path, &raw_target)
+}
+
+// Only the cancel token of the running vault find. Starting a new find
+// cancels the old one, so at most one walk runs at a time.
+#[derive(Default)]
+pub struct VaultFindState {
+    cancel: Mutex<Arc<AtomicBool>>,
+}
+
+fn replace_vault_find_cancel_token(state: &VaultFindState) -> Result<Arc<AtomicBool>, String> {
+    let next_cancel = Arc::new(AtomicBool::new(false));
+    let mut current = state.cancel.lock().map_err(|e| e.to_string())?;
+    current.store(true, Ordering::Relaxed);
+    *current = Arc::clone(&next_cancel);
+    Ok(next_cancel)
+}
+
+// Validates on the calling thread, so a bad regex or glob comes back as
+// Err("invalid_query:...") / Err("invalid_glob:..."). Results stream through
+// on_event; the call itself returns right away.
+#[tauri::command]
+pub fn vault_find_start(
+    app: AppHandle,
+    state: tauri::State<'_, VaultFindState>,
+    vault_id: String,
+    request: vault_find::VaultFindRequest,
+    on_event: Channel<vault_find::VaultFindEvent>,
+) -> Result<(), String> {
+    let find = vault_find::CompiledFind::from_request(&request).map_err(|e| e.to_string())?;
+    let vault_root = storage::vault_path(&app, &vault_id)?;
+    let cancel = replace_vault_find_cancel_token(&state)?;
+    std::thread::spawn(move || {
+        vault_find::find_in_vault(&vault_root, &find, &cancel, |event| {
+            if let Err(e) = on_event.send(event) {
+                log::warn!("vault find: send failed: {e}");
+            }
+        });
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn vault_find_cancel(state: tauri::State<'_, VaultFindState>) -> Result<(), String> {
+    let current = state.cancel.lock().map_err(|e| e.to_string())?;
+    current.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VaultReplaceFile {
+    pub path: String,
+    pub content_hash: String,
+    // Ordinals into the file's match list.
+    pub match_indexes: Vec<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VaultReplaceRequest {
+    #[serde(flatten)]
+    pub spec: FindSpec,
+    pub replacement: String,
+    pub files: Vec<VaultReplaceFile>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReplacedFile {
+    pub path: String,
+    pub count: usize,
+    pub remaining: Option<VaultFindFile>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplaceSkipReason {
+    Changed,
+    Missing,
+    NotText,
+    ReadFailed,
+    WriteFailed,
+    // A document window has its own buffer of this file, and its next save
+    // would overwrite the replace.
+    OpenInWindow,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SkippedFile {
+    pub path: String,
+    pub reason: ReplaceSkipReason,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct VaultReplaceResponse {
+    pub replaced: Vec<ReplacedFile>,
+    pub skipped: Vec<SkippedFile>,
+}
+
+// Files are independent: one that fails is reported in `skipped` and the rest
+// still go through. The undo story is the git checkpoint the frontend makes
+// before Replace All.
+#[tauri::command]
+pub async fn vault_replace(
+    app: AppHandle,
+    vault_id: String,
+    request: VaultReplaceRequest,
+) -> Result<VaultReplaceResponse, String> {
+    let query = FindQuery::compile(&request.spec).map_err(|e| e.to_string())?;
+    let vault_root = storage::vault_path(&app, &vault_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let open_documents = app.state::<DocumentState>().open_paths();
+        let mut response = VaultReplaceResponse::default();
+        for file in &request.files {
+            match replace_vault_file(
+                &vault_root,
+                file,
+                &query,
+                &request.replacement,
+                &open_documents,
+            ) {
+                Ok(replaced) => {
+                    if replaced.count > 0 && notes_service::is_markdown_file(Path::new(&file.path))
+                    {
+                        refresh_index_after_replace(&app, &vault_id, &vault_root, &file.path);
+                    }
+                    response.replaced.push(replaced);
+                }
+                Err(reason) => response.skipped.push(SkippedFile {
+                    path: file.path.clone(),
+                    reason,
+                }),
+            }
+        }
+        response
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// Waits for the index worker, so links and backlinks are fresh when the
+// response arrives. A failure only leaves the index stale until the next sync.
+fn refresh_index_after_replace(app: &AppHandle, vault_id: &str, vault_root: &Path, note_id: &str) {
+    let result = send_write_blocking(app, vault_id, |reply| DbCommand::UpsertNote {
+        vault_root: vault_root.to_path_buf(),
+        note_id: note_id.to_string(),
+        reply,
+    });
+    if let Err(e) = result {
+        log::warn!("vault replace: index upsert failed for {note_id}: {e}");
+    }
+}
+
+fn modified_time(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok()?.modified().ok()
+}
+
+// open_documents are the canonical paths of files that document windows show.
+pub(crate) fn replace_vault_file(
+    vault_root: &Path,
+    file: &VaultReplaceFile,
+    query: &FindQuery,
+    replacement: &str,
+    open_documents: &[PathBuf],
+) -> Result<ReplacedFile, ReplaceSkipReason> {
+    let abs = notes_service::safe_vault_abs_for_write(vault_root, &file.path)
+        .map_err(|_| ReplaceSkipReason::ReadFailed)?;
+    if abs
+        .canonicalize()
+        .is_ok_and(|canonical| open_documents.contains(&canonical))
+    {
+        return Err(ReplaceSkipReason::OpenInWindow);
+    }
+    // Taken before the read, so a save in between shows up as a changed mtime.
+    let modified_before_read = modified_time(&abs);
+    let text = match vault_find::read_searchable_text(&abs) {
+        Ok(Some(text)) => text,
+        Ok(None) => return Err(ReplaceSkipReason::NotText),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ReplaceSkipReason::Missing)
+        }
+        Err(_) => return Err(ReplaceSkipReason::ReadFailed),
+    };
+    // The match ordinals only mean something for the text they came from.
+    if vault_find::content_hash(&text) != file.content_hash {
+        return Err(ReplaceSkipReason::Changed);
+    }
+    let replaced = vault_find::replace_in_text(&text, query, replacement, &file.match_indexes);
+    if replaced.count > 0 {
+        // Autosave can write the note after the hash check, and we would
+        // overwrite that save without noticing.
+        // @Robustness: A save that lands between this check and the rename
+        // (atomic_write writes its temp file first) is still lost. The window
+        // is milliseconds. Closing it needs a lock that write_note shares.
+        if modified_time(&abs) != modified_before_read {
+            return Err(ReplaceSkipReason::Changed);
+        }
+        notes_service::atomic_write(&abs, &replaced.text)
+            .map_err(|_| ReplaceSkipReason::WriteFailed)?;
+    }
+    let remaining = (!replaced.remaining.is_empty()).then(|| VaultFindFile {
+        path: file.path.clone(),
+        content_hash: vault_find::content_hash(&replaced.text),
+        matches: replaced.remaining,
+    });
+    Ok(ReplacedFile {
+        path: file.path.clone(),
+        count: replaced.count,
+        remaining,
+    })
 }

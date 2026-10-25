@@ -12,6 +12,7 @@ import type {
   PastedImagePayload,
 } from "$lib/shared/types/editor";
 import type { MarkdownText, NoteId, NotePath } from "$lib/shared/types/ids";
+import type { FindSpec } from "$lib/shared/types/search";
 import { as_markdown_text } from "$lib/shared/types/ids";
 import type { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
 import type { VaultStore } from "$lib/features/vault";
@@ -224,8 +225,33 @@ export class EditorService {
     this.session?.close_buffer(note_path);
   }
 
-  update_find_state(query: string, selected_index: number) {
-    this.session?.update_find_state?.(query, selected_index);
+  update_find_state(spec: FindSpec, selected_index: number) {
+    this.session?.update_find_state?.(spec, selected_index);
+  }
+
+  replace_find_match(replacement: string): number | null {
+    return this.session?.replace_find_match?.(replacement) ?? null;
+  }
+
+  replace_all_find_matches(replacement: string): number {
+    return this.session?.replace_all_find_matches?.(replacement) ?? 0;
+  }
+
+  // Waits a frame, like restore_cursor, so the editor-sync reactor has
+  // switched to the note that was just opened.
+  select_line_range(
+    line: number,
+    column: number,
+    length: number,
+    focus_editor: boolean,
+  ) {
+    const session = this.session;
+    if (!session) return;
+    requestAnimationFrame(() => {
+      if (this.session !== session) return;
+      session.select_line_range?.(line, column, length);
+      if (focus_editor) session.focus();
+    });
   }
 
   private next_session_generation(): number {

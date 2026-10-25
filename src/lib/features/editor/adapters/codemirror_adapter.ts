@@ -24,6 +24,7 @@ import {
   find,
   focus_selection,
   frontmatter,
+  get_find_query,
   get_markdown_source,
   get_editor_mode,
   get_markdown_source_document,
@@ -33,6 +34,8 @@ import {
   links,
   read_code_block_view_states,
   refresh_code_diagrams,
+  replace_all_find_matches,
+  replace_find_match,
   set_editor_mode,
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
@@ -140,6 +143,7 @@ export function create_codemirror_editor_port(
           );
         else events.on_internal_link_click?.(link.path, current.note_path);
       };
+      const find_plugin = find();
       const plugins: MarkdownPlugin[] = [
         commonmark(),
         gfm(),
@@ -207,7 +211,7 @@ export function create_codemirror_editor_port(
           },
         }),
         slash_menu(),
-        find(),
+        find_plugin,
         clipboard({
           html_to_markdown: clipboard_html_to_markdown,
           on_image_paste(file) {
@@ -356,8 +360,29 @@ export function create_codemirror_editor_port(
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
-        update_find_state(query, selected_index) {
-          update_find_query(view, query, selected_index);
+        update_find_state(spec, selected_index) {
+          update_find_query(view, spec, selected_index);
+        },
+        replace_find_match(replacement) {
+          if (!replace_find_match(view, replacement)) return null;
+          return get_find_query(view.state).selected_index;
+        },
+        replace_all_find_matches(replacement) {
+          return replace_all_find_matches(view, replacement);
+        },
+        select_line_range(line_number, column, length) {
+          const document = view.state.doc;
+          if (line_number < 1 || line_number > document.lines) return;
+          const line = document.line(line_number);
+          // Vault find columns skip the BOM. The display document keeps it.
+          const bom =
+            line_number === 1 && line.text.startsWith("\ufeff") ? 1 : 0;
+          const from = Math.min(line.to, line.from + bom + column);
+          const to = Math.min(line.to, from + length);
+          view.dispatch({
+            selection: EditorSelection.single(from, to),
+            effects: EditorView.scrollIntoView(from, { y: "center" }),
+          });
         },
         // A focused table cell has its own nested editor, so the outer view
         // does not have focus and this gives null there.
@@ -415,6 +440,11 @@ export function create_codemirror_editor_port(
             })
           : create_text_state(input.initial_markdown, [
               extensions,
+              // Text files have no plugins. Find still needs its state and
+              // highlight style, or the bar would count matches it cannot show
+              // or replace.
+              find_plugin.extensions ?? [],
+              find_plugin.theme ? EditorView.theme(find_plugin.theme) : [],
               text_language.of([]),
               syntaxHighlighting(code_block_highlight),
             ]);

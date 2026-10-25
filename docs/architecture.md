@@ -63,26 +63,26 @@ When a user clicks a button, presses a shortcut, or picks a command:
 
 Each feature is a vertical slice owning its own stores, services, actions, ports, adapters, domain logic, and UI:
 
-| Feature     | Owns                                                          |
-| ----------- | ------------------------------------------------------------- |
-| `vault`     | Vault registry, open/close lifecycle, settings, watcher setup |
-| `note`      | Note CRUD, save/rename/delete, image assets                   |
-| `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves         |
-| `editor`    | CodeMirror session, buffer management, source sync            |
-| `search`    | Full-text search, omnibar, find-in-file, wiki suggestions     |
-| `tab`       | Tab bar, tab lifecycle, tab caching and persistence           |
-| `git`       | Git init, status, commit, history, checkpoint, restore        |
-| `settings`  | App and vault settings read/write                             |
-| `hotkey`    | Custom hotkey editing and persistence                         |
-| `theme`     | Theme CRUD, switching, editing, theme file + live reload      |
-| `links`     | Backlinks, local links, link repair on rename                 |
-| `tags`      | Tag pane, tag search, current note tags                       |
-| `clipboard` | Copy markdown to clipboard                                    |
-| `shell`     | Open external URLs                                            |
-| `watcher`   | Filesystem watcher start/stop                                 |
-| `updater`   | Background update download, install and relaunch              |
-| `document`  | One file opened outside any vault, in its own window          |
-| `profile`   | Current profile, opening other profiles, profiles dialog      |
+| Feature     | Owns                                                                              |
+| ----------- | --------------------------------------------------------------------------------- |
+| `vault`     | Vault registry, open/close lifecycle, settings, watcher setup                     |
+| `note`      | Note CRUD, save/rename/delete, image assets                                       |
+| `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves                             |
+| `editor`    | CodeMirror session, buffer management, source sync                                |
+| `search`    | Full-text search, omnibar, find-in-file, vault find and replace, wiki suggestions |
+| `tab`       | Tab bar, tab lifecycle, tab caching and persistence                               |
+| `git`       | Git init, status, commit, history, checkpoint, restore                            |
+| `settings`  | App and vault settings read/write                                                 |
+| `hotkey`    | Custom hotkey editing and persistence                                             |
+| `theme`     | Theme CRUD, switching, editing, theme file + live reload                          |
+| `links`     | Backlinks, local links, link repair on rename                                     |
+| `tags`      | Tag pane, tag search, current note tags                                           |
+| `clipboard` | Copy markdown to clipboard                                                        |
+| `shell`     | Open external URLs                                                                |
+| `watcher`   | Filesystem watcher start/stop                                                     |
+| `updater`   | Background update download, install and relaunch                                  |
+| `document`  | One file opened outside any vault, in its own window                              |
+| `profile`   | Current profile, opening other profiles, profiles dialog                          |
 
 ### Folder structure (first 2 levels)
 
@@ -309,7 +309,7 @@ Services receive ports and stores via constructor injection. The composition roo
 
 - **EditorService statefulness**: Holds persistent session state (`session`, `host_root`, `active_note`, `session_generation`) because it manages a live DOM editor session. The `session_generation` counter guards against race conditions.
 - **VaultService lifecycle state**: Stores `active_open_revision` and `index_progress_unsubscribe` for "latest vault-open intent wins" cancellation.
-- **SearchService request revisions**: Stores per-use-case revision counters to ignore stale async responses. Cancellation bookkeeping only.
+- **SearchService and VaultFindService request revisions**: Store per-use-case revision counters to ignore stale async responses. `VaultFindService` also uses its counter to drop events of a cancelled streaming search. Cancellation bookkeeping only.
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
 - **Dock menu static** (`profile/dock_menu.rs`, macOS only): one `OnceLock` holds the `AppHandle` and the menu target, because the AppKit callback carries no context.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
@@ -368,7 +368,7 @@ Backend invariants:
 2. Managed state structs live in the feature's `service.rs` — no global statics
 3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, and `profile::service` for `ProfileState`, `session_file_name` and `with_profile_data_store`)
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
-5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState` which are explicit lifecycle-managed state, and `ProfileState`, which is launch config plus one flag)
+5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState`, which are explicit lifecycle-managed state, `ProfileState`, which is launch config plus one flag, and `VaultFindState`, which only holds the cancel token of the running vault search)
 
 ## Validation checklist
 

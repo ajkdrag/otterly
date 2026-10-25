@@ -26,3 +26,5 @@ mod portable_install;
 mod theme_file_service;
 #[path = "../../tests/profile_launch.rs"]
 mod profile_launch;
+#[path = "../../tests/vault_find.rs"]
+mod vault_find;

@@ -12,6 +12,7 @@ export type CommandId =
   | "open_hotkeys"
   | "toggle_sidebar"
   | "find_in_note"
+  | "find_in_vault"
   | "open_help"
   | "next_tab"
   | "previous_tab"
@@ -40,7 +41,8 @@ export type CommandIcon =
   | "link"
   | "refresh-cw"
   | "code"
-  | "tag";
+  | "tag"
+  | "text-search";
 
 export type CommandDefinition = {
   id: CommandId;

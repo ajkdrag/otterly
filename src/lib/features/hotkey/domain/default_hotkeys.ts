@@ -67,6 +67,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
+    action_id: ACTION_IDS.find_in_file_toggle_replace,
+    key: "CmdOrCtrl+Alt+F",
+    phase: "capture",
+    label: "Replace in File",
+    description: "Find and replace within the current file",
+    category: "navigation",
+  },
+  {
     action_id: ACTION_IDS.vault_request_change,
     key: "CmdOrCtrl+Shift+O",
     phase: "capture",
@@ -83,8 +91,16 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
-    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    action_id: ACTION_IDS.vault_find_open,
     key: "CmdOrCtrl+Shift+F",
+    phase: "capture",
+    label: "Find in Vault",
+    description: "Search and replace across every file in the vault",
+    category: "navigation",
+  },
+  {
+    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    key: "CmdOrCtrl+Alt+Shift+F",
     phase: "capture",
     label: "Search All Vaults",
     description: "Search notes across all vaults",

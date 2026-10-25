@@ -6,6 +6,7 @@ import { create_test_settings_adapter } from "./test_settings_adapter";
 import { create_test_session_adapter } from "./test_session_adapter";
 import { create_test_vault_settings_adapter } from "./test_vault_settings_adapter";
 import { create_test_search_adapter } from "./test_search_adapter";
+import { create_test_vault_find_adapter } from "./test_vault_find_adapter";
 import type { Ports } from "$lib/app/di/app_ports";
 import { create_codemirror_editor_port } from "$lib/features/editor";
 import { create_test_clipboard_adapter } from "./test_clipboard_adapter";
@@ -26,6 +27,7 @@ export function create_test_ports(): Ports {
     notes: create_test_notes_adapter(),
     index: create_test_workspace_index_adapter(),
     search: create_test_search_adapter(),
+    vault_find: create_test_vault_find_adapter(),
     settings: create_test_settings_adapter(),
     vault_settings: create_test_vault_settings_adapter(),
     session: create_test_session_adapter(),

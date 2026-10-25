@@ -19,7 +19,7 @@
     FiletreeMoveConflictDialog,
   } from "$lib/features/folder";
   import { SettingsDialog } from "$lib/features/settings";
-  import { Omnibar } from "$lib/features/search";
+  import { Omnibar, VaultReplaceDialog } from "$lib/features/search";
   import { TabCloseConfirmDialog } from "$lib/features/tab";
   import { VersionHistoryDialog, CheckpointDialog } from "$lib/features/git";
   import { HotkeyRecorderDialog } from "$lib/features/hotkey";
@@ -459,6 +459,21 @@
     void action_registry.execute(ACTION_IDS.git_confirm_checkpoint)}
   on_cancel={() =>
     void action_registry.execute(ACTION_IDS.git_cancel_checkpoint)}
+/>
+
+<VaultReplaceDialog
+  open={stores.ui.vault_replace_dialog.open}
+  query={stores.ui.vault_replace_dialog.query}
+  match_count={stores.ui.vault_replace_dialog.match_count}
+  file_count={stores.ui.vault_replace_dialog.file_count}
+  replacement={stores.ui.vault_replace_dialog.replacement}
+  unsaved_paths={stores.ui.vault_replace_dialog.unsaved_paths}
+  will_checkpoint={stores.git.enabled}
+  is_replacing={stores.ui.vault_replace_dialog.is_replacing}
+  on_confirm={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_confirm_replace_all)}
+  on_cancel={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_cancel_replace_all)}
 />
 
 <HelpDialog

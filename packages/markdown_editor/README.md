@@ -59,9 +59,27 @@ Positions in the public API are UTF-16 offsets in the LF-normalized display docu
 | `wiki_links(...)`  | `[[target]]` syntax and note completion. Requires `links`.                          |
 | `tags(...)`        | `#tag` chips, a click that opens the tag, and tag completion from the host.         |
 | `slash_menu()`     | "/" commands built from every construct's insert items.                             |
-| `find()`           | Find highlights, including inside code blocks and table cells.                      |
+| `find()`           | Find and replace, with highlights inside code blocks and table cells.               |
 | `clipboard(...)`   | Markdown-first paste, HTML conversion through the host, image paste.                |
 | `callouts()`       | `> [!note]` callouts. A small example of a construct plugin.                        |
+
+## Find and replace
+
+`find()` keeps one query per editor state. Pass it a `FindSpec`:
+
+```ts
+const spec = {
+  text: "v(\\d)",
+  regex: true,
+  case_sensitive: false,
+  whole_word: false,
+};
+update_find_query(view, spec, 0);
+replace_find_match(view, "version $1"); // replaces the selected match and selects the next one
+replace_all_find_matches(view, "version $1"); // returns the count, one undo step
+```
+
+Matching runs one line at a time, so `\s` never crosses a line. Empty matches are skipped. A backslash before punctuation (`\#`, `\-`) is accepted in regex mode, like in Rust. Regex replacements use Rust's template syntax: `$1`, `${1}`, `$name`, `${name}`, `$0`, and `$$` for a literal `$`. Literal mode inserts the replacement as is. Use `find_regexp(spec)` and `find_matches_in_line` to count matches outside the editor with the same rules. `find_regexp` returns `null` for an empty or invalid spec.
 
 ## Writing a plugin
 

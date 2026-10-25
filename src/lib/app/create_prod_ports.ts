@@ -10,6 +10,7 @@ import {
 import { create_settings_tauri_adapter } from "$lib/features/settings";
 import {
   create_search_tauri_adapter,
+  create_vault_find_tauri_adapter,
   create_workspace_index_tauri_adapter,
 } from "$lib/features/search";
 import { create_codemirror_editor_port } from "$lib/features/editor";
@@ -50,6 +51,7 @@ export function create_prod_ports(): Ports {
     notes,
     index,
     search,
+    vault_find: create_vault_find_tauri_adapter(),
     settings,
     vault_settings,
     session,

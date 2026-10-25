@@ -781,4 +781,73 @@ describe("CodeMirror editor port", () => {
     view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 1" } });
     expect(session.get_markdown()).toBe(`${source}x: 1`);
   });
+
+  it("replaces find matches in one undo step and keeps line endings", async () => {
+    const { session, view } = await open_editor("foo bar\r\nfoo baz foo\r\n");
+    const spec = {
+      text: "foo",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 0);
+
+    expect(session.replace_find_match?.("qux")).toBe(0);
+    expect(session.get_markdown()).toBe("qux bar\r\nfoo baz foo\r\n");
+    expect(session.replace_all_find_matches?.("qux")).toBe(2);
+    expect(session.get_markdown()).toBe("qux bar\r\nqux baz qux\r\n");
+
+    source_undo(view);
+    expect(session.get_markdown()).toBe("qux bar\r\nfoo baz foo\r\n");
+    expect(session.replace_find_match?.("qux")).toBe(0);
+  });
+
+  it("wraps to the first match after replacing the last one, and reports nothing left to replace", async () => {
+    const { session } = await open_editor("foo foo");
+    const spec = {
+      text: "foo",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 1);
+
+    expect(session.replace_find_match?.("bar")).toBe(0);
+    expect(session.replace_find_match?.("bar")).toBe(0);
+    expect(session.get_markdown()).toBe("bar bar");
+    expect(session.replace_find_match?.("bar")).toBeNull();
+    expect(session.replace_all_find_matches?.("bar")).toBe(0);
+  });
+
+  it("replaces matches in a text file, not only in Markdown notes", async () => {
+    const { session } = await open_editor(
+      "port: 80\nother: 80\n",
+      undefined,
+      "config.yaml",
+    );
+    const spec = {
+      text: "(\\w+): 80",
+      regex: true,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 0);
+
+    expect(session.replace_all_find_matches?.("$1: 8080")).toBe(2);
+    expect(session.get_markdown()).toBe("port: 8080\nother: 8080\n");
+  });
+
+  it("selects a vault find match by UTF-16 column after emoji", async () => {
+    const { session, view } = await open_editor("# T\n\n😀 needle here");
+    session.select_line_range?.(3, 3, 6);
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("needle");
+  });
+
+  it("selects a vault find match on line 1 of a file that starts with a BOM", async () => {
+    const { session, view } = await open_editor("\uFEFFneedle first");
+    session.select_line_range?.(1, 0, 6);
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("needle");
+  });
 });

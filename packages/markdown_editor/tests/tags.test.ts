@@ -15,7 +15,7 @@ import { EditorState } from "@codemirror/state";
 import { create_markdown_state } from "../src/core/editor";
 import { set_editor_mode } from "../src/core/editor_mode";
 import { commonmark } from "../src/plugins/commonmark/index";
-import { find, set_find_query } from "../src/plugins/find";
+import { find, literal_find_spec, set_find_query } from "../src/plugins/find";
 import { frontmatter } from "../src/plugins/frontmatter/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { links } from "../src/plugins/links/index";
@@ -186,7 +186,10 @@ describe("tag chips", () => {
   test("TAG-002 a find match over part of a tag leaves the chip in one piece", () => {
     const editor = open("top‸\n\nsee #project now");
     editor.view.dispatch({
-      effects: set_find_query.of({ query: "ject n", selected_index: -1 }),
+      effects: set_find_query.of({
+        spec: literal_find_spec("ject n"),
+        selected_index: -1,
+      }),
     });
     const chip = only_chip(editor);
     expect(chip.textContent).toBe("#project");

@@ -32,7 +32,7 @@ import type { TagMatch } from "$lib/features/tags";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 type AsyncStatus = "idle" | "loading" | "error";
-type SidebarView = "explorer" | "dashboard" | "starred" | "tags";
+type SidebarView = "explorer" | "dashboard" | "starred" | "tags" | "search";
 type ContextRailTab = "links";
 
 const INITIAL_DELETE_NOTE_DIALOG = { open: false, note: null } as const;
@@ -96,7 +96,40 @@ const INITIAL_FIND_IN_FILE = {
   open: false,
   query: "",
   selected_match_index: 0,
-} as const;
+  replace_open: false,
+  replacement: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+};
+
+const INITIAL_VAULT_FIND = {
+  query: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+  replacement: "",
+  replace_open: false,
+  include: "",
+  exclude: "",
+  filters_open: false,
+  // Bumped to ask the panel to focus and select its find input.
+  focus_nonce: 0,
+};
+
+const INITIAL_VAULT_REPLACE_DIALOG = {
+  open: false,
+  // What the dialog asks about, fixed when it opened. Typing in the panel
+  // afterwards does not change what Replace All writes.
+  query: "",
+  replacement: "",
+  match_count: 0,
+  file_count: 0,
+  // Files with unsaved edits. Replace All leaves them alone.
+  unsaved_paths: [] as string[],
+  // The dialog stays open while the checkpoint and the writes run.
+  is_replacing: false,
+};
 
 const INITIAL_IMAGE_PASTE_DIALOG = {
   open: false,
@@ -308,6 +341,11 @@ export class UIStore {
     open: boolean;
     query: string;
     selected_match_index: number;
+    replace_open: boolean;
+    replacement: string;
+    regex: boolean;
+    case_sensitive: boolean;
+    whole_word: boolean;
   }>({ ...INITIAL_FIND_IN_FILE });
 
   filetree = $state<{
@@ -361,6 +399,9 @@ export class UIStore {
     open: boolean;
     description: string;
   }>({ ...INITIAL_CHECKPOINT_DIALOG });
+
+  vault_find = $state({ ...INITIAL_VAULT_FIND });
+  vault_replace_dialog = $state({ ...INITIAL_VAULT_REPLACE_DIALOG });
 
   quit_confirm = $state<{
     open: boolean;
@@ -543,6 +584,7 @@ export class UIStore {
     this.version_history_dialog = { ...INITIAL_VERSION_HISTORY_DIALOG };
     this.markdown_cleanup_dialog = { ...INITIAL_MARKDOWN_CLEANUP_DIALOG };
     this.checkpoint_dialog = { ...INITIAL_CHECKPOINT_DIALOG };
+    this.vault_replace_dialog = { ...INITIAL_VAULT_REPLACE_DIALOG };
     this.quit_confirm = { ...INITIAL_QUIT_CONFIRM };
     this.context_rail_open = false;
     this.context_rail_tab = "links";

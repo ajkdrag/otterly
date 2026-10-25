@@ -16,6 +16,7 @@ export type SearchCommandDefinition = {
     | "open_hotkeys"
     | "toggle_sidebar"
     | "find_in_note"
+    | "find_in_vault"
     | "open_help"
     | "next_tab"
     | "previous_tab"
@@ -46,7 +47,8 @@ export type SearchCommandDefinition = {
     | "link"
     | "refresh-cw"
     | "code"
-    | "tag";
+    | "tag"
+    | "text-search";
 };
 
 export type SearchSettingDefinition = {
@@ -103,6 +105,14 @@ export type PlannedWikiSuggestion = {
 };
 
 export type WikiSuggestion = ExistingWikiSuggestion | PlannedWikiSuggestion;
+
+// What find looks for. The editor's find bar and the vault find panel share it.
+export type FindSpec = {
+  text: string;
+  regex: boolean;
+  case_sensitive: boolean;
+  whole_word: boolean;
+};
 
 export type InFileMatch = {
   line: number;

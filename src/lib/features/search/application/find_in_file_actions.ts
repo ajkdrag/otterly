@@ -1,5 +1,6 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistry, UIStore } from "$lib/app";
+import type { FindOption } from "$lib/features/search/domain/find_option_shortcut";
 import type { SearchStore } from "$lib/features/search/state/search_store.svelte";
 
 // The vault app and the document window both register these, so the input is
@@ -7,15 +8,24 @@ import type { SearchStore } from "$lib/features/search/state/search_store.svelte
 export type FindInFileActionInput = {
   registry: ActionRegistry;
   stores: { ui: UIStore; search: SearchStore };
-  services: { editor: { focus: () => void } };
+  services: {
+    editor: {
+      focus: () => void;
+      replace_find_match: (replacement: string) => number | null;
+      replace_all_find_matches: (replacement: string) => number;
+    };
+  };
 };
 
 export function register_find_in_file_actions(input: FindInFileActionInput) {
   const { registry, stores, services } = input;
+  // Closing clears the query and the replace row. The option toggles stay.
   const CLOSED_FIND_STATE = {
     open: false,
     query: "",
     selected_match_index: 0,
+    replace_open: false,
+    replacement: "",
   } as const;
 
   function update_find_state(patch: Partial<UIStore["find_in_file"]>) {
@@ -26,7 +36,10 @@ export function register_find_in_file_actions(input: FindInFileActionInput) {
   }
 
   function close_find() {
-    stores.ui.find_in_file = { ...CLOSED_FIND_STATE };
+    stores.ui.find_in_file = {
+      ...stores.ui.find_in_file,
+      ...CLOSED_FIND_STATE,
+    };
     stores.search.clear_in_file_matches();
     services.editor.focus();
   }
@@ -82,6 +95,64 @@ export function register_find_in_file_actions(input: FindInFileActionInput) {
     label: "Set Find in File Query",
     execute: (query: unknown) => {
       update_query(String(query));
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.find_in_file_toggle_replace,
+    label: "Find and Replace in File",
+    shortcut: "CmdOrCtrl+Alt+F",
+    execute: () => {
+      const { open, replace_open } = stores.ui.find_in_file;
+      update_find_state(
+        open
+          ? { replace_open: !replace_open }
+          : { open: true, replace_open: true },
+      );
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.find_in_file_set_options,
+    label: "Set Find in File Options",
+    execute: (options: unknown) => {
+      update_find_state({
+        ...(options as Partial<Record<FindOption, boolean>>),
+        selected_match_index: 0,
+      });
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.find_in_file_set_replacement,
+    label: "Set Find in File Replacement",
+    execute: (replacement: unknown) => {
+      update_find_state({ replacement: String(replacement) });
+    },
+  });
+
+  // The editor selects the next match after a replace. Follow it, so the
+  // "n of m" in the bar and the highlighted match stay the same match.
+  registry.register({
+    id: ACTION_IDS.find_in_file_replace,
+    label: "Replace Match in File",
+    execute: () => {
+      const next_index = services.editor.replace_find_match(
+        stores.ui.find_in_file.replacement,
+      );
+      if (next_index !== null)
+        update_find_state({ selected_match_index: next_index });
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.find_in_file_replace_all,
+    label: "Replace All Matches in File",
+    execute: () => {
+      const replaced_count = services.editor.replace_all_find_matches(
+        stores.ui.find_in_file.replacement,
+      );
+      if (replaced_count > 0) update_find_state({ selected_match_index: 0 });
     },
   });
 

@@ -23,6 +23,26 @@ vi.mock("svelte", async () => {
   return { ...public_api, untrack: client.untrack };
 });
 
+const needle_spec = {
+  text: "needle",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+};
+const no_find = { ...needle_spec, text: "" };
+
+const find_state = (overrides = {}) => ({
+  open: true,
+  query: "needle",
+  selected_match_index: 0,
+  replace_open: false,
+  replacement: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+  ...overrides,
+});
+
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -38,7 +58,7 @@ async function create_find() {
     "needle needle",
   );
   editor.set_open_note(note);
-  ui.find_in_file = { open: true, query: "needle", selected_match_index: 0 };
+  ui.find_in_file = find_state();
   cleanups.push(
     create_find_in_file_reactor(
       ui,
@@ -66,7 +86,7 @@ describe("find in file reactor", () => {
     await tick();
     expect(search.in_file_matches).toEqual([]);
     expect(ui.find_in_file.selected_match_index).toBe(0);
-    expect(update_find_state).toHaveBeenLastCalledWith("needle", 0);
+    expect(update_find_state).toHaveBeenLastCalledWith(needle_spec, 0);
   });
   it("refreshes edits and clamps the selected result without rescanning on next match", async () => {
     const { ui, editor, search, search_within_file, note } =
@@ -91,7 +111,7 @@ describe("find in file reactor", () => {
       text: "needle needle",
       mtime_ms: 1,
     });
-    ui.find_in_file = { open: true, query: "needle", selected_match_index: 0 };
+    ui.find_in_file = find_state();
     cleanups.push(
       create_find_in_file_reactor(
         ui,
@@ -119,10 +139,41 @@ describe("find in file reactor", () => {
     ui.find_in_file.open = false;
     await tick();
     expect(search.in_file_matches).toEqual([]);
-    expect(update_find_state).toHaveBeenLastCalledWith("", 0);
+    expect(update_find_state).toHaveBeenLastCalledWith(no_find, 0);
     ui.find_in_file.open = true;
     await tick();
     expect(search.in_file_matches).toHaveLength(2);
-    expect(update_find_state).toHaveBeenLastCalledWith("needle", 0);
+    expect(update_find_state).toHaveBeenLastCalledWith(needle_spec, 0);
+  });
+
+  it("searches again with the new options and applies them to the editor", async () => {
+    const { ui, search, search_within_file, update_find_state } =
+      await create_find();
+    search_within_file.mockClear();
+    ui.find_in_file = {
+      ...ui.find_in_file,
+      case_sensitive: true,
+      query: "Needle",
+    };
+    await tick();
+    expect(search.in_file_matches).toEqual([]);
+    expect(search_within_file).toHaveBeenCalledWith(
+      "needle needle",
+      expect.objectContaining({ text: "Needle", case_sensitive: true }),
+    );
+    expect(update_find_state).toHaveBeenLastCalledWith(
+      { ...needle_spec, text: "Needle", case_sensitive: true },
+      0,
+    );
+  });
+
+  it("does not search or scroll again while only the replacement is typed", async () => {
+    const { ui, search_within_file, update_find_state } = await create_find();
+    search_within_file.mockClear();
+    update_find_state.mockClear();
+    ui.find_in_file = { ...ui.find_in_file, replacement: "thread" };
+    await tick();
+    expect(search_within_file).not.toHaveBeenCalled();
+    expect(update_find_state).not.toHaveBeenCalled();
   });
 });

@@ -30,6 +30,7 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   open_hotkeys: ACTION_IDS.settings_open,
   toggle_sidebar: ACTION_IDS.ui_toggle_sidebar,
   find_in_note: ACTION_IDS.find_in_file_open,
+  find_in_vault: ACTION_IDS.vault_find_open,
   open_help: ACTION_IDS.help_open,
   next_tab: ACTION_IDS.tab_next,
   previous_tab: ACTION_IDS.tab_prev,

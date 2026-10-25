@@ -6,6 +6,7 @@ import type {
   EditorViewMode,
   PastedImagePayload,
 } from "$lib/shared/types/editor";
+import type { FindSpec } from "$lib/shared/types/search";
 
 export type BufferConfig = {
   note_path: string;
@@ -46,7 +47,15 @@ export type EditorSession = {
   open_buffer: (config: BufferConfig) => void;
   rename_buffer: (old_note_path: string, new_note_path: string) => void;
   close_buffer: (note_path: string) => void;
-  update_find_state?: (query: string, selected_index: number) => void;
+  update_find_state?: (spec: FindSpec, selected_index: number) => void;
+  // Replaces the selected find match and selects the next one. Returns the new
+  // selected index, or null when there was nothing to replace.
+  replace_find_match?: (replacement: string) => number | null;
+  // Replaces every find match in one undo step. Returns how many it replaced.
+  replace_all_find_matches?: (replacement: string) => number;
+  // Selects `length` UTF-16 units at `column` of a 1-based line and scrolls
+  // it to the center. Columns do not count a leading BOM. Does not focus.
+  select_line_range?: (line: number, column: number, length: number) => void;
   // The #tag at the caret, without its `#`. Null unless a Markdown note has
   // focus with the caret in or right after a tag.
   tag_at_cursor: () => string | null;

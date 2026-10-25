@@ -13,6 +13,7 @@ import { create_session_persist_reactor } from "$lib/reactors/session_persist.re
 import { create_git_autocommit_reactor } from "$lib/reactors/git_autocommit.reactor.svelte";
 import { create_recent_commands_persist_reactor } from "$lib/reactors/recent_commands_persist.reactor.svelte";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
+import { create_vault_find_reactor } from "$lib/reactors/vault_find.reactor.svelte";
 import { create_backlinks_sync_reactor } from "$lib/reactors/backlinks_sync.reactor.svelte";
 import { create_local_links_sync_reactor } from "$lib/reactors/local_links_sync.reactor.svelte";
 import { create_note_tags_sync_reactor } from "$lib/reactors/note_tags_sync.reactor.svelte";
@@ -39,7 +40,11 @@ import type { TabService } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
 import type { GitService } from "$lib/features/git";
 import type { LinksService } from "$lib/features/links";
-import type { SearchService, SearchStore } from "$lib/features/search";
+import type {
+  SearchService,
+  SearchStore,
+  VaultFindService,
+} from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { TagsService } from "$lib/features/tags";
 import type { WatcherService } from "$lib/features/watcher";
@@ -54,6 +59,7 @@ export type ReactorContext = {
   notes_store: NotesStore;
   search_store: SearchStore;
   search_service: SearchService;
+  vault_find_service: VaultFindService;
   vault_store: VaultStore;
   tab_store: TabStore;
   git_store: GitStore;
@@ -153,11 +159,16 @@ export function mount_reactors(context: ReactorContext): () => void {
       {
         read_buffer_id: () => context.editor_store.open_note?.buffer_id ?? null,
         read_markdown: () => context.editor_store.open_note?.markdown ?? "",
-        update_find_state: (query, selected_index) => {
-          context.editor_service.update_find_state(query, selected_index);
+        update_find_state: (spec, selected_index) => {
+          context.editor_service.update_find_state(spec, selected_index);
         },
       },
       context.search_service,
+    ),
+    create_vault_find_reactor(
+      context.ui_store,
+      context.vault_store,
+      context.vault_find_service,
     ),
     create_local_links_sync_reactor(
       context.editor_store,

@@ -76,6 +76,7 @@ pub fn run() {
         .manage(features::theme::service::ThemeFileWatcherState::default())
         .manage(features::vault_settings::service::VaultSettingsLock::default())
         .manage(ProfileState::new(profile_id, base_identifier))
+        .manage(features::search::service::VaultFindState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(log_builder.build())
@@ -144,6 +145,9 @@ pub fn run() {
             features::search::service::index_extract_local_note_links,
             features::search::service::rewrite_note_links,
             features::search::service::resolve_note_link,
+            features::search::service::vault_find_start,
+            features::search::service::vault_find_cancel,
+            features::search::service::vault_replace,
             features::notes::service::list_notes,
             features::notes::service::list_folders,
             features::notes::service::read_note,

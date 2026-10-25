@@ -23,8 +23,12 @@ blake3 = "1.5.5"
 # Parser only. The default features add a CLI and syntax highlighting (a C
 # regex library) that we never use.
 comrak = { version = "0.50.0", default-features = false }
+# Vault find: ripgrep's parallel walker and glob matcher, plus the regex crate.
+globset = "0.4.20"
+ignore = "0.4.33"
 mime_guess = "2.0.5"
 notify = "7.0.0"
+regex = "1.13.1"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.138"
 rusqlite = { version = "0.32", features = ["bundled"] }

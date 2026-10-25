@@ -125,6 +125,13 @@ export {
   update_find_query,
   get_find_matches,
   get_find_query,
+  literal_find_spec,
+  find_regexp,
+  find_matches_in_line,
+  replace_find_match,
+  replace_all_find_matches,
+  expand_replacement,
+  type FindSpec,
 } from "./plugins/find.js";
 export {
   clipboard,

@@ -101,6 +101,21 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "settings",
   },
   {
+    id: "find_in_vault",
+    label: "Find in Vault",
+    description: "Search every file in this vault, with regex and replace",
+    keywords: [
+      "find",
+      "find in vault",
+      "search in files",
+      "replace",
+      "find and replace",
+      "grep",
+      "regex",
+    ],
+    icon: "text-search",
+  },
+  {
     id: "open_help",
     label: "Open Help",
     description: "Show keyboard shortcuts and app help",

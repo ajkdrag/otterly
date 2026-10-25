@@ -19,6 +19,7 @@
   import CodeIcon from "@lucide/svelte/icons/code";
   import HashIcon from "@lucide/svelte/icons/hash";
   import TagIcon from "@lucide/svelte/icons/tag";
+  import TextSearchIcon from "@lucide/svelte/icons/text-search";
   import type {
     OmnibarItem,
     OmnibarQueryTarget,
@@ -53,6 +54,7 @@
     "refresh-cw": RefreshCwIcon,
     code: CodeIcon,
     tag: TagIcon,
+    "text-search": TextSearchIcon,
   };
 
   const NOTE_FILTERS: Array<{
