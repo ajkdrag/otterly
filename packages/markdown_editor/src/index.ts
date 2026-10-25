@@ -64,7 +64,6 @@ export {
   patch_block_view_state,
   replace_block_view_states,
   read_block_view_states,
-  reveal_surfaces_at_caret,
   type Block,
   type BlockController,
 } from "./core/block_field.js";
