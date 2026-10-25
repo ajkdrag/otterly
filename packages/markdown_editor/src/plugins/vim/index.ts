@@ -6,7 +6,13 @@ import {
   type StateCommand,
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { CodeMirror, Vim, getCM, vim } from "@replit/codemirror-vim";
+import {
+  CodeMirror,
+  Vim,
+  getCM,
+  vim,
+  type ActionFn,
+} from "@replit/codemirror-vim";
 import {
   get_blocks,
   is_block_rendered,
@@ -316,7 +322,8 @@ function on_a_character(state: EditorState, position: number): number {
 // mode does. Vim on Markdown gives a bare line, but a notes app should give
 // the next bullet. An empty item gets a plain line, because Enter there would
 // end the list. Source mode and text files stay plain, like Vim. The engine
-// prefers this command over newlineAndIndent for o, O and r<CR>.
+// prefers this command over newlineAndIndent for o, O and r<CR>. It runs
+// Enter at the end of the line, so it serves o. O has its own action below.
 CodeMirror.commands.newlineAndIndentContinueComment = (cm: CodeMirror) => {
   const view = cm.cm6;
   const { state } = view;
@@ -332,6 +339,54 @@ CodeMirror.commands.newlineAndIndentContinueComment = (cm: CodeMirror) => {
   }
   CodeMirror.commands.newlineAndIndent(cm);
 };
+
+// The engine runs O as Enter at the end of the previous line, which sees the
+// wrong container: above the first item of "Shopping:\n- milk" there is no
+// list to continue. So on a list, task or quote line, O inserts that line's
+// own marker on a new line above instead. The engine gives us no way to
+// call its action from a wrapper, so this replaces it with a copy that has
+// the extra branch (engine: vim.js, newLineAndEnterInsertMode).
+Vim.defineAction(
+  "newLineAndEnterInsertMode",
+  function (this: { enterInsertMode: ActionFn }, cm, action_args, vim) {
+    if (!(cm instanceof CodeMirror)) return;
+    vim.insertMode = true;
+    const cursor = cm.getCursor();
+    if (!action_args.after && open_marker_line_above(cm.cm6)) {
+      // The new line is there, with the cursor at its end.
+    } else if (!action_args.after && cursor.line === cm.firstLine()) {
+      cm.replaceRange("\n", new CodeMirror.Pos(cm.firstLine(), 0));
+      cm.setCursor(cm.firstLine(), 0);
+    } else {
+      const line = action_args.after ? cursor.line : cursor.line - 1;
+      cm.setCursor(new CodeMirror.Pos(line, cm.getLine(line).length));
+      CodeMirror.commands.newlineAndIndentContinueComment(cm);
+    }
+    this.enterInsertMode(cm, { repeat: action_args.repeat }, vim);
+  },
+);
+
+// Opens a line above the cursor's line with the same list, task or quote
+// marker, and puts the cursor after it. A task starts unchecked. Returns
+// false, and changes nothing, for source mode, an empty item, and a line
+// with only indentation in front of its text.
+function open_marker_line_above(view: EditorView): boolean {
+  const { state } = view;
+  if (!is_rich(state)) return false;
+  const line = state.doc.lineAt(state.selection.main.head);
+  const container = line_container(state, line);
+  const marker = state
+    .sliceDoc(line.from, container.content_from)
+    .replace(/\[[xX]\]/, "[ ]");
+  if (container.blank || marker.trim() === "") return false;
+  view.dispatch({
+    changes: { from: line.from, insert: marker + "\n" },
+    selection: { anchor: line.from + marker.length },
+    userEvent: "input",
+    scrollIntoView: true,
+  });
+  return true;
+}
 
 // j and k ask findPosV where the screen takes the caret, and the engine
 // follows an answer past the target line (that is meant for folded text).

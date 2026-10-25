@@ -924,11 +924,47 @@ describe("o and O", () => {
     expect(view.state.selection.main.head).toBe(expected.length);
   });
 
-  test("VIM-032 o in source mode gives a plain line", () => {
+  test.each([
+    ["- a", "- \n- a", 2],
+    ["Shopping:\n- milk", "Shopping:\n- \n- milk", 12],
+    ["- a\n  - b", "- a\n  - \n  - b", 8],
+    ["- [x] a", "- [ ] \n- [x] a", 6],
+    ["1. a", "1. \n1. a", 3],
+    ["> a", "> \n> a", 2],
+    ["- ", "\n- ", 0],
+    ["plain", "\nplain", 0],
+  ])(
+    "VIM-032 O on the last line of %j opens a line above with the same marker",
+    (source, expected, cursor) => {
+      const view = vim_editor(source);
+      press(view, "G", "O");
+      expect(doc(view)).toBe(expected);
+      expect(view.state.selection.main.head).toBe(cursor);
+    },
+  );
+
+  test("VIM-032 O on a list item is one undo step and . repeats it", () => {
+    const view = vim_editor("- a");
+    press(view, "O");
+    type(view, "x");
+    press(view, "<Esc>");
+    expect(doc(view)).toBe("- x\n- a");
+
+    press(view, "G", ".");
+    expect(doc(view)).toBe("- x\n- x\n- a");
+    press(view, "u");
+    expect(doc(view)).toBe("- x\n- a");
+    press(view, "u");
+    expect(doc(view)).toBe("- a");
+  });
+
+  test("VIM-032 o and O in source mode give a plain line", () => {
     const view = vim_editor("- a");
     set_editor_mode(view, "source");
     press(view, "o");
     expect(doc(view)).toBe("- a\n");
+    press(view, "<Esc>", "O");
+    expect(doc(view)).toBe("- a\n\n");
   });
 });
 
