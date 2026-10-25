@@ -565,6 +565,29 @@ describe("omnibar tag search", () => {
     );
   });
 
+  it("adds the tag for the typed text when Enter comes before the new suggestions", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.suggest_tags.mockImplementation((partial: string) =>
+      Promise.resolve(
+        partial === ""
+          ? [{ tag: "topic434", count: 9 }]
+          : [{ tag: "todo", count: 2 }],
+      ),
+    );
+    await registry.execute(ACTION_IDS.omnibar_open_tags);
+    expect(stores.search.omnibar_items).toMatchObject([{ tag: "topic434" }]);
+
+    const slow = create_deferred<{ tag: string; count: number }[]>();
+    services.tags.suggest_tags.mockReturnValueOnce(slow.promise);
+    const typing = registry.execute(ACTION_IDS.omnibar_set_query, "#todo");
+    await registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion);
+    expect(stores.ui.omnibar.tags).toEqual(["todo"]);
+
+    slow.resolve([{ tag: "todo", count: 2 }]);
+    await typing;
+    expect(stores.search.omnibar_items).toEqual([]);
+  });
+
   it("removes a chip and switches between all and any tags", async () => {
     const { registry, stores, services } = create_omnibar_actions_harness();
     await registry.execute(ACTION_IDS.omnibar_open_tags, {

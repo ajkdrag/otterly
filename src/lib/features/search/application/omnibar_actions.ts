@@ -300,6 +300,27 @@ async function add_tag_chip(
   await run_omnibar_search(input);
 }
 
+// Enter in tag suggestions adds the highlighted tag for the text in the input
+// right now. Type-ahead can get here before the answer for the last keystroke
+// (Cmd+T, "todo", Enter within a few ms): the rows on screen then belong to an
+// older partial, and the first row of the "#" list is not #todo. While a
+// search is in flight we ask the index again and ignore the rows on screen.
+async function add_highlighted_tag_chip(input: ActionRegistrationInput) {
+  const { stores, services } = input;
+  const { query, tags, selected_index, is_searching } = stores.ui.omnibar;
+  const parsed = parse_search_query(query);
+  if (parsed.domain !== "tags") return;
+
+  const rows: Array<{ tag: string }> = is_searching
+    ? await services.tags.suggest_tags(parsed.text, tags, TAG_RESULT_LIMIT)
+    : stores.search.omnibar_items.filter((item) => item.kind === "tag");
+  // More typing, or Esc, while we asked: this Enter is out of date.
+  if (stores.ui.omnibar.query !== query) return;
+
+  const row = rows[Math.min(selected_index, rows.length - 1)];
+  if (row) await add_tag_chip(input, row.tag, parsed.before_tag ?? "");
+}
+
 // Space after an existing tag makes it a chip. The previous query must have
 // been that `#tag` token and the shown suggestions must hold it exactly.
 // Without chips, `#planned ` stays the planned notes search.
@@ -612,6 +633,14 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       const item = arg as OmnibarItem | undefined;
       if (!item) return;
       await confirm_item(input, item);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.omnibar_confirm_tag_suggestion,
+    label: "Confirm Omnibar Tag Suggestion",
+    execute: async () => {
+      await add_highlighted_tag_chip(input);
     },
   });
 

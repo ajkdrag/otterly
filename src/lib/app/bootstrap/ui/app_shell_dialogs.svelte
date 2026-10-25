@@ -355,6 +355,8 @@
     void action_registry.execute(ACTION_IDS.omnibar_set_scope, scope)}
   on_confirm={(item: OmnibarItem) =>
     void action_registry.execute(ACTION_IDS.omnibar_confirm_item, item)}
+  on_confirm_tag_suggestion={() =>
+    void action_registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion)}
   on_remove_tag={(tag: string) =>
     void action_registry.execute(ACTION_IDS.omnibar_remove_tag, tag)}
   on_tag_match_change={(mode: TagMatch) =>

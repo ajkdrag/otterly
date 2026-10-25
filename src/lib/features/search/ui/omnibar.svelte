@@ -95,6 +95,7 @@
     on_selected_index_change: (index: number) => void;
     on_scope_change: (scope: OmnibarScope) => void;
     on_confirm: (item: OmnibarItem) => void;
+    on_confirm_tag_suggestion: () => void;
     on_remove_tag: (tag: string) => void;
     on_tag_match_change: (mode: TagMatch) => void;
     on_open_tags: () => void;
@@ -123,6 +124,7 @@
     on_selected_index_change,
     on_scope_change,
     on_confirm,
+    on_confirm_tag_suggestion,
     on_remove_tag,
     on_tag_match_change,
     on_open_tags,
@@ -544,7 +546,10 @@
         break;
       case "Enter":
         event.preventDefault();
-        if (visible_items[selected_index]) {
+        if (is_tag_suggestions) {
+          // Not the row on screen: it may belong to an older partial.
+          on_confirm_tag_suggestion();
+        } else if (visible_items[selected_index]) {
           on_confirm(visible_items[selected_index]);
         }
         break;
