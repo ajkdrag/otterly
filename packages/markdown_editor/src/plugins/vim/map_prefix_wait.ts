@@ -9,10 +9,10 @@ import { Vim, getCM } from "@replit/codemirror-vim";
 // Vim waits timeoutlen for the next key instead. We do the same:
 //
 //   apply_vimrc registers such a map under an alias for its first key, so
-//   <Space>w becomes <OtterlyPrefix1>w, which nothing else binds.
+//   <Space>w becomes <OtterlyPrefixSpace>w, which nothing else binds.
 //
 //   Vim.handleKey holds a typed Space while a map starts with it:
-//     next key starts one of the maps -> <OtterlyPrefix1>, then the key
+//     next key starts one of the maps -> <OtterlyPrefixSpace>, then the key
 //     next key is anything else       -> Space, then that key
 //     Esc, Ctrl-[ or Ctrl-c           -> nothing, the Space is dropped
 //     timeoutlen passes               -> Space (the built-in, or a map of
@@ -44,6 +44,10 @@ export const modes_without_insert: readonly MapContext[] = [
   "visual",
   "operatorPending",
 ];
+
+function modes_of(context: MapContext): readonly MapContext[] {
+  return context ? [context] : modes_without_insert;
+}
 
 // The one-key commands the engine binds, by the modes where each one runs.
 // This is the one-token part of its defaultKeymap in @replit/codemirror-vim,
@@ -89,45 +93,74 @@ let aliases: { key: string; alias: string; contexts: readonly MapContext[] }[] =
   [];
 let aliased_maps: KeyMap[] = [];
 
+// A map lhs that was renamed, and the modes it was renamed in.
+type RenamedLhs = { context: MapContext; lhs: string; aliased_lhs: string };
+
 // Returns maps ready for the engine: a map that starts with a one-key
 // built-in of its mode gets the alias of that key, and so does the same lhs
-// inside a recursive map's rhs, so "nmap Q <Space>w" still reaches the
-// leader map. Replaces the aliases of the previous call and drops any key
-// that is held right now.
+// inside a recursive map's rhs (in the modes where that lhs was renamed), so
+// "nmap Q <Space>w" still reaches the leader map. Replaces the aliases of the
+// previous call and drops any key that is held right now.
 export function alias_map_prefixes(maps: readonly KeyMap[]): KeyMap[] {
   for (const cm of [...held_keys.keys()]) drop_held_key(cm);
   aliases = [];
-  const renamed = new Map<string, string>();
+  const renamed: RenamedLhs[] = [];
   const result = maps.map((map) => {
     const key = first_key(map.lhs);
     const shadowed_in = built_in_one_key_commands.get(key) ?? [];
-    const covers = map.context ? [map.context] : modes_without_insert;
+    const covers = modes_of(map.context);
     if (key === map.lhs || !covers.some((mode) => shadowed_in.includes(mode)))
       return map;
     let entry = aliases.find((alias) => alias.key === key);
     if (!entry) {
-      // The engine reads <\w+> as one key, so this survives its key regex.
-      entry = {
-        key,
-        alias: `<OtterlyPrefix${String(aliases.length + 1)}>`,
-        contexts: [],
-      };
+      entry = { key, alias: alias_for(key), contexts: [] };
       aliases.push(entry);
     }
     entry.contexts = [...new Set([...entry.contexts, ...covers])];
     const lhs = entry.alias + map.lhs.slice(key.length);
-    renamed.set(map.lhs, lhs);
+    renamed.push({ context: map.context, lhs: map.lhs, aliased_lhs: lhs });
     return { ...map, lhs };
   });
   aliased_maps = result.filter((map) => map.lhs.startsWith("<OtterlyPrefix"));
   return result.map((map) =>
-    map.recursive ? { ...map, rhs: rename_keys(map.rhs, renamed) } : map,
+    map.recursive
+      ? { ...map, rhs: rename_keys(map.rhs, map.context, renamed) }
+      : map,
   );
 }
 
-function rename_keys(rhs: string, renamed: ReadonlyMap<string, string>) {
+// The name comes from the key and nothing else, so it is the same on every
+// reload. A macro recorded with a prefix map holds the alias text, and a
+// position-based name would point at another key after the vimrc changes.
+// Letters and digits stay, every other character becomes _ and its hex code:
+// <Space> is Space, "," is _2c, <C-Space> is C_2dSpace. The engine reads
+// <\w+> as one key, so the alias survives its key regex.
+// @Incomplete: Macro registers still hold the alias spelling. "ap pastes
+// <OtterlyPrefixSpace>d, and @a stops working once the map is gone.
+function alias_for(key: string): string {
+  const spelled = key
+    .replace(/^<(.+)>$/s, "$1")
+    .replace(
+      /[^A-Za-z0-9]/g,
+      (character) => `_${character.charCodeAt(0).toString(16)}`,
+    );
+  return `<OtterlyPrefix${spelled}>`;
+}
+
+// A recursive map runs its rhs in its own modes, so an lhs that was renamed
+// for other modes only is left alone (xmap X <Space>x with a normal-only
+// <Space>x map).
+function rename_keys(
+  rhs: string,
+  context: MapContext,
+  renamed: readonly RenamedLhs[],
+) {
+  const modes = modes_of(context);
   let result = rhs;
-  for (const [lhs, alias] of renamed) result = result.split(lhs).join(alias);
+  for (const { context: renamed_context, lhs, aliased_lhs } of renamed) {
+    if (modes_of(renamed_context).some((mode) => modes.includes(mode)))
+      result = result.split(lhs).join(aliased_lhs);
+  }
   return result;
 }
 

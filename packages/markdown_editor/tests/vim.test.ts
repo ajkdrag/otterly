@@ -728,6 +728,33 @@ describe("map waits", () => {
   });
 });
 
+describe("map waits across reloads and modes", () => {
+  test("VIM-028 a macro that used a leader map still runs after a reload adds another prefix map", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const view = vim_editor("1\n2\n3\n4");
+    const leader_map = 'let mapleader = " "\nnnoremap <leader>d dd';
+    expect(apply_vimrc(leader_map)).toEqual([]);
+    press(view, "q", "a", "<Space>", "d", "q");
+    expect(doc(view)).toBe("2\n3\n4");
+
+    expect(apply_vimrc(`nnoremap ,x x\n${leader_map}`)).toEqual([]);
+    press(view, "@", "a");
+    expect(doc(view)).toBe("3\n4");
+  });
+
+  test("VIM-028 a visual map does not lose a leader key just because a normal map uses the same one", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const view = vim_editor("abcdef ghi");
+    expect(
+      apply_vimrc(
+        'let mapleader = " "\nnnoremap <leader>x dd\nxmap X <leader>x',
+      ),
+    ).toEqual([]);
+    press(view, "v", "X");
+    expect(doc(view)).toBe("cdef ghi");
+  });
+});
+
 describe("clipboard", () => {
   // The engine's clipboard hook is global to the page.
   const original_clipboard = Vim.clipboard;
