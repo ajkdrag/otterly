@@ -50,7 +50,10 @@ export type VaultFindEvent =
 
 export type VaultFindError = {
   kind: "invalid_query" | "invalid_glob" | "failed";
+  // One line, ready to show.
   message: string;
+  // The engine's full message when message is a summary of it.
+  details?: string;
 };
 
 export type VaultFindStartResult =

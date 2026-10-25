@@ -1,4 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
+import { summarize_query_error } from "$lib/features/search/domain/query_error_message";
 import type { VaultFindPort } from "$lib/features/search/ports";
 import type {
   VaultFindError,
@@ -47,8 +48,13 @@ function parse_invalid_input(error: unknown): VaultFindError | null {
     error_message(error),
   );
   if (!found) return null;
-  const kind = found[1] === "invalid_glob" ? "invalid_glob" : "invalid_query";
-  return { kind, message: (found[2] ?? "").trim() };
+  const message = (found[2] ?? "").trim();
+  if (found[1] === "invalid_glob") return { kind: "invalid_glob", message };
+  return {
+    kind: "invalid_query",
+    message: summarize_query_error(message),
+    details: message,
+  };
 }
 
 export function create_vault_find_tauri_adapter(): VaultFindPort {

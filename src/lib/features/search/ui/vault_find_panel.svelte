@@ -405,7 +405,10 @@
       {/if}
 
       {#if query_error}
-        <p class="text-destructive text-xs break-words whitespace-pre-wrap">
+        <p
+          class="text-destructive text-xs break-words"
+          title={query_error.details}
+        >
           {query_error.message}
         </p>
       {/if}
