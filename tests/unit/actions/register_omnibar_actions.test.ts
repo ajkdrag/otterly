@@ -637,6 +637,21 @@ describe("omnibar tag search", () => {
     ]);
   });
 
+  it("flags a failed tagged search instead of showing it as no notes", async () => {
+    const { registry, stores, services } = create_omnibar_actions_harness();
+    services.tags.search_tagged_notes
+      .mockResolvedValueOnce({ status: "failed", error: "ipc down" })
+      .mockResolvedValueOnce(tagged_page(["a"]));
+
+    await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });
+    expect(stores.search.omnibar_items).toEqual([]);
+    expect(stores.search.omnibar_failed).toBe(true);
+
+    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    expect(stores.search.omnibar_items).toHaveLength(1);
+    expect(stores.search.omnibar_failed).toBe(false);
+  });
+
   it("clears the chips for all vaults and on close", async () => {
     const { registry, stores } = create_omnibar_actions_harness();
     await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a"] });

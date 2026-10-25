@@ -87,6 +87,8 @@
     tag_match: TagMatch;
     // The tagged notes search found more than it shows.
     truncated: boolean;
+    // The tagged notes search failed, so an empty list means nothing.
+    failed: boolean;
     is_indexing: boolean;
     on_open_change: (open: boolean) => void;
     on_query_change: (query: string) => void;
@@ -95,6 +97,7 @@
     on_confirm: (item: OmnibarItem) => void;
     on_remove_tag: (tag: string) => void;
     on_tag_match_change: (mode: TagMatch) => void;
+    on_open_tags: () => void;
   };
 
   let {
@@ -113,6 +116,7 @@
     tags,
     tag_match,
     truncated,
+    failed,
     is_indexing,
     on_open_change,
     on_query_change,
@@ -121,6 +125,7 @@
     on_confirm,
     on_remove_tag,
     on_tag_match_change,
+    on_open_tags,
   }: Props = $props();
 
   let input_ref: HTMLInputElement | null = $state(null);
@@ -154,7 +159,10 @@
   const show_note_filters = $derived(
     active_query.domain === "notes" && tags.length === 0,
   );
-  const show_tag_match = $derived(tags.length > 1);
+  // The chips only do something in tag mode and in tag suggestions.
+  const show_tag_match = $derived(
+    tags.length > 1 && (is_tag_mode || is_tag_suggestions),
+  );
 
   // "#a", "#a and #b", "#a, #b and #c".
   const tag_list_label = $derived.by(() => {
@@ -366,6 +374,7 @@
     if (is_searching) return "Searching…";
     if (is_tag_suggestions)
       return `${String(tag_items.length)} ${tag_items.length === 1 ? "tag" : "tags"}`;
+    if (is_tag_mode && failed) return "Couldn't search tagged notes";
     if (is_tag_mode)
       return `${tag_mode_count} ${tagged_note_items.length === 1 ? "note" : "notes"} tagged ${tag_list_label}`;
     if (visible_items.length > 0)
@@ -820,7 +829,9 @@
         </div>
         {#if tagged_note_items.length === 0 && !is_searching}
           <div class="Omnibar__empty" aria-hidden="true">
-            {#if active_query.text}
+            {#if failed}
+              Couldn't search tagged notes. Try again.
+            {:else if active_query.text}
               No tagged notes match "{active_query.text}"
             {:else if tag_match === "all" && tags.length > 1}
               <p>No notes have all of these tags</p>
@@ -1105,7 +1116,7 @@
             ? `Filter by tag (${format_hotkey_for_display(tags_shortcut)})`
             : "Filter by tag"}
           onclick={() => {
-            on_query_change(query.trim() ? `${query.trimEnd()} #` : "#");
+            on_open_tags();
             input_ref?.focus({ preventScroll: true });
           }}
           ><HashIcon class="size-3.5" /><span>Tags</span>{#if tags_shortcut}<kbd

@@ -186,7 +186,11 @@ async function run_omnibar_search(input: ActionRegistrationInput) {
   const result = await fetch_omnibar_items(input, parsed);
   if (omnibar_search_key(input) !== key) return;
 
-  stores.search.set_omnibar_items(result.items, result.truncated);
+  stores.search.set_omnibar_items(
+    result.items,
+    result.truncated,
+    result.failed,
+  );
   set_omnibar_state(input, {
     is_searching: false,
     selected_index: clamp_selected_index(input),
@@ -208,7 +212,7 @@ function omnibar_search_key(input: ActionRegistrationInput): string {
 async function fetch_omnibar_items(
   input: ActionRegistrationInput,
   parsed: SearchQuery,
-): Promise<{ items: OmnibarItem[]; truncated: boolean }> {
+): Promise<{ items: OmnibarItem[]; truncated: boolean; failed: boolean }> {
   const { services } = input;
   const { tags, tag_match, scope } = input.stores.ui.omnibar;
 
@@ -223,43 +227,51 @@ async function fetch_omnibar_items(
       tag: entry.tag,
       count: entry.count,
     }));
-    return { items, truncated: false };
+    return { items, truncated: false, failed: false };
   }
 
   if (tags.length > 0 && parsed.domain === "notes") {
+    // @Incomplete: tag mode ignores the title:/path:/@content prefixes. Only
+    // parsed.text goes to the index, so the text matches every field.
     const result = await services.tags.search_tagged_notes({
       tags,
       match: tag_match,
       text: parsed.text,
       limit: TAG_RESULT_LIMIT,
     });
-    if (result.status !== "ok") return { items: [], truncated: false };
+    if (result.status !== "ok") {
+      return {
+        items: [],
+        truncated: false,
+        failed: result.status === "failed",
+      };
+    }
     return {
       items: result.page.notes.map(tagged_note_item),
       truncated: result.page.truncated,
+      failed: false,
     };
   }
 
   if (scope === "all_vaults" && parsed.domain === "notes") {
     const result = await services.search.search_notes_all_vaults(parsed.raw);
-    return { items: map_cross_vault_items(result), truncated: false };
+    return {
+      items: map_cross_vault_items(result),
+      truncated: false,
+      failed: false,
+    };
   }
 
   const result = await services.search.search_omnibar(parsed.raw);
-  return { items: result.items, truncated: false };
+  return { items: result.items, truncated: false, failed: false };
 }
 
-// The index already ordered these, so the score only keeps that order.
-function tagged_note_item(
-  entry: TaggedNote,
-  index: number,
-  entries: TaggedNote[],
-): OmnibarItem {
+function tagged_note_item(entry: TaggedNote): OmnibarItem {
   const detail = entry.match_detail ?? undefined;
   return {
     kind: "note",
     note: entry.note,
-    score: entries.length - index,
+    score: 0,
     snippet: entry.snippet ?? undefined,
     match_kind: detail && (detail === "content" ? "content" : "file"),
     match_detail: detail,

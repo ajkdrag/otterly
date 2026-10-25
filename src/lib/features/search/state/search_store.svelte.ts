@@ -12,6 +12,8 @@ export class SearchStore {
   omnibar_items = $state<OmnibarItem[]>([]);
   // The tagged notes search found more than it returned.
   omnibar_truncated = $state(false);
+  // The tagged notes search itself failed, which is not the same as no notes.
+  omnibar_failed = $state(false);
   in_file_matches = $state<InFileMatch[]>([]);
   index_progress = $state<IndexProgress>({
     status: "idle",
@@ -57,9 +59,10 @@ export class SearchStore {
     }
   }
 
-  set_omnibar_items(items: OmnibarItem[], truncated = false) {
+  set_omnibar_items(items: OmnibarItem[], truncated = false, failed = false) {
     this.omnibar_items = items;
     this.omnibar_truncated = truncated;
+    this.omnibar_failed = failed;
   }
 
   set_in_file_matches(matches: InFileMatch[]) {
@@ -69,6 +72,7 @@ export class SearchStore {
   clear_omnibar() {
     this.omnibar_items = [];
     this.omnibar_truncated = false;
+    this.omnibar_failed = false;
   }
 
   clear_in_file_matches() {
@@ -78,6 +82,7 @@ export class SearchStore {
   reset() {
     this.omnibar_items = [];
     this.omnibar_truncated = false;
+    this.omnibar_failed = false;
     this.in_file_matches = [];
     this.index_progress = { status: "idle", indexed: 0, total: 0, error: null };
   }
