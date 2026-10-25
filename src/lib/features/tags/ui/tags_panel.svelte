@@ -9,6 +9,7 @@
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import { format_hotkey_for_display } from "$lib/features/hotkey";
+  import { tag_key } from "$lib/features/tags/domain/tag_key";
   import type { TagCount } from "$lib/features/tags/types/tag";
   import TagChip from "$lib/features/tags/ui/tag_chip.svelte";
   import TagExcerpt from "$lib/features/tags/ui/tag_excerpt.svelte";
@@ -51,12 +52,20 @@
   const indexing = $derived(stores.search.index_progress.status === "indexing");
   const open_note_path = $derived(stores.editor.open_note?.meta.path ?? null);
 
-  const filter_query = $derived(
-    filter_text.trim().replace(/^#/, "").toLowerCase(),
-  );
+  // localeCompare with options builds a new collator on every call, which is
+  // about 20x slower than reusing one over thousands of tags. The list sorts
+  // again on every keystroke and every autosave.
+  const tag_name_collator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  // Same identity as the index (NFC + lowercase), because the stored spelling
+  // of a tag can be NFD, for example when it was pasted from a macOS file name.
+  const filter_query = $derived(tag_key(filter_text.trim().replace(/^#/, "")));
   const visible_tags = $derived.by(() => {
     const matching = filter_query
-      ? tags.filter((entry) => entry.tag.toLowerCase().includes(filter_query))
+      ? tags.filter((entry) => tag_key(entry.tag).includes(filter_query))
       : tags;
     return [...matching].sort(sort_mode === "count" ? by_count : by_name);
   });
@@ -69,10 +78,7 @@
   );
 
   function by_name(a: TagCount, b: TagCount): number {
-    return a.tag.localeCompare(b.tag, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
+    return tag_name_collator.compare(a.tag, b.tag);
   }
 
   function by_count(a: TagCount, b: TagCount): number {
@@ -80,11 +86,12 @@
   }
 
   // Splits the tag around the filter match so the match can be bold. Skips
-  // tags whose lowercase form changes length, where indexes would not line up.
+  // tags whose key changes length (NFD, odd lowercase), where indexes would
+  // not line up.
   function split_on_match(tag: string): [string, string, string] {
-    const lower = tag.toLowerCase();
-    const index = filter_query ? lower.indexOf(filter_query) : -1;
-    if (index < 0 || lower.length !== tag.length) return [tag, "", ""];
+    const key = tag_key(tag);
+    const index = filter_query ? key.indexOf(filter_query) : -1;
+    if (index < 0 || key.length !== tag.length) return [tag, "", ""];
     const end = index + filter_query.length;
     return [tag.slice(0, index), tag.slice(index, end), tag.slice(end)];
   }
@@ -358,7 +365,9 @@
     <p
       class="hidden px-3 py-1 text-xs text-muted-foreground group-focus-within:block"
     >
-      ↑↓ Move · ↵ Open · {search_key} Search · Esc Clear
+      ↑↓ Move · ↵ Open · {search_key} Search · Esc {filter_text
+        ? "Clear"
+        : "Back to note"}
     </p>
   {:else}
     <div class="flex flex-col gap-1 px-2 pb-2">
@@ -462,7 +471,7 @@
     <p
       class="hidden px-3 py-1 text-xs text-muted-foreground group-focus-within:block"
     >
-      ↑↓ Move · ↵ Open · Space Preview · Esc Back
+      ↑↓ Move · ↵ Open · Space Preview · {search_key} Search · Esc Back
     </p>
   {/if}
 </div>
