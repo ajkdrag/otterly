@@ -26,6 +26,7 @@ function setup(
   const service = new VimService(
     vimrc_port,
     { apply_vimrc },
+    { set_press_and_hold: () => Promise.resolve() },
     vim_store,
     op_store,
   );

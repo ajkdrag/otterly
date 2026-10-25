@@ -30,6 +30,7 @@ import {
   VimService,
   VimStore,
   register_vim_actions,
+  type PressAndHoldPort,
   type VimEnginePort,
   type VimrcPort,
 } from "$lib/features/vim";
@@ -54,6 +55,7 @@ export type DocumentWindowPorts = {
   editor: EditorPort;
   vimrc: VimrcPort;
   vim_engine: VimEnginePort;
+  press_and_hold: PressAndHoldPort;
 };
 
 export type DocumentWindowContext = ReturnType<
@@ -120,6 +122,7 @@ export function create_document_window_context(input: {
   const vim_service = new VimService(
     input.ports.vimrc,
     input.ports.vim_engine,
+    input.ports.press_and_hold,
     stores.vim,
     stores.op,
   );
@@ -171,6 +174,7 @@ export function create_document_window_context(input: {
     create_vim_mode_reactor(
       stores.ui,
       document_service,
+      vim_service,
       action_registry,
       subscribe_to_window_focus,
     ),

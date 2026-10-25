@@ -40,6 +40,7 @@ import type { LinksService } from "$lib/features/links";
 import type { SearchService, SearchStore } from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
 import type { WatcherService } from "$lib/features/watcher";
+import type { VimService } from "$lib/features/vim";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
 export type ReactorContext = {
@@ -62,6 +63,7 @@ export type ReactorContext = {
   git_service: GitService;
   links_service: LinksService;
   watcher_service: WatcherService;
+  vim_service: VimService;
   action_registry: ActionRegistry;
 };
 
@@ -86,6 +88,7 @@ export function mount_reactors(context: ReactorContext): () => void {
     create_vim_mode_reactor(
       context.ui_store,
       context.editor_service,
+      context.vim_service,
       context.action_registry,
       subscribe_to_window_focus,
     ),

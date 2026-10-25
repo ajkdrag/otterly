@@ -15,6 +15,7 @@ import { create_test_watcher_adapter } from "./test_watcher_adapter";
 import { create_test_updater_adapter } from "./test_updater_adapter";
 import { create_test_vimrc_adapter } from "./test_vimrc_adapter";
 import { create_test_vim_engine_adapter } from "./test_vim_engine_adapter";
+import { create_test_press_and_hold_adapter } from "./test_press_and_hold_adapter";
 
 export function create_test_ports(): Ports {
   const assets = create_test_assets_adapter();
@@ -41,5 +42,6 @@ export function create_test_ports(): Ports {
     updater: create_test_updater_adapter(),
     vimrc: create_test_vimrc_adapter(),
     vim_engine: create_test_vim_engine_adapter(),
+    press_and_hold: create_test_press_and_hold_adapter(),
   };
 }

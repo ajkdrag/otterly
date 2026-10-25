@@ -22,6 +22,9 @@ export type EditorSettings = {
   editor_zoom: number;
   heading_filename_delimiter: HeadingFilenameDelimiter;
   vim_mode_enabled: boolean;
+  // macOS only: while Vim mode is on, a held letter repeats instead of
+  // opening the accent menu.
+  vim_repeat_held_keys: boolean;
 };
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -37,6 +40,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   editor_zoom: 1,
   heading_filename_delimiter: "spaces",
   vim_mode_enabled: false,
+  vim_repeat_held_keys: true,
 };
 
 export const SETTINGS_KEY = "editor" as const;
@@ -50,6 +54,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "editor_zoom",
   "heading_filename_delimiter",
   "vim_mode_enabled",
+  "vim_repeat_held_keys",
 ] as const;
 
 const GLOBAL_ONLY_SET = new Set<string>(GLOBAL_ONLY_SETTING_KEYS);

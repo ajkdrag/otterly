@@ -23,6 +23,9 @@ afterEach(() => {
 async function create_reactor() {
   const ui = new UIStore();
   const target = { set_vim_enabled: vi.fn() };
+  const press_and_hold = {
+    set_press_and_hold: vi.fn((_enabled: boolean) => Promise.resolve()),
+  };
   const load_vimrc = vi.fn();
   const registry = new ActionRegistry();
   registry.register({
@@ -35,17 +38,31 @@ async function create_reactor() {
     for (const listener of focus_listeners) listener();
   };
   cleanups.push(
-    create_vim_mode_reactor(ui, target, registry, (on_focus) => {
-      focus_listeners.add(on_focus);
-      return () => focus_listeners.delete(on_focus);
-    }),
+    create_vim_mode_reactor(
+      ui,
+      target,
+      press_and_hold,
+      registry,
+      (on_focus) => {
+        focus_listeners.add(on_focus);
+        return () => focus_listeners.delete(on_focus);
+      },
+    ),
   );
   await tick();
   const set_vim = async (vim_mode_enabled: boolean) => {
     ui.set_editor_settings({ ...ui.editor_settings, vim_mode_enabled });
     await tick();
   };
-  return { ui, target, load_vimrc, set_vim, focus_window, focus_listeners };
+  return {
+    ui,
+    target,
+    press_and_hold,
+    load_vimrc,
+    set_vim,
+    focus_window,
+    focus_listeners,
+  };
 }
 
 describe("vim_mode reactor", () => {
@@ -79,10 +96,39 @@ describe("vim_mode reactor", () => {
     expect(load_vimrc).toHaveBeenCalledTimes(1);
   });
 
+  it("turns the macOS accent menu off only while Vim mode and Repeat held keys are both on", async () => {
+    const { ui, press_and_hold, set_vim } = await create_reactor();
+    const accent_menu = () =>
+      press_and_hold.set_press_and_hold.mock.lastCall?.[0];
+    expect(accent_menu()).toBe(true);
+
+    await set_vim(true);
+    expect(accent_menu()).toBe(false);
+
+    ui.set_editor_settings({
+      ...ui.editor_settings,
+      vim_repeat_held_keys: false,
+    });
+    await tick();
+    expect(accent_menu()).toBe(true);
+
+    ui.set_editor_settings({
+      ...ui.editor_settings,
+      vim_repeat_held_keys: true,
+    });
+    await tick();
+    expect(accent_menu()).toBe(false);
+
+    await set_vim(false);
+    expect(accent_menu()).toBe(true);
+  });
+
   it("ignores other setting changes, like zoom", async () => {
-    const { ui, target, load_vimrc, set_vim } = await create_reactor();
+    const { ui, target, press_and_hold, load_vimrc, set_vim } =
+      await create_reactor();
     await set_vim(true);
     target.set_vim_enabled.mockClear();
+    press_and_hold.set_press_and_hold.mockClear();
     load_vimrc.mockClear();
 
     ui.set_editor_settings({
@@ -92,6 +138,7 @@ describe("vim_mode reactor", () => {
     await tick();
 
     expect(target.set_vim_enabled).not.toHaveBeenCalled();
+    expect(press_and_hold.set_press_and_hold).not.toHaveBeenCalled();
     expect(load_vimrc).not.toHaveBeenCalled();
   });
 });

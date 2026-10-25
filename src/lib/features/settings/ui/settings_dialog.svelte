@@ -499,6 +499,10 @@
             on_toggle={(enabled: boolean) => {
               update("vim_mode_enabled", enabled);
             }}
+            repeat_held_keys={editor_settings.vim_repeat_held_keys}
+            on_toggle_repeat_held_keys={(repeat: boolean) => {
+              update("vim_repeat_held_keys", repeat);
+            }}
             {on_open_vimrc}
             {on_reload_vimrc}
           />

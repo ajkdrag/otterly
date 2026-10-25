@@ -188,6 +188,7 @@ export function create_app_context(input: {
   const vim_service = new VimService(
     input.ports.vimrc,
     input.ports.vim_engine,
+    input.ports.press_and_hold,
     stores.vim,
     stores.op,
   );
@@ -259,6 +260,7 @@ export function create_app_context(input: {
     git_service,
     links_service,
     watcher_service,
+    vim_service,
     action_registry,
   });
 

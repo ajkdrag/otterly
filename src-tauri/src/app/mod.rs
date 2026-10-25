@@ -135,6 +135,7 @@ pub fn run() {
             features::settings::service::set_setting,
             features::vim::service::read_vimrc,
             features::vim::service::open_vimrc,
+            features::vim::service::set_press_and_hold,
             features::vault_session::service::load_latest_vault_session,
             features::vault_session::service::save_latest_vault_session,
             features::vault_settings::service::get_vault_setting,

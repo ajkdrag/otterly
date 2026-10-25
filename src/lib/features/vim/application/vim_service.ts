@@ -1,5 +1,6 @@
 import type { OpStore } from "$lib/app";
 import type {
+  PressAndHoldPort,
   VimEnginePort,
   VimrcFile,
   VimrcPort,
@@ -25,6 +26,7 @@ export class VimService {
   constructor(
     private readonly vimrc_port: VimrcPort,
     private readonly vim_engine_port: VimEnginePort,
+    private readonly press_and_hold_port: PressAndHoldPort,
     private readonly vim_store: VimStore,
     private readonly op_store: OpStore,
   ) {}
@@ -74,6 +76,18 @@ export class VimService {
       problems,
       problems_changed: !same_problems(previous, problems),
     };
+  }
+
+  // Nothing to tell the user when this fails: held keys just keep opening
+  // the accent menu.
+  async set_press_and_hold(enabled: boolean): Promise<void> {
+    try {
+      await this.press_and_hold_port.set_press_and_hold(enabled);
+    } catch (error) {
+      log.error("Could not set press and hold", {
+        error: error_message(error),
+      });
+    }
   }
 
   async open_vimrc(): Promise<VimrcOpenResult> {

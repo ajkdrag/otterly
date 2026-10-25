@@ -18,3 +18,11 @@ export interface VimEnginePort {
   // Replaces the previous vimrc. Returns the lines that did not apply.
   apply_vimrc: (text: string) => VimrcProblem[];
 }
+
+// macOS opens an accent menu when you hold a letter, instead of repeating
+// the letter. Other platforms ignore this.
+export interface PressAndHoldPort {
+  // false turns the menu off for this app, so held keys repeat. true gives
+  // the system default back.
+  set_press_and_hold: (enabled: boolean) => Promise<void>;
+}

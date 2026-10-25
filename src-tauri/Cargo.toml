@@ -53,3 +53,12 @@ codegen-units = 16
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "~2.4.0"
+
+# Vim mode turns the accent menu for held keys off (vim::set_press_and_hold).
+# Tauri already builds this crate, so only these two classes are new.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "NSString",
+  "NSUserDefaults",
+] }

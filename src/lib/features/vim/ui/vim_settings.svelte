@@ -5,6 +5,7 @@
 
   type Props = {
     enabled: boolean;
+    repeat_held_keys: boolean;
     // null until the first load, which only runs while Vim mode is on or
     // after Reload.
     vimrc: VimrcStatus | null;
@@ -12,19 +13,26 @@
     load_error: string | null;
     is_loading: boolean;
     on_toggle: (enabled: boolean) => void;
+    on_toggle_repeat_held_keys: (repeat: boolean) => void;
     on_open_vimrc: () => void;
     on_reload_vimrc: () => void;
   };
 
   let {
     enabled,
+    repeat_held_keys,
     vimrc,
     load_error,
     is_loading,
     on_toggle,
+    on_toggle_repeat_held_keys,
     on_open_vimrc,
     on_reload_vimrc,
   }: Props = $props();
+
+  // Only macOS opens an accent menu for a held letter.
+  const is_mac =
+    typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 
   const status = $derived.by(() => {
     if (load_error) return `Could not read: ${load_error}`;
@@ -53,6 +61,26 @@
       onCheckedChange={on_toggle}
     />
   </div>
+
+  {#if is_mac}
+    <div class="flex items-center justify-between gap-4 border-b py-4">
+      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span class="text-sm font-medium text-foreground">Repeat held keys</span
+        >
+        <span class="text-xs leading-snug text-muted-foreground"
+          >Holding a letter repeats it, so holding l keeps moving right. This
+          turns off the macOS accent menu in Otterly while Vim mode is on. If
+          held keys still open the menu, restart Otterly.</span
+        >
+      </div>
+      <Switch.Root
+        aria-label="Repeat held keys"
+        checked={repeat_held_keys}
+        disabled={!enabled}
+        onCheckedChange={on_toggle_repeat_held_keys}
+      />
+    </div>
+  {/if}
 
   <div class="flex flex-col gap-3 py-4">
     <div class="flex flex-col gap-0.5">

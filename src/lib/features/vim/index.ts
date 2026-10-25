@@ -4,6 +4,7 @@ export { default as VimModeBadge } from "$lib/features/vim/ui/vim_mode_badge.sve
 export { default as VimSettings } from "$lib/features/vim/ui/vim_settings.svelte";
 export { VimStore } from "$lib/features/vim/state/vim_store.svelte";
 export type {
+  PressAndHoldPort,
   VimEnginePort,
   VimrcFile,
   VimrcPort,
@@ -16,3 +17,4 @@ export type {
 } from "$lib/features/vim/types/vimrc";
 export { create_vimrc_tauri_adapter } from "$lib/features/vim/adapters/vimrc_tauri_adapter";
 export { create_vim_engine_adapter } from "$lib/features/vim/adapters/vim_engine_adapter";
+export { create_press_and_hold_tauri_adapter } from "$lib/features/vim/adapters/press_and_hold_tauri_adapter";

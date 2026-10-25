@@ -334,6 +334,7 @@
       case "git_autocommit_enabled":
       case "show_vault_dashboard_on_open":
       case "vim_mode_enabled":
+      case "vim_repeat_held_keys":
         return settings[key] ? "On" : "Off";
       case "autosave_delay_ms":
         return `${settings.autosave_delay_ms} ms`;

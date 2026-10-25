@@ -91,3 +91,30 @@ pub(crate) fn create_starter_vimrc(path: &Path) -> Result<(), String> {
         Err(error) => Err(error.to_string()),
     }
 }
+
+// macOS opens the accent menu when you hold a letter that has accents (l, e,
+// u, n...), so holding l in Vim's normal mode never moves the cursor.
+// enabled = false turns that off for Otterly alone, in its own defaults
+// domain, like VS Code users do with `defaults write`. true removes our value
+// again, so the system default applies. The value persists, so the next
+// launch has it before any JavaScript runs. Other platforms repeat held keys
+// anyway.
+// @Robustness: I have not verified whether AppKit picks the change up in a
+// running app. Settings says to restart Otterly if held keys still open the
+// menu.
+#[tauri::command]
+pub fn set_press_and_hold(enabled: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSString, NSUserDefaults};
+        let defaults = NSUserDefaults::standardUserDefaults();
+        let key = NSString::from_str("ApplePressAndHoldEnabled");
+        if enabled {
+            defaults.removeObjectForKey(&key);
+        } else {
+            defaults.setBool_forKey(false, &key);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = enabled;
+}
