@@ -90,7 +90,7 @@ export function vim_keybindings(
     status_plugin(options.on_status_change),
     host_commands.of(options),
     // Without a host clipboard the read would be navigator.clipboard's.
-    clipboard ? sync_clipboard_after_copy_or_cut : [],
+    clipboard ? sync_clipboard_on_outside_copy : [],
     vim_theme,
     EditorView.editorAttributes.of({ class: "md-vim" }),
   ];
@@ -131,10 +131,13 @@ export async function sync_clipboard_from_host() {
 
 // Cmd+C and Cmd+X change the clipboard without Vim, so the next p would put
 // an older register. The browser writes the clipboard after these handlers
-// return, hence the timeout.
-const sync_clipboard_after_copy_or_cut = EditorView.domEventHandlers({
+// return, hence the timeout. Focus covers a copy made somewhere else in the
+// app (the omnibar, the find bar, a dialog), which gives focus back to the
+// editor when it closes.
+const sync_clipboard_on_outside_copy = EditorView.domEventHandlers({
   copy: sync_clipboard_soon,
   cut: sync_clipboard_soon,
+  focus: sync_clipboard_soon,
 });
 
 function sync_clipboard_soon() {

@@ -7,6 +7,7 @@ import {
   syntaxTreeAvailable,
 } from "@codemirror/language";
 import {
+  apply_vimrc,
   read_code_block_view_states,
   source_undo,
   source_redo,
@@ -42,6 +43,7 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  apply_vimrc("");
 });
 
 async function open_editor(
@@ -827,6 +829,26 @@ describe("CodeMirror editor port", () => {
       expect(session.get_markdown()).toBe("ofrom outsidene");
     });
     expect(read_clipboard_text).toHaveBeenCalledOnce();
+  });
+
+  it("puts text copied with the code block button into the register under clipboard=unnamed", async () => {
+    const { session, view } = await open_editor(
+      "intro\n\n```js\nconst a = 1\n```",
+    );
+    session.set_vim_enabled(true);
+    expect(apply_vimrc("set clipboard=unnamed")).toEqual([]);
+
+    const copy_button = view.dom.querySelector<HTMLElement>(".md-code-copy");
+    if (!copy_button) throw new Error("Missing copy button");
+    copy_button.click();
+    await vi.waitFor(() => {
+      expect(
+        view.dom.querySelector(".md-code-toolbar [role=status]"),
+      ).toHaveProperty("textContent", "Copied");
+    });
+
+    press_vim_keys(view, "p");
+    expect(session.get_markdown()).toContain("ifrom outsidentro");
   });
 
   it("closes an open Vim / prompt before it shows another buffer", async () => {

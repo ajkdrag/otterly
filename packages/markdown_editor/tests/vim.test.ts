@@ -862,6 +862,12 @@ describe("clipboard", () => {
     await vi.waitFor(() => {
       expect(unnamed_register().toString()).toBe("copied");
     });
+
+    host.text = "copied in the omnibar";
+    view.contentDOM.dispatchEvent(new Event("focus"));
+    await vi.waitFor(() => {
+      expect(unnamed_register().toString()).toBe("copied in the omnibar");
+    });
   });
 });
 

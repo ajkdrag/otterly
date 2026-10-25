@@ -38,6 +38,7 @@ import {
   slash_menu,
   update_find_query,
   close_vim_prompt,
+  sync_clipboard_from_host,
   vim_keybindings,
   wiki_links,
   type CodeBlockViewState,
@@ -116,6 +117,13 @@ const default_code_view: CodeBlockViewState = {
 export function create_codemirror_editor_port(
   options: AdapterOptions,
 ): EditorPort {
+  // The code block copy button and Copy link write the clipboard behind Vim's
+  // back. Under set clipboard=unnamed the next p would put an older register,
+  // so pull the copied text into it.
+  const copy_text_and_sync_vim = async (text: string) => {
+    await options.copy_text(text);
+    await sync_clipboard_from_host().catch(() => {});
+  };
   return {
     start_session(config) {
       const { root, events } = config;
@@ -153,7 +161,7 @@ export function create_codemirror_editor_port(
         callouts(),
         code_blocks({
           languages: code_languages,
-          copy_code: options.copy_text,
+          copy_code: copy_text_and_sync_vim,
           code_extensions: [
             code_block_theme,
             syntaxHighlighting(code_block_highlight),
@@ -166,7 +174,7 @@ export function create_codemirror_editor_port(
         }),
         links({
           open_link,
-          copy_link: options.copy_text,
+          copy_link: copy_text_and_sync_vim,
           edit_key: "Alt-Enter",
         }),
         images({
