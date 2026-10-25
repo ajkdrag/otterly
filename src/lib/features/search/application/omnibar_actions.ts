@@ -11,7 +11,7 @@ import {
   parse_search_query,
   set_search_query_target,
 } from "$lib/features/search/domain/search_query_parser";
-import { tag_key, type TagMatch, type TaggedNote } from "$lib/features/tags";
+import { tag_key, type TaggedNote } from "$lib/features/tags";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -130,7 +130,6 @@ function close_omnibar(input: ActionRegistrationInput) {
     is_searching: false,
     scope: "current_vault",
     tags: [],
-    tag_match: "all",
     return_to_find: false,
   });
   input.stores.search.clear_omnibar();
@@ -234,9 +233,9 @@ function mark_vault_unavailable(
 //   otherwise                   notes, commands, planned notes, as before
 //
 // Every caller goes through here. An answer that comes back after the mode,
-// the query, the chips, the match mode or the scope changed is dropped. Text
-// mode searches through the vault find reactor instead, so chip and match
-// changes there only feed that.
+// the query, the chips or the scope changed is dropped. Text mode searches
+// through the vault find reactor instead, so chip changes there only feed
+// that.
 async function run_omnibar_search(input: ActionRegistrationInput) {
   const { stores, services } = input;
   const omnibar = stores.ui.omnibar;
@@ -274,8 +273,8 @@ async function run_omnibar_search(input: ActionRegistrationInput) {
 }
 
 function omnibar_search_key(input: ActionRegistrationInput): string {
-  const { mode, query, tags, tag_match, scope } = input.stores.ui.omnibar;
-  return JSON.stringify([mode, query, tags, tag_match, scope]);
+  const { mode, query, tags, scope } = input.stores.ui.omnibar;
+  return JSON.stringify([mode, query, tags, scope]);
 }
 
 async function fetch_omnibar_items(
@@ -283,7 +282,7 @@ async function fetch_omnibar_items(
   parsed: SearchQuery,
 ): Promise<{ items: OmnibarItem[]; truncated: boolean; failed: boolean }> {
   const { services } = input;
-  const { tags, tag_match, scope } = input.stores.ui.omnibar;
+  const { tags, scope } = input.stores.ui.omnibar;
 
   if (parsed.domain === "tags") {
     const suggestions = await services.tags.suggest_tags(
@@ -305,7 +304,6 @@ async function fetch_omnibar_items(
     // Files button is the one exception, below.
     const result = await services.tags.search_tagged_notes({
       tags,
-      match: tag_match,
       text: parsed.text,
       limit: TAG_RESULT_LIMIT,
     });
@@ -436,10 +434,6 @@ function read_tags_arg(arg: unknown): string[] {
       unique.push(tag);
   }
   return unique;
-}
-
-function is_tag_match(value: unknown): value is TagMatch {
-  return value === "all" || value === "any";
 }
 
 async function execute_command(
@@ -717,7 +711,6 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
           is_searching: false,
           scope: "current_vault",
           tags,
-          tag_match: "all",
           return_to_find: false,
         });
         stores.search.clear_omnibar();
@@ -781,16 +774,6 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
         ),
         selected_index: 0,
       });
-      await run_omnibar_search(input);
-    },
-  });
-
-  registry.register({
-    id: ACTION_IDS.omnibar_set_tag_match,
-    label: "Set Omnibar Tag Match",
-    execute: async (mode: unknown) => {
-      if (!is_tag_match(mode) || mode === stores.ui.omnibar.tag_match) return;
-      set_omnibar_state(input, { tag_match: mode, selected_index: 0 });
       await run_omnibar_search(input);
     },
   });

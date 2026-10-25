@@ -35,7 +35,7 @@
     replacement: string;
     can_replace: boolean;
     git_enabled: boolean;
-    // "#a and #b" while tag chips narrow the search, "" without chips.
+    // "#a #b" while tag chips narrow the search, "" without chips.
     tag_list_label: string;
     include: string;
     is_indexing: boolean;

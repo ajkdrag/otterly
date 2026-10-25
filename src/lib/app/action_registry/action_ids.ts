@@ -122,7 +122,6 @@ export const ACTION_IDS = {
   omnibar_cancel_cross_vault_open: "omnibar.cancel_cross_vault_open",
   omnibar_open_tags: "omnibar.open_tags",
   omnibar_remove_tag: "omnibar.remove_tag",
-  omnibar_set_tag_match: "omnibar.set_tag_match",
   omnibar_open_find: "omnibar.open_find",
   omnibar_set_target: "omnibar.set_target",
 

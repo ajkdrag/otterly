@@ -55,7 +55,10 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
   let replace_running = false;
 
   function current_request() {
-    return build_vault_find_request(stores.ui.vault_find, stores.ui.omnibar);
+    return build_vault_find_request(
+      stores.ui.vault_find,
+      stores.ui.omnibar.tags,
+    );
   }
 
   // Lowercased, since the tab store compares paths ignoring case.

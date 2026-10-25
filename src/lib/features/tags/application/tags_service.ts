@@ -55,7 +55,6 @@ export class TagsService {
     this.tags_store.start_tagged_notes_load(tag);
     const result = await this.search_tagged_notes({
       tags: [tag],
-      match: "all",
       text: "",
       limit: DRILL_DOWN_LIMIT,
     });

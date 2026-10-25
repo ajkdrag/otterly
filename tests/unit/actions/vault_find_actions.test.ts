@@ -58,7 +58,6 @@ function find_request(text: string) {
     include: "",
     exclude: "",
     tags: [],
-    tag_match: "all" as const,
   };
 }
 

@@ -28,7 +28,6 @@ import type {
   HotkeyOverride,
   HotkeyRecorderState,
 } from "$lib/features/hotkey";
-import type { TagMatch } from "$lib/features/tags";
 import type { VaultFindSelection } from "$lib/features/search";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -92,7 +91,6 @@ const INITIAL_OMNIBAR = {
   scope: "current_vault",
   // Tag filter chips. Replaced, never mutated, so resets can share this array.
   tags: [] as string[],
-  tag_match: "all" as TagMatch,
   // Cmd+T in Text mode opens the tag picker in Notes mode. This sends it back
   // to Text once the `#...` token is done.
   return_to_find: false,
@@ -342,7 +340,6 @@ export class UIStore {
     is_searching: boolean;
     scope: OmnibarScope;
     tags: string[];
-    tag_match: TagMatch;
     return_to_find: boolean;
   }>({ ...INITIAL_OMNIBAR });
 

@@ -52,7 +52,7 @@ export function create_vault_find_reactor(
         return;
       }
 
-      const request = build_vault_find_request(vault_find, omnibar);
+      const request = build_vault_find_request(vault_find, omnibar.tags);
       const key = request
         ? JSON.stringify([vault_id, vault_find_request_key(request)])
         : null;

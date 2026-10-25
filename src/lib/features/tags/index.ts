@@ -10,7 +10,6 @@ export { default as TagExcerpt } from "$lib/features/tags/ui/tag_excerpt.svelte"
 export type { TagsPort } from "$lib/features/tags/ports";
 export type {
   TagCount,
-  TagMatch,
   TagNotePage,
   TagNoteQuery,
   TagNoteSearchResult,

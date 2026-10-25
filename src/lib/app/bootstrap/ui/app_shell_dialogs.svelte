@@ -33,7 +33,6 @@
     OmnibarScope,
     OmnibarTarget,
   } from "$lib/shared/types/search";
-  import type { TagMatch } from "$lib/features/tags";
   import type {
     EditorSettings,
     SettingsCategory,
@@ -359,7 +358,6 @@
   hotkeys_config={stores.ui.hotkeys_config}
   {has_multiple_vaults}
   tags={stores.ui.omnibar.tags}
-  tag_match={stores.ui.omnibar.tag_match}
   truncated={stores.search.omnibar_truncated}
   failed={stores.search.omnibar_failed}
   is_indexing={stores.search.index_progress.status === "indexing"}
@@ -386,8 +384,6 @@
     void action_registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion)}
   on_remove_tag={(tag: string) =>
     void action_registry.execute(ACTION_IDS.omnibar_remove_tag, tag)}
-  on_tag_match_change={(mode: TagMatch) =>
-    void action_registry.execute(ACTION_IDS.omnibar_set_tag_match, mode)}
   on_open_tags={() =>
     void action_registry.execute(ACTION_IDS.omnibar_open_tags)}
   on_target_change={(target: OmnibarTarget) =>

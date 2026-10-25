@@ -485,11 +485,9 @@ describe("omnibar tag search", () => {
       query: "",
       scope: "current_vault",
       tags: ["Work", "home"],
-      tag_match: "all",
     });
     expect(services.tags.search_tagged_notes).toHaveBeenCalledWith({
       tags: ["Work", "home"],
-      match: "all",
       text: "",
       limit: 50,
     });
@@ -554,7 +552,6 @@ describe("omnibar tag search", () => {
     expect(stores.ui.omnibar.query).toBe("kickoff ");
     expect(services.tags.search_tagged_notes).toHaveBeenLastCalledWith({
       tags: ["Project"],
-      match: "all",
       text: "kickoff",
       limit: 50,
     });
@@ -590,16 +587,11 @@ describe("omnibar tag search", () => {
     expect(stores.search.omnibar_items).toEqual([]);
   });
 
-  it("removes a chip and switches between all and any tags", async () => {
+  it("removes a chip and searches again", async () => {
     const { registry, stores, services } = create_omnibar_actions_harness();
     await registry.execute(ACTION_IDS.omnibar_open_tags, {
       tags: ["a", "b"],
     });
-
-    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
-    expect(services.tags.search_tagged_notes).toHaveBeenLastCalledWith(
-      expect.objectContaining({ tags: ["a", "b"], match: "any" }),
-    );
 
     await registry.execute(ACTION_IDS.omnibar_remove_tag, "A");
     expect(stores.ui.omnibar.tags).toEqual(["b"]);
@@ -672,7 +664,7 @@ describe("omnibar tag search", () => {
     expect(stores.search.omnibar_items).toEqual([]);
     expect(stores.search.omnibar_failed).toBe(true);
 
-    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
+    await registry.execute(ACTION_IDS.omnibar_set_query, "a");
     expect(stores.search.omnibar_items).toHaveLength(1);
     expect(stores.search.omnibar_failed).toBe(false);
   });
@@ -684,9 +676,8 @@ describe("omnibar tag search", () => {
     expect(stores.ui.omnibar.tags).toEqual([]);
 
     await registry.execute(ACTION_IDS.omnibar_open_tags, { tags: ["a", "b"] });
-    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
     await registry.execute(ACTION_IDS.omnibar_close);
-    expect(stores.ui.omnibar).toMatchObject({ tags: [], tag_match: "all" });
+    expect(stores.ui.omnibar.tags).toEqual([]);
   });
 });
 
@@ -941,10 +932,9 @@ describe("omnibar Text mode", () => {
     await registry.execute(ACTION_IDS.omnibar_open_find);
     services.tags.search_tagged_notes.mockClear();
 
-    await registry.execute(ACTION_IDS.omnibar_set_tag_match, "any");
     await registry.execute(ACTION_IDS.omnibar_remove_tag, "a");
 
-    expect(stores.ui.omnibar).toMatchObject({ tags: ["b"], tag_match: "any" });
+    expect(stores.ui.omnibar.tags).toEqual(["b"]);
     expect(services.tags.search_tagged_notes).not.toHaveBeenCalled();
   });
 

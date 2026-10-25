@@ -5,7 +5,7 @@ use crate::features::search::db::{
     list_tagged_paths, list_tags, open_search_db, rebuild_index, remove_note,
     remove_notes_by_prefix, rename_folder_paths, rename_note_path, search, search_tagged_notes,
     set_note_tags, set_outlinks, suggest_files, suggest_planned, suggest_tags, sync_index,
-    upsert_note, wiki_link_targets, IndexResult, TagMatch, TagNotePage, TagNoteQuery,
+    upsert_note, wiki_link_targets, IndexResult, TagNotePage, TagNoteQuery,
 };
 use crate::features::search::model::{IndexNoteMeta, SearchScope};
 use crate::features::search::tag_parser::{NoteTag, TAG_PARSER_VERSION};
@@ -417,10 +417,9 @@ fn tag_counts(conn: &Connection) -> Vec<(String, usize)> {
         .collect()
 }
 
-fn tagged_page(conn: &Connection, tags: &[&str], r#match: TagMatch, text: &str) -> TagNotePage {
+fn tagged_page(conn: &Connection, tags: &[&str], text: &str) -> TagNotePage {
     let query = TagNoteQuery {
         tags: tags.iter().map(|tag| tag.to_string()).collect(),
-        r#match,
         text: text.to_string(),
         limit: 50,
     };
@@ -435,7 +434,7 @@ fn page_paths(page: &TagNotePage) -> Vec<&str> {
 }
 
 fn paths_with_tag(conn: &Connection, tag: &str) -> Vec<String> {
-    tagged_page(conn, &[tag], TagMatch::All, "")
+    tagged_page(conn, &[tag], "")
         .notes
         .into_iter()
         .map(|hit| hit.note.path)
@@ -487,7 +486,7 @@ fn sync_indexes_tags_and_counts_them_case_insensitively() {
         tag_counts(&conn),
         vec![("home".to_string(), 1), ("Work".to_string(), 2)]
     );
-    let tagged = tagged_page(&conn, &["WORK"], TagMatch::All, "");
+    let tagged = tagged_page(&conn, &["WORK"], "");
     assert_eq!(page_paths(&tagged), vec!["newer.md", "older.md"]);
     assert_eq!(
         tagged.notes[1].snippet.as_deref(),
@@ -540,7 +539,7 @@ fn tag_counts_skip_rows_whose_note_is_gone() {
     set_note_tags(&conn, "ghost.md", &[note_tag("t")]).expect("tags should be set");
 
     assert_eq!(tag_counts(&conn), vec![("t".to_string(), 1)]);
-    let page = tagged_page(&conn, &["t"], TagMatch::All, "");
+    let page = tagged_page(&conn, &["t"], "");
     assert_eq!(page_paths(&page), vec!["a.md"]);
     assert_eq!(page.total, 1);
 }
@@ -653,7 +652,7 @@ fn index_from_older_tag_parser_rules_is_rebuilt_on_open() {
 }
 
 #[test]
-fn tagged_search_all_needs_every_tag_and_any_needs_one() {
+fn tagged_search_needs_every_tag() {
     let tmp = TempDir::new().expect("temp dir should be created");
     let conn = open_search_db(tmp.path()).expect("db should open");
     add_tagged_notes(
@@ -666,18 +665,14 @@ fn tagged_search_all_needs_every_tag_and_any_needs_one() {
         ],
     );
 
-    let all = tagged_page(&conn, &["x", "y"], TagMatch::All, "");
-    assert_eq!(page_paths(&all), vec!["both.md"]);
-    assert_eq!(all.total, 1);
-
-    let any = tagged_page(&conn, &["x", "y"], TagMatch::Any, "");
-    assert_eq!(page_paths(&any), vec!["only_y.md", "only_x.md", "both.md"]);
-    assert_eq!(any.total, 3);
-    assert!(any.notes.iter().all(|hit| hit.match_detail.is_none()));
+    let page = tagged_page(&conn, &["x", "y"], "");
+    assert_eq!(page_paths(&page), vec!["both.md"]);
+    assert_eq!(page.total, 1);
+    assert!(page.notes[0].match_detail.is_none());
 }
 
 #[test]
-fn tagged_paths_for_vault_find_follow_all_any_and_tag_keys() {
+fn tagged_paths_need_every_tag_and_fold_keys() {
     let tmp = TempDir::new().expect("temp dir should be created");
     let conn = open_search_db(tmp.path()).expect("db should open");
     add_tagged_notes(
@@ -689,26 +684,17 @@ fn tagged_paths_for_vault_find_follow_all_any_and_tag_keys() {
             ("neither.md", "", &["z"]),
         ],
     );
-    let tagged_paths = |tags: &[&str], tag_match: TagMatch| {
+    let tagged_paths = |tags: &[&str]| {
         let tags: Vec<String> = tags.iter().map(|tag| tag.to_string()).collect();
-        let mut paths = list_tagged_paths(&conn, &tags, tag_match).expect("paths should load");
+        let mut paths = list_tagged_paths(&conn, &tags).expect("paths should load");
         paths.sort();
         paths
     };
 
-    assert_eq!(
-        tagged_paths(&["X", "CAF\u{c9}"], TagMatch::All),
-        ["both.md"]
-    );
-    assert_eq!(
-        tagged_paths(&["x", "caf\u{e9}"], TagMatch::Any),
-        ["both.md", "only_cafe.md", "only_x.md"]
-    );
-    assert_eq!(
-        tagged_paths(&["x", "X"], TagMatch::All),
-        ["both.md", "only_x.md"]
-    );
-    assert!(tagged_paths(&[], TagMatch::Any).is_empty());
+    assert_eq!(tagged_paths(&["X", "CAF\u{c9}"]), ["both.md"]);
+    assert_eq!(tagged_paths(&["caf\u{e9}"]), ["both.md", "only_cafe.md"]);
+    assert_eq!(tagged_paths(&["x", "X"]), ["both.md", "only_x.md"]);
+    assert!(tagged_paths(&[]).is_empty());
 }
 
 #[test]
@@ -734,7 +720,7 @@ fn tagged_search_with_text_lists_file_hits_before_content_hits() {
     upsert_note(&conn, &meeting, "kickoff agenda").expect("upsert should succeed");
     set_note_tags(&conn, &meeting.path, &[note_tag("p")]).expect("tags should be set");
 
-    let page = tagged_page(&conn, &["p"], TagMatch::All, "Kickoff");
+    let page = tagged_page(&conn, &["p"], "Kickoff");
     let found: Vec<(&str, Option<&str>)> = page
         .notes
         .iter()
@@ -771,10 +757,10 @@ fn tagged_search_content_hits_need_every_word_in_the_body() {
     upsert_note(&conn, &titled, "start here").expect("upsert should succeed");
     set_note_tags(&conn, "c.md", &[note_tag("p")]).expect("tags should be set");
 
-    let page = tagged_page(&conn, &["p"], TagMatch::All, "start notes");
+    let page = tagged_page(&conn, &["p"], "start notes");
     assert!(page.notes.is_empty());
 
-    let in_body = tagged_page(&conn, &["p"], TagMatch::All, "start here");
+    let in_body = tagged_page(&conn, &["p"], "start here");
     assert_eq!(page_paths(&in_body), vec!["c.md"]);
 }
 
@@ -813,7 +799,6 @@ fn tagged_search_reports_total_and_truncation() {
 
     let query = |limit: usize| TagNoteQuery {
         tags: vec!["t".to_string()],
-        r#match: TagMatch::All,
         text: String::new(),
         limit,
     };
@@ -832,7 +817,6 @@ fn tagged_search_excerpt_comes_from_the_first_tag() {
     let tmp = TempDir::new().expect("temp dir should be created");
     let conn = open_search_db(tmp.path()).expect("db should open");
     upsert_note(&conn, &note_meta("a.md"), "body").expect("upsert should succeed");
-    upsert_note(&conn, &note_meta("b.md"), "body").expect("upsert should succeed");
     let excerpt_tag = |tag: &str, excerpt: &str| NoteTag {
         tag: tag.to_string(),
         excerpt: Some(excerpt.to_string()),
@@ -843,15 +827,9 @@ fn tagged_search_excerpt_comes_from_the_first_tag() {
         &[excerpt_tag("x", "about x"), excerpt_tag("y", "about y")],
     )
     .expect("tags should be set");
-    set_note_tags(&conn, "b.md", &[excerpt_tag("x", "b about x")]).expect("tags should be set");
 
-    let all = tagged_page(&conn, &["y", "x"], TagMatch::All, "");
-    assert_eq!(all.notes[0].snippet.as_deref(), Some("about y"));
-
-    // b.md lacks the first tag, so it shows the excerpt of the one it has.
-    let any = tagged_page(&conn, &["y", "x"], TagMatch::Any, "");
-    let snippets: Vec<Option<&str>> = any.notes.iter().map(|hit| hit.snippet.as_deref()).collect();
-    assert_eq!(snippets, vec![Some("about y"), Some("b about x")]);
+    let page = tagged_page(&conn, &["y", "x"], "");
+    assert_eq!(page.notes[0].snippet.as_deref(), Some("about y"));
 }
 
 #[test]
@@ -864,7 +842,7 @@ fn tagged_search_folds_case_and_unicode_forms() {
         paths_with_tag(&conn, "CAFE\u{301}"),
         vec!["a.md".to_string()]
     );
-    let duplicated = tagged_page(&conn, &["caf\u{e9}", "CAF\u{c9}"], TagMatch::All, "");
+    let duplicated = tagged_page(&conn, &["caf\u{e9}", "CAF\u{c9}"], "");
     assert_eq!(page_paths(&duplicated), vec!["a.md"]);
 }
 

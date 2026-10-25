@@ -33,7 +33,6 @@
   } from "$lib/shared/types/search";
   import type { NoteMeta } from "$lib/shared/types/note";
   import { TagChip, TagExcerpt } from "$lib/features/tags";
-  import type { TagMatch } from "$lib/features/tags";
   import type { CommandIcon as CommandIconType } from "$lib/features/search/types/command_palette";
   import type { EditorSettings } from "$lib/shared/types/editor_settings";
   import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
@@ -121,11 +120,6 @@
     selected_match: VaultFindSelection | null;
   };
 
-  const TAG_MATCH_OPTIONS: Array<{ mode: TagMatch; label: string }> = [
-    { mode: "all", label: "All tags" },
-    { mode: "any", label: "Any tag" },
-  ];
-
   type Props = {
     open: boolean;
     mode: OmnibarMode;
@@ -142,9 +136,8 @@
     editor_settings: EditorSettings;
     hotkeys_config: HotkeyConfig;
     has_multiple_vaults: boolean;
-    // Tag filter chips and how they combine.
+    // Tag filter chips. A note has to carry every one of them.
     tags: string[];
-    tag_match: TagMatch;
     // The tagged notes search found more than it shows.
     truncated: boolean;
     // The tagged notes search failed, so an empty list means nothing.
@@ -161,7 +154,6 @@
     on_confirm: (item: OmnibarItem) => void;
     on_confirm_tag_suggestion: () => void;
     on_remove_tag: (tag: string) => void;
-    on_tag_match_change: (mode: TagMatch) => void;
     on_open_tags: () => void;
     on_target_change: (target: OmnibarTarget) => void;
     // Options, replacement, globs and selection: ephemeral, written straight
@@ -191,7 +183,6 @@
     hotkeys_config,
     has_multiple_vaults,
     tags,
-    tag_match,
     truncated,
     failed,
     is_indexing,
@@ -206,7 +197,6 @@
     on_confirm,
     on_confirm_tag_suggestion,
     on_remove_tag,
-    on_tag_match_change,
     on_open_tags,
     on_target_change,
     on_find_inputs_change,
@@ -262,19 +252,9 @@
   const visible_targets = $derived(
     is_all_vaults ? TARGETS.filter(({ target }) => target !== "text") : TARGETS,
   );
-  // The chips only do something in tag mode, in tag suggestions and in Text
-  // mode.
-  const show_tag_match = $derived(
-    tags.length > 1 && (is_tag_mode || is_tag_suggestions || is_find_mode),
-  );
 
-  // "#a", "#a and #b", "#a, #b and #c".
-  const tag_list_label = $derived.by(() => {
-    const names = tags.map((tag) => `#${tag}`);
-    const last = names.pop();
-    if (names.length === 0) return last ?? "";
-    return `${names.join(", ")} ${tag_match === "all" ? "and" : "or"} ${last}`;
-  });
+  // "#a #b", like the chips.
+  const tag_list_label = $derived(tags.map((tag) => `#${tag}`).join(" "));
   // After a mode switch the old rows stay for one round trip to the index.
   // Each tag state keeps only its own kind, so Enter and the counts never use
   // a leftover row.
@@ -293,7 +273,7 @@
   // rows on screen are stale.
   const find_request_key = $derived.by(() => {
     if (!is_find_mode) return null;
-    const request = build_vault_find_request(find_inputs, { tags, tag_match });
+    const request = build_vault_find_request(find_inputs, tags);
     return request && vault_find_request_key(request);
   });
   const results_request_key = $derived(
@@ -943,15 +923,8 @@
       <div class="Omnibar__field">
         {#if tags.length > 0}
           <div class="contents" role="group" aria-label="Tag filters">
-            {#each tags as tag, index (tag)}
-              <!-- The join word wraps together with the chip after it, so a
-                   line never ends on a lone "and" or "or". -->
+            {#each tags as tag (tag)}
               <span class="Omnibar__chip">
-                {#if index > 0}
-                  <span class="Omnibar__chip-join" aria-hidden="true"
-                    >{tag_match === "all" ? "and" : "or"}</span
-                  >
-                {/if}
                 <TagChip
                   {tag}
                   size="md"
@@ -1015,24 +988,6 @@
               }}
             >
               <Icon class="size-4" />
-            </button>
-          {/each}
-        </div>
-      {/if}
-      {#if show_tag_match}
-        <div class="Omnibar__tag-match" role="group" aria-label="Tag match">
-          {#each TAG_MATCH_OPTIONS as option (option.mode)}
-            <button
-              type="button"
-              class="Omnibar__tag-match-btn"
-              class:Omnibar__tag-match-btn--active={tag_match === option.mode}
-              aria-pressed={tag_match === option.mode}
-              onclick={() => {
-                on_tag_match_change(option.mode);
-                input_ref?.focus({ preventScroll: true });
-              }}
-            >
-              {option.label}
             </button>
           {/each}
         </div>
@@ -1311,9 +1266,6 @@
                 Couldn't search tagged notes. Try again.
               {:else if active_query.text}
                 No tagged notes match "{active_query.text}"
-              {:else if tag_match === "all" && tags.length > 1}
-                <p>No notes have all of these tags</p>
-                <p class="text-xs">Remove a tag with ⌫ or match any tag</p>
               {:else if tags.length === 1}
                 No notes with #{tags[0]}
               {:else}
@@ -1666,7 +1618,7 @@
 
   /* Every item in the search row is one line tall, the TagChip md height.
      The padding makes a one line row 3.5rem tall, with or without chips.
-     The icon, the Match control and the spinner sit on the first line. */
+     The icon, the find options and the spinner sit on the first line. */
   .Omnibar__search {
     --omnibar-line: 1.5rem;
     display: flex;
@@ -1712,12 +1664,6 @@
     gap: var(--space-1-5);
     min-width: 0;
     max-width: 100%;
-  }
-
-  .Omnibar__chip-join {
-    flex-shrink: 0;
-    font-size: var(--text-xs);
-    color: var(--muted-foreground);
   }
 
   /* The replace row lines up under the find row: same padding, same icon
@@ -1770,8 +1716,7 @@
     margin-left: auto;
   }
 
-  .Omnibar__filter-btn,
-  .Omnibar__tag-match-btn {
+  .Omnibar__filter-btn {
     display: inline-flex;
     align-items: center;
     font-size: var(--text-xs);
@@ -1796,31 +1741,6 @@
   .Omnibar__filter-btn--active {
     background-color: var(--interactive-bg);
     color: var(--interactive);
-  }
-
-  /* A segmented control one line tall. Neutral colors on purpose: the
-     filter strip's active button has the same tint as the chips and would
-     read as one more chip. */
-  .Omnibar__tag-match {
-    display: flex;
-    flex-shrink: 0;
-    height: var(--omnibar-line);
-    padding: var(--space-0-5);
-    border-radius: var(--radius-md);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .Omnibar__tag-match-btn {
-    padding-inline: var(--space-2);
-  }
-
-  .Omnibar__tag-match-btn:hover {
-    color: var(--foreground);
-  }
-
-  .Omnibar__tag-match-btn--active {
-    background-color: var(--muted);
-    color: var(--foreground);
   }
 
   .Omnibar__toolbar {
@@ -2113,7 +2033,6 @@
   }
 
   .Omnibar__filter-btn:focus-visible,
-  .Omnibar__tag-match-btn:focus-visible,
   .Omnibar__scope-hint:focus-visible,
   .Omnibar__commands:focus-visible,
   .Omnibar__item:focus-visible {

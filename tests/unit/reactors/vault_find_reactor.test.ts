@@ -92,7 +92,7 @@ describe("vault find reactor", () => {
     await open_omnibar(ui, "find");
     service.search.mockClear();
 
-    ui.omnibar = { ...ui.omnibar, tags: ["a", "b"], tag_match: "any" };
+    ui.omnibar = { ...ui.omnibar, tags: ["a", "b"] };
     await tick();
     await vi.advanceTimersByTimeAsync(200);
 
@@ -100,7 +100,6 @@ describe("vault find reactor", () => {
       expect.objectContaining({
         text: "foo",
         tags: ["a", "b"],
-        tag_match: "any",
       }),
     );
   });
