@@ -66,6 +66,16 @@
       "index": ["lazy"]
     },
     {
+      "name": "list continuation line",
+      "markdown": "- item\n  #cont",
+      "index": ["cont"]
+    },
+    {
+      "name": "lazy list continuation line",
+      "markdown": "- item\n#lazy",
+      "index": ["lazy"]
+    },
+    {
       "name": "hash inside a word",
       "markdown": "foo#bar and C# code",
       "index": []
@@ -124,6 +134,28 @@
       "name": "tag after a url",
       "markdown": "https://a.com/ #real",
       "index": ["real"]
+    },
+    {
+      "name": "tag after a url and a no-break or ideographic space",
+      "markdown": "http://e.com/ #x and www.a.com/p　#メモ",
+      "index": ["x", "メモ"]
+    },
+    {
+      "name": "tag after a url and a next line character",
+      "markdown": "http://e.com/\u0085#x",
+      "index": []
+    },
+    {
+      "name": "link text with an ideographic space",
+      "markdown": "[メモ　#x](http://e.com/) <http://e.com/>　#y",
+      "index": ["y"]
+    },
+    {
+      "name": "tag glued to an autolink",
+      "markdown": "#éhttp://e.com/ and #a_www.a.com/ and #n@e.co",
+      "index": ["é", "a"],
+      "editor": ["éhttp", "a_www", "n"],
+      "note": "@Incomplete: comrak starts an autolink inside the tag body, or eats it for an email address. Lezer's tag parser has already taken the word, so the editor draws it as a tag"
     },
     {
       "name": "links, images and wiki links",
@@ -188,6 +220,11 @@
       "index": []
     },
     {
+      "name": "hash entity at the start",
+      "markdown": "&#35;x and a&#35;y",
+      "index": []
+    },
+    {
       "name": "nbsp entity",
       "markdown": "a &nbsp;#x",
       "index": []
@@ -226,6 +263,16 @@
       "name": "emoji ends a tag",
       "markdown": "#party🎉 #ok #🎉",
       "index": ["party", "ok"]
+    },
+    {
+      "name": "keycap emoji is only marks",
+      "markdown": "#\ufe0f\u20e3 and see #\ufe0f\u20e3 now",
+      "index": []
+    },
+    {
+      "name": "astral letters",
+      "markdown": "#𠮷野家 #𝒜bc ok",
+      "index": ["𠮷野家", "𝒜bc"]
     },
     {
       "name": "separators only",
@@ -308,6 +355,11 @@
       "name": "unicode whitespace",
       "markdown": "a\u00a0#nbsp b\u3000#ideo c\t#tab",
       "index": ["nbsp", "ideo", "tab"]
+    },
+    {
+      "name": "zero width no break space is not whitespace",
+      "markdown": "a\ufeff#x",
+      "index": []
     },
     {
       "name": "byte order mark",

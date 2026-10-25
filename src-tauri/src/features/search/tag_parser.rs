@@ -149,6 +149,11 @@ fn collect_inline_text<'a>(
                 plain.push(' ');
                 scan.push(HIDDEN);
             }
+            // A bare URL ends at a Unicode space, like in the editor. comrak
+            // only stops at ASCII whitespace, so it would swallow `\u{a0}#x`.
+            NodeValue::Link(_) if source.is_bare_url(data.sourcepos) => {
+                push_bare_url(&nested_plain_text(child), plain, scan)
+            }
             // Do not descend: `[#x](url)`, `[[note#h]]` and `https://a.com/#f`
             // are not tags. `\#x` is Escaped("#") followed by Text("x").
             NodeValue::Link(_)
@@ -226,6 +231,13 @@ impl<'a> NoteSource<'a> {
         }
     }
 
+    // Links written with `[` or `<` have their own syntax. What is left is an
+    // autolink: `http://`, `www.` or an email address.
+    fn is_bare_url(&self, pos: Sourcepos) -> bool {
+        self.slice(pos)
+            .is_some_and(|text| !text.starts_with(['[', '<']))
+    }
+
     // comrak lines and columns are 1-based, columns count bytes, and the end
     // is inclusive. Nodes comrak made up have 0:0, which gives None.
     fn slice(&self, pos: Sourcepos) -> Option<&'a str> {
@@ -234,6 +246,25 @@ impl<'a> NoteSource<'a> {
         let end = line_start(pos.end.line)? + pos.end.column;
         self.markdown.get(start..end)
     }
+}
+
+// The URL part is hidden, whatever comrak glued on after a Unicode space is
+// ordinary text again.
+fn push_bare_url(text: &str, plain: &mut Vec<char>, scan: &mut Vec<char>) {
+    let url_len = text.find(ends_bare_url).unwrap_or(text.len());
+    push_hidden(&text[..url_len], plain, scan);
+    for ch in text[url_len..].chars() {
+        plain.push(ch);
+        scan.push(ch);
+    }
+}
+
+// Lezer ends a URL at JS `\s`. Next to comrak's ASCII whitespace that adds
+// every Unicode space except U+0085, which neither of them stops at. (U+FEFF
+// is in `\s` too, but R2 does not count it as whitespace, so a `#` after it
+// is no tag either way.)
+fn ends_bare_url(ch: char) -> bool {
+    ch.is_whitespace() && ch != '\u{85}'
 }
 
 fn push_hidden(text: &str, plain: &mut Vec<char>, scan: &mut Vec<char>) {
