@@ -72,6 +72,9 @@ export function use_keyboard_shortcuts(input: {
     return Number(event.key) - 1;
   };
 
+  const is_inside_vim_editor = (event: KeyboardEvent): boolean =>
+    (event.target as Element | null)?.closest?.(".md-vim") != null;
+
   // On macOS the app's hotkeys are Cmd keys, but normalize_event_to_key also
   // reads Ctrl as CmdOrCtrl. Ctrl+F, Ctrl+O, Ctrl+W and the like are Vim keys
   // inside the Vim editor, so Ctrl goes to Vim there. On Windows and Linux
@@ -82,9 +85,6 @@ export function use_keyboard_shortcuts(input: {
       return false;
     return is_inside_vim_editor(event);
   };
-
-  const is_inside_vim_editor = (event: KeyboardEvent): boolean =>
-    (event.target as Element | null)?.closest?.(".md-vim") != null;
 
   // Ctrl-[ is Esc in Vim. Outside the editor (the omnibar, a dialog, the find
   // bar) nothing handles it, so we turn it into the Escape those widgets

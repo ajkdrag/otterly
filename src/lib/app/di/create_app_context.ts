@@ -66,8 +66,8 @@ export function create_app_context(input: {
           note_path,
           image,
         }),
-      // :w and :wq. :wq on a draft opens the save dialog and the tab stays
-      // open after you save, because there is no close step to hang on it.
+      // :w and :wq. :wq on a draft opens the save dialog, and the tab stays
+      // open after you save it.
       on_save_request: () =>
         action_registry.execute(ACTION_IDS.note_request_save),
       // :q never discards. The tab asks first when it has unsaved changes.
