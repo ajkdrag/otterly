@@ -199,6 +199,9 @@ export class UIStore {
 
   sidebar_open = $state(true);
   sidebar_view = $state<SidebarView>("explorer");
+  // tags.show_pane asks the Tags pane to take focus. The pane clears this once
+  // it moved focus, so a later remount does not steal it.
+  tags_pane_focus_pending = $state(false);
   selected_folder_path = $state("");
   filetree_revealed_note_path = $state("");
   selected_items = $state(new SvelteSet<string>());
@@ -508,6 +511,7 @@ export class UIStore {
     this.rename_folder_dialog = { ...INITIAL_RENAME_FOLDER_DIALOG };
     this.settings_dialog = initial_settings_dialog(this.editor_settings);
     this.omnibar = { ...INITIAL_OMNIBAR };
+    this.tags_pane_focus_pending = false;
     this.find_in_file = { ...INITIAL_FIND_IN_FILE };
     this.filetree = initial_filetree();
     this.filetree_scoped_root_path = null;

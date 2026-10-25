@@ -184,6 +184,8 @@ export const ACTION_IDS = {
   tags_open_tag: "tags.open_tag",
   tags_close_tag: "tags.close_tag",
   tags_open_note: "tags.open_note",
+  tags_show_pane: "tags.show_pane",
+  tags_leave_pane: "tags.leave_pane",
 
   document_editor_mount: "document.editor_mount",
   document_editor_unmount: "document.editor_unmount",

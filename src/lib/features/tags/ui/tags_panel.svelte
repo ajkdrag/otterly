@@ -1,40 +1,69 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import ArrowDownAZIcon from "@lucide/svelte/icons/arrow-down-a-z";
   import ArrowDownWideNarrowIcon from "@lucide/svelte/icons/arrow-down-wide-narrow";
   import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
+  import SearchIcon from "@lucide/svelte/icons/search";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
+  import { format_hotkey_for_display } from "$lib/features/hotkey";
   import type { TagCount } from "$lib/features/tags/types/tag";
+  import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
 
   const { stores, action_registry } = use_app_context();
 
-  // Filter and sort live here, not in a store. The panel stays mounted while
-  // the sidebar shows tags, so they survive opening a tag and going back.
+  // The list renders at most this many rows, with a count row under them.
+  // Typing narrows a bigger list, and a bounded list is simpler than a
+  // virtual one.
+  const MAX_TAG_ROWS = 500;
+  const search_key = format_hotkey_for_display("CmdOrCtrl+↵");
+
+  // Filter, sort and the keyboard rows live here, not in a store. The panel
+  // stays mounted while the sidebar shows tags, so they survive opening a tag
+  // and going back.
   let filter_text = $state("");
   let sort_mode = $state<"count" | "name">("count");
   const sort_toggle_label = $derived(
     sort_mode === "count" ? "Sort by name" : "Sort by count",
   );
 
+  // Focus stays in the filter input (list) or on the notes listbox
+  // (drill-down). The active row is an active descendant of either.
+  let active_tag_index = $state(0);
+  let active_note_index = $state(0);
+  // After entering a tag, put the active row on the open note once the notes
+  // arrive.
+  let pick_open_note_row = $state(false);
+  let filter_input: HTMLInputElement | null = $state(null);
+  let notes_listbox: HTMLElement | null = $state(null);
+
   const tags = $derived(stores.tags.tags);
   const tags_status = $derived(stores.tags.tags_status);
   const selected_tag = $derived(stores.tags.selected_tag);
   const tagged_notes = $derived(stores.tags.tagged_notes);
+  const tagged_notes_total = $derived(stores.tags.tagged_notes_total);
   const tagged_notes_status = $derived(stores.tags.tagged_notes_status);
   const indexing = $derived(stores.search.index_progress.status === "indexing");
   const open_note_path = $derived(stores.editor.open_note?.meta.path ?? null);
 
-  // @Speed: The list is plain, not virtualized. Virtualize it if a vault with
-  // thousands of tags feels slow.
+  const filter_query = $derived(
+    filter_text.trim().replace(/^#/, "").toLowerCase(),
+  );
   const visible_tags = $derived.by(() => {
-    const query = filter_text.trim().replace(/^#/, "").toLowerCase();
-    const matching = query
-      ? tags.filter((entry) => entry.tag.toLowerCase().includes(query))
+    const matching = filter_query
+      ? tags.filter((entry) => entry.tag.toLowerCase().includes(filter_query))
       : tags;
     return [...matching].sort(sort_mode === "count" ? by_count : by_name);
   });
+  const shown_tags = $derived(visible_tags.slice(0, MAX_TAG_ROWS));
+  const tag_row = $derived(
+    Math.max(0, Math.min(active_tag_index, shown_tags.length - 1)),
+  );
+  const note_row = $derived(
+    Math.max(0, Math.min(active_note_index, tagged_notes.length - 1)),
+  );
 
   function by_name(a: TagCount, b: TagCount): number {
     return a.tag.localeCompare(b.tag, undefined, {
@@ -47,35 +76,177 @@
     return b.count - a.count || by_name(a, b);
   }
 
+  // Splits the tag around the filter match so the match can be bold. Skips
+  // tags whose lowercase form changes length, where indexes would not line up.
+  function split_on_match(tag: string): [string, string, string] {
+    const lower = tag.toLowerCase();
+    const index = filter_query ? lower.indexOf(filter_query) : -1;
+    if (index < 0 || lower.length !== tag.length) return [tag, "", ""];
+    const end = index + filter_query.length;
+    return [tag.slice(0, index), tag.slice(index, end), tag.slice(end)];
+  }
+
   function parent_folder(path: string): string {
     const slash = path.lastIndexOf("/");
     return slash === -1 ? "" : path.slice(0, slash);
   }
 
-  function open_tag(tag: string) {
-    void action_registry.execute(ACTION_IDS.tags_open_tag, tag);
+  function arrow_step(event: KeyboardEvent): 1 | -1 | null {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+      return null;
+    if (event.key === "ArrowDown") return 1;
+    if (event.key === "ArrowUp") return -1;
+    return null;
   }
 
-  function close_tag() {
+  function is_mod_enter(event: KeyboardEvent): boolean {
+    return event.key === "Enter" && (event.metaKey || event.ctrlKey);
+  }
+
+  function scroll_row_into_view(id: string) {
+    void tick().then(() => {
+      document.getElementById(id)?.scrollIntoView?.({ block: "nearest" });
+    });
+  }
+
+  function enter_tag(tag: string) {
+    active_note_index = 0;
+    pick_open_note_row = true;
+    void action_registry.execute(ACTION_IDS.tags_open_tag, tag);
+    void tick().then(() => notes_listbox?.focus());
+  }
+
+  function leave_tag() {
+    const tag = selected_tag;
     void action_registry.execute(ACTION_IDS.tags_close_tag);
+    active_tag_index = Math.max(
+      0,
+      shown_tags.findIndex((entry) => entry.tag === tag),
+    );
+    scroll_row_into_view(`tags-pane-tag-${String(active_tag_index)}`);
+    void tick().then(() => filter_input?.focus());
+  }
+
+  function search_tag(tag: string) {
+    void action_registry.execute(ACTION_IDS.omnibar_open_tags, {
+      tags: [tag],
+    });
   }
 
   function open_note(path: string) {
     void action_registry.execute(ACTION_IDS.tags_open_note, path);
   }
+
+  function on_filter_keydown(event: KeyboardEvent) {
+    if (event.isComposing) return;
+    const step = picker_shortcut_step(event) ?? arrow_step(event);
+    if (step !== null) {
+      event.preventDefault();
+      active_tag_index = Math.max(
+        0,
+        Math.min(tag_row + step, shown_tags.length - 1),
+      );
+      scroll_row_into_view(`tags-pane-tag-${String(active_tag_index)}`);
+      return;
+    }
+    if (event.key === "Enter") {
+      const entry = shown_tags[tag_row];
+      if (!entry) return;
+      event.preventDefault();
+      if (is_mod_enter(event)) search_tag(entry.tag);
+      else enter_tag(entry.tag);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (filter_text) {
+        filter_text = "";
+        active_tag_index = 0;
+      } else {
+        void action_registry.execute(ACTION_IDS.tags_leave_pane);
+      }
+    }
+  }
+
+  async function on_notes_keydown(event: KeyboardEvent) {
+    if (event.isComposing || selected_tag === null) return;
+    const step = picker_shortcut_step(event) ?? arrow_step(event);
+    const last = tagged_notes.length - 1;
+    let next_row: number | null = null;
+    if (step !== null) next_row = Math.max(0, Math.min(note_row + step, last));
+    if (event.key === "Home") next_row = 0;
+    if (event.key === "End") next_row = Math.max(0, last);
+    if (next_row !== null) {
+      event.preventDefault();
+      active_note_index = next_row;
+      scroll_row_into_view(`tags-pane-note-${String(next_row)}`);
+      return;
+    }
+
+    if (event.key === "Escape" || event.key === "Backspace") {
+      event.preventDefault();
+      leave_tag();
+      return;
+    }
+    if (is_mod_enter(event)) {
+      event.preventDefault();
+      search_tag(selected_tag);
+      return;
+    }
+    const entry = tagged_notes[note_row];
+    if (!entry) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      await action_registry.execute(ACTION_IDS.tags_open_note, entry.note.path);
+      void action_registry.execute(ACTION_IDS.tags_leave_pane);
+      return;
+    }
+    // Space previews: the note opens and the list keeps focus.
+    if (event.key === " ") {
+      event.preventDefault();
+      await action_registry.execute(ACTION_IDS.tags_open_note, entry.note.path);
+      notes_listbox?.focus();
+    }
+  }
+
+  // The flag means "move focus into the pane now". It is one shot, so the pane
+  // mounting again later does not steal focus.
+  $effect(() => {
+    if (!stores.ui.tags_pane_focus_pending) return;
+    const target = selected_tag === null ? filter_input : notes_listbox;
+    if (!target) return;
+    target.focus();
+    stores.ui.tags_pane_focus_pending = false;
+  });
+
+  $effect(() => {
+    if (!pick_open_note_row || tagged_notes_status !== "ready") return;
+    active_note_index = Math.max(
+      0,
+      tagged_notes.findIndex((entry) => entry.note.path === open_note_path),
+    );
+    pick_open_note_row = false;
+  });
 </script>
 
-<div class="flex h-full min-h-0 flex-col">
+<div class="group flex h-full min-h-0 flex-col">
   {#if selected_tag === null}
     <div class="flex items-center gap-1 px-2 pb-2">
       <Input
+        bind:ref={filter_input}
         bind:value={filter_text}
         placeholder="Filter tags…"
         aria-label="Filter tags"
+        role="combobox"
+        aria-expanded={shown_tags.length > 0}
+        aria-controls="tags-pane-list"
+        aria-activedescendant={shown_tags[tag_row]
+          ? `tags-pane-tag-${String(tag_row)}`
+          : undefined}
+        data-picker-keys
         class="h-8"
-        onkeydown={(event) => {
-          if (event.key === "Escape") filter_text = "";
-        }}
+        oninput={() => (active_tag_index = 0)}
+        onkeydown={on_filter_keydown}
       />
       <Button
         variant="ghost"
@@ -95,93 +266,170 @@
     <div class="min-h-0 flex-1 overflow-y-auto px-1">
       {#if tags_status === "error"}
         <p class="px-2 py-1 text-xs text-destructive">
-          {stores.tags.tags_error ?? "Could not load tags"}
+          Couldn't load tags. Use Refresh to try again.
         </p>
       {:else if tags.length === 0}
         {#if indexing}
-          <p class="px-2 py-1 text-xs text-muted-foreground">Indexing…</p>
+          <p class="px-2 py-1 text-xs text-muted-foreground">Indexing notes…</p>
         {:else if tags_status === "ready"}
-          <p class="px-2 py-1 text-xs text-muted-foreground">
-            No tags yet. Type #tag in a note.
-          </p>
+          <div class="px-2 py-1 text-xs text-muted-foreground">
+            <p class="font-medium text-foreground">No tags yet</p>
+            <p>Type #tag in any note to tag it.</p>
+          </div>
         {/if}
       {:else if visible_tags.length === 0}
-        <p class="px-2 py-1 text-xs text-muted-foreground">No tags match</p>
+        <div class="px-2 py-1 text-xs text-muted-foreground">
+          <p>No tags match "{filter_text.trim()}"</p>
+          <p>Esc clears the filter</p>
+        </div>
       {:else}
-        {#each visible_tags as entry (entry.tag)}
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-            onclick={() => open_tag(entry.tag)}
-          >
-            <span class="min-w-0 flex-1 truncate">#{entry.tag}</span>
-            <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {entry.count}
-            </span>
-          </button>
-        {/each}
+        <div id="tags-pane-list" role="listbox" aria-label="Tags">
+          {#each shown_tags as entry, index (entry.tag)}
+            {@const [before, match, after] = split_on_match(entry.tag)}
+            <button
+              id={`tags-pane-tag-${String(index)}`}
+              type="button"
+              role="option"
+              tabindex="-1"
+              aria-selected={index === tag_row}
+              class={[
+                "flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                index === tag_row &&
+                  "group-focus-within:bg-sidebar-accent group-focus-within:text-sidebar-accent-foreground",
+              ]}
+              onclick={() => enter_tag(entry.tag)}
+            >
+              <span class="min-w-0 flex-1 truncate"
+                ><span class="text-muted-foreground">#</span>{before}<span
+                  class="font-semibold">{match}</span
+                >{after}</span
+              >
+              <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {entry.count}
+              </span>
+            </button>
+          {/each}
+        </div>
+        {#if visible_tags.length > MAX_TAG_ROWS}
+          <p class="px-2 py-1 text-xs text-muted-foreground">
+            Showing {MAX_TAG_ROWS} of {visible_tags.length.toLocaleString()} tags.
+            Type to filter.
+          </p>
+        {/if}
       {/if}
     </div>
+    <p
+      class="hidden px-3 py-1 text-xs text-muted-foreground group-focus-within:block"
+    >
+      ↑↓ Move · ↵ Open · {search_key} Search · Esc Clear
+    </p>
   {:else}
     <div class="flex flex-col gap-1 px-2 pb-2">
       <Button
         variant="ghost"
         size="sm"
         class="h-7 self-start px-2 text-muted-foreground"
-        onclick={close_tag}
+        onclick={leave_tag}
       >
         <ArrowLeftIcon />
         All tags
       </Button>
-      <p class="truncate px-1 text-sm font-medium">
-        #{selected_tag}
+      <div class="flex min-w-0 items-center gap-2 px-1">
+        <!-- @Incomplete: TagChip (size sm, static) replaces this label. -->
+        <span
+          class="min-w-0 truncate text-sm font-medium"
+          title={`#${selected_tag}`}>#{selected_tag}</span
+        >
         {#if tagged_notes_status === "ready"}
-          <span class="font-normal text-muted-foreground">
-            · {tagged_notes.length}
-            {tagged_notes.length === 1 ? "note" : "notes"}
+          <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {tagged_notes_total.toLocaleString()}
+            {tagged_notes_total === 1 ? "note" : "notes"}
           </span>
         {/if}
-      </p>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="ml-auto shrink-0"
+          aria-label={`Search within #${selected_tag}`}
+          title={`Search within #${selected_tag} (${search_key})`}
+          onclick={() => {
+            if (selected_tag !== null) search_tag(selected_tag);
+          }}
+        >
+          <SearchIcon />
+        </Button>
+      </div>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-1">
       {#if tagged_notes_status === "error"}
         <p class="px-2 py-1 text-xs text-destructive">
-          Could not load notes with #{selected_tag}
+          Couldn't load notes with #{selected_tag}
         </p>
-      {:else if tagged_notes_status === "ready" && tagged_notes.length === 0}
+      {:else if tagged_notes.length === 0}
         <p class="px-2 py-1 text-xs text-muted-foreground">
-          No notes with #{selected_tag}
+          {tagged_notes_status === "ready"
+            ? `No notes with #${selected_tag}`
+            : "Loading…"}
         </p>
       {:else}
-        {#each tagged_notes as entry (entry.note.path)}
-          {@const folder = parent_folder(entry.note.path)}
-          {@const is_open = entry.note.path === open_note_path}
-          <button
-            type="button"
-            class={[
-              "flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground",
-              is_open && "bg-accent text-accent-foreground",
-            ]}
-            aria-current={is_open ? "true" : undefined}
-            onclick={() => open_note(entry.note.path)}
-          >
-            <span class="truncate text-sm">
-              {entry.note.title || entry.note.name}
-            </span>
-            {#if folder}
-              <span class="truncate text-xs text-muted-foreground">
-                {folder}
+        <div
+          bind:this={notes_listbox}
+          role="listbox"
+          tabindex="0"
+          aria-label={`Notes tagged #${selected_tag}`}
+          aria-activedescendant={`tags-pane-note-${String(note_row)}`}
+          data-picker-keys
+          class="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onkeydown={on_notes_keydown}
+        >
+          {#each tagged_notes as entry, index (entry.note.path)}
+            {@const folder = parent_folder(entry.note.path)}
+            {@const is_open = entry.note.path === open_note_path}
+            <button
+              id={`tags-pane-note-${String(index)}`}
+              type="button"
+              role="option"
+              tabindex="-1"
+              aria-selected={index === note_row}
+              aria-current={is_open ? "true" : undefined}
+              class={[
+                "flex w-full flex-col gap-0.5 rounded-sm border-l-2 border-transparent px-2 py-1.5 text-left hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                is_open && "border-interactive",
+                index === note_row &&
+                  "group-focus-within:bg-sidebar-accent group-focus-within:text-sidebar-accent-foreground",
+              ]}
+              onclick={() => open_note(entry.note.path)}
+            >
+              <span class="truncate text-sm">
+                {entry.note.title || entry.note.name}
               </span>
-            {/if}
-            {#if entry.snippet}
-              <span class="line-clamp-2 text-xs text-muted-foreground">
-                {entry.snippet}
-              </span>
-            {/if}
-          </button>
-        {/each}
+              {#if folder}
+                <span class="truncate text-xs text-muted-foreground">
+                  {folder}
+                </span>
+              {/if}
+              {#if entry.snippet}
+                <!-- @Incomplete: TagExcerpt replaces this, to draw #tag in the tag color. -->
+                <span class="line-clamp-2 text-xs text-muted-foreground">
+                  {entry.snippet}
+                </span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+        {#if tagged_notes_total > tagged_notes.length}
+          <p class="px-2 py-1 text-xs text-muted-foreground">
+            Showing {tagged_notes.length.toLocaleString()} of {tagged_notes_total.toLocaleString()}
+            notes. Search within #{selected_tag} to narrow it down.
+          </p>
+        {/if}
       {/if}
     </div>
+    <p
+      class="hidden px-3 py-1 text-xs text-muted-foreground group-focus-within:block"
+    >
+      ↑↓ Move · ↵ Open · Space Preview · Esc Back
+    </p>
   {/if}
 </div>

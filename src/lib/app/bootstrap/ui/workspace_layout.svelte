@@ -396,7 +396,7 @@
             void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
             return;
           }
-          void action_registry.execute(ACTION_IDS.ui_set_sidebar_view, "tags");
+          void action_registry.execute(ACTION_IDS.tags_show_pane);
         }}
         on_open_dashboard={() => {
           if (
