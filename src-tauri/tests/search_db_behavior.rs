@@ -674,6 +674,48 @@ fn tagged_search_with_text_lists_file_hits_before_content_hits() {
     assert!(!page.truncated);
 }
 
+// FTS5 applies a `body :` filter to the phrase right after it only, so a
+// second word that sits in the title must not make a content hit.
+#[test]
+fn tagged_search_content_hits_need_every_word_in_the_body() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    let titled = IndexNoteMeta {
+        title: "Notes".to_string(),
+        ..note_meta("c.md")
+    };
+    upsert_note(&conn, &titled, "start here").expect("upsert should succeed");
+    set_note_tags(&conn, "c.md", &[note_tag("p")]).expect("tags should be set");
+
+    let page = tagged_page(&conn, &["p"], TagMatch::All, "start notes");
+    assert!(page.notes.is_empty());
+
+    let in_body = tagged_page(&conn, &["p"], TagMatch::All, "start here");
+    assert_eq!(page_paths(&in_body), vec!["c.md"]);
+}
+
+#[test]
+fn scoped_search_needs_every_word_in_the_scoped_column() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    let titled = IndexNoteMeta {
+        title: "Notes".to_string(),
+        ..note_meta("c.md")
+    };
+    upsert_note(&conn, &titled, "start here").expect("upsert should succeed");
+    let other = IndexNoteMeta {
+        title: "Start".to_string(),
+        ..note_meta("d.md")
+    };
+    upsert_note(&conn, &other, "notes here").expect("upsert should succeed");
+
+    // Each note has one word in its title and the other in its body.
+    for scope in [SearchScope::Content, SearchScope::Title] {
+        let hits = search(&conn, "start notes", scope, 10).expect("search should succeed");
+        assert!(hits.is_empty());
+    }
+}
+
 #[test]
 fn tagged_search_reports_total_and_truncation() {
     let tmp = TempDir::new().expect("temp dir should be created");

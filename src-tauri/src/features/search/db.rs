@@ -789,12 +789,14 @@ pub fn search(
         return Ok(Vec::new());
     }
 
+    // The parentheses matter: a column filter without them only covers the
+    // first phrase, and the other words could match in any column.
     let escaped = escape_fts_query(trimmed);
     let match_expr = match scope {
         SearchScope::All => escaped,
-        SearchScope::Title => format!("title : {escaped}"),
-        SearchScope::Path => format!("path : {escaped}"),
-        SearchScope::Content => format!("body : {escaped}"),
+        SearchScope::Title => format!("title : ({escaped})"),
+        SearchScope::Path => format!("path : ({escaped})"),
+        SearchScope::Content => format!("body : ({escaped})"),
     };
 
     let sql = "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,
@@ -1173,7 +1175,8 @@ pub fn search_tagged_notes(conn: &Connection, query: &TagNoteQuery) -> Result<Ta
          ORDER BY bm25(notes_fts)
          LIMIT {limit_plus_one}"
     );
-    let match_expr = format!("body : {}", escape_fts_query(text));
+    // Parenthesized, so every word has to be in the body (see `search`).
+    let match_expr = format!("body : ({})", escape_fts_query(text));
     let content_params: Vec<&str> = [&[match_expr.as_str()], keys.as_slice()].concat();
     let content_hits = query_tag_note_hits(conn, &content_sql, &content_params, Some("content"))?;
     notes.extend(
