@@ -12,12 +12,14 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-// The theme file is theme.yaml or theme.json next to settings.json. The
-// frontend parses and validates it. This side reads, creates, watches and
+// The theme file is theme.yaml, theme.yml or theme.json next to settings.json.
+// The frontend parses and validates it. This side reads, creates, watches and
 // opens it. No command takes a path: they all act on that one folder.
 
 const YAML_FILE_NAME: &str = "theme.yaml";
-const JSON_FILE_NAME: &str = "theme.json";
+// theme.yml is as common as theme.yaml. Ignoring it means a person or agent
+// who writes it sees nothing happen and has no hint why.
+const THEME_FILE_NAMES: [&str; 3] = [YAML_FILE_NAME, "theme.yml", "theme.json"];
 const SCHEMA_FILE_NAME: &str = "theme.schema.json";
 const MAX_THEME_FILE_BYTES: u64 = 256 * 1024;
 const THEME_FILE_CHANGED_EVENT: &str = "theme_file_changed";
@@ -61,8 +63,8 @@ pub struct ThemeFileSnapshot {
     pub path: String,
     // None when there is no theme file or it can't be read.
     pub text: Option<String>,
-    // Why the file can't be read: both names exist, it is over the size limit
-    // or it is not UTF-8.
+    // Why the file can't be read: more than one theme file exists, it is over
+    // the size limit or it is not UTF-8.
     pub error: Option<String>,
 }
 
@@ -75,11 +77,12 @@ pub fn read_theme_file(app: AppHandle) -> Result<ThemeFileSnapshot, String> {
 
 pub fn read_theme_file_snapshot(dir: &Path) -> ThemeFileSnapshot {
     let picked = pick_theme_file(dir);
-    // With both names, theme.yaml is one of the two files that exist.
-    let path = match &picked {
-        Ok(Some(file)) => file.clone(),
-        _ => dir.join(YAML_FILE_NAME),
-    };
+    // With several files the path is the first one, so it still names a file
+    // that exists.
+    let path = existing_theme_files(dir)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| dir.join(YAML_FILE_NAME));
     // An editor that deletes and rewrites the file can land between the pick
     // and the read, which comes back as no text and no error. The next change
     // event reads it again.
@@ -137,8 +140,8 @@ pub fn open_theme_file(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn reveal_theme_file(app: AppHandle) -> Result<(), String> {
     let dir = theme_file_dir(&app)?;
-    // With both names or none there is no one file to select. Show the folder
-    // instead, which is where the person fixes that.
+    // With several files or none there is no one file to select. Show the
+    // folder instead, which is where the person fixes that.
     match pick_theme_file(&dir) {
         Ok(Some(path)) => app
             .opener()
@@ -211,17 +214,29 @@ pub fn start_theme_file_watcher(
     Ok(watcher)
 }
 
-// Both names at once is an error instead of a precedence rule. Someone (or an
-// agent) editing the losing file would otherwise see nothing happen.
+// Two theme files at once is an error instead of a precedence rule. Someone
+// (or an agent) editing the losing file would otherwise see nothing happen.
 pub fn pick_theme_file(dir: &Path) -> Result<Option<PathBuf>, String> {
-    let yaml = dir.join(YAML_FILE_NAME);
-    let json = dir.join(JSON_FILE_NAME);
-    match (yaml.is_file(), json.is_file()) {
-        (true, true) => Err("Found both theme.yaml and theme.json. Delete one.".to_string()),
-        (true, false) => Ok(Some(yaml)),
-        (false, true) => Ok(Some(json)),
-        (false, false) => Ok(None),
+    let mut found = existing_theme_files(dir);
+    if found.len() > 1 {
+        let names: Vec<_> = found
+            .iter()
+            .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+            .collect();
+        return Err(format!(
+            "Found more than one theme file ({}). Delete all but one.",
+            names.join(", ")
+        ));
     }
+    Ok(found.pop())
+}
+
+fn existing_theme_files(dir: &Path) -> Vec<PathBuf> {
+    THEME_FILE_NAMES
+        .iter()
+        .map(|name| dir.join(name))
+        .filter(|path| path.is_file())
+        .collect()
 }
 
 fn existing_theme_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -288,11 +303,16 @@ pub fn is_theme_file_change(event: &notify::Event) -> bool {
     !is_read && !is_metadata_only && event.paths.iter().any(|path| is_theme_file(path))
 }
 
+// Ignores case because macOS and Windows do. Theme.yaml loads as theme.yaml
+// there, but its events carry the name as it was typed.
 fn is_theme_file(path: &Path) -> bool {
-    matches!(
-        path.file_name().and_then(OsStr::to_str),
-        Some(YAML_FILE_NAME | JSON_FILE_NAME)
-    )
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|name| {
+            THEME_FILE_NAMES
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(name))
+        })
 }
 
 // Saving often takes several events (truncate, write, rename), and an agent

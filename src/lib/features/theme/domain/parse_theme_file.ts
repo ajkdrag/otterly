@@ -20,9 +20,9 @@ import {
 } from "$lib/features/theme/domain/theme_style_descriptors";
 import { error_message } from "$lib/shared/utils/error_message";
 
-// Reads theme.yaml or theme.json. JSON is valid YAML, so one parser reads
-// both. Every key is optional. The theme is the built-in named in `extends`
-// with the file's fields and tokens on top:
+// Reads theme.yaml, theme.yml or theme.json. JSON is valid YAML, so one parser
+// reads all three. Every key is optional. The theme is the built-in named in
+// `extends` with the file's fields and tokens on top:
 //
 //   extends: nordic-light
 //   font_size: 1.05

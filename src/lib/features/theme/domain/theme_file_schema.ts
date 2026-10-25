@@ -56,7 +56,7 @@ export function build_theme_file_schema(): JsonSchema {
     $schema: "http://json-schema.org/draft-07/schema#",
     title: "Otterly theme file",
     description: [
-      "Otterly theme file: theme.yaml or theme.json in the same folder as this schema.",
+      "Otterly theme file: theme.yaml, theme.yml or theme.json in the same folder as this schema.",
       "Otterly reloads it on every save and switches to it, so changes show right away.",
       'Every key is optional. Keys you leave out come from the built-in theme in "extends".',
       '"tokens" sets raw CSS custom properties and wins over every other key.',

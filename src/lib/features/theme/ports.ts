@@ -1,5 +1,5 @@
-// The theme file is theme.yaml or theme.json next to settings.json. No call
-// takes a path: the backend knows the one folder.
+// The theme file is theme.yaml, theme.yml or theme.json next to settings.json.
+// No call takes a path: the backend knows the one folder.
 
 export type ThemeFileSnapshot = {
   // The existing file, or where theme.yaml goes when there is none. Set even
@@ -7,7 +7,8 @@ export type ThemeFileSnapshot = {
   path: string;
   // null when there is no theme file or it can't be read.
   text: string | null;
-  // Why the file can't be read: both names exist, over 256 KB, or not UTF-8.
+  // Why the file can't be read: more than one theme file, over 256 KB, or not
+  // UTF-8.
   error: string | null;
 };
 

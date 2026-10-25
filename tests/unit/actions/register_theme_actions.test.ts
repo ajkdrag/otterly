@@ -278,7 +278,7 @@ describe("register_theme_actions", () => {
           {
             line: null,
             key: null,
-            message: "Found both theme.yaml and theme.json.",
+            message: "Found more than one theme file (theme.yaml, theme.json).",
           },
         ],
       });

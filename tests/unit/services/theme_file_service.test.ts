@@ -130,7 +130,8 @@ describe("ThemeService theme file", () => {
 
   it("keeps the path when the backend says the file can't be read", async () => {
     const { service, port, op_store } = create_harness();
-    port._snapshot.error = "Found both theme.yaml and theme.json. Delete one.";
+    port._snapshot.error =
+      "Found more than one theme file (theme.yaml, theme.json). Delete all but one.";
 
     const state = await service.load_theme_file();
 
@@ -142,12 +143,13 @@ describe("ThemeService theme file", () => {
         {
           line: null,
           key: null,
-          message: "Found both theme.yaml and theme.json. Delete one.",
+          message:
+            "Found more than one theme file (theme.yaml, theme.json). Delete all but one.",
         },
       ],
     });
     expect(op_store.get("theme.file_load").error).toBe(
-      "Found both theme.yaml and theme.json. Delete one.",
+      "Found more than one theme file (theme.yaml, theme.json). Delete all but one.",
     );
   });
 

@@ -270,7 +270,7 @@ export function register_theme_actions(input: ThemeActionInput): void {
       if (await services.theme.open_theme_file()) return;
 
       // Some systems have no default app for .yaml (macOS says so and fails),
-      // and with both theme.yaml and theme.json there is no one file to open.
+      // and with more than one theme file there is no one file to open.
       // The file manager lets the person pick an app or fix the folder.
       const revealed = await services.theme.reveal_theme_file();
       toast.error(

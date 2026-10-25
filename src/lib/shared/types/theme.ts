@@ -254,8 +254,9 @@ export const BUILTIN_THEMES: readonly Theme[] = [
 
 export const DEFAULT_THEME_ID = BUILTIN_MOCHA.id;
 
-// The theme built from theme.yaml (or theme.json) next to settings.json. It
-// sits in the theme list under this id, read-only like a built-in.
+// The theme built from theme.yaml (or theme.yml, theme.json) next to
+// settings.json. It sits in the theme list under this id, read-only like a
+// built-in.
 export const FILE_THEME_ID = "file";
 
 export type ThemeFileError = {

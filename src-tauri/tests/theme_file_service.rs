@@ -43,6 +43,26 @@ fn picks_theme_json() {
 }
 
 #[test]
+fn picks_theme_yml() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yml"), "font_size: 1.1").unwrap();
+
+    assert_eq!(
+        pick_theme_file(dir.path()),
+        Ok(Some(dir.path().join("theme.yml")))
+    );
+}
+
+#[test]
+fn yaml_and_yml_at_once_is_an_error() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("theme.yaml"), "").unwrap();
+    std::fs::write(dir.path().join("theme.yml"), "").unwrap();
+
+    assert!(pick_theme_file(dir.path()).is_err());
+}
+
+#[test]
 fn both_names_at_once_is_an_error() {
     let dir = TempDir::new().unwrap();
     std::fs::write(dir.path().join("theme.yaml"), "").unwrap();
@@ -179,6 +199,17 @@ fn rename_over_theme_yaml_is_a_change() {
     );
 
     assert!(is_theme_file_change(&rename));
+}
+
+#[test]
+fn theme_yml_and_a_differently_cased_name_are_changes() {
+    // macOS and Windows ignore case, so Theme.yaml loads as theme.yaml and
+    // its events carry the name as it was typed.
+    let yml = event(EventKind::Create(CreateKind::File), &["theme.yml"]);
+    let capitalized = event(EventKind::Create(CreateKind::File), &["Theme.yaml"]);
+
+    assert!(is_theme_file_change(&yml));
+    assert!(is_theme_file_change(&capitalized));
 }
 
 #[test]

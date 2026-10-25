@@ -1,6 +1,6 @@
 # Theme file
 
-You can restyle Otterly by editing one file, `theme.yaml` (or `theme.json`). Otterly reloads it every time you save, so you see the change right away. It is meant for coding agents as much as for people: tell the agent where the file is, point it at `theme.schema.json`, and let it iterate.
+You can restyle Otterly by editing one file, `theme.yaml` (`theme.yml` and `theme.json` work too). Otterly reloads it every time you save, so you see the change right away. It is meant for coding agents as much as for people: tell the agent where the file is, point it at `theme.schema.json`, and let it iterate.
 
 ## Where it lives
 
@@ -14,7 +14,8 @@ The file sits next to `settings.json`, in the app config folder. Themes are glob
 
 In that folder:
 
-- `theme.yaml` or `theme.json`: yours. Same keys in both. Having both is an error, so nobody edits a file that gets ignored. Settings > Theme still shows the path in that case, and Reveal opens the folder so you can delete one.
+- `theme.yaml`, `theme.yml` or `theme.json`: yours. Same keys in all three. Having more than one is an error, so nobody edits a file that gets ignored. Settings > Theme still shows the path in that case, and Reveal opens the folder so you can delete one.
+- Other names are not read, and Otterly says nothing about them. `Theme.yaml` works where the file system ignores case (macOS, Windows). `theme.yaml.bak` and similar backup names do not.
 - `theme.schema.json`: written by Otterly at startup. Don't edit it, point your editor or agent at it.
 
 Dev builds and release builds use the same folder.
@@ -155,7 +156,7 @@ line 4: comments like // and /* */ are not allowed. Remove it, or write the file
 line 1: extends must be one of mocha, nordic-light, nordic-dark (got "my-theme")
 line 1: the file must be a mapping of keys to values, like font_size: 1.1
 line 3: the file must be one YAML document, so a second "---" is not allowed. Remove this line
-Found both theme.yaml and theme.json. Delete one.
+Found more than one theme file (theme.yaml, theme.json). Delete all but one.
 theme.yaml is 300 KB. The limit is 256 KB.
 theme.yaml can't be read: Permission denied (os error 13)
 ```
