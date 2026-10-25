@@ -11,7 +11,6 @@ export class TagsStore {
   // deep proxies over thousands of rows cost time on every reload.
   tags = $state.raw<TagCount[]>([]);
   tags_status = $state<TagsLoadStatus>("idle");
-  tags_error = $state<string | null>(null);
 
   selected_tag = $state<string | null>(null);
   tagged_notes = $state.raw<TaggedNote[]>([]);
@@ -33,13 +32,11 @@ export class TagsStore {
   set_tags(tags: TagCount[]) {
     this.tags = tags;
     this.tags_status = "ready";
-    this.tags_error = null;
   }
 
-  set_tags_error(error: string) {
+  set_tags_error() {
     this.tags = [];
     this.tags_status = "error";
-    this.tags_error = error;
   }
 
   // Same rule as the tag list: reloading the selected tag keeps its notes
@@ -95,7 +92,6 @@ export class TagsStore {
   clear_vault_tags() {
     this.tags = [];
     this.tags_status = "idle";
-    this.tags_error = null;
     this.clear_selected_tag();
   }
 }

@@ -558,8 +558,6 @@ describe("omnibar tag search", () => {
     });
 
     await registry.execute(ACTION_IDS.omnibar_set_query, "kickoff #proj");
-    await registry.execute(ACTION_IDS.omnibar_add_tag, "PROJECT");
-    expect(stores.ui.omnibar.tags).toEqual(["Project"]);
     expect(services.tags.suggest_tags).toHaveBeenLastCalledWith(
       "proj",
       ["Project"],

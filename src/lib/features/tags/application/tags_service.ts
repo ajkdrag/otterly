@@ -43,9 +43,8 @@ export class TagsService {
       this.tags_store.set_tags(tags);
     } catch (error) {
       if (revision !== this.tags_revision) return;
-      const message = error_message(error);
-      log.error("Failed to load tags", { error: message });
-      this.tags_store.set_tags_error(message);
+      log.error("Failed to load tags", { error: error_message(error) });
+      this.tags_store.set_tags_error();
     }
   }
 

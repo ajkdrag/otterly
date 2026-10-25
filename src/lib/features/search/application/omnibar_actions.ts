@@ -568,19 +568,6 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
   });
 
   registry.register({
-    id: ACTION_IDS.omnibar_add_tag,
-    label: "Add Omnibar Tag Filter",
-    execute: async (tag: unknown) => {
-      if (typeof tag !== "string" || !tag) return;
-      const { query } = stores.ui.omnibar;
-      const parsed = parse_search_query(query);
-      const before_tag =
-        parsed.domain === "tags" ? (parsed.before_tag ?? "") : query.trimEnd();
-      await add_tag_chip(input, tag, before_tag);
-    },
-  });
-
-  registry.register({
     id: ACTION_IDS.omnibar_remove_tag,
     label: "Remove Omnibar Tag Filter",
     execute: async (tag: unknown) => {
