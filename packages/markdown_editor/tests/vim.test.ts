@@ -511,12 +511,19 @@ describe("keys around Vim", () => {
 
   test("VIM-023 keys Vim does not bind never edit the note in normal mode", () => {
     const was_mac = CodeMirror.isMac;
-    CodeMirror.isMac = true;
-    try {
-      const source = "- a\n  - b c d";
+    const source = "- a\n  - b c d";
+    function expect_keys_leave_note_alone(keys: string[]) {
       const view = vim_editor(source);
       press(view, "2", "G", "w");
-      for (const key of [
+      for (const key of keys) {
+        expect(keydown(view, key).defaultPrevented, key).toBe(true);
+        expect(doc(view), key).toBe(source);
+      }
+    }
+    try {
+      // Ctrl keys are Vim's on macOS, which has Cmd for the app.
+      CodeMirror.isMac = true;
+      expect_keys_leave_note_alone([
         "<C-k>",
         "<C-h>",
         "<C-t>",
@@ -527,10 +534,15 @@ describe("keys around Vim", () => {
         "<A-Del>",
         "<S-CR>",
         "<M-CR>",
-      ]) {
-        expect(keydown(view, key).defaultPrevented, key).toBe(true);
-        expect(doc(view), key).toBe(source);
-      }
+        "<A-Up>",
+        "<A-Down>",
+        "<S-A-Up>",
+        "<S-A-Down>",
+        "<S-A-A>",
+      ]);
+      // CodeMirror's Mod is Ctrl in jsdom. These stand for Cmd on a Mac.
+      CodeMirror.isMac = false;
+      expect_keys_leave_note_alone(["<C-]>", "<C-A-\\>", "<C-S-k>", "<C-/>"]);
     } finally {
       CodeMirror.isMac = was_mac;
     }
