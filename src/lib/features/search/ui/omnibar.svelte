@@ -163,8 +163,17 @@
     if (names.length === 0) return last ?? "";
     return `${names.join(", ")} ${tag_match === "all" ? "and" : "or"} ${last}`;
   });
+  // After a mode switch the old rows stay for one round trip to the index.
+  // Each tag state keeps only its own kind, so Enter and the counts never use
+  // a leftover row.
+  const tag_items = $derived(items.filter((item) => item.kind === "tag"));
+  const tagged_note_items = $derived(
+    items.filter((item) => item.kind === "note"),
+  );
   const tag_mode_count = $derived(
-    truncated ? `${String(items.length)}+` : String(items.length),
+    truncated
+      ? `${String(tagged_note_items.length)}+`
+      : String(tagged_note_items.length),
   );
 
   type VaultGroup = {
@@ -314,13 +323,15 @@
   });
 
   const visible_items = $derived(
-    is_tag_suggestions || is_tag_mode
-      ? items
-      : is_all_vaults && has_query
-        ? vault_groups.flatMap((group) => group.items)
-        : query_sections.length > 0
-          ? query_sections.flatMap((section) => section.items)
-          : display_items,
+    is_tag_suggestions
+      ? tag_items
+      : is_tag_mode
+        ? tagged_note_items
+        : is_all_vaults && has_query
+          ? vault_groups.flatMap((group) => group.items)
+          : query_sections.length > 0
+            ? query_sections.flatMap((section) => section.items)
+            : display_items,
   );
 
   $effect(() => {
@@ -354,9 +365,9 @@
   const status_text = $derived.by(() => {
     if (is_searching) return "Searching…";
     if (is_tag_suggestions)
-      return `${String(items.length)} ${items.length === 1 ? "tag" : "tags"}`;
+      return `${String(tag_items.length)} ${tag_items.length === 1 ? "tag" : "tags"}`;
     if (is_tag_mode)
-      return `${tag_mode_count} ${items.length === 1 ? "note" : "notes"} tagged ${tag_list_label}`;
+      return `${tag_mode_count} ${tagged_note_items.length === 1 ? "note" : "notes"} tagged ${tag_list_label}`;
     if (visible_items.length > 0)
       return `${String(visible_items.length)} results`;
     if (is_all_vaults && !has_query) return "Type to search across all vaults";
@@ -711,7 +722,7 @@
       }}
     >
       {#if is_tag_suggestions}
-        {#if items.length > 0}
+        {#if tag_items.length > 0}
           <div
             role="group"
             aria-label={active_query.text ? "Tags" : "Top tags"}
@@ -720,37 +731,35 @@
               <HashIcon />
               <span>{active_query.text ? "Tags" : "Top tags"}</span>
             </div>
-            {#each items as item, index (get_item_id(item))}
-              {#if item.kind === "tag"}
-                <button
-                  id={get_item_id(item)}
-                  role="option"
-                  tabindex="-1"
-                  aria-selected={index === selected_index}
-                  class="Omnibar__item"
-                  class:Omnibar__item--selected={index === selected_index}
-                  onmouseenter={() => {
-                    if (!mouse_moved) return;
-                    on_selected_index_change(index);
-                  }}
-                  onclick={() => {
-                    on_confirm(item);
-                    input_ref?.focus({ preventScroll: true });
-                  }}
-                >
-                  <div class="Omnibar__item-row">
-                    <TagIcon />
-                    <span class="Omnibar__item-title text-sm font-medium"
-                      ><span class="text-muted-foreground">#</span
-                      >{item.tag}</span
-                    >
-                    <span
-                      class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
-                      >{item.count}</span
-                    >
-                  </div>
-                </button>
-              {/if}
+            {#each tag_items as item, index (get_item_id(item))}
+              <button
+                id={get_item_id(item)}
+                role="option"
+                tabindex="-1"
+                aria-selected={index === selected_index}
+                class="Omnibar__item"
+                class:Omnibar__item--selected={index === selected_index}
+                onmouseenter={() => {
+                  if (!mouse_moved) return;
+                  on_selected_index_change(index);
+                }}
+                onclick={() => {
+                  on_confirm(item);
+                  input_ref?.focus({ preventScroll: true });
+                }}
+              >
+                <div class="Omnibar__item-row">
+                  <TagIcon />
+                  <span class="Omnibar__item-title text-sm font-medium"
+                    ><span class="text-muted-foreground">#</span
+                    >{item.tag}</span
+                  >
+                  <span
+                    class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                    >{item.count}</span
+                  >
+                </div>
+              </button>
             {/each}
           </div>
         {:else if !is_searching}
@@ -770,49 +779,46 @@
           <div class="Omnibar__header" role="presentation">
             <HashIcon />
             <span class="min-w-0 truncate">Notes tagged {tag_list_label}</span>
-            {#if items.length > 0}
+            {#if tagged_note_items.length > 0}
               <span class="ml-auto shrink-0 tabular-nums">{tag_mode_count}</span
               >
             {/if}
           </div>
-          {#each items as item, index (get_item_id(item))}
-            {#if item.kind === "note"}
-              <button
-                id={get_item_id(item)}
-                role="option"
-                tabindex="-1"
-                aria-selected={index === selected_index}
-                class="Omnibar__item"
-                class:Omnibar__item--selected={index === selected_index}
-                onmouseenter={() => {
-                  if (!mouse_moved) return;
-                  on_selected_index_change(index);
-                }}
-                onclick={() => {
-                  on_confirm(item);
-                }}
-              >
-                <div class="Omnibar__item-row">
-                  <FileIcon />
-                  <div class="Omnibar__item-content">
-                    <span class="Omnibar__item-title">{item.note.title}</span>
-                    <span class="Omnibar__item-path">{item.note.path}</span>
-                    {#if item.snippet}
-                      <span class="Omnibar__item-snippet"
-                        ><TagExcerpt text={item.snippet} {tags} /></span
-                      >
-                    {/if}
-                  </div>
-                  {#if match_badge_label(item)}
-                    <span class="Omnibar__badge">{match_badge_label(item)}</span
+          {#each tagged_note_items as item, index (get_item_id(item))}
+            <button
+              id={get_item_id(item)}
+              role="option"
+              tabindex="-1"
+              aria-selected={index === selected_index}
+              class="Omnibar__item"
+              class:Omnibar__item--selected={index === selected_index}
+              onmouseenter={() => {
+                if (!mouse_moved) return;
+                on_selected_index_change(index);
+              }}
+              onclick={() => {
+                on_confirm(item);
+              }}
+            >
+              <div class="Omnibar__item-row">
+                <FileIcon />
+                <div class="Omnibar__item-content">
+                  <span class="Omnibar__item-title">{item.note.title}</span>
+                  <span class="Omnibar__item-path">{item.note.path}</span>
+                  {#if item.snippet}
+                    <span class="Omnibar__item-snippet"
+                      ><TagExcerpt text={item.snippet} {tags} /></span
                     >
                   {/if}
                 </div>
-              </button>
-            {/if}
+                {#if match_badge_label(item)}
+                  <span class="Omnibar__badge">{match_badge_label(item)}</span>
+                {/if}
+              </div>
+            </button>
           {/each}
         </div>
-        {#if items.length === 0 && !is_searching}
+        {#if tagged_note_items.length === 0 && !is_searching}
           <div class="Omnibar__empty" aria-hidden="true">
             {#if active_query.text}
               No tagged notes match "{active_query.text}"
@@ -1091,7 +1097,7 @@
           {is_all_vaults ? "This vault" : "All vaults"}
         </button>
       {/if}
-      {#if !is_command_mode && !is_tag_suggestions && !is_tag_mode}
+      {#if !is_command_mode && !is_tag_suggestions}
         <button
           type="button"
           class="Omnibar__scope-hint Omnibar__tags-button"
