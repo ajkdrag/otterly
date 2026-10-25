@@ -216,6 +216,9 @@ export function create_document_window_context(input: {
     ),
   ];
 
+  // @Incomplete: This window reads the app-wide settings once. Vault windows
+  // read them again on focus (app.reload_app_settings), so a setting changed
+  // in another window shows here only after this window reopens.
   async function start() {
     const [themes, hotkey_overrides, editor_settings] = await Promise.all([
       theme_service.load_themes(),

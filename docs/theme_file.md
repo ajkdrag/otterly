@@ -4,15 +4,13 @@ You can restyle Otterly by editing one file, `theme.yaml` (`theme.yml` and `them
 
 ## Where it lives
 
-The file sits next to `settings.json`, in the app config folder. Themes are global, so there is one file for all vaults. Each [profile](../README.md#profiles) has its own config folder, so each profile has its own theme file.
+The file sits next to `settings.json`, in the app config folder. Themes are global, so there is one file for all vaults.
 
 | OS      | Folder                                                       |
 | ------- | ------------------------------------------------------------ |
 | macOS   | `~/Library/Application Support/com.otterly.app/otterly/`     |
 | Windows | `%APPDATA%\com.otterly.app\otterly\`                         |
 | Linux   | `~/.config/com.otterly.app/otterly/` (or `$XDG_CONFIG_HOME`) |
-
-These are the folders of the default profile. Another profile uses `com.otterly.app.profile-<name>` in place of `com.otterly.app`, like `~/Library/Application Support/com.otterly.app.profile-work/otterly/`. Settings > Theme and "Copy Theme File Path" give the path of the profile you are in.
 
 In that folder:
 
@@ -80,8 +78,6 @@ When the file has errors, the last valid version stays on screen, so a bad save 
 | macOS   | `~/Library/Logs/com.otterly.app/otterly.log`                            |
 | Windows | `%LOCALAPPDATA%\com.otterly.app\logs\otterly.log`                       |
 | Linux   | `~/.local/share/com.otterly.app/logs/otterly.log` (or `$XDG_DATA_HOME`) |
-
-Another profile logs to `com.otterly.app.profile-<name>` in place of `com.otterly.app`.
 
 Save, wait a second, then look at the newest lines:
 
