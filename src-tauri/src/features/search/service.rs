@@ -803,7 +803,8 @@ pub fn index_note_links_snapshot(
     })
 }
 
-#[tauri::command]
+// Async (thread pool): the tag pane reloads this on every note switch.
+#[tauri::command(async)]
 pub fn index_list_tags(
     app: AppHandle,
     vault_id: String,
@@ -811,14 +812,29 @@ pub fn index_list_tags(
     with_read_conn(&app, &vault_id, search_db::list_tags)
 }
 
-#[tauri::command]
-pub fn index_list_notes_with_tag(
+// Async (thread pool): the omnibar runs this on every keystroke in tag mode.
+#[tauri::command(async)]
+pub fn index_search_tagged_notes(
     app: AppHandle,
     vault_id: String,
-    tag: String,
-) -> Result<Vec<search_db::TaggedNote>, String> {
+    query: search_db::TagNoteQuery,
+) -> Result<search_db::TagNotePage, String> {
     with_read_conn(&app, &vault_id, |conn| {
-        search_db::list_notes_with_tag(conn, &tag)
+        search_db::search_tagged_notes(conn, &query)
+    })
+}
+
+// Async (thread pool): the omnibar and the editor's completion ask on every keystroke.
+#[tauri::command(async)]
+pub fn index_suggest_tags(
+    app: AppHandle,
+    vault_id: String,
+    partial: String,
+    exclude: Vec<String>,
+    limit: usize,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::suggest_tags(conn, &partial, &exclude, limit)
     })
 }
 

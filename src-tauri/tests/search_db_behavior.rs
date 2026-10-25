@@ -1,10 +1,10 @@
 use crate::features::notes::service as notes_service;
 use crate::features::search::db::{
     compute_sync_plan, get_backlinks, get_manifest, get_orphan_outlinks, get_outlinks,
-    gfm_link_targets, internal_link_targets, list_note_paths_by_prefix, list_notes_with_tag,
-    list_tags, open_search_db, rebuild_index, remove_note, remove_notes_by_prefix,
-    rename_folder_paths, rename_note_path, search, set_note_tags, set_outlinks, suggest_files,
-    suggest_planned, sync_index, upsert_note, wiki_link_targets,
+    gfm_link_targets, internal_link_targets, list_note_paths_by_prefix, list_tags, open_search_db,
+    rebuild_index, remove_note, remove_notes_by_prefix, rename_folder_paths, rename_note_path,
+    search, search_tagged_notes, set_note_tags, set_outlinks, suggest_files, suggest_planned,
+    suggest_tags, sync_index, upsert_note, wiki_link_targets, TagMatch, TagNotePage, TagNoteQuery,
 };
 use crate::features::search::model::{IndexNoteMeta, SearchScope};
 use crate::features::search::tag_parser::NoteTag;
@@ -372,8 +372,7 @@ fn list_note_paths_by_prefix_respects_folder_boundary() {
         upsert_note(&conn, &meta, body).expect("upsert should succeed");
     }
 
-    let paths =
-        list_note_paths_by_prefix(&conn, "docs/").expect("list by prefix should succeed");
+    let paths = list_note_paths_by_prefix(&conn, "docs/").expect("list by prefix should succeed");
     assert_eq!(
         paths,
         vec!["docs/a.md".to_string(), "docs/sub/b.md".to_string()]
@@ -406,11 +405,50 @@ fn tag_counts(conn: &Connection) -> Vec<(String, usize)> {
         .collect()
 }
 
+fn tagged_page(conn: &Connection, tags: &[&str], r#match: TagMatch, text: &str) -> TagNotePage {
+    let query = TagNoteQuery {
+        tags: tags.iter().map(|tag| tag.to_string()).collect(),
+        r#match,
+        text: text.to_string(),
+        limit: 50,
+    };
+    search_tagged_notes(conn, &query).expect("tagged notes should load")
+}
+
+fn page_paths(page: &TagNotePage) -> Vec<&str> {
+    page.notes
+        .iter()
+        .map(|hit| hit.note.path.as_str())
+        .collect()
+}
+
 fn paths_with_tag(conn: &Connection, tag: &str) -> Vec<String> {
-    list_notes_with_tag(conn, tag)
-        .expect("tagged notes should load")
+    tagged_page(conn, &[tag], TagMatch::All, "")
+        .notes
         .into_iter()
-        .map(|entry| entry.note.path)
+        .map(|hit| hit.note.path)
+        .collect()
+}
+
+// Each note gets its own mtime, later notes are newer.
+fn add_tagged_notes(conn: &Connection, notes: &[(&str, &str, &[&str])]) {
+    for (idx, (path, body, tags)) in notes.iter().enumerate() {
+        let meta = IndexNoteMeta {
+            mtime_ms: 100 + idx as i64,
+            ..note_meta(path)
+        };
+        upsert_note(conn, &meta, body).expect("upsert should succeed");
+        let note_tags: Vec<NoteTag> = tags.iter().map(|tag| note_tag(tag)).collect();
+        set_note_tags(conn, path, &note_tags).expect("tags should be set");
+    }
+}
+
+fn suggested(conn: &Connection, partial: &str, exclude: &[&str]) -> Vec<String> {
+    let exclude: Vec<String> = exclude.iter().map(|tag| tag.to_string()).collect();
+    suggest_tags(conn, partial, &exclude, 10)
+        .expect("suggestions should load")
+        .into_iter()
+        .map(|entry| entry.tag)
         .collect()
 }
 
@@ -437,14 +475,10 @@ fn sync_indexes_tags_and_counts_them_case_insensitively() {
         tag_counts(&conn),
         vec![("home".to_string(), 1), ("Work".to_string(), 2)]
     );
-    let tagged = list_notes_with_tag(&conn, "WORK").expect("tagged notes should load");
-    let tagged_paths: Vec<&str> = tagged
-        .iter()
-        .map(|entry| entry.note.path.as_str())
-        .collect();
-    assert_eq!(tagged_paths, vec!["newer.md", "older.md"]);
+    let tagged = tagged_page(&conn, &["WORK"], TagMatch::All, "");
+    assert_eq!(page_paths(&tagged), vec!["newer.md", "older.md"]);
     assert_eq!(
-        tagged[1].excerpt.as_deref(),
+        tagged.notes[1].snippet.as_deref(),
         Some("Plan the week #Work and #home")
     );
 }
@@ -494,7 +528,9 @@ fn tag_counts_skip_rows_whose_note_is_gone() {
     set_note_tags(&conn, "ghost.md", &[note_tag("t")]).expect("tags should be set");
 
     assert_eq!(tag_counts(&conn), vec![("t".to_string(), 1)]);
-    assert_eq!(paths_with_tag(&conn, "t"), vec!["a.md".to_string()]);
+    let page = tagged_page(&conn, &["t"], TagMatch::All, "");
+    assert_eq!(page_paths(&page), vec!["a.md"]);
+    assert_eq!(page.total, 1);
 }
 
 #[test]
@@ -565,4 +601,191 @@ fn db_from_before_tags_gets_its_manifest_cleared_once() {
     assert!(get_manifest(&reopened)
         .expect("manifest should load")
         .contains_key("new.md"));
+}
+
+#[test]
+fn tagged_search_all_needs_every_tag_and_any_needs_one() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(
+        &conn,
+        &[
+            ("both.md", "", &["x", "y"]),
+            ("only_x.md", "", &["x"]),
+            ("only_y.md", "", &["y"]),
+            ("neither.md", "", &["z"]),
+        ],
+    );
+
+    let all = tagged_page(&conn, &["x", "y"], TagMatch::All, "");
+    assert_eq!(page_paths(&all), vec!["both.md"]);
+    assert_eq!(all.total, 1);
+
+    let any = tagged_page(&conn, &["x", "y"], TagMatch::Any, "");
+    assert_eq!(page_paths(&any), vec!["only_y.md", "only_x.md", "both.md"]);
+    assert_eq!(any.total, 3);
+    assert!(any.notes.iter().all(|hit| hit.match_detail.is_none()));
+}
+
+#[test]
+fn tagged_search_with_text_lists_file_hits_before_content_hits() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(
+        &conn,
+        &[
+            ("roadmap.md", "the kickoff is in May", &["p"]),
+            ("kickoff.md", "first notes", &["p"]),
+            ("untagged_kickoff.md", "kickoff kickoff", &[]),
+            ("other.md", "nothing here", &["p"]),
+        ],
+    );
+    // A title hit whose body also matches is listed once, as a title hit.
+    let meeting = IndexNoteMeta {
+        title: "Kickoff".to_string(),
+        name: "2024-05-01".to_string(),
+        mtime_ms: 50,
+        ..note_meta("meetings/2024-05-01.md")
+    };
+    upsert_note(&conn, &meeting, "kickoff agenda").expect("upsert should succeed");
+    set_note_tags(&conn, &meeting.path, &[note_tag("p")]).expect("tags should be set");
+
+    let page = tagged_page(&conn, &["p"], TagMatch::All, "Kickoff");
+    let found: Vec<(&str, Option<&str>)> = page
+        .notes
+        .iter()
+        .map(|hit| (hit.note.path.as_str(), hit.match_detail))
+        .collect();
+    assert_eq!(
+        found,
+        vec![
+            ("kickoff.md", Some("filename")),
+            ("meetings/2024-05-01.md", Some("title")),
+            ("roadmap.md", Some("content")),
+        ]
+    );
+    let content_snippet = page.notes[2]
+        .snippet
+        .as_deref()
+        .expect("content hits have a snippet");
+    assert!(content_snippet.contains("kickoff"));
+    assert!(!content_snippet.contains('<'));
+    assert_eq!(page.total, 3);
+    assert!(!page.truncated);
+}
+
+#[test]
+fn tagged_search_reports_total_and_truncation() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(
+        &conn,
+        &[
+            ("a.md", "", &["t"]),
+            ("b.md", "", &["t"]),
+            ("c.md", "", &["t"]),
+        ],
+    );
+
+    let query = |limit: usize| TagNoteQuery {
+        tags: vec!["t".to_string()],
+        r#match: TagMatch::All,
+        text: String::new(),
+        limit,
+    };
+    let capped = search_tagged_notes(&conn, &query(2)).expect("tagged notes should load");
+    assert_eq!(page_paths(&capped), vec!["c.md", "b.md"]);
+    assert_eq!(capped.total, 3);
+    assert!(capped.truncated);
+
+    let full = search_tagged_notes(&conn, &query(3)).expect("tagged notes should load");
+    assert_eq!(full.notes.len(), 3);
+    assert!(!full.truncated);
+}
+
+#[test]
+fn tagged_search_excerpt_comes_from_the_first_tag() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    upsert_note(&conn, &note_meta("a.md"), "body").expect("upsert should succeed");
+    upsert_note(&conn, &note_meta("b.md"), "body").expect("upsert should succeed");
+    let excerpt_tag = |tag: &str, excerpt: &str| NoteTag {
+        tag: tag.to_string(),
+        excerpt: Some(excerpt.to_string()),
+    };
+    set_note_tags(
+        &conn,
+        "a.md",
+        &[excerpt_tag("x", "about x"), excerpt_tag("y", "about y")],
+    )
+    .expect("tags should be set");
+    set_note_tags(&conn, "b.md", &[excerpt_tag("x", "b about x")]).expect("tags should be set");
+
+    let all = tagged_page(&conn, &["y", "x"], TagMatch::All, "");
+    assert_eq!(all.notes[0].snippet.as_deref(), Some("about y"));
+
+    // b.md lacks the first tag, so it shows the excerpt of the one it has.
+    let any = tagged_page(&conn, &["y", "x"], TagMatch::Any, "");
+    let snippets: Vec<Option<&str>> = any.notes.iter().map(|hit| hit.snippet.as_deref()).collect();
+    assert_eq!(snippets, vec![Some("about y"), Some("b about x")]);
+}
+
+#[test]
+fn tagged_search_folds_case_and_unicode_forms() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(&conn, &[("a.md", "", &["Caf\u{e9}"])]);
+
+    assert_eq!(
+        paths_with_tag(&conn, "CAFE\u{301}"),
+        vec!["a.md".to_string()]
+    );
+    let duplicated = tagged_page(&conn, &["caf\u{e9}", "CAF\u{c9}"], TagMatch::All, "");
+    assert_eq!(page_paths(&duplicated), vec!["a.md"]);
+}
+
+#[test]
+fn suggest_tags_ranks_by_match_kind_then_count() {
+    let tmp = TempDir::new().expect("temp dir should be created");
+    let conn = open_search_db(tmp.path()).expect("db should open");
+    add_tagged_notes(
+        &conn,
+        &[
+            ("1.md", "", &["improve", "project", "photo-room"]),
+            ("2.md", "", &["improve", "project", "work/projects"]),
+            ("3.md", "", &["improve", "project", "work/projects", "pro"]),
+            ("4.md", "", &["improve", "project/otterly", "zzz"]),
+        ],
+    );
+
+    assert_eq!(
+        suggested(&conn, "Pro", &[]),
+        vec![
+            "pro",
+            "project",
+            "project/otterly",
+            "work/projects",
+            "improve",
+            "photo-room"
+        ]
+    );
+    assert_eq!(
+        suggested(&conn, "pro", &["PROJECT", "pro"]),
+        vec!["project/otterly", "work/projects", "improve", "photo-room"]
+    );
+    assert_eq!(
+        suggested(&conn, "", &[]),
+        vec![
+            "improve",
+            "project",
+            "work/projects",
+            "photo-room",
+            "pro",
+            "project/otterly",
+            "zzz"
+        ]
+    );
+    let exclude = Vec::new();
+    let top_two = suggest_tags(&conn, "", &exclude, 2).expect("suggestions should load");
+    assert_eq!(top_two.len(), 2);
 }
