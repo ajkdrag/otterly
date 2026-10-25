@@ -12,8 +12,7 @@ const SETTINGS_FILE: &str = "settings.json";
 // set_vault_setting is an async command, so Tauri can run two calls at once
 // (a recent notes save and a starred notes save, say). Each one reads the
 // file, changes its key and writes it all back, and the later write would drop
-// the other's key. This lock makes the read-modify-write one step within this
-// process. Another profile can still write in between, which we accept.
+// the other's key. This lock makes the read-modify-write one step.
 #[derive(Default)]
 pub struct VaultSettingsLock(Mutex<()>);
 
@@ -62,8 +61,8 @@ fn read_vault_settings_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
     }
 }
 
-// Saves go through atomic_write. Its temp name has the process id and a
-// counter, so profiles and parallel saves never share a temp file.
+// Saves go through atomic_write. Its temp name has a counter, so parallel
+// saves never share a temp file.
 fn save_vault_settings(
     app: &AppHandle,
     vault_id: &str,
