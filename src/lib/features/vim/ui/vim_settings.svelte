@@ -98,7 +98,8 @@
       <span class="text-sm font-medium text-foreground">vimrc</span>
       <span class="text-xs leading-snug text-muted-foreground"
         >Key maps and options, applied while Vim mode is on and again whenever
-        you come back to this window.</span
+        you come back to this window. The file sits next to settings.json, so
+        each profile has its own vimrc.</span
       >
     </div>
 
