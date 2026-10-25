@@ -55,6 +55,8 @@ export class VaultFindResults {
   match_count = $derived(
     this.files.reduce((total, file) => total + file.matches.length, 0),
   );
+  // Cancelled before it finished (a replace stops the walk): done, no stats.
+  was_stopped = $derived(this.status === "done" && this.stats === null);
   // Only a finished, complete result set. A cancelled run has no stats and a
   // truncated one leaves matches out, so Replace All would miss some.
   can_replace_all = $derived(

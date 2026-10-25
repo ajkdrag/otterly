@@ -6,10 +6,10 @@
   import ReplaceAllIcon from "@lucide/svelte/icons/replace-all";
   import type { VaultFindResults } from "$lib/features/search/state/search_store.svelte";
   import type {
-    VaultFindMatch,
     VaultFindMatchRow,
     VaultFindRow,
-  } from "$lib/features/search/types/vault_find";
+  } from "$lib/features/search/domain/find_result_rows";
+  import type { VaultFindMatch } from "$lib/features/search/types/vault_find";
   import { format_hotkey_for_display } from "$lib/features/hotkey";
   import { trim_context_before } from "$lib/features/search/domain/match_context";
   import { build_replacement_preview } from "$lib/features/search/domain/replacement_preview";
@@ -124,7 +124,9 @@
       ? `${results.match_count.toLocaleString()}+ results`
       : plural(results.match_count, "result", "results");
     const counts = `${match_count} in ${plural(results.files.length, "file", "files")}`;
-    return results.status === "searching" ? `Searching… ${counts}` : counts;
+    if (results.status === "searching") return `Searching… ${counts}`;
+    // A replace cancels the walk, so the counts cover only what it had found.
+    return results.was_stopped ? `Stopped. ${counts}` : counts;
   });
 
   // Live region text. Only the finished count, or every 50 ms batch would

@@ -41,20 +41,21 @@
   import { parse_search_query } from "$lib/features/search/domain/search_query_parser";
   import {
     build_vault_find_request,
-    vault_find_match_key,
     vault_find_request_key,
     type VaultFindInputs,
   } from "$lib/features/search/domain/vault_find_request";
+  import {
+    build_find_rows,
+    resolve_selected_row,
+    step_find_selection,
+    type VaultFindMatchRow,
+  } from "$lib/features/search/domain/find_result_rows";
   import {
     find_option_for_shortcut,
     type FindOption,
   } from "$lib/features/search/domain/find_option_shortcut";
   import type { VaultFindResults } from "$lib/features/search/state/search_store.svelte";
-  import type {
-    VaultFindMatchRow,
-    VaultFindRow,
-    VaultFindSelection,
-  } from "$lib/features/search/types/vault_find";
+  import type { VaultFindSelection } from "$lib/features/search/types/vault_find";
   import OmnibarFindResults from "$lib/features/search/ui/omnibar_find_results.svelte";
   import { format_hotkey_for_display, HotkeyKey } from "$lib/features/hotkey";
   import { ACTION_IDS } from "$lib/app";
@@ -303,54 +304,31 @@
     find_results.status === "searching" || find_rows_stale,
   );
 
-  // Flattened once per batch. A match row knows its position, and the map
-  // finds the selected match without scanning up to 10,000 rows.
-  const find_rows = $derived.by(() => {
-    const rows: VaultFindRow[] = [];
-    const match_rows = new Map<string, VaultFindMatchRow>();
-    for (const file of find_results.files) {
-      rows.push({
-        kind: "file",
-        key: `file:${file.path}`,
-        row_index: rows.length,
-        file,
-      });
-      for (const match of file.matches) {
-        const row: VaultFindMatchRow = {
-          kind: "match",
-          key: vault_find_match_key(file.path, match.index),
-          row_index: rows.length,
-          file,
-          match,
-        };
-        rows.push(row);
-        match_rows.set(row.key, row);
-      }
-    }
-    return { rows, match_rows };
-  });
-
-  // The selection is a match key, so it stays on its match while batches
-  // insert files above it. It falls back to the first match when the key is
-  // missing or belongs to other results (a new pattern, say).
-  const selected_find_row = $derived.by((): VaultFindMatchRow | null => {
-    const selection = find_inputs.selected_match;
-    if (selection && selection.request_key === results_request_key) {
-      const row = find_rows.match_rows.get(
-        vault_find_match_key(selection.path, selection.index),
-      );
-      if (row) return row;
-    }
-    return (
-      find_rows.rows.find(
-        (row): row is VaultFindMatchRow => row.kind === "match",
-      ) ?? null
-    );
-  });
+  // Flattened once per batch, see build_find_rows.
+  const find_rows = $derived(build_find_rows(find_results.files));
+  // Null while the remembered match is still streaming in, so the arrows and
+  // Enter wait for it (see resolve_selected_row).
+  const selected_find_row = $derived(
+    resolve_selected_row(
+      find_rows,
+      find_inputs.selected_match,
+      results_request_key,
+      find_results.status === "searching",
+    ),
+  );
 
   const find_preview_on = $derived(
     find_inputs.replacement !== "" || focused_control === "replace",
   );
+  const replace_all_title = $derived.by(() => {
+    if (find_results.stats?.truncated) {
+      return "Too many results to replace all. Narrow the search.";
+    }
+    if (find_results.was_stopped) {
+      return "Search stopped. Reopen to search again before replacing all.";
+    }
+    return `Replace all (${REPLACE_ALL_KEYS})`;
+  });
   const find_query_invalid = $derived(
     find_results.error?.kind === "invalid_query",
   );
@@ -861,6 +839,8 @@
       if (row && !is_mod) on_open_match(row);
       return;
     }
+    // The buttons are disabled while a replace runs, and so are the keys.
+    if (is_replacing) return;
     if (is_mod && event.shiftKey) {
       if (row) on_replace_file(row);
     } else if (is_mod) {
@@ -870,25 +850,18 @@
     }
   }
 
-  // Wraps around like the Notes list, and skips the file rows.
   function move_find_selection(step: 1 | -1) {
-    const { rows } = find_rows;
     const from = selected_find_row;
     if (!from || results_request_key === null) return;
-    let index = from.row_index;
-    for (let tries = 0; tries < rows.length; tries += 1) {
-      index = (index + step + rows.length) % rows.length;
-      const row = rows[index];
-      if (row?.kind !== "match") continue;
-      on_find_inputs_change({
-        selected_match: {
-          request_key: results_request_key,
-          path: row.file.path,
-          index: row.match.index,
-        },
-      });
-      return;
-    }
+    const next = step_find_selection(find_rows.rows, from, step);
+    if (!next) return;
+    on_find_inputs_change({
+      selected_match: {
+        request_key: results_request_key,
+        path: next.file.path,
+        index: next.match.index,
+      },
+    });
   }
 
   // Focus the main input when the omnibar opens or the mode changes. Text
@@ -1103,9 +1076,7 @@
           type="button"
           class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-sm disabled:opacity-50"
           aria-label="Replace all"
-          title={find_results.stats?.truncated
-            ? "Too many results to replace all. Narrow the search."
-            : `Replace all (${REPLACE_ALL_KEYS})`}
+          title={replace_all_title}
           disabled={!find_results.can_replace_all ||
             is_replacing ||
             find_rows_stale}

@@ -3,6 +3,7 @@ import type { TagMatch } from "$lib/features/tags";
 
 // Shapes shared with the Rust vault find (features/search/vault_find.rs and
 // VaultFindStartRequest in service.rs). Field names match the serde structs.
+// VaultFindSelection, last in the file, is the one UI-only shape.
 
 export type VaultFindRequest = FindSpec & {
   // Comma separated globs. "" means every file.
@@ -13,34 +14,6 @@ export type VaultFindRequest = FindSpec & {
   tags: string[];
   tag_match: TagMatch;
 };
-
-// The match Text mode has selected. A match ordinal, not a row number, so
-// it stays on the same match while results stream in. Only valid while
-// request_key is the key of the results on screen.
-export type VaultFindSelection = {
-  request_key: string;
-  path: string;
-  index: number;
-};
-
-// One row of the Text mode result list. row_index is the row's position in
-// the list, for the virtualizer and the keyboard.
-export type VaultFindFileRow = {
-  kind: "file";
-  key: string;
-  row_index: number;
-  file: VaultFindFile;
-};
-
-export type VaultFindMatchRow = {
-  kind: "match";
-  key: string;
-  row_index: number;
-  file: VaultFindFile;
-  match: VaultFindMatch;
-};
-
-export type VaultFindRow = VaultFindFileRow | VaultFindMatchRow;
 
 export type VaultFindMatch = {
   // Ordinal in the file's match list as Rust found it. Replace sends these
@@ -121,4 +94,13 @@ export type VaultReplaceResponse = {
     remaining: VaultFindFile | null;
   }[];
   skipped: { path: string; reason: VaultReplaceSkipReason }[];
+};
+
+// The match Text mode has selected. A match ordinal, not a row number, so
+// it stays on the same match while results stream in. Only valid while
+// request_key is the key of the results on screen.
+export type VaultFindSelection = {
+  request_key: string;
+  path: string;
+  index: number;
 };

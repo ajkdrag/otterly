@@ -110,6 +110,7 @@ describe("VaultFindService", () => {
     ]);
     expect(results.status).toBe("done");
     expect(results.stats?.match_count).toBe(3);
+    expect(results.was_stopped).toBe(false);
     expect(results.request?.text).toBe("foo");
   });
 
@@ -139,6 +140,7 @@ describe("VaultFindService", () => {
     expect(results.files.map((f) => f.path)).toEqual(["a.md"]);
     expect(results.status).toBe("done");
     expect(results.stats).toBeNull();
+    expect(results.was_stopped).toBe(true);
     expect(results.can_replace_all).toBe(false);
   });
 
