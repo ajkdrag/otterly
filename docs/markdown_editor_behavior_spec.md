@@ -1343,14 +1343,14 @@ A `#tag` is plain text. The editor draws it as a chip, and the index counts it f
 ### TAG-004. A click or Cmd+T opens the tag search
 
 - **Setup/action:** Plain-click a chip. Click into a tag that already holds the caret. Drag from a chip. Cmd-click, Shift-click and Alt-click. Press Cmd+T (Ctrl+T on Windows and Linux) with the caret in a tag, right after one, and elsewhere.
-- **Expected:** A plain left click opens the omnibar with that tag as a filter chip. If the caret already touches the tag, the click only moves the caret. A drag that starts on a chip selects as usual, and a modified click keeps its editor meaning (LINK-003). Cmd+T with the caret in or right after a tag searches that tag, and anywhere else it opens the tag picker with `#`. A read-only note still opens the search on click, but offers no completion.
+- **Expected:** A plain left click opens the omnibar with that tag as a filter chip. If the caret already touches the tag, the click only moves the caret. Otherwise the caret stays where it was, so the same chip opens again after the omnibar closes. A drag that starts on a chip selects as usual, and a modified click keeps its editor meaning (LINK-003). Cmd+T with the caret in or right after a tag searches that tag, and anywhere else it opens the tag picker with `#`. A read-only note still opens the search on click, but offers no completion.
 - **Edge cases/notes:** A double click opens on the first click, because the omnibar takes focus. It does not select the word. That is accepted. In a focused table-cell editor, Cmd+T does not see the cell's tag and opens the picker. A document window has no tag search, so there it has no pointer and Cmd+T is not registered.
 
 ### TAG-005. Typing `#` offers the vault's tags
 
 - **Setup/action:** Type `#` and a letter at a place where a tag can start. Press Ctrl+Space right after `#`. Pick an option with Enter. Type a tag that already exists in full. Complete in the middle of a tag (`#pr|oj`).
 - **Expected:** A menu lists existing tags with their note counts, ranked by the host (the same ranking as the omnibar). It asks again on every keystroke, and an answer that arrives late is dropped. Ctrl+Space right after `#` shows the top tags. Picking replaces from the `#` to the end of the tag characters after the caret, so no `oj` is left behind. No space is added. When the typed tag is already complete, the menu hides, so Enter makes a newline.
-- **Edge cases/notes:** No menu after a letter (`C#`), in code, a URL, link text, or when the selection is not empty or the note is read-only. A lone `#` waits for a letter. @Incomplete: no completion inside frontmatter `tags:`.
+- **Edge cases/notes:** The menu opens wherever the parser would draw a chip, including right after a quote mark or a table pipe (`>#ta`, `|#ta|`). No menu after a letter (`C#`), in code, a URL, link text, or when the selection is not empty or the note is read-only. A lone `#` waits for a letter. @Incomplete: no completion inside frontmatter `tags:`.
 
 ### TAG-006. Source mode colors tags and nothing else
 
