@@ -382,12 +382,35 @@ export class VaultService {
       if (error instanceof StaleVaultOpenError) {
         return { status: "stale" };
       }
+      // Rust claims the new vault, and frees the one this window shows, before
+      // we load it. So an open that ends here can leave the window claiming a
+      // vault it does not show, and another window could open the shown one.
+      // Only the newest open puts the claim back, because a newer open owns it.
+      if (this.is_current_open_revision(open_revision)) {
+        await this.claim_shown_vault_again();
+      }
       if (is_vault_open_in_other_window_error(error_message(error))) {
         this.op_store.reset("vault.change");
         return { status: "in_other_window" };
       }
       const message = this.fail_operation("vault.change", error_label, error);
       return { status: "failed", error: message };
+    }
+  }
+
+  // open_vault_by_id is the claim. Its error is only logged, because the
+  // switch already failed and the window shows its vault either way.
+  private async claim_shown_vault_again(): Promise<void> {
+    const shown_vault_id = this.get_active_vault_id();
+    if (!shown_vault_id) {
+      return;
+    }
+    try {
+      await this.vault_port.open_vault_by_id(shown_vault_id);
+    } catch (error) {
+      log.error("Claim shown vault again failed", {
+        error: error_message(error),
+      });
     }
   }
 

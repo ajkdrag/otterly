@@ -9,6 +9,7 @@ import {
   as_note_path,
   as_vault_id,
   as_vault_path,
+  type VaultId,
 } from "$lib/shared/types/ids";
 import type { Vault } from "$lib/shared/types/vault";
 
@@ -126,6 +127,50 @@ describe("VaultService", () => {
 
     expect(result).toEqual({ status: "in_other_window" });
     expect(op_store.get("vault.change").status).toBe("idle");
+  });
+
+  it("keeps the shown vault claimed when a switch fails after the claim", async () => {
+    const vault_a: Vault = {
+      id: as_vault_id("vault-a"),
+      name: "Vault A",
+      path: as_vault_path("/vault/a"),
+      created_at: 1,
+    };
+    const vault_b: Vault = {
+      id: as_vault_id("vault-b"),
+      name: "Vault B",
+      path: as_vault_path("/vault/b"),
+      created_at: 1,
+    };
+    // claim_vault in Rust: a window takes a vault no other window has, and
+    // gives up the vault it had before.
+    const vault_by_window = new Map<string, VaultId>([["main", vault_a.id]]);
+    const open_vault_by_id_in = (label: string) => (vault_id: VaultId) => {
+      for (const [owner, owned_id] of vault_by_window) {
+        if (owned_id === vault_id && owner !== label) {
+          return Promise.reject(new Error("vault_open_in_other_window"));
+        }
+      }
+      vault_by_window.set(label, vault_id);
+      return Promise.resolve(vault_id === vault_a.id ? vault_a : vault_b);
+    };
+    const main_window = create_window_vault_service({
+      open_vault_by_id: open_vault_by_id_in("main"),
+      remember_last_vault: vi.fn().mockRejectedValue(new Error("disk full")),
+    });
+    main_window.vault_store.set_vault(vault_a);
+    const other_window = create_window_vault_service({
+      open_vault_by_id: open_vault_by_id_in("vault-2"),
+    });
+
+    const result = await main_window.service.change_vault_by_id(vault_b.id);
+
+    expect(result).toEqual({ status: "failed", error: "disk full" });
+    expect(main_window.vault_store.vault?.id).toBe(vault_a.id);
+    expect(vault_by_window.get("main")).toBe(vault_a.id);
+    expect(await other_window.service.change_vault_by_id(vault_a.id)).toEqual({
+      status: "in_other_window",
+    });
   });
 
   it("ignores stale vault-open completions when newer request wins", async () => {
