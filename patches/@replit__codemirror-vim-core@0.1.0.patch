@@ -1,5 +1,5 @@
 diff --git a/vim.js b/vim.js
-index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce3ff0a09e 100644
+index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b6ce5a8998c23eb4658f95d160a19889c1e48a4a 100644
 --- a/vim.js
 +++ b/vim.js
 @@ -140,9 +140,11 @@ export function initVim(CM) {
@@ -54,17 +54,23 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          if (virtualPrompt) {
            sendKeyToPrompt(key);
            continue;
-@@ -1444,6 +1462,46 @@ export function initVim(CM) {
+@@ -1444,6 +1462,50 @@ export function initVim(CM) {
      validRegisters.push(name);
    }
  
 +  // otterly patch V17: the system clipboard. "+ and "* are one register
 +  // (macOS has one clipboard), and set clipboard=unnamed or unnamedplus
-+  // sends every unnamed yank, delete and change there too, and makes a plain
-+  // p read it, like Vim.
++  // sends every unnamed yank, delete and change there too, like Vim.
++  //
++  // A plain p stays synchronous and puts the unnamed register. The host
++  // copies text from other apps into that register when its window gains
++  // focus (sync_clipboard_from_host in the editor package). If p read the
++  // clipboard instead, keys after it in a map or macro would run before the
++  // text landed. Only "+p and <C-r>+ read it.
 +  defineOption('clipboard', '', 'string');
 +  /** @type {Register | undefined} */
 +  var lastClipboardWrite;
++  var pendingClipboardWrite = Promise.resolve();
 +  function clipboardHoldsUnnamed() {
 +    return /(^|,)unnamed(plus)?(,|$)/.test(getOption('clipboard') || '');
 +  }
@@ -74,18 +80,16 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
 +    // A write that fails leaves the clipboard as it was. There is no good
 +    // place to say so in the middle of a keystroke.
 +    try {
-+      Promise.resolve(vimApi.clipboard.writeText(register.toString())).catch(function() {});
++      pendingClipboardWrite = Promise.resolve(vimApi.clipboard.writeText(register.toString())).catch(function() {});
 +    } catch (e) {}
 +  }
 +  /** @arg {CodeMirrorV} cm @arg {(register: Register) => void} onRead */
 +  function readClipboard(cm, onRead) {
-+    var reading;
-+    try {
-+      reading = Promise.resolve(vimApi.clipboard.readText());
-+    } catch (e) {
-+      reading = Promise.reject(e);
-+    }
-+    reading.then(function(value) {
++    // Writes go through the browser and reads through the host, so nothing
++    // else orders them. Without this wait, "+yy"+p can read the old text.
++    pendingClipboardWrite.then(function() {
++      return vimApi.clipboard.readText();
++    }).then(function(value) {
 +      if (!cm.state.vim) return;
 +      var text = typeof value == 'string' ? value.replace(/\r\n?/g, '\n') : '';
 +      // Our own last write keeps its type. Text from another app is
@@ -101,7 +105,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
    /**
     * vim registers allow you to keep many independent copy and paste buffers.
     * See http://usevim.com/2012/04/13/registers/ for an introduction.
-@@ -1502,6 +1560,8 @@ export function initVim(CM) {
+@@ -1502,6 +1564,8 @@ export function initVim(CM) {
          }
          // Make sure the unnamed register is set to what just happened
          this.unnamedRegister.setText(text, linewise, blockwise);
@@ -110,7 +114,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          return;
        }
  
-@@ -1513,7 +1573,8 @@ export function initVim(CM) {
+@@ -1513,7 +1577,8 @@ export function initVim(CM) {
          register.setText(text, linewise, blockwise);
        }
        if (registerName === '+') {
@@ -120,7 +124,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        }
        // The unnamed register always has the same value as the last used
        // register.
-@@ -2143,6 +2204,14 @@ export function initVim(CM) {
+@@ -2143,6 +2208,14 @@ export function initVim(CM) {
              anchor: newPositions.start,
              head: newPositions.end
            }, mode);
@@ -135,7 +139,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
            if (linewise) {
              var ranges = cmSel.ranges;
              if (mode == 'block') {
-@@ -2163,7 +2232,21 @@ export function initVim(CM) {
+@@ -2163,7 +2236,21 @@ export function initVim(CM) {
              curStart = curEnd;
              curEnd = tmp;
            }
@@ -157,17 +161,26 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
            if (linewise) {
              // Expand selection to entire line.
              expandSelectionToLine(cm, curStart, curEnd);
-@@ -2187,6 +2270,9 @@ export function initVim(CM) {
+@@ -2184,9 +2271,18 @@ export function initVim(CM) {
+         operatorArgs.repeat = repeat; // For indent in visual mode.
+         operatorArgs.registerName = registerName;
+         // Keep track of linewise as it affects how paste and change behave.
++        // otterly patch V21: for this run only. V4 and V13 make linewise
++        // depend on where the cursor is, and a . repeat reuses operatorArgs,
++        // so what ci{ did on a multi-line pair must not stick to the next
++        // pair.
++        var typedLinewise = operatorArgs.linewise;
          operatorArgs.linewise = linewise;
          var operatorMoveTo = operators[operator](
            cm, operatorArgs, cmSel.ranges, oldAnchor, newHead);
++        operatorArgs.linewise = typedLinewise;
 +        if (operator == 'yank' && motionStart) {
 +          operatorMoveTo = clipCursorToContent(cm, motionStart);
 +        }
          if (vim.visualMode) {
            exitVisualMode(cm, operatorMoveTo != null);
          }
-@@ -2425,12 +2511,13 @@ export function initVim(CM) {
+@@ -2425,12 +2521,13 @@ export function initVim(CM) {
          line = posV.line;
          endCh = posV.ch;
        }
@@ -185,7 +198,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        }
        if (motionArgs.toFirstChar){
          endCh=findFirstNonWhiteSpaceCharacter(cm.getLine(line));
-@@ -2511,14 +2598,19 @@ export function initVim(CM) {
+@@ -2511,14 +2608,19 @@ export function initVim(CM) {
      moveToCharacter: function(cm, head, motionArgs) {
        var repeat = motionArgs.repeat;
        recordLastCharacterSearch(0, motionArgs);
@@ -208,29 +221,32 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
      },
      moveToColumn: function(cm, head, motionArgs, vim) {
        var repeat = motionArgs.repeat;
-@@ -2620,6 +2712,21 @@ export function initVim(CM) {
+@@ -2620,6 +2722,24 @@ export function initVim(CM) {
              tmp = selectCompanionObject(cm, sc.from(), character, inclusive);
            }
          }
 +        // otterly patch V13: when the open bracket ends its line and the
 +        // close bracket starts its line, i( and friends take the lines in
 +        // between as whole lines. So ci{ in a function body keeps both
-+        // braces on their own lines.
-+        if (tmp && !inclusive && !vim.visualMode &&
++        // braces on their own lines. A . repeat reuses this motionArgs, so
++        // the flag is assigned on every run. A repeat on a one line pair
++        // must not stay linewise.
++        var bracketsOnOwnLines = !!tmp && !inclusive && !vim.visualMode &&
 +            tmp.start.ch == lineLength(cm, tmp.start.line) &&
 +            tmp.end.ch <= findFirstNonWhiteSpaceCharacter(cm.getLine(tmp.end.line)) &&
-+            tmp.end.line > tmp.start.line) {
++            tmp.end.line > tmp.start.line;
++        motionArgs.linewise = bracketsOnOwnLines;
++        if (bracketsOnOwnLines) {
 +          if (tmp.end.line == tmp.start.line + 1) return null;
 +          tmp = {
 +            start: new Pos(tmp.start.line + 1, 0),
 +            end: new Pos(tmp.end.line - 1, lineLength(cm, tmp.end.line - 1))
 +          };
-+          motionArgs.linewise = true;
 +        }
        } else if (selfPaired[character]) {
          move = true;
          tmp = findBeginningAndEnd(cm, head, character, inclusive);
-@@ -2761,18 +2868,16 @@ export function initVim(CM) {
+@@ -2761,18 +2881,16 @@ export function initVim(CM) {
        if (!vim.visualBlock) {
          var anchor = ranges[0].anchor,
              head = ranges[0].head;
@@ -257,7 +273,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          cm.replaceRange('', anchor, head);
          finalHead = anchor;
          if (args.linewise) {
-@@ -2784,9 +2889,13 @@ export function initVim(CM) {
+@@ -2784,9 +2902,13 @@ export function initVim(CM) {
          cm.replaceSelections(replacement);
          finalHead = cursorMin(ranges[0].head, ranges[0].anchor);
        }
@@ -274,7 +290,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        return clipCursorToContent(cm, finalHead);
      },
      indent: function(cm, args, ranges) {
-@@ -2887,7 +2996,9 @@ export function initVim(CM) {
+@@ -2887,7 +3009,9 @@ export function initVim(CM) {
        }
        cm.replaceSelections(swapped);
        if (args.shouldMoveCursor){
@@ -285,7 +301,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        } else if (!cm.state.vim.visualMode && args.linewise && ranges[0].anchor.line + 1 == ranges[0].head.line) {
          return motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
        } else if (args.linewise){
-@@ -3213,9 +3324,14 @@ export function initVim(CM) {
+@@ -3213,9 +3337,14 @@ export function initVim(CM) {
          if (!actionArgs.keepSpaces) {
            var nextLine = cm.getLine(curStart.line + 1);
            nextStartCh = nextLine.search(/\S/);
@@ -301,24 +317,22 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
              text = " ";
            }
          }
-@@ -3250,10 +3366,12 @@ export function initVim(CM) {
+@@ -3250,10 +3379,11 @@ export function initVim(CM) {
      paste: function(cm, actionArgs, vim) {
        var register = vimGlobalState.registerController.getRegister(
            actionArgs.registerName);
--      if (actionArgs.registerName === '+') {
++      // otterly patch V17: see writeClipboard.
+       if (actionArgs.registerName === '+') {
 -        navigator.clipboard.readText().then((value) => {
 -          this.continuePaste(cm, actionArgs, vim, value, register);
 -        })
-+      // otterly patch V17: see writeClipboard.
-+      if (actionArgs.registerName === '+' ||
-+          (!actionArgs.registerName && clipboardHoldsUnnamed())) {
 +        readClipboard(cm, (clipboard) => {
 +          this.continuePaste(cm, actionArgs, vim, clipboard.toString(), clipboard);
 +        });
        } else {
          var text = register.toString();
          this.continuePaste(cm, actionArgs, vim, text, register);
-@@ -3340,7 +3458,11 @@ export function initVim(CM) {
+@@ -3340,7 +3470,11 @@ export function initVim(CM) {
            lastSelectionCurEnd = vim.lastSelection.headMark.find();
          }
          // push the previously selected text to unnamed register
@@ -331,7 +345,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          if (blockwise) {
            // first delete the selected text
            cm.replaceSelections(emptyStrings);
-@@ -3364,7 +3486,12 @@ export function initVim(CM) {
+@@ -3364,7 +3498,12 @@ export function initVim(CM) {
          if(lastSelectionCurEnd) {
            vim.lastSelection.headMark = cm.setBookmark(lastSelectionCurEnd);
          }
@@ -345,7 +359,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
            curPosFinal.ch=0;
          }
        } else {
-@@ -3392,8 +3519,10 @@ export function initVim(CM) {
+@@ -3392,8 +3531,10 @@ export function initVim(CM) {
              curPosFinal = new Pos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
            } else {
              curPosFinal = copyCursor(cur);
@@ -357,7 +371,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
              }
            }
          }
-@@ -3413,10 +3542,19 @@ export function initVim(CM) {
+@@ -3413,10 +3554,19 @@ export function initVim(CM) {
        repeatFn(cm, CM.commands.redo, actionArgs.repeat)();
      },
      setRegister: function(_cm, actionArgs, vim) {
@@ -378,7 +392,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        var register = vimGlobalState.registerController.getRegister(registerName);
        var text = register && register.toString();
        if (text) {
-@@ -3453,8 +3591,10 @@ export function initVim(CM) {
+@@ -3453,8 +3603,10 @@ export function initVim(CM) {
        } else {
          var line = cm.getLine(curStart.line);
          replaceTo = curStart.ch + actionArgs.repeat;
@@ -390,7 +404,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          }
          curEnd = new Pos(curStart.line, replaceTo);
        }
-@@ -3826,7 +3966,11 @@ export function initVim(CM) {
+@@ -3826,7 +3978,11 @@ export function initVim(CM) {
      var head = vim.sel.head;
      // To accommodate the effect of lastPastedText in the last selection
      if (vim.lastPastedText) {
@@ -403,7 +417,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
        vim.lastPastedText = undefined;
      }
      vim.lastSelection = {'anchorMark': cm.setBookmark(anchor),
-@@ -4561,8 +4705,11 @@ export function initVim(CM) {
+@@ -4561,8 +4717,11 @@ export function initVim(CM) {
      // select boundary before paragraph for the last one
      if (i > max && !startState) { startState = true; }
      else { inclusive = false; }
@@ -416,7 +430,7 @@ index 3cafa6bcf0c99f2ae25a5da8936d3f29445f2d6d..b4caefa54e72e82b490f47817455d5ce
          if (isBoundary(i, -1, true)) { break; }
        }
      }
-@@ -5014,6 +5161,16 @@ export function initVim(CM) {
+@@ -5014,6 +5173,16 @@ export function initVim(CM) {
      // include the symbols
      if (inclusive) {
        --start; ++end;

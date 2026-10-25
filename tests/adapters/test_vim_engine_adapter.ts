@@ -5,5 +5,8 @@ export function create_test_vim_engine_adapter(): VimEnginePort {
     apply_vimrc() {
       return [];
     },
+    sync_clipboard_from_host() {
+      return Promise.resolve();
+    },
   };
 }

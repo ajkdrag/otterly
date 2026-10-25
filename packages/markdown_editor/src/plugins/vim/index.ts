@@ -50,7 +50,8 @@ export type VimKeybindingsOptions = {
   on_quit?: () => void;
   // "+ and set clipboard=unnamed read and write through this. The engine is
   // global, so the last editor built sets it for the page. Without it the
-  // engine uses navigator.clipboard.
+  // engine uses navigator.clipboard. Call sync_clipboard_from_host when the
+  // window gains focus, so text copied in another app reaches p.
   clipboard?: {
     read_text: () => Promise<string>;
     write_text: (text: string) => Promise<void>;
@@ -82,6 +83,8 @@ export function vim_keybindings(
     map_prefix_wait(),
     status_plugin(options.on_status_change),
     host_commands.of(options),
+    // Without a host clipboard the read would be navigator.clipboard's.
+    clipboard ? sync_clipboard_after_copy_or_cut : [],
     vim_theme,
     EditorView.editorAttributes.of({ class: "md-vim" }),
   ];
@@ -100,6 +103,38 @@ export function close_vim_prompt(view: EditorView) {
       cancelable: true,
     }),
   );
+}
+
+// For set clipboard=unnamed. A plain p puts the unnamed register right away,
+// so a map like yypx never waits on the clipboard. Text that another app put
+// on the clipboard reaches that register here instead, so call this when the
+// window gains focus. Text we wrote ourselves is skipped, which keeps its
+// type (linewise or not). Without the option this does nothing. A failed
+// read rejects.
+export async function sync_clipboard_from_host() {
+  const option = Vim.getOption("clipboard");
+  if (typeof option !== "string" || !option.includes("unnamed")) return;
+  const unnamed = Vim.getRegisterController().unnamedRegister;
+  const before = unnamed.toString();
+  const text = (await Vim.clipboard.readText()).replace(/\r\n?/g, "\n");
+  // A yank or delete that landed while we read is newer than the clipboard.
+  if (text === before || unnamed.toString() !== before) return;
+  unnamed.setText(text, text.endsWith("\n"));
+}
+
+// Cmd+C and Cmd+X change the clipboard without Vim, so the next p would put
+// an older register. The browser writes the clipboard after these handlers
+// return, hence the timeout.
+const sync_clipboard_after_copy_or_cut = EditorView.domEventHandlers({
+  copy: sync_clipboard_soon,
+  cut: sync_clipboard_soon,
+});
+
+function sync_clipboard_soon() {
+  setTimeout(() => {
+    sync_clipboard_from_host().catch(() => {});
+  }, 0);
+  return false;
 }
 
 type HostCommands = Pick<VimKeybindingsOptions, "on_write" | "on_quit">;

@@ -23,8 +23,9 @@ afterEach(() => {
 async function create_reactor() {
   const ui = new UIStore();
   const target = { set_vim_enabled: vi.fn() };
-  const press_and_hold = {
+  const vim_service = {
     set_press_and_hold: vi.fn((_enabled: boolean) => Promise.resolve()),
+    sync_clipboard: vi.fn(() => Promise.resolve()),
   };
   const load_vimrc = vi.fn();
   const registry = new ActionRegistry();
@@ -38,16 +39,10 @@ async function create_reactor() {
     for (const listener of focus_listeners) listener();
   };
   cleanups.push(
-    create_vim_mode_reactor(
-      ui,
-      target,
-      press_and_hold,
-      registry,
-      (on_focus) => {
-        focus_listeners.add(on_focus);
-        return () => focus_listeners.delete(on_focus);
-      },
-    ),
+    create_vim_mode_reactor(ui, target, vim_service, registry, (on_focus) => {
+      focus_listeners.add(on_focus);
+      return () => focus_listeners.delete(on_focus);
+    }),
   );
   await tick();
   const set_vim = async (vim_mode_enabled: boolean) => {
@@ -57,7 +52,7 @@ async function create_reactor() {
   return {
     ui,
     target,
-    press_and_hold,
+    vim_service,
     load_vimrc,
     set_vim,
     focus_window,
@@ -83,6 +78,16 @@ describe("vim_mode reactor", () => {
     expect(load_vimrc).toHaveBeenLastCalledWith({ force: false });
   });
 
+  it("pulls the clipboard into the Vim register on window focus, while Vim is on", async () => {
+    const { vim_service, set_vim, focus_window } = await create_reactor();
+    focus_window();
+    expect(vim_service.sync_clipboard).not.toHaveBeenCalled();
+
+    await set_vim(true);
+    focus_window();
+    expect(vim_service.sync_clipboard).toHaveBeenCalledTimes(1);
+  });
+
   it("stops watching focus when Vim turns off", async () => {
     const { target, load_vimrc, set_vim, focus_window, focus_listeners } =
       await create_reactor();
@@ -97,9 +102,8 @@ describe("vim_mode reactor", () => {
   });
 
   it("turns the macOS accent menu off only while Vim mode and Repeat held keys are both on", async () => {
-    const { ui, press_and_hold, set_vim } = await create_reactor();
-    const accent_menu = () =>
-      press_and_hold.set_press_and_hold.mock.lastCall?.[0];
+    const { ui, vim_service, set_vim } = await create_reactor();
+    const accent_menu = () => vim_service.set_press_and_hold.mock.lastCall?.[0];
     expect(accent_menu()).toBe(true);
 
     await set_vim(true);
@@ -124,11 +128,11 @@ describe("vim_mode reactor", () => {
   });
 
   it("ignores other setting changes, like zoom", async () => {
-    const { ui, target, press_and_hold, load_vimrc, set_vim } =
+    const { ui, target, vim_service, load_vimrc, set_vim } =
       await create_reactor();
     await set_vim(true);
     target.set_vim_enabled.mockClear();
-    press_and_hold.set_press_and_hold.mockClear();
+    vim_service.set_press_and_hold.mockClear();
     load_vimrc.mockClear();
 
     ui.set_editor_settings({
@@ -138,7 +142,7 @@ describe("vim_mode reactor", () => {
     await tick();
 
     expect(target.set_vim_enabled).not.toHaveBeenCalled();
-    expect(press_and_hold.set_press_and_hold).not.toHaveBeenCalled();
+    expect(vim_service.set_press_and_hold).not.toHaveBeenCalled();
     expect(load_vimrc).not.toHaveBeenCalled();
   });
 });

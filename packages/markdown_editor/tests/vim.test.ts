@@ -21,6 +21,7 @@ import { gfm } from "../src/plugins/gfm/index";
 import { slash_menu } from "../src/plugins/menus/slash_menu";
 import {
   close_vim_prompt,
+  sync_clipboard_from_host,
   vim_keybindings,
   type VimKeybindingsOptions,
   type VimStatus,
@@ -686,48 +687,112 @@ describe("map waits", () => {
 });
 
 describe("clipboard", () => {
-  test('VIM-029 "+ and "* use the host clipboard, set clipboard=unnamed uses it for every yank and put', async () => {
-    const original = Vim.clipboard;
-    let clipboard = "";
-    const write_text = vi.fn((text: string) => {
-      clipboard = text;
-      return Promise.resolve();
+  // The engine's clipboard hook is global to the page.
+  const original_clipboard = Vim.clipboard;
+  afterEach(() => {
+    Vim.clipboard = original_clipboard;
+  });
+
+  function host_clipboard(initial = "") {
+    const host = {
+      text: initial,
+      write_text: vi.fn((text: string) => {
+        host.text = text;
+        return Promise.resolve();
+      }),
+      read_text: vi.fn(() => Promise.resolve(host.text)),
+    };
+    return host;
+  }
+
+  function unnamed_register() {
+    return Vim.getRegisterController().unnamedRegister;
+  }
+
+  test('VIM-029 "+ and "* use the host clipboard, set clipboard=unnamed writes it for every yank', async () => {
+    const host = host_clipboard();
+    const view = vim_editor("one\ntwo", { keybindings: { clipboard: host } });
+    press(view, '"', "*", "y", "y");
+    expect(host.write_text).toHaveBeenLastCalledWith("one\n");
+
+    host.text = "from\nelsewhere\n";
+    press(view, '"', "+", "p");
+    await vi.waitFor(() => {
+      expect(doc(view)).toBe("one\nfrom\nelsewhere\ntwo");
     });
-    const read_text = vi.fn(() => Promise.resolve(clipboard));
-    try {
-      const view = vim_editor("one\ntwo", {
-        keybindings: { clipboard: { read_text, write_text } },
-      });
-      press(view, '"', "*", "y", "y");
-      expect(write_text).toHaveBeenLastCalledWith("one\n");
 
-      clipboard = "from\nelsewhere\n";
-      press(view, '"', "+", "p");
-      await vi.waitFor(() => {
-        expect(doc(view)).toBe("one\nfrom\nelsewhere\ntwo");
-      });
+    expect(apply_vimrc("set clipboard=unnamed")).toEqual([]);
+    press(view, "G", "y", "y");
+    expect(host.write_text).toHaveBeenLastCalledWith("two\n");
 
-      expect(apply_vimrc("set clipboard=unnamed")).toEqual([]);
-      press(view, "G", "y", "y");
-      expect(write_text).toHaveBeenLastCalledWith("two\n");
-      clipboard = "pasted";
-      press(view, "p");
-      await vi.waitFor(() => {
-        expect(doc(view)).toBe("one\nfrom\nelsewhere\ntpastedwo");
-      });
+    host.write_text.mockClear();
+    press(view, '"', "_", "d", "d");
+    expect(host.write_text).not.toHaveBeenCalled();
 
-      write_text.mockClear();
-      press(view, '"', "_", "d", "d");
-      expect(write_text).not.toHaveBeenCalled();
+    host.read_text.mockReturnValueOnce(Promise.reject(new Error("denied")));
+    press(view, '"', "+", "p");
+    await vi.waitFor(() => {
+      expect(panel_text(view)).toContain("Could not read the clipboard");
+    });
+  });
 
-      read_text.mockReturnValueOnce(Promise.reject(new Error("denied")));
-      press(view, "p");
-      await vi.waitFor(() => {
-        expect(panel_text(view)).toContain("Could not read the clipboard");
+  test('VIM-029 "+p waits for the write before it', async () => {
+    let finish_write = () => {};
+    const host = host_clipboard();
+    host.write_text.mockImplementation((text: string) => {
+      host.text = text;
+      return new Promise<void>((resolve) => {
+        finish_write = resolve;
       });
-    } finally {
-      Vim.clipboard = original;
-    }
+    });
+    const view = vim_editor("abc", { keybindings: { clipboard: host } });
+    press(view, '"', "+", "y", "y", '"', "+", "p");
+    await Promise.resolve();
+    expect(host.read_text).not.toHaveBeenCalled();
+    finish_write();
+    await vi.waitFor(() => {
+      expect(doc(view)).toBe("abc\nabc");
+    });
+  });
+
+  test("VIM-029 under clipboard=unnamed a put right after a yank or delete never reads the clipboard", () => {
+    const host = host_clipboard("stale");
+    const view = vim_editor("abc\ndef", { keybindings: { clipboard: host } });
+    expect(
+      apply_vimrc("set clipboard=unnamed\nnnoremap Q yypx\nnnoremap W xp"),
+    ).toEqual([]);
+
+    press(view, "Q");
+    expect(doc(view)).toBe("abc\nbc\ndef");
+    press(view, "g", "g", "W");
+    expect(doc(view)).toBe("bac\nbc\ndef");
+    expect(host.read_text).not.toHaveBeenCalled();
+  });
+
+  test("VIM-029 sync_clipboard_from_host takes text from other apps and keeps our own writes", async () => {
+    const host = host_clipboard();
+    const view = vim_editor("one\ntwo", { keybindings: { clipboard: host } });
+
+    host.text = "ignored";
+    await sync_clipboard_from_host();
+    expect(unnamed_register().toString()).toBe("");
+
+    apply_vimrc("set clipboard=unnamed");
+    press(view, "y", "y");
+    await sync_clipboard_from_host();
+    press(view, "p");
+    expect(doc(view)).toBe("one\none\ntwo");
+
+    host.text = "other\n";
+    await sync_clipboard_from_host();
+    press(view, "p");
+    expect(doc(view)).toBe("one\none\nother\ntwo");
+
+    host.text = "copied";
+    view.contentDOM.dispatchEvent(new Event("copy", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(unnamed_register().toString()).toBe("copied");
+    });
   });
 });
 

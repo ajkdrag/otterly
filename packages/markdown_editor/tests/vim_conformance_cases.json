@@ -4525,6 +4525,42 @@
     }
   },
   {
+    "id": "dot-ci-brace-multiline-then-one-line",
+    "text": "f() {\n  a\n}\n{x} y",
+    "at": [2, 3],
+    "keys": "ci{X<Esc>G0l.",
+    "vim": {
+      "lines": ["f() {", "  X", "}", "{X} y"],
+      "cursor": [4, 2],
+      "register": "x",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-di-paren-multiline-then-one-line",
+    "text": "f(\n  a\n)\n(x) y",
+    "at": [2, 3],
+    "keys": "di(G0l.",
+    "vim": {
+      "lines": ["f(", ")", "() y"],
+      "cursor": [3, 2],
+      "register": "x",
+      "register_type": "char"
+    }
+  },
+  {
+    "id": "dot-d-brace-col0-then-mid-line",
+    "text": "a\nb\n\nfoo bar\nbaz\n\nend",
+    "at": [1, 1],
+    "keys": "d}jlll.",
+    "vim": {
+      "lines": ["", "foo", "", "end"],
+      "cursor": [2, 3],
+      "register": " bar\nbaz",
+      "register_type": "char"
+    }
+  },
+  {
     "id": "yi(-multiline",
     "text": "f(\n  a,\n  b\n)",
     "at": [2, 3],

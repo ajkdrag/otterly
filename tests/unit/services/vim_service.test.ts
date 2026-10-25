@@ -28,16 +28,23 @@ function setup(
   const apply_vimrc = vi.fn((text: string) =>
     text.startsWith("let") ? [problem] : [],
   );
+  const sync_clipboard_from_host = vi.fn(() => Promise.resolve());
   const vim_store = new VimStore();
   const op_store = new OpStore();
   const service = new VimService(
     vimrc_port,
-    { apply_vimrc },
+    { apply_vimrc, sync_clipboard_from_host },
     { set_press_and_hold: () => Promise.resolve() },
     vim_store,
     op_store,
   );
-  return { service, apply_vimrc, vim_store, op_store };
+  return {
+    service,
+    apply_vimrc,
+    sync_clipboard_from_host,
+    vim_store,
+    op_store,
+  };
 }
 
 describe("VimService.load_vimrc", () => {
@@ -194,5 +201,19 @@ describe("VimService.open_vimrc", () => {
       status: "failed",
       error: "no window available",
     });
+  });
+});
+
+describe("VimService.sync_clipboard", () => {
+  it("asks the engine, and swallows a clipboard that cannot be read", async () => {
+    const { service, sync_clipboard_from_host } = setup(() =>
+      Promise.resolve({ path, text: null }),
+    );
+
+    await service.sync_clipboard();
+    expect(sync_clipboard_from_host).toHaveBeenCalledTimes(1);
+
+    sync_clipboard_from_host.mockRejectedValueOnce(new Error("no text"));
+    await expect(service.sync_clipboard()).resolves.toBeUndefined();
   });
 });

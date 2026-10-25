@@ -129,6 +129,7 @@ export { callouts } from "./plugins/callouts/index.js";
 export {
   vim_keybindings,
   close_vim_prompt,
+  sync_clipboard_from_host,
   type VimMode,
   type VimStatus,
   type VimKeybindingsOptions,

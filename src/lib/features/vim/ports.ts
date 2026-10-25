@@ -17,6 +17,9 @@ export interface VimrcPort {
 export interface VimEnginePort {
   // Replaces the previous vimrc. Returns the lines that did not apply.
   apply_vimrc: (text: string) => VimrcProblem[];
+  // With set clipboard=unnamed, copies text from other apps into the unnamed
+  // register, so p puts it. Call it when the window gains focus.
+  sync_clipboard_from_host: () => Promise<void>;
 }
 
 // macOS opens an accent menu when you hold a letter, instead of repeating

@@ -104,6 +104,18 @@ export class VimService {
     }
   }
 
+  // A clipboard that cannot be read leaves p with the unnamed register as it
+  // was, so there is nothing to tell the user.
+  async sync_clipboard(): Promise<void> {
+    try {
+      await this.vim_engine_port.sync_clipboard_from_host();
+    } catch (error) {
+      log.debug("Could not read the clipboard", {
+        error: error_message(error),
+      });
+    }
+  }
+
   async open_vimrc(): Promise<VimrcOpenResult> {
     try {
       await this.vimrc_port.open_vimrc();

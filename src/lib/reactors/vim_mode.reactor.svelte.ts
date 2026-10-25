@@ -6,8 +6,9 @@ import type { ActionRegistry, UIStore } from "$lib/app";
 type VimModeTarget = { set_vim_enabled: (enabled: boolean) => void };
 
 // VimService.
-type PressAndHoldTarget = {
+type VimServiceTarget = {
   set_press_and_hold: (enabled: boolean) => Promise<void>;
+  sync_clipboard: () => Promise<void>;
 };
 
 // Calls the callback each time the window gains focus, and returns the
@@ -16,14 +17,15 @@ type SubscribeToWindowFocus = (on_focus: () => void) => () => void;
 
 // Pushes the Vim mode setting into the editor. While it is on, loads the
 // vimrc now and again each time the window gains focus. That is how an edit
-// saved in the vimrc's own window reaches this one.
+// saved in the vimrc's own window reaches this one. A focus also pulls text
+// copied in another app into the register that set clipboard=unnamed puts.
 //
 // Also turns the macOS accent menu for held keys off while Vim mode and
 // "Repeat held keys" are both on, so holding l keeps moving right.
 export function create_vim_mode_reactor(
   ui_store: UIStore,
   target: VimModeTarget,
-  press_and_hold: PressAndHoldTarget,
+  vim_service: VimServiceTarget,
   action_registry: ActionRegistry,
   subscribe_to_window_focus: SubscribeToWindowFocus,
 ): () => void {
@@ -46,12 +48,15 @@ export function create_vim_mode_reactor(
         if (vim_enabled) load_vimrc();
       });
       if (!vim_enabled) return;
-      return subscribe_to_window_focus(load_vimrc);
+      return subscribe_to_window_focus(() => {
+        load_vimrc();
+        void vim_service.sync_clipboard();
+      });
     });
     $effect(() => {
       const accent_menu = !(enabled && repeat_held_keys);
       untrack(() => {
-        void press_and_hold.set_press_and_hold(accent_menu);
+        void vim_service.set_press_and_hold(accent_menu);
       });
     });
   });
