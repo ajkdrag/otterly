@@ -901,6 +901,34 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       );
       expect(execute).toHaveBeenCalledTimes(2);
     });
+
+    it.each(["insert", "replace"] as const)(
+      "leaves Ctrl+W to Vim in %s mode on Windows",
+      (mode) => {
+        vi.stubGlobal("navigator", { platform: "Win32" });
+        const { shortcuts, execute } = build({ vim_mode: () => mode });
+        const { event, was_touched } = press("w", {
+          ...ctrl,
+          target: in_vim_editor,
+        });
+
+        shortcuts.handle_keydown_capture(event);
+
+        expect(was_touched()).toBe(false);
+        expect(execute).not.toHaveBeenCalled();
+      },
+    );
+
+    it("closes the tab on Ctrl+W in Vim normal mode on Windows", () => {
+      vi.stubGlobal("navigator", { platform: "Win32" });
+      const { shortcuts, execute } = build({ vim_mode: () => "normal" });
+
+      shortcuts.handle_keydown_capture(
+        press("w", { ...ctrl, target: in_vim_editor }).event,
+      );
+
+      expect(execute).toHaveBeenCalledWith("tab.close");
+    });
   });
 
   describe("Ctrl-[ with Vim mode on", () => {

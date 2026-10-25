@@ -3,7 +3,7 @@ use crate::shared::paths::display_path;
 use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 // The vimrc has one fixed path, next to settings.json. Neither command takes
 // a path from the webview.
@@ -62,7 +62,7 @@ pub async fn open_vimrc(app: AppHandle) -> Result<(), String> {
 // Creates nothing. read_vimrc runs on every window focus, so only open_vimrc
 // makes the directory.
 fn vimrc_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let dir = crate::shared::portable::app_config_dir(app)?;
     Ok(dir.join("otterly").join("vimrc"))
 }
 

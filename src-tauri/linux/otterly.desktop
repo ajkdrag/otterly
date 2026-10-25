@@ -6,9 +6,16 @@ Comment={{comment}}
 Exec={{exec}} %F
 StartupWMClass={{exec}}
 Icon={{icon}}
-Name={{name}}
+Name=Otterly
 Terminal=false
 Type=Application
 {{#if mime_type}}
 MimeType={{mime_type}}
 {{/if}}
+Actions=new-window;
+
+# The launcher's right-click menu. A second launch hands off to the running
+# Otterly, which opens a window on the vault picker (single-instance plugin).
+[Desktop Action new-window]
+Name=New Window
+Exec={{exec}}

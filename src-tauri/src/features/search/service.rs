@@ -923,6 +923,23 @@ fn replace_vault_find_cancel_token(app: &AppHandle, window_label: &str) -> Arc<A
     next_cancel
 }
 
+// Runs when the last window with the vault closes. The worker held search.db
+// and its -wal and -shm files open until the app quit, and Windows refuses to
+// delete, move or rename a folder with open files in it. The next search or
+// index call for the vault opens a fresh worker.
+pub fn release_vault_index(app: &AppHandle, vault_id: &str) {
+    let state = app.state::<SearchDbState>();
+    let worker = match state.workers.lock() {
+        Ok(mut map) => map.remove(vault_id),
+        Err(e) => e.into_inner().remove(vault_id),
+    };
+    if let Some(worker) = worker {
+        worker.cancel.store(true, Ordering::Relaxed);
+        let _ = worker.write_tx.send(DbCommand::Shutdown);
+        log::info!("Released search index vault_id={}", vault_id);
+    }
+}
+
 // Also runs when a window is destroyed, so its walk stops with it.
 pub fn cancel_window_vault_find(app: &AppHandle, window_label: &str) {
     let cancel = lock_vault_find_cancels(app).remove(window_label);
@@ -1131,7 +1148,7 @@ pub(crate) fn replace_vault_file(
         if modified_time(&abs) != modified_before_read {
             return Err(ReplaceSkipReason::Changed);
         }
-        notes_service::atomic_write(&abs, &replaced.text)
+        crate::shared::fs::atomic_write(&abs, &replaced.text)
             .map_err(|_| ReplaceSkipReason::WriteFailed)?;
     }
     let remaining = (!replaced.remaining.is_empty()).then(|| VaultFindFile {

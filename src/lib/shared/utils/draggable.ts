@@ -6,8 +6,10 @@ export type DraggableOptions = {
   on_drag_end?: (() => void) | undefined;
 };
 
+// A drag captures the pointer, so the click never reaches what was pressed.
+// summary is here because a <details> in Settings did not open on click.
 const INTERACTIVE_SELECTOR =
-  "a[href], button, input, select, textarea, label, " +
+  "a[href], button, input, select, textarea, label, summary, " +
   "[contenteditable], " +
   '[role="slider"], [role="switch"], [role="checkbox"], ' +
   '[role="combobox"], [role="radio"], [role="spinbutton"], [role="textbox"]';

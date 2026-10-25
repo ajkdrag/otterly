@@ -1,7 +1,10 @@
+/** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import {
   create_watcher_reactor,
+  queue_index_update,
   resolve_watcher_event_decision,
+  type IndexUpdates,
 } from "$lib/reactors/watcher.reactor.svelte";
 import type { VaultFsEvent } from "$lib/features/watcher";
 import { WatcherService } from "$lib/features/watcher/application/watcher_service";
@@ -384,5 +387,66 @@ describe("watcher_reactor", () => {
     expect(tab_service.remove_tab).not.toHaveBeenCalled();
 
     unmount();
+  });
+
+  it("queues index updates so the last event for a path wins", () => {
+    const updates: IndexUpdates = { upsert: new Set(), remove: new Set() };
+    queue_index_update(updates, added_event("a.md"));
+    queue_index_update(updates, changed_event("a.md"));
+    queue_index_update(updates, removed_event("old.md"));
+    queue_index_update(updates, added_event("old.md"));
+    queue_index_update(updates, removed_event("gone.md"));
+    queue_index_update(updates, added_event("pic.png"));
+
+    expect([...updates.upsert].sort()).toEqual(["a.md", "old.md"]);
+    expect([...updates.remove]).toEqual(["gone.md"]);
+  });
+
+  it("updates the index for changes made outside the app", async () => {
+    const vault_store = new VaultStore();
+    const watcher_port = create_mock_watcher_port();
+    const watcher_service = new WatcherService(watcher_port);
+    const note_service = {
+      open_note: vi.fn(),
+      clear_open_note: vi.fn(),
+      sync_external_changes: vi.fn(),
+    };
+    const action_registry = { execute: vi.fn() };
+
+    const vault = create_test_vault();
+    vault_store.set_vault(vault);
+
+    const unmount = create_watcher_reactor(
+      vault_store,
+      new EditorStore(),
+      new TabStore(),
+      { remove_tab: vi.fn() } as never,
+      note_service as never,
+      watcher_service,
+      action_registry as never,
+    );
+
+    await flush_effects();
+    expect(watcher_port._calls.watch_vault).toEqual([vault.id]);
+    vi.useFakeTimers();
+
+    const event = (e: VaultFsEvent) => ({ ...e, vault_id: vault.id });
+    watcher_port._emit(event(added_event("new.md")));
+    watcher_port._emit(event(changed_event("other.md")));
+    watcher_port._emit(event(removed_event("old.md")));
+    watcher_service.suppress_next("mine.md");
+    watcher_port._emit(event(changed_event("mine.md")));
+
+    await vi.runAllTimersAsync();
+
+    expect(note_service.sync_external_changes).toHaveBeenCalledTimes(1);
+    expect(note_service.sync_external_changes).toHaveBeenCalledWith(
+      vault.id,
+      ["new.md", "other.md"],
+      ["old.md"],
+    );
+
+    unmount();
+    vi.useRealTimers();
   });
 });

@@ -420,6 +420,34 @@ describe("SessionService", () => {
       expect(tab_store.active_tab_id).toBe(as_note_path("docs/alpha.md"));
     });
 
+    it("keeps the other tabs when reading one note throws", async () => {
+      const { service, tab_store, note_service } = create_setup();
+      const tab = (path: string) => ({
+        note_path: as_note_path(path),
+        title: path,
+        is_pinned: false,
+        is_dirty: false,
+        scroll_top: 0,
+        cursor: null,
+        code_block_view_states: [],
+        cached_note: null,
+      });
+      note_service.get_note_meta.mockImplementationOnce(() =>
+        Promise.reject(
+          new Error("read_note_meta: Access is denied. (os error 5)"),
+        ),
+      );
+
+      await service.restore_latest_session({
+        tabs: [tab("docs/locked.md"), tab("docs/alpha.md")],
+        active_tab_path: as_note_path("docs/alpha.md"),
+      });
+
+      expect(tab_store.tabs.map((t) => t.id)).toEqual([
+        as_note_path("docs/alpha.md"),
+      ]);
+    });
+
     it("returns empty state when the session has no restorable tabs", async () => {
       const { service, tab_store, note_service } = create_setup();
       note_service.note_exists.mockResolvedValue(false);

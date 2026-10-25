@@ -3,12 +3,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State};
+use crate::shared::portable::app_config_dir;
+use tauri::{AppHandle, State};
 
 // set_setting is an async command, so Tauri can run two calls at once, and
 // every window writes the same settings.json. Each call reads the file,
-// changes its key and writes it all back through one shared temp file, so the
-// later write would drop the other's key. This lock makes that one step.
+// changes its key and writes it all back, so the later write would drop the
+// other's key. This lock makes that one step.
 #[derive(Default)]
 pub struct SettingsLock(Mutex<()>);
 
@@ -18,8 +19,7 @@ pub struct SettingsStore {
 }
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let dir = dir.join("otterly");
+    let dir = app_config_dir(app)?.join("otterly");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("settings.json"))
 }
@@ -33,10 +33,7 @@ fn read_settings_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
 }
 
 fn write_settings_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temporary_path = path.with_extension("json.tmp");
-    std::fs::write(&temporary_path, bytes).map_err(|e| e.to_string())?;
-    std::fs::rename(&temporary_path, path).map_err(|e| e.to_string())?;
-    Ok(())
+    crate::shared::fs::write_atomically(path, bytes).map_err(|e| e.to_string())
 }
 
 pub fn load_settings(app: &AppHandle) -> Result<SettingsStore, String> {

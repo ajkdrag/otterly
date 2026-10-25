@@ -64,6 +64,7 @@
     is_vault_switcher_open: () => stores.ui.change_vault.open,
     is_hotkey_recorder_open: () => stores.ui.hotkey_recorder.open,
     is_vim_enabled: () => stores.ui.editor_settings.vim_mode_enabled,
+    vim_mode: () => stores.editor.vim_status?.mode ?? null,
     has_tabs: () => stores.tab.has_tabs,
     action_registry,
     on_close_vault_switcher: () => {

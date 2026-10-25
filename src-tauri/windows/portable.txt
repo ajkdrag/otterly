@@ -1,4 +1,7 @@
 This file marks Otterly as a portable copy. Keep it next to otterly.exe.
 
+Settings, the vault list, logs and the WebView profile go in the data folder
+next to otterly.exe. Delete the whole folder and Otterly leaves nothing behind.
+
 Portable copies do not update themselves. To update, download the newest
 portable zip from the releases page and replace otterly.exe.

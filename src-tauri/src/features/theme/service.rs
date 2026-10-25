@@ -1,4 +1,5 @@
-use crate::features::notes::service::atomic_write;
+use crate::features::document::service::open_document_window;
+use crate::shared::fs::atomic_write;
 use notify::event::{AccessKind, AccessMode, ModifyKind};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -129,12 +130,14 @@ pub fn write_theme_schema(app: AppHandle, text: String) -> Result<(), String> {
     atomic_write(&path, &text)
 }
 
+// Opens in an Otterly document window, like the vimrc. Handing it to the
+// system needs a .yaml handler, which Windows and macOS usually lack (Windows
+// asks "How do you want to open this file?", macOS fails). Async because
+// building a window from a sync command can deadlock on Windows.
 #[tauri::command]
-pub fn open_theme_file(app: AppHandle) -> Result<(), String> {
+pub async fn open_theme_file(app: AppHandle) -> Result<(), String> {
     let path = existing_theme_file(&app)?;
-    app.opener()
-        .open_path(display_path(&path), None::<&str>)
-        .map_err(|e| e.to_string())
+    open_document_window(&app, &path)
 }
 
 #[tauri::command]
@@ -246,8 +249,7 @@ fn existing_theme_file(app: &AppHandle) -> Result<PathBuf, String> {
 // The folder of settings.json. Copied from settings::service::settings_path
 // instead of shared, to keep the settings feature untouched.
 fn theme_file_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let dir = dir.join("otterly");
+    let dir = crate::shared::portable::app_config_dir(app)?.join("otterly");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }

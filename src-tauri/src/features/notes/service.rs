@@ -1,4 +1,5 @@
 use crate::shared::constants;
+use crate::shared::fs::atomic_write;
 use crate::shared::storage;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -381,40 +382,6 @@ pub fn read_note_meta(
     let _abs = safe_vault_abs(&root, &note_id)?;
 
     build_note_meta(&root, &note_id)
-}
-
-pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
-    static NEXT_TEMP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let dir = path.parent().ok_or("invalid note path")?;
-    std::fs::create_dir_all(dir).map_err(|e| {
-        log::error!("Failed to create directory {}: {}", dir.display(), e);
-        e.to_string()
-    })?;
-    let name = format!(
-        "{}.{}.tmp",
-        storage::now_ms(),
-        NEXT_TEMP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    );
-    let tmp = dir.join(name);
-    std::fs::write(&tmp, content.as_bytes()).map_err(|e| {
-        log::error!("Failed to write temp file {}: {}", tmp.display(), e);
-        e.to_string()
-    })?;
-    // The rename replaces the file, so carry its permissions over. Otherwise
-    // saving a script opened from outside a vault drops its executable bit.
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let _ = std::fs::set_permissions(&tmp, metadata.permissions());
-    }
-    std::fs::rename(&tmp, path).map_err(|e| {
-        log::error!(
-            "Failed to rename {} -> {}: {}",
-            tmp.display(),
-            path.display(),
-            e
-        );
-        e.to_string()
-    })?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -867,9 +834,7 @@ pub fn write_image_asset(args: WriteImageAssetArgs, app: AppHandle) -> Result<St
 
     let dir = abs.parent().ok_or("invalid asset path")?;
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let tmp = dir.join(format!("{}.tmp", storage::now_ms()));
-    std::fs::write(&tmp, args.bytes).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &abs).map_err(|e| e.to_string())?;
+    crate::shared::fs::write_atomically(&abs, &args.bytes).map_err(|e| e.to_string())?;
 
     Ok(rel)
 }
@@ -1027,13 +992,27 @@ pub(crate) fn scan_folder_entries(target: &Path) -> Result<Vec<FolderEntry>, Str
     let mut items = Vec::new();
 
     for entry in std::fs::read_dir(target).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
+        // One unreadable entry must not hide the rest of the folder.
+        let Ok(entry) = entry else {
+            log::warn!("Skipping an unreadable entry in {}", target.display());
+            continue;
+        };
         let name = entry.file_name().to_string_lossy().to_string();
         if constants::is_excluded_folder(&name) {
             continue;
         }
 
-        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        let Ok(file_type) = entry.file_type() else {
+            log::warn!("Skipping {} in {}: no file type", name, target.display());
+            continue;
+        };
+        // Skip symlinks like the index walkers do (follow_links(false)). On
+        // Windows this also covers junctions, which every Documents folder has
+        // ("My Music" and friends). They point outside the vault, so listing
+        // them failed the whole folder with "note path escapes vault".
+        if file_type.is_symlink() {
+            continue;
+        }
         let is_dir = file_type.is_dir();
         // The tree shows every file except our own noise.
         if !is_dir && constants::is_ignored_file(&name) {
@@ -1573,7 +1552,11 @@ pub fn list_folder_contents(
         if entry.is_dir {
             subfolders.push(rel);
         } else {
-            notes.push(build_note_meta(&root, &rel)?);
+            // Same as in scan_folder_entries: skip the entry, keep the folder.
+            match build_note_meta(&root, &rel) {
+                Ok(meta) => notes.push(meta),
+                Err(error) => log::warn!("Skipping {} in folder listing: {}", rel, error),
+            }
         }
     }
 

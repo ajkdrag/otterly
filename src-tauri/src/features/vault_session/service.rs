@@ -23,11 +23,8 @@ fn read_session_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
 }
 
 fn write_session_file(path: &Path, session: &Value) -> Result<(), String> {
-    let temporary_path = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(session).map_err(|e| e.to_string())?;
-    std::fs::write(&temporary_path, bytes).map_err(|e| e.to_string())?;
-    std::fs::rename(&temporary_path, path).map_err(|e| e.to_string())?;
-    Ok(())
+    crate::shared::fs::write_atomically(path, &bytes).map_err(|e| e.to_string())
 }
 
 pub(crate) fn parse_vault_session(bytes: &[u8]) -> Result<Value, String> {

@@ -1,3 +1,5 @@
+import { is_missing_file_os_error } from "$lib/shared/utils/fs_errors";
+
 // Rust refuses to open a vault that another window has, and brings that
 // window to the front. tauri_invoke puts "tauri invoke failed: <command>: "
 // in front of the code, so we match the end.
@@ -8,10 +10,8 @@ export function is_vault_open_in_other_window_error(message: string): boolean {
 }
 
 export function is_unavailable_vault_error(message: string): boolean {
-  const normalized = message.toLowerCase();
   return (
-    normalized.includes("vault unavailable") ||
-    normalized.includes("could not be found") ||
-    normalized.includes("no such file or directory")
+    message.toLowerCase().includes("vault unavailable") ||
+    is_missing_file_os_error(message)
   );
 }

@@ -14,7 +14,7 @@ export function create_document_window_reactor(
   });
   const cleanup_title = $effect.root(() => {
     $effect(() => {
-      const name = document_store.file?.name ?? "otterly";
+      const name = document_store.file?.name ?? "Otterly";
       void window.setTitle(document_store.is_dirty ? `∘ ${name}` : name);
     });
   });

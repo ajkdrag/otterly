@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "otterly",
+  "productName": "Otterly",
   "version": "0.6.0",
   "identifier": "com.otterly.app",
   "build": {
@@ -20,8 +20,18 @@
       "deb"
     ],
     "createUpdaterArtifacts": true,
+    "publisher": "Otterly",
     "windows": {
-      "signCommand": "pwsh -NoProfile -ExecutionPolicy Bypass -File ../scripts/sign_windows.ps1 %1"
+      "wix": {
+        "upgradeCode": "D7FC0D9A-C959-5A72-B59C-7C2798FD9BC0"
+      },
+      "signCommand": "pwsh -NoProfile -ExecutionPolicy Bypass -File ../scripts/sign_windows.ps1 %1",
+      "nsis": {
+        "installerHooks": "windows/installer_hooks.nsh",
+        "customLanguageFiles": {
+          "English": "windows/nsis_english.nsh"
+        }
+      }
     },
     "icon": [
       "icons/32x32.png",
@@ -68,7 +78,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "otterly",
+        "title": "Otterly",
         "width": 1200,
         "height": 820,
         "resizable": true,
@@ -76,7 +86,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: blob: otterly-asset:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; img-src 'self' data: blob: otterly-asset: http://otterly-asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
     }
   }
 }

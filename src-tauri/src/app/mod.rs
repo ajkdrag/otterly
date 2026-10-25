@@ -1,14 +1,17 @@
 #[cfg(target_os = "macos")]
 mod dock_menu;
+#[cfg(windows)]
+mod jump_list;
 
 use crate::features;
 use crate::features::document::service::{
     files_from_args, forget_document_window, open_document_windows,
 };
-use crate::features::search::service::cancel_window_vault_find;
+use crate::features::search::service::{cancel_window_vault_find, release_vault_index};
 use crate::features::vault::service::{forget_vault_window, open_vault_window, show_vault_window};
 use crate::features::watcher::service::stop_window_watcher;
 use crate::shared;
+use crate::shared::portable::portable_data_dir;
 use std::path::Path;
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
@@ -28,9 +31,22 @@ pub fn run() {
         log::LevelFilter::Info
     };
 
+    // The log is named after the product by default. Pin it, so the file stays
+    // otterly.log on every OS (Linux names are case-sensitive) and the docs
+    // and the theme file help stay right.
+    let log_file_name = Some("otterly".to_string());
+    let log_file_target = match portable_data_dir() {
+        Some(data_dir) => tauri_plugin_log::TargetKind::Folder {
+            path: data_dir.join("logs"),
+            file_name: log_file_name,
+        },
+        None => tauri_plugin_log::TargetKind::LogDir {
+            file_name: log_file_name,
+        },
+    };
     let mut log_builder = tauri_plugin_log::Builder::new().level(log_level).targets([
         tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+        tauri_plugin_log::Target::new(log_file_target),
         tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
     ]);
 
@@ -43,6 +59,37 @@ pub fn run() {
                 message
             ))
         });
+    }
+
+    // Windows lets only the process the user just started take the
+    // foreground. A second launch hands off to the running process and exits,
+    // so it passes that right on first. Otherwise the window the running
+    // process opens for it stays behind Explorer.
+    #[cfg(windows)]
+    // SAFETY: a plain Win32 call with no pointers.
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
+        let _ = AllowSetForegroundWindow(ASFW_ANY);
+    }
+
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut context = tauri::generate_context!();
+    #[cfg(windows)]
+    if let Some(data_dir) = portable_data_dir() {
+        let installed_identifier = context.config().identifier.clone();
+        let shared_config_dir = std::env::var_os("APPDATA")
+            .map(|roaming| Path::new(&roaming).join(&installed_identifier).join("otterly"));
+        match shared::portable::prepare_portable_copy(
+            data_dir,
+            &installed_identifier,
+            shared_config_dir.as_deref(),
+        ) {
+            Ok(identifier) => context.config_mut().identifier = identifier,
+            Err(message) => {
+                shared::portable::show_startup_error(&message);
+                std::process::exit(1);
+            }
+        }
     }
 
     let builder = tauri::Builder::default();
@@ -87,19 +134,16 @@ pub fn run() {
         .plugin(log_builder.build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(
-            tauri_plugin_window_state::Builder::new()
-                .with_state_flags(
-                    StateFlags::SIZE
-                        | StateFlags::POSITION
-                        | StateFlags::MAXIMIZED
-                        | StateFlags::FULLSCREEN,
-                )
-                .build(),
-        )
+        .plugin(window_state_plugin())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             dock_menu::install_dock_menu(app.handle());
+            // Windows keeps the jump list outside the portable data folder, so a
+            // portable copy would leave it behind. Ctrl+Shift+N still works.
+            #[cfg(windows)]
+            if portable_data_dir().is_none() {
+                jump_list::install_jump_list();
+            }
 
             let args: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
@@ -118,9 +162,12 @@ pub fn run() {
             if let WindowEvent::Destroyed = event {
                 let app = window.app_handle();
                 forget_document_window(app, window.label());
-                forget_vault_window(app, window.label());
+                let closed_vault = forget_vault_window(app, window.label());
                 stop_window_watcher(app, window.label());
                 cancel_window_vault_find(app, window.label());
+                if let Some(vault_id) = closed_vault {
+                    release_vault_index(app, &vault_id);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -212,13 +259,46 @@ pub fn run() {
         .register_uri_scheme_protocol("otterly-asset", |ctx, req| {
             shared::storage::handle_asset_request(ctx.app_handle(), req)
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(handle_run_event);
 }
 
+fn window_state_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    let mut builder = tauri_plugin_window_state::Builder::new().with_state_flags(
+        StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED | StateFlags::FULLSCREEN,
+    );
+    // The plugin only takes a file name and joins it onto app_config_dir.
+    // Joining an absolute path replaces the base, so this lands in data\config.
+    if let Some(data_dir) = portable_data_dir() {
+        let state_path = data_dir.join("config").join(".window-state.json");
+        builder = builder.with_filename(state_path.to_string_lossy());
+    }
+    builder.build()
+}
+
+// Each save of the window state still runs create_dir_all on Tauri's
+// app_config_dir, which for a portable copy is the empty
+// %APPDATA%\com.otterly.app.portable-<hash>. remove_dir only removes an
+// empty folder.
+// @Robustness: this relies on Tauri running plugin exit handlers (the last
+// window-state save) before ours, which I have not checked. A crash also
+// leaves the empty folder.
+fn remove_empty_app_config_dir(app: &AppHandle) {
+    if portable_data_dir().is_none() {
+        return;
+    }
+    if let Ok(dir) = app.path().app_config_dir() {
+        let _ = std::fs::remove_dir(dir);
+    }
+}
+
 #[allow(unused_variables)]
 fn handle_run_event(app: &AppHandle, event: RunEvent) {
+    if let RunEvent::Exit = event {
+        remove_empty_app_config_dir(app);
+        return;
+    }
     #[cfg(target_os = "macos")]
     match event {
         RunEvent::Opened { urls } => {

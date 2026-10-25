@@ -1,6 +1,7 @@
 import type { DocumentPort } from "$lib/features/document/ports";
 import type { DocumentFile } from "$lib/features/document/types/document";
 import { tauri_invoke } from "$lib/shared/adapters/tauri_invoke";
+import { custom_scheme_base } from "$lib/shared/utils/custom_scheme_url";
 
 export function create_document_tauri_adapter(): DocumentPort {
   return {
@@ -24,5 +25,5 @@ export function document_asset_url(
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  return `otterly-asset://document/${window_label}/${encoded}`;
+  return `${custom_scheme_base("otterly-asset")}document/${window_label}/${encoded}`;
 }

@@ -1,4 +1,4 @@
-use crate::features::notes::service::atomic_write;
+use crate::shared::fs::atomic_write;
 use crate::shared::constants;
 use crate::shared::storage::{load_store, vault_path_by_id};
 use serde_json::Value;

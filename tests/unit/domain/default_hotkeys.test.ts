@@ -83,6 +83,13 @@ describe("DEFAULT_HOTKEYS", () => {
     expect(key_of("find_in_file.toggle_replace")).toBe("CmdOrCtrl+Alt+F");
   });
 
+  it("binds New Window to Cmd/Ctrl+Shift+N for Windows and Linux", () => {
+    const binding = DEFAULT_HOTKEYS.find(
+      (b) => b.action_id === "vault.open_new_window",
+    );
+    expect(binding?.key).toBe("CmdOrCtrl+Shift+N");
+  });
+
   it("defaults are loaded on first launch (no overrides)", () => {
     expect(DEFAULT_HOTKEYS.length).toBeGreaterThan(0);
     const save = DEFAULT_HOTKEYS.find(

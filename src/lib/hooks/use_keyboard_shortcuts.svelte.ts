@@ -3,6 +3,7 @@ import type { ActionRegistry } from "$lib/app";
 import { normalize_event_to_key } from "$lib/features/hotkey";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { picker_shortcut_step } from "$lib/shared/utils/picker_navigation";
+import type { VimMode } from "$lib/shared/types/editor";
 
 export type KeyboardShortcuts = {
   handle_keydown_capture: (event: KeyboardEvent) => void;
@@ -27,6 +28,8 @@ export function use_keyboard_shortcuts(input: {
   is_vault_switcher_open: () => boolean;
   is_hotkey_recorder_open: () => boolean;
   is_vim_enabled: () => boolean;
+  // The Vim editor's mode, or null while Vim mode is off.
+  vim_mode?: () => VimMode | null;
   has_tabs: () => boolean;
   action_registry: ActionRegistry;
   on_close_vault_switcher: () => void;
@@ -41,6 +44,7 @@ export function use_keyboard_shortcuts(input: {
     is_vault_switcher_open,
     is_hotkey_recorder_open,
     is_vim_enabled,
+    vim_mode = () => null,
     has_tabs,
     action_registry,
     on_close_vault_switcher,
@@ -80,12 +84,22 @@ export function use_keyboard_shortcuts(input: {
   // On macOS the app's hotkeys are Cmd keys, but normalize_event_to_key also
   // reads Ctrl as CmdOrCtrl. Ctrl+F, Ctrl+O, Ctrl+W and the like are Vim keys
   // inside the Vim editor, so Ctrl goes to Vim there. On Windows and Linux
-  // CmdOrCtrl is Ctrl, so the app hotkey wins.
+  // CmdOrCtrl is Ctrl, so the app hotkey wins, except Ctrl+W while typing:
+  // there it deletes the word before the cursor, and closing the tab instead
+  // threw people out of the note mid-sentence.
   const is_ctrl_key_for_vim = (event: KeyboardEvent): boolean => {
     if (!event.ctrlKey || event.metaKey) return false;
-    if (typeof navigator === "undefined" || !navigator.platform.includes("Mac"))
-      return false;
-    return is_inside_vim_editor(event);
+    if (!is_inside_vim_editor(event)) return false;
+    const is_mac =
+      typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+    if (is_mac) return true;
+    const mode = vim_mode();
+    return (
+      (mode === "insert" || mode === "replace") &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() === "w"
+    );
   };
 
   // Ctrl-[ is Esc in Vim. Outside the editor (the omnibar, a dialog, the find

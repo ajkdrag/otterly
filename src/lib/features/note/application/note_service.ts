@@ -22,6 +22,7 @@ import type {
   NoteSaveResult,
 } from "$lib/features/note/types/note_service_result";
 import { error_message } from "$lib/shared/utils/error_message";
+import { is_missing_file_error } from "$lib/shared/utils/fs_errors";
 import {
   create_untitled_open_note,
   is_draft_note_path,
@@ -644,6 +645,31 @@ export class NoteService {
     this.notes_store.remove_recent_note(note_path);
   }
 
+  // Files changed outside the app (another editor, a sync client, a script)
+  // only reached the index on the next vault open, so search and the tag pane
+  // went stale. A removed folder arrives as one path, so its notes go by prefix.
+  async sync_external_changes(
+    vault_id: VaultId,
+    upsert_paths: string[],
+    remove_paths: string[],
+  ): Promise<void> {
+    for (const path of remove_paths) {
+      try {
+        await this.index_port.remove_note(vault_id, as_note_path(path));
+        await this.index_port.remove_notes_by_prefix(vault_id, `${path}/`);
+      } catch (error) {
+        log.error("External remove index update failed", { path, error });
+      }
+    }
+    for (const path of upsert_paths) {
+      try {
+        await this.index_port.upsert_note(vault_id, as_note_path(path));
+      } catch (error) {
+        log.error("External change index update failed", { path, error });
+      }
+    }
+  }
+
   private resolve_save_context(): {
     vault_id: VaultId;
     open_note: OpenEditorNote;
@@ -868,12 +894,7 @@ export class NoteService {
 
   private is_not_found_error(error: unknown): boolean {
     if (error instanceof Error && error.name === "NotFoundError") return true;
-    const message = error_message(error).toLowerCase();
-    return (
-      message.includes("not found") ||
-      message.includes("no such file") ||
-      message.includes("could not be found")
-    );
+    return is_missing_file_error(error_message(error));
   }
 
   private is_mtime_conflict_error(error: unknown): boolean {

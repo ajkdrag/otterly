@@ -178,6 +178,17 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     description: "Move current tab to the right",
     category: "tabs",
   },
+  // macOS has this in the File menu, whose shortcut fires before the page sees
+  // the key. Windows and Linux have no menu bar, so without this binding
+  // Ctrl+Shift+N did nothing there.
+  {
+    action_id: ACTION_IDS.vault_open_new_window,
+    key: "CmdOrCtrl+Shift+N",
+    phase: "capture",
+    label: "New Window",
+    description: "Open another Otterly window on the vault picker",
+    category: "general",
+  },
   {
     action_id: ACTION_IDS.note_create,
     key: "CmdOrCtrl+N",

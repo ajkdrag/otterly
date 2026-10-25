@@ -10,22 +10,45 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 
 **[Get the latest Otterly release](https://github.com/ajkdrag/otterly/releases/latest)** for macOS, Windows, or Linux. No account is needed.
 
-| Platform                       | Package to choose                                                  |
-| ------------------------------ | ------------------------------------------------------------------ |
-| macOS (Apple Silicon or Intel) | `.dmg` for your Mac                                                |
-| Windows x64                    | `setup.exe` or `.msi`, or `portable.zip` (no install)              |
-| Linux x64                      | `.AppImage` or `.deb`                                              |
-| Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage) |
+| Platform                       | Package to choose                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| macOS (Apple Silicon or Intel) | `aarch64.dmg` (Apple Silicon) or `x64.dmg` (Intel)                                |
+| Windows x64                    | `setup.exe` for most people, `.msi` for managed machines, or `portable.zip`       |
+| Linux x64                      | `.deb` on Debian and Ubuntu, `.AppImage` elsewhere                                |
+| Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage)                |
+
+Every installed copy updates itself from the same package type you installed. Your notes are plain files in your vault folders, and installing, updating or uninstalling never touches them.
+
+### Windows
+
+- `setup.exe` installs for your user only, needs no admin rights and is the one to pick if you are unsure.
+- `.msi` installs for every user on the machine and asks for admin rights, also on each update. Use it when IT deploys software. Do not install both.
+- Otterly needs the WebView2 runtime. Windows 11 and up-to-date Windows 10 already have it, and `setup.exe` installs it when it is missing.
+- If Windows shows "Windows protected your PC", click "More info" and then "Run anyway". Windows shows this for apps it has not seen often yet.
+
+Uninstall from Settings > Apps. For `setup.exe` installs, tick "Also delete settings and the vault list" to remove those and the logs too. The `.msi` uninstall leaves them, so delete `%APPDATA%\com.otterly.app` and `%LOCALAPPDATA%\com.otterly.app` by hand for a clean removal. Uninstalling a `setup.exe` install gives `.md` files back to the app that opened them before. Each vault keeps a `.otterly` folder with its search index. Delete it by hand if you stop using that vault.
 
 ### Windows portable zip
 
-Unzip it anywhere and run `otterly.exe`. Everything in the editor works the same as the installed app. Three things differ:
+Unzip it anywhere you can write to, such as Documents or a USB stick, and run `otterly.exe`. Everything in the editor works the same as the installed app. A few things differ:
 
-- Updates: a portable copy does not update itself. Download the newest zip and replace `otterly.exe`. Keep `portable.txt` next to it, because the app reads that file to know it is portable.
+- Data: settings, the vault list, the theme file, the vimrc, logs and the WebView profile live in a `data` folder next to `otterly.exe`. Delete the folder and Otterly leaves nothing behind (Windows itself may still list it under recent apps). A portable copy and an installed one, or two portable copies, run side by side without sharing anything. The first start copies settings and the vault list from an earlier portable or installed Otterly.
+- Updates: a portable copy does not update itself. Download the newest zip and replace `otterly.exe`, keeping `portable.txt` and `data` next to it. The app reads `portable.txt` to know it is portable.
 - File association: nothing is registered with Windows, so use "Open with" > "Choose another app" > "Choose an app on your PC" and pick `otterly.exe`.
-- Settings and the vault list still live in your app data folder (`%APPDATA%\com.otterly.app`), not next to the exe. Installed and portable copies share them.
+- Run it from an unzipped folder, not from inside the zip. Explorer runs a file inside a zip from a temporary folder without `portable.txt`.
 
-Otterly needs the WebView2 runtime. Windows 11 and up-to-date Windows 10 already have it.
+### macOS
+
+Open the `.dmg` and drag Otterly to Applications. The app is not notarized by Apple yet, so the first start shows a warning. Open System Settings > Privacy & Security and click "Open Anyway" next to Otterly, then start it again.
+
+To uninstall, move Otterly to the Bin. Settings and logs live in `~/Library/Application Support/com.otterly.app`, `~/Library/Caches/com.otterly.app`, `~/Library/WebKit/com.otterly.app` and `~/Library/Logs/com.otterly.app`. Delete them for a clean removal.
+
+### Linux
+
+- `.deb`: `sudo apt install ./otterly_<version>_amd64.deb`. It adds Otterly to your app menu and opens `.md` files. Updates ask for your password, since they install a new `.deb`. Remove it with `sudo apt remove otterly`.
+- `.AppImage`: make it executable (`chmod +x`) and run it. Keep it in a folder you can write to, since updates replace the file. Ubuntu 22.04 and later need `libfuse2` (`sudo apt install libfuse2`) to run AppImages.
+
+Settings live in `~/.config/com.otterly.app`, and logs and the WebView profile in `~/.local/share/com.otterly.app`. Delete them for a clean removal.
 
 ## See it in action
 

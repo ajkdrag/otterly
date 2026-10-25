@@ -48,6 +48,47 @@ fn safe_vault_abs_for_write_rejects_symlink_escape() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[cfg(unix)]
+#[test]
+fn scan_folder_entries_skips_symlinks() {
+    let root = mk_temp_dir();
+    let outside = mk_temp_dir();
+    std::fs::write(root.join("a.md"), "a").expect("file should be created");
+    unix_fs::symlink(&outside, root.join("linked")).expect("symlink should be created");
+
+    let entries = scan_folder_entries(&root).expect("scan should succeed");
+    let names: Vec<&str> = entries.iter().map(|entry| entry.name.as_str()).collect();
+    assert_eq!(names, vec!["a.md"]);
+
+    let _ = std::fs::remove_dir_all(&outside);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+// Junctions need no admin rights, unlike symlinks, and C:\Users\X\Documents
+// ships with several. They used to fail the whole folder listing.
+#[cfg(windows)]
+#[test]
+fn scan_folder_entries_skips_junctions() {
+    let root = mk_temp_dir();
+    let outside = mk_temp_dir();
+    std::fs::write(root.join("a.md"), "a").expect("file should be created");
+    let status = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(root.join("My Music"))
+        .arg(&outside)
+        .status()
+        .expect("mklink should run");
+    assert!(status.success());
+
+    let entries = scan_folder_entries(&root).expect("scan should succeed");
+    let names: Vec<&str> = entries.iter().map(|entry| entry.name.as_str()).collect();
+    assert_eq!(names, vec!["a.md"]);
+
+    let _ = std::fs::remove_dir(root.join("My Music"));
+    let _ = std::fs::remove_dir_all(&outside);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 #[test]
 fn rename_with_temp_path_renames_file() {
     let root = mk_temp_dir();

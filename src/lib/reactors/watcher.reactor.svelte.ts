@@ -9,10 +9,38 @@ import type { VaultFsEvent } from "$lib/features/watcher";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { create_logger } from "$lib/shared/utils/logger";
 import { paths_equal_ignore_case } from "$lib/shared/utils/path";
-import { as_note_path, type NotePath } from "$lib/shared/types/ids";
+import {
+  as_note_path,
+  as_vault_id,
+  type NotePath,
+} from "$lib/shared/types/ids";
 
 const log = create_logger("watcher_reactor");
 const TREE_REFRESH_DEBOUNCE_MS = 300;
+
+// The index holds .md notes only. Other files still refresh the tree.
+function is_indexed_note_path(path: string): boolean {
+  return path.toLowerCase().endsWith(".md");
+}
+
+export type IndexUpdates = { upsert: Set<string>; remove: Set<string> };
+
+// Windows sends several events per save and a rename as remove plus add, so
+// updates are collected and the last event for a path wins.
+export function queue_index_update(
+  updates: IndexUpdates,
+  event: VaultFsEvent,
+): void {
+  const path = event.note_path;
+  if (event.type === "note_removed") {
+    updates.upsert.delete(path);
+    updates.remove.add(path);
+    return;
+  }
+  if (!is_indexed_note_path(path)) return;
+  updates.remove.delete(path);
+  updates.upsert.add(path);
+}
 
 export type BackgroundTabInfo = { is_dirty: boolean } | null;
 
@@ -86,6 +114,8 @@ export function create_watcher_reactor(
 ): () => void {
   return $effect.root(() => {
     let tree_refresh_timer: ReturnType<typeof setTimeout> | null = null;
+    let index_timer: ReturnType<typeof setTimeout> | null = null;
+    let index_updates: IndexUpdates = { upsert: new Set(), remove: new Set() };
 
     function debounced_tree_refresh() {
       if (tree_refresh_timer !== null) {
@@ -94,6 +124,23 @@ export function create_watcher_reactor(
       tree_refresh_timer = setTimeout(() => {
         tree_refresh_timer = null;
         void action_registry.execute(ACTION_IDS.folder_refresh_tree);
+      }, TREE_REFRESH_DEBOUNCE_MS);
+    }
+
+    function debounced_index_update(event: VaultFsEvent) {
+      queue_index_update(index_updates, event);
+      if (index_timer !== null) {
+        clearTimeout(index_timer);
+      }
+      index_timer = setTimeout(() => {
+        index_timer = null;
+        const updates = index_updates;
+        index_updates = { upsert: new Set(), remove: new Set() };
+        void note_service.sync_external_changes(
+          as_vault_id(event.vault_id),
+          [...updates.upsert],
+          [...updates.remove],
+        );
       }, TREE_REFRESH_DEBOUNCE_MS);
     }
 
@@ -118,6 +165,10 @@ export function create_watcher_reactor(
         tab_store.is_open_note_dirty(editor_store.open_note),
         find_background_tab,
       );
+
+      if (event.vault_id === vault_store.vault?.id) {
+        debounced_index_update(event);
+      }
 
       switch (decision.action) {
         case "reload":
@@ -162,6 +213,11 @@ export function create_watcher_reactor(
         if (tree_refresh_timer !== null) {
           clearTimeout(tree_refresh_timer);
           tree_refresh_timer = null;
+        }
+        if (index_timer !== null) {
+          clearTimeout(index_timer);
+          index_timer = null;
+          index_updates = { upsert: new Set(), remove: new Set() };
         }
       };
     });

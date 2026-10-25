@@ -124,7 +124,14 @@ export class SessionService {
           if (is_draft_note_path(entry.note_path)) {
             return entry.cached_note ? entry : null;
           }
-          const meta = await this.note_service.get_note_meta(entry.note_path);
+          // One unreadable note must not cost the other tabs. Promise.all
+          // rejects on the first throw, which used to restore nothing.
+          const meta = await this.note_service
+            .get_note_meta(entry.note_path)
+            .catch((error: unknown) => {
+              log.error("Restore tab failed", { path: entry.note_path, error });
+              return null;
+            });
           if (meta) {
             // Add the note to the store so it's available for UI components (like context menus)
             this.notes_store.add_note(meta);

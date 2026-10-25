@@ -203,6 +203,28 @@ describe("draggable", () => {
     expect(on_drag_start).not.toHaveBeenCalled();
   });
 
+  it("leaves a details summary clickable", () => {
+    const on_drag_start = vi.fn();
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "3 lines skipped";
+    details.appendChild(summary);
+    node.appendChild(details);
+
+    draggable(node, { on_drag_start });
+
+    summary.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 150,
+        clientY: 150,
+        button: 0,
+        bubbles: true,
+      }),
+    );
+
+    expect(on_drag_start).not.toHaveBeenCalled();
+  });
+
   it("ignores clicks on children of interactive elements", () => {
     const on_drag_start = vi.fn();
     const button = document.createElement("button");

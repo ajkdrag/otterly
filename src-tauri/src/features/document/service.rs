@@ -1,5 +1,7 @@
-use crate::features::notes::service::{atomic_write, file_meta, read_text_file, safe_vault_abs};
+use crate::features::notes::service::{file_meta, read_text_file, safe_vault_abs};
+use crate::shared::fs::atomic_write;
 use crate::shared::paths::display_path;
+use crate::shared::portable::portable_webview_dir;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -112,15 +114,24 @@ pub(crate) fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), S
     let state = app.state::<DocumentState>();
     // Register before building, so the page's first read finds its file.
     lock(&state).insert(label.clone(), path.clone());
-    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
+    let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
         .title(file_name(&path))
         .inner_size(960.0, 820.0)
-        .disable_drag_drop_handler()
-        .build();
-    if let Err(error) = built {
-        lock(&state).remove(&label);
-        return Err(error.to_string());
+        .disable_drag_drop_handler();
+    if let Some(webview_dir) = portable_webview_dir() {
+        builder = builder.data_directory(webview_dir);
     }
+    let built = builder.build();
+    let window = match built {
+        Ok(window) => window,
+        Err(error) => {
+            lock(&state).remove(&label);
+            return Err(error.to_string());
+        }
+    };
+    // A double click in Explorer reaches us through the single-instance
+    // handoff, and without this the window opened behind Explorer.
+    let _ = window.set_focus();
     log::info!("Opened document window for {}", path.display());
     Ok(())
 }

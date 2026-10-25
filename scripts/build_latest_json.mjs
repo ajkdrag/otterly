@@ -2,107 +2,91 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseScriptArgs } from "./parse_script_args.mjs";
 
-function readMetadataFiles(directory) {
-  if (!fs.existsSync(directory)) {
-    throw new Error(`Metadata directory not found: ${directory}`);
-  }
-
-  return fs
-    .readdirSync(directory)
-    .filter((name) => name.endsWith(".json"))
-    .map((name) =>
-      JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")),
-    );
-}
-
-function readReleaseAssets(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function encodeAssetName(assetName) {
-  return assetName
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-}
-
-function resolveReleaseAssetName(platform, releaseAssets) {
-  const matcher =
-    platform === "darwin-aarch64"
-      ? (name) => name.endsWith("_aarch64.app.tar.gz")
-      : platform === "darwin-x86_64"
-        ? (name) => name.endsWith("_x64.app.tar.gz")
-        : platform === "linux-x86_64"
-          ? (name) =>
-              name.endsWith(".AppImage") && !name.endsWith(".AppImage.sig")
-          : platform === "windows-x86_64"
-            ? (name) => name.endsWith("-setup.exe")
-            : null;
-
-  if (!matcher) {
-    throw new Error(`Unsupported updater platform: ${platform}`);
-  }
-
-  const assetName = releaseAssets.find(matcher);
-
-  if (!assetName) {
-    throw new Error(`No uploaded release asset found for ${platform}`);
-  }
-
-  return assetName;
-}
+// Builds the updater manifest from the assets on the release and their .sig
+// files, so it can only point at what was actually uploaded.
+//
+// The updater (tauri-plugin-updater 2.10) looks up "<os>-<arch>-<installer>"
+// first, where the installer is the bundle type baked into the running
+// binary, and falls back to "<os>-<arch>". With only the fallback keys an MSI
+// install got the NSIS setup and ended up installed twice, and a .deb install
+// got the AppImage, which install_deb cannot use. So every installer gets its
+// own key, and the fallback keys stay for anything that does not know its
+// bundle type.
+const UPDATER_TARGETS = [
+  {
+    keys: ["darwin-aarch64-app", "darwin-aarch64"],
+    matches: (name) => name.endsWith("_aarch64.app.tar.gz"),
+  },
+  {
+    keys: ["darwin-x86_64-app", "darwin-x86_64"],
+    matches: (name) => name.endsWith("_x64.app.tar.gz"),
+  },
+  {
+    keys: ["linux-x86_64-appimage", "linux-x86_64"],
+    matches: (name) => name.endsWith(".AppImage"),
+  },
+  {
+    keys: ["linux-x86_64-deb"],
+    matches: (name) => name.endsWith(".deb"),
+  },
+  {
+    keys: ["windows-x86_64-nsis", "windows-x86_64"],
+    matches: (name) => name.endsWith("-setup.exe"),
+  },
+  {
+    keys: ["windows-x86_64-msi"],
+    matches: (name) => name.endsWith(".msi"),
+  },
+];
 
 const args = parseScriptArgs(process.argv.slice(2));
-const inputDir = args.get("input-dir");
 const releaseAssetsPath = args.get("release-assets");
+const signaturesDir = args.get("signatures-dir");
 const repo = args.get("repo");
 const tag = args.get("tag");
 const outputPath = args.get("output");
 
-if (!inputDir || !releaseAssetsPath || !repo || !tag || !outputPath) {
+if (!releaseAssetsPath || !signaturesDir || !repo || !tag || !outputPath) {
   throw new Error(
-    "Missing required arguments: --input-dir, --release-assets, --repo, --tag, --output",
+    "Missing required arguments: --release-assets, --signatures-dir, --repo, --tag, --output",
   );
 }
 
 const workspaceRoot = path.resolve(import.meta.dirname, "..");
-const metadataEntries = readMetadataFiles(path.join(workspaceRoot, inputDir));
-const releaseAssets = readReleaseAssets(
-  path.join(workspaceRoot, releaseAssetsPath),
+const releaseAssets = JSON.parse(
+  fs.readFileSync(path.join(workspaceRoot, releaseAssetsPath), "utf8"),
 );
+const version = JSON.parse(
+  fs.readFileSync(
+    path.join(workspaceRoot, "src-tauri", "tauri.conf.json"),
+    "utf8",
+  ),
+).version;
 
-if (metadataEntries.length === 0) {
-  throw new Error("No updater metadata files found");
-}
-
-const version = metadataEntries[0].version;
 const platforms = {};
-
-for (const entry of metadataEntries) {
-  if (entry.version !== version) {
-    throw new Error("Mismatched app versions in updater metadata");
+for (const target of UPDATER_TARGETS) {
+  const assetName = releaseAssets.find(target.matches);
+  if (!assetName) {
+    throw new Error(`No release asset for ${target.keys[0]}`);
   }
-
-  if (platforms[entry.platform]) {
-    throw new Error(
-      `Duplicate updater platform metadata for ${entry.platform}`,
-    );
+  const signaturePath = path.join(
+    workspaceRoot,
+    signaturesDir,
+    `${assetName}.sig`,
+  );
+  if (!fs.existsSync(signaturePath)) {
+    throw new Error(`Missing updater signature ${assetName}.sig`);
   }
-
-  const assetName = resolveReleaseAssetName(entry.platform, releaseAssets);
-
-  platforms[entry.platform] = {
-    signature: entry.signature,
-    url: `https://github.com/${repo}/releases/download/${tag}/${encodeAssetName(assetName)}`,
+  const entry = {
+    signature: fs.readFileSync(signaturePath, "utf8").trim(),
+    url: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(assetName)}`,
   };
+  for (const key of target.keys) {
+    platforms[key] = entry;
+  }
 }
 
-const manifest = {
-  version,
-  pub_date: new Date().toISOString(),
-  platforms,
-};
-
+const manifest = { version, pub_date: new Date().toISOString(), platforms };
 fs.writeFileSync(
   path.join(workspaceRoot, outputPath),
   `${JSON.stringify(manifest, null, 2)}\n`,

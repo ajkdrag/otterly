@@ -186,7 +186,6 @@ jobs:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           releaseDraft: true
           includeUpdaterJson: false
-          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
       # The portable zip is the plain release binary plus portable.txt. The
@@ -242,20 +241,6 @@ jobs:
               ;;
           esac
 
-      - name: Write updater metadata
-        shell: bash
-        run: |
-          node scripts/write_release_metadata.mjs \
-            --platform=${{ matrix.target_key }} \
-            --bundle-root=${{ matrix.bundle_root }} \
-            --output=release-metadata/${{ matrix.job_name }}.json
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-metadata-${{ matrix.job_name }}
-          path: release-metadata/${{ matrix.job_name }}.json
-          if-no-files-found: error
-
   finalize_release:
     needs: [create_release, build]
     runs-on: ubuntu-latest
@@ -270,23 +255,21 @@ jobs:
         with:
           node-version: 20
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-metadata
-          pattern: release-metadata-*
-          merge-multiple: true
-
-      - name: Fetch release asset names
+      # The manifest is built from what is on the release, so it can only
+      # point at uploaded installers, each with its own signature.
+      - name: Fetch release asset names and updater signatures
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-        run: gh release view "$TAG_NAME" --json assets --jq '[.assets[].name]' > release-assets.json
+        run: |
+          gh release view "$TAG_NAME" --json assets --jq '[.assets[].name]' > release-assets.json
+          gh release download "$TAG_NAME" --pattern '*.sig' --dir release-signatures
 
       - name: Build updater manifest
         run: |
           node scripts/build_latest_json.mjs \
-            --input-dir=release-metadata \
             --release-assets=release-assets.json \
+            --signatures-dir=release-signatures \
             --repo=${{ github.repository }} \
             --tag=${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }} \
             --output=latest.json

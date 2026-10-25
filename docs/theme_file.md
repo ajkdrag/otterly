@@ -79,6 +79,8 @@ When the file has errors, the last valid version stays on screen, so a bad save 
 | Windows | `%LOCALAPPDATA%\com.otterly.app\logs\otterly.log`                       |
 | Linux   | `~/.local/share/com.otterly.app/logs/otterly.log` (or `$XDG_DATA_HOME`) |
 
+The Windows portable copy logs to `data\logs\otterly.log` next to `otterly.exe`.
+
 Save, wait a second, then look at the newest lines:
 
 ```sh

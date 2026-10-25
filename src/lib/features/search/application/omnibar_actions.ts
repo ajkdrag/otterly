@@ -12,6 +12,7 @@ import {
   set_search_query_target,
 } from "$lib/features/search/domain/search_query_parser";
 import { tag_key, type TaggedNote } from "$lib/features/tags";
+import { is_unavailable_vault_error } from "$lib/features/vault";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -197,15 +198,6 @@ function clear_cross_vault_open_confirm(input: ActionRegistrationInput) {
     target_vault_name: "",
     note_path: null,
   };
-}
-
-function is_unavailable_vault_error(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("vault unavailable") ||
-    normalized.includes("could not be found") ||
-    normalized.includes("no such file or directory")
-  );
 }
 
 function mark_vault_unavailable(

@@ -68,6 +68,23 @@ codegen-units = 16
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "~2.4.0"
 
+# The taskbar jump list's New Window (app/jump_list.rs) talks to the shell
+# directly, because Tauri has no API for it, and a second launch hands its
+# foreground right to the running process (app/mod.rs). Tauri already builds
+# windows 0.61.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Storage_EnhancedStorage",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 # The Dock menu's New Window talks to AppKit directly, because Tauri has no
 # API for it. Vim mode turns the accent menu for held keys off
 # (vim::set_press_and_hold) through NSUserDefaults. Tauri already builds these

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::http::{Request, Response};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 fn default_is_available() -> bool {
     true
@@ -46,8 +46,7 @@ pub fn vault_id_for_path(path: &str) -> String {
 }
 
 pub fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let dir = dir.join("otterly");
+    let dir = crate::shared::portable::app_config_dir(app)?.join("otterly");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("vaults.json"))
 }
@@ -72,22 +71,11 @@ pub fn load_store(app: &AppHandle) -> Result<VaultStore, String> {
 pub fn save_store(app: &AppHandle, store: &VaultStore) -> Result<(), String> {
     log::debug!("Saving vault store");
     let path = store_path(app)?;
-    let tmp = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?;
-    std::fs::write(&tmp, &bytes).map_err(|e| {
-        log::error!("Failed to write vault store to {}: {}", tmp.display(), e);
+    crate::shared::fs::write_atomically(&path, &bytes).map_err(|e| {
+        log::error!("Failed to save vault store {}: {}", path.display(), e);
         e.to_string()
-    })?;
-    std::fs::rename(&tmp, &path).map_err(|e| {
-        log::error!(
-            "Failed to rename vault store {} -> {}: {}",
-            tmp.display(),
-            path.display(),
-            e
-        );
-        e.to_string()
-    })?;
-    Ok(())
+    })
 }
 
 pub fn vault_path_by_id(store: &VaultStore, vault_id: &str) -> Option<String> {
@@ -133,8 +121,11 @@ fn url_decode(input: &str) -> String {
 }
 
 pub fn handle_asset_request(app: &AppHandle, req: Request<Vec<u8>>) -> Response<Vec<u8>> {
+    // WebView2 on Windows cannot load custom schemes, so there the page asks
+    // for http://otterly-asset.localhost/vault/... instead.
     let uri = req.uri().to_string();
     let rel = uri
+        .trim_start_matches("http://otterly-asset.localhost")
         .trim_start_matches("otterly-asset://")
         .trim_start_matches("otterly-asset:")
         .trim_start_matches('/');

@@ -28,3 +28,7 @@ mod theme_file_service;
 mod vault_find;
 #[path = "../../tests/vim_service.rs"]
 mod vim_service;
+#[path = "../../tests/watcher_events.rs"]
+mod watcher_events;
+#[path = "../../tests/shared_fs.rs"]
+mod shared_fs;

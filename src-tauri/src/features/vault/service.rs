@@ -1,3 +1,4 @@
+use crate::shared::portable::portable_webview_dir;
 use crate::shared::storage;
 use crate::shared::storage::{Vault, VaultEntry, VaultStore};
 use serde::Deserialize;
@@ -78,8 +79,10 @@ pub fn show_vault_window(app: &AppHandle) {
     }
 }
 
-pub fn forget_vault_window(app: &AppHandle, label: &str) {
-    lock_vault_by_window(app).remove(label);
+// Returns the vault the window had, which no window has now, since a vault is
+// open in at most one window.
+pub fn forget_vault_window(app: &AppHandle, label: &str) -> Option<String> {
+    lock_vault_by_window(app).remove(label)
 }
 
 fn is_vault_window_label(label: &str) -> bool {
@@ -98,9 +101,11 @@ fn build_vault_window(app: &AppHandle, label: &str) -> Result<(), String> {
         .cloned()
         .ok_or("tauri.conf.json has no main window")?;
     config.label = label.to_string();
-    WebviewWindowBuilder::from_config(app, &config)
-        .and_then(|builder| builder.build())
-        .map_err(|e| e.to_string())?;
+    let mut builder = WebviewWindowBuilder::from_config(app, &config).map_err(|e| e.to_string())?;
+    if let Some(webview_dir) = portable_webview_dir() {
+        builder = builder.data_directory(webview_dir);
+    }
+    builder.build().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -264,20 +269,29 @@ pub fn open_vault(
         .map(|v| v.vault.created_at)
         .unwrap_or_else(storage::now_ms);
     let existing_note_count = existing.and_then(|v| v.vault.note_count);
-    let note_count = load_note_count(&app, &id).or(existing_note_count);
 
-    let vault = Vault {
+    let mut vault = Vault {
         id: id.clone(),
         path: vault_path,
         name: vault_name(&args.vault_path),
         created_at,
         last_opened_at: Some(storage::now_ms()),
-        note_count,
+        note_count: existing_note_count,
         is_available: true,
     };
 
     upsert_vault(&mut store, vault.clone());
     storage::save_store(&app, &store)?;
+
+    // list_notes finds the vault through vaults.json, so count only after the
+    // save above. Counting first failed every first open with "vault not
+    // found", and the picker showed "-- notes" forever.
+    let new_count = load_note_count(&app, &id).filter(|count| Some(*count) != vault.note_count);
+    if let Some(note_count) = new_count {
+        vault.note_count = Some(note_count);
+        upsert_vault(&mut store, vault.clone());
+        storage::save_store(&app, &store)?;
+    }
     Ok(vault)
 }
 

@@ -21,6 +21,7 @@
     is_vault_switcher_open: () => false,
     is_hotkey_recorder_open: () => false,
     is_vim_enabled: () => stores.ui.editor_settings.vim_mode_enabled,
+    vim_mode: () => document.vim_status?.mode ?? null,
     has_tabs: () => false,
     action_registry,
     on_close_vault_switcher: () => {},
