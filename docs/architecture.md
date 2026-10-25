@@ -145,8 +145,12 @@ Features exist in both runtimes but stay physically separate: TypeScript in `src
 
 Cmd+O is the one search surface. Its input has two modes, and tag chips and the vault scope filter both.
 
-- **Notes** parses what you type: `>` runs commands, `#` picks a tag, `@file` and `title:` narrow to names. The `All | Files` strip and the scope select belong to it. It reads the SQLite search db: FTS5 for file names and ranked content, `note_tags` for tags. All vaults runs the same search over every vault.
-- **Text** (Cmd+Shift+F, or the `Text` button) takes the input as a raw pattern, so `>` and `#todo` are literal. It runs the Rust vault find engine (ripgrep crates) over the files on disk: substring, regex, case, whole word, include and exclude globs, and replace across files. One vault only.
+- **Notes** parses what you type: `>` runs commands, `#` picks a tag, `@file` and `title:` narrow to names. It reads the SQLite search db: FTS5 for file names and ranked content, `note_tags` for tags. All vaults runs the same search over every vault.
+- **Text** (Cmd+Shift+F, or the `Text` tab) takes the input as a raw pattern, so `>` and `#todo` are literal. It runs the Rust vault find engine (ripgrep crates) over the files on disk: substring, regex, case, whole word, include and exclude globs, and replace across files. One vault only.
+
+Chips always narrow: a note has to carry every chip tag, and there is no any-tag mode. Add a chip to narrow, remove one to widen. Chips belong to one vault, so All vaults drops them.
+
+The `All | Files | Text` tabs sit at the left of the row under the input, in both modes. The scope select (Notes) or include and exclude (Text) sit to their right.
 
 Chips go to Rust with the find request. Rust resolves them through the search db into a file set and walks only those files. The find reactor starts the search while the omnibar is open in Text mode, and `VaultFindResults` holds the streaming results. `run_replace` in `vault_find_actions.ts` is the only code that writes. It works by match ordinal and content hash, skips files with unsaved edits, and takes a git checkpoint first for Replace in file and Replace all.
 
