@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+/** @vitest-environment jsdom */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { use_keyboard_shortcuts } from "$lib/hooks/use_keyboard_shortcuts.svelte";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
@@ -27,6 +28,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -57,6 +59,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -87,6 +90,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -118,6 +122,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => true,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher,
@@ -150,6 +155,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => true,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -181,6 +187,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -211,6 +218,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -241,6 +249,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -283,6 +292,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -315,6 +325,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => true,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -347,6 +358,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -377,6 +389,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => true,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -414,6 +427,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -451,6 +465,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -486,6 +501,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -530,6 +546,7 @@ describe("use_keyboard_shortcuts", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => false,
       action_registry: registry,
       on_close_vault_switcher: vi.fn(),
@@ -588,6 +605,7 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       is_omnibar_topmost: () => false,
       is_vault_switcher_open: () => false,
       is_hotkey_recorder_open: () => false,
+      is_vim_enabled: () => false,
       has_tabs: () => true,
       action_registry: registry,
       on_close_vault_switcher,
@@ -654,6 +672,20 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
       shortcuts.handle_keydown(event);
       expect(was_touched()).toBe(false);
     }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("leaves Cmd+J and Cmd+K to a picker in the page that marks itself", () => {
+    const { shortcuts, execute } = build();
+    const list = document.createElement("div");
+    list.dataset.pickerKeys = "";
+    const filter = document.createElement("input");
+    list.append(filter);
+
+    const { event, was_touched } = press("j", { target: filter });
+    shortcuts.handle_keydown_capture(event);
+
+    expect(was_touched()).toBe(false);
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -726,9 +758,19 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
   it("runs the all-vaults scope shortcut while the omnibar is open", () => {
     const { shortcuts, execute } = build(open_omnibar);
 
-    shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
+    shortcuts.handle_keydown_capture(
+      press("f", { shiftKey: true, altKey: true }).event,
+    );
 
     expect(execute).toHaveBeenCalledWith("omnibar.open_all_vaults");
+  });
+
+  it("runs find in vault while the omnibar is open, to switch to Text mode", () => {
+    const { shortcuts, execute } = build(open_omnibar);
+
+    shortcuts.handle_keydown_capture(press("f", { shiftKey: true }).event);
+
+    expect(execute).toHaveBeenCalledWith("omnibar.open_find");
   });
 
   it("does not run palette keys when another dialog is in front of the omnibar", () => {
@@ -781,5 +823,163 @@ describe("use_keyboard_shortcuts picker and dialog policy", () => {
 
     expect(execute).not.toHaveBeenCalled();
     expect(on_switch_to_tab).not.toHaveBeenCalled();
+  });
+
+  describe("Ctrl keys in the Vim editor", () => {
+    const in_vim_editor = {
+      closest: (selector: string) => (selector === ".md-vim" ? {} : null),
+    } as unknown as EventTarget;
+    const ctrl = { metaKey: false, ctrlKey: true };
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("go to Vim on macOS, while Cmd keys stay app hotkeys", () => {
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      const { shortcuts, execute, on_switch_to_tab } = build();
+
+      for (const key of ["f", "o", "p", "t", "w", "j", "1"]) {
+        const { event, was_touched } = press(key, {
+          ...ctrl,
+          target: in_vim_editor,
+        });
+        shortcuts.handle_keydown_capture(event);
+        shortcuts.handle_keydown(event);
+        expect(was_touched()).toBe(false);
+      }
+      expect(execute).not.toHaveBeenCalled();
+      expect(on_switch_to_tab).not.toHaveBeenCalled();
+
+      shortcuts.handle_keydown_capture(
+        press("f", { target: in_vim_editor }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["Cmd+P", "p", {}, "omnibar.toggle"],
+      ["Cmd+O", "o", {}, "omnibar.open"],
+      ["Cmd+T", "t", {}, "omnibar.open_tags"],
+      ["Cmd+F", "f", {}, "find_in_file.toggle"],
+      [
+        "Cmd+Alt+F",
+        "ƒ",
+        { altKey: true, code: "KeyF" },
+        "find_in_file.toggle_replace",
+      ],
+      ["Cmd+Shift+F", "f", { shiftKey: true }, "omnibar.open_find"],
+    ])(
+      "runs %s inside the Vim editor on macOS",
+      (_name, key, modifiers, action_id) => {
+        vi.stubGlobal("navigator", { platform: "MacIntel" });
+        const { shortcuts, execute } = build({ is_vim_enabled: () => true });
+        const { event, was_touched } = press(key, {
+          ...modifiers,
+          target: in_vim_editor,
+        });
+
+        shortcuts.handle_keydown_capture(event);
+
+        expect(was_touched()).toBe(true);
+        expect(execute).toHaveBeenCalledWith(action_id);
+      },
+    );
+
+    it("stay app hotkeys outside the Vim editor on macOS, and everywhere elsewhere", () => {
+      const { shortcuts, execute } = build();
+
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      shortcuts.handle_keydown_capture(
+        press("f", { ...ctrl, target: { closest: () => null } as never }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+
+      vi.stubGlobal("navigator", { platform: "Win32" });
+      shortcuts.handle_keydown_capture(
+        press("f", { ...ctrl, target: in_vim_editor }).event,
+      );
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("Ctrl-[ with Vim mode on", () => {
+    const ctrl_bracket = { metaKey: false, ctrlKey: true };
+
+    // The hook tests run in node, which has no KeyboardEvent.
+    beforeEach(() => {
+      vi.stubGlobal(
+        "KeyboardEvent",
+        class {
+          constructor(
+            readonly type: string,
+            init: object,
+          ) {
+            Object.assign(this, init);
+          }
+        },
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function key_target(inside_vim_editor: boolean) {
+      const dispatched: KeyboardEvent[] = [];
+      const target = {
+        closest: (selector: string) =>
+          inside_vim_editor && selector === ".md-vim" ? {} : null,
+        dispatchEvent: (event: KeyboardEvent) => dispatched.push(event),
+      } as unknown as EventTarget;
+      return { target, dispatched };
+    }
+
+    it("acts as Escape in a dialog, the omnibar or the find bar", () => {
+      const { shortcuts, execute } = build({
+        is_vim_enabled: () => true,
+        ...open_omnibar,
+      });
+      const { target, dispatched } = key_target(false);
+      const { event, was_touched } = press("[", { ...ctrl_bracket, target });
+
+      shortcuts.handle_keydown_capture(event);
+
+      expect(was_touched()).toBe(true);
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]).toMatchObject({
+        type: "keydown",
+        key: "Escape",
+        bubbles: true,
+      });
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["inside the Vim editor", true, true],
+      ["with Vim mode off", false, false],
+    ])("does nothing %s", (_name, vim_enabled, inside_vim_editor) => {
+      const { shortcuts } = build({ is_vim_enabled: () => vim_enabled });
+      const { target, dispatched } = key_target(inside_vim_editor);
+      const { event, was_touched } = press("[", { ...ctrl_bracket, target });
+
+      shortcuts.handle_keydown_capture(event);
+
+      expect(was_touched()).toBe(false);
+      expect(dispatched).toHaveLength(0);
+    });
+
+    it("needs a bare Ctrl", () => {
+      const { shortcuts } = build({ is_vim_enabled: () => true });
+      const { target, dispatched } = key_target(false);
+
+      for (const extra of [{ shiftKey: true }, { altKey: true }]) {
+        shortcuts.handle_keydown_capture(
+          press("[", { ...ctrl_bracket, ...extra, target }).event,
+        );
+      }
+
+      expect(dispatched).toHaveLength(0);
+    });
   });
 });

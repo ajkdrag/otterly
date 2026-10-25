@@ -7,6 +7,8 @@ import { SearchStore } from "$lib/features/search";
 import { TabStore } from "$lib/features/tab";
 import { GitStore } from "$lib/features/git";
 import { LinksStore } from "$lib/features/links";
+import { TagsStore } from "$lib/features/tags";
+import { VimStore } from "$lib/features/vim";
 
 export type AppStores = {
   vault: VaultStore;
@@ -18,6 +20,8 @@ export type AppStores = {
   tab: TabStore;
   git: GitStore;
   links: LinksStore;
+  tags: TagsStore;
+  vim: VimStore;
 };
 
 export function create_app_stores(): AppStores {
@@ -31,5 +35,7 @@ export function create_app_stores(): AppStores {
     tab: new TabStore(),
     git: new GitStore(),
     links: new LinksStore(),
+    tags: new TagsStore(),
+    vim: new VimStore(),
   };
 }

@@ -1,0 +1,63 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 9fdbcaec78784ecafa963535b25c9241e3b9eab3..21f73207d8f0463da0107ed1c93eb17c7b91192c 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -724,6 +724,11 @@ declare function initVim(CM: CodeMirrorConstructor): {
+ 	};
+ 	maybeInitVimState_: (cm: CM5EditorInterface) => vimState;
+ 	suppressErrorLogging: boolean;
++	// otterly patch V17: the clipboard hook in vim.js.
++	clipboard: {
++		readText(): Promise<string>;
++		writeText(text: string): Promise<void>;
++	};
+ 	InsertModeKey: {
+ 		new (keyName: string, e: KeyboardEvent): {
+ 			keyName: string;
+@@ -1196,6 +1201,11 @@ declare const Vim$1: {
+ 	};
+ 	maybeInitVimState_: (cm: CM5EditorInterface) => vimState;
+ 	suppressErrorLogging: boolean;
++	// otterly patch V17: the clipboard hook in vim.js.
++	clipboard: {
++		readText(): Promise<string>;
++		writeText(text: string): Promise<void>;
++	};
+ 	InsertModeKey: {
+ 		new (keyName: string, e: KeyboardEvent): {
+ 			keyName: string;
+diff --git a/dist/index.js b/dist/index.js
+index f0b243a40e4c4605811a774078a5a25d1fa5ae54..db705008457bb736c249ecc7860d98cda2e33fe3 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -468,7 +468,17 @@ class CodeMirror {
+                 var doc = cm.cm6.state.doc;
+                 if (back) {
+                     let endAt = last ? (afterEmptyMatch ? last.to - 1 : last.from) : firstOffset;
+-                    last = prevMatchInRange(0, endAt);
++                    let found = prevMatchInRange(0, endAt);
++                    // otterly patch V18: the first backward search finds the
++                    // last match that starts before the cursor, even when the
++                    // cursor sits inside it. prevMatchInRange only sees
++                    // matches that also end before it.
++                    if (!last) {
++                        let overlapping = nextMatch(found ? found.from + 1 : 0);
++                        if (overlapping && overlapping.from < firstOffset)
++                            found = overlapping;
++                    }
++                    last = found;
+                 }
+                 else {
+                     let startFrom = last ? (afterEmptyMatch ? last.to + 1 : last.to) : firstOffset;
+@@ -1235,7 +1245,10 @@ function measureCursor(cm, view, cursor, primary) {
+         }
+         if (cm.state.overwrite)
+             hCoeff = 0.2;
+-        else if (vim.status)
++        // otterly patch V19: the half block means an operator waits for its
++        // motion (Vim's o:hor50). A count or a register prefix keeps the
++        // full block.
++        else if (vim.inputState.operator)
+             hCoeff = 0.5;
+     }
+     if (fatCursor) {

@@ -1,6 +1,7 @@
-import type { Theme } from "$lib/shared/types/theme";
+import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
 import {
   DEFAULT_THEME_ID,
+  MISSING_THEME_FILE_STATE,
   get_all_themes,
   resolve_theme,
 } from "$lib/shared/types/theme";
@@ -21,16 +22,17 @@ import type {
   MoveItem,
 } from "$lib/shared/types/filetree";
 import type { PastedImagePayload } from "$lib/shared/types/editor";
-import type { OmnibarScope } from "$lib/shared/types/search";
+import type { OmnibarMode, OmnibarScope } from "$lib/shared/types/search";
 import type {
   HotkeyConfig,
   HotkeyOverride,
   HotkeyRecorderState,
 } from "$lib/features/hotkey";
+import type { VaultFindSelection } from "$lib/features/search";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 type AsyncStatus = "idle" | "loading" | "error";
-type SidebarView = "explorer" | "dashboard" | "starred";
+type SidebarView = "explorer" | "dashboard" | "starred" | "tags";
 type ContextRailTab = "links";
 
 const INITIAL_DELETE_NOTE_DIALOG = { open: false, note: null } as const;
@@ -81,17 +83,58 @@ const INITIAL_FILETREE_MOVE_CONFLICT_DIALOG = {
 
 const INITIAL_OMNIBAR = {
   open: false,
+  mode: "notes",
+  // The notes query. Text mode keeps its pattern in vault_find.query.
   query: "",
   selected_index: 0,
   is_searching: false,
   scope: "current_vault",
+  // Tag filter chips. Replaced, never mutated, so resets can share this array.
+  tags: [] as string[],
+  // Cmd+T in Text mode opens the tag picker in Notes mode. This sends it back
+  // to Text once the `#...` token is done.
+  return_to_find: false,
 } as const;
 
 const INITIAL_FIND_IN_FILE = {
   open: false,
   query: "",
   selected_match_index: 0,
-} as const;
+  replace_open: false,
+  replacement: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+};
+
+// Text mode inputs. They last for the session, so reopening Text mode runs
+// the same search again with the match you opened still selected.
+const INITIAL_VAULT_FIND = {
+  query: "",
+  regex: false,
+  case_sensitive: false,
+  whole_word: false,
+  replacement: "",
+  include: "",
+  exclude: "",
+  // Bumped to ask the omnibar to focus and select the pattern.
+  focus_nonce: 0,
+  selected_match: null as VaultFindSelection | null,
+};
+
+const INITIAL_VAULT_REPLACE_DIALOG = {
+  open: false,
+  // What the dialog asks about, fixed when it opened. Typing in the omnibar
+  // afterwards does not change what Replace All writes.
+  query: "",
+  replacement: "",
+  match_count: 0,
+  file_count: 0,
+  // Files with unsaved edits. Replace All leaves them alone.
+  unsaved_paths: [] as string[],
+  // The dialog stays open while the checkpoint and the writes run.
+  is_replacing: false,
+};
 
 const INITIAL_IMAGE_PASTE_DIALOG = {
   open: false,
@@ -189,12 +232,19 @@ function initial_settings_dialog(settings: EditorSettings) {
 export class UIStore {
   user_themes = $state<Theme[]>([]);
   active_theme_id = $state<string>(DEFAULT_THEME_ID);
+  theme_file = $state<ThemeFileState>({ ...MISSING_THEME_FILE_STATE });
   active_theme = $derived<Theme>(
-    resolve_theme(get_all_themes(this.user_themes), this.active_theme_id),
+    resolve_theme(
+      get_all_themes(this.user_themes, this.theme_file.theme),
+      this.active_theme_id,
+    ),
   );
 
   sidebar_open = $state(true);
   sidebar_view = $state<SidebarView>("explorer");
+  // tags.show_pane asks the Tags pane to take focus. The pane clears this once
+  // it moved focus, so a later remount does not steal it.
+  tags_pane_focus_pending = $state(false);
   selected_folder_path = $state("");
   filetree_revealed_note_path = $state("");
   selected_items = $state(new SvelteSet<string>());
@@ -284,16 +334,24 @@ export class UIStore {
 
   omnibar = $state<{
     open: boolean;
+    mode: OmnibarMode;
     query: string;
     selected_index: number;
     is_searching: boolean;
     scope: OmnibarScope;
+    tags: string[];
+    return_to_find: boolean;
   }>({ ...INITIAL_OMNIBAR });
 
   find_in_file = $state<{
     open: boolean;
     query: string;
     selected_match_index: number;
+    replace_open: boolean;
+    replacement: string;
+    regex: boolean;
+    case_sensitive: boolean;
+    whole_word: boolean;
   }>({ ...INITIAL_FIND_IN_FILE });
 
   filetree = $state<{
@@ -348,6 +406,9 @@ export class UIStore {
     description: string;
   }>({ ...INITIAL_CHECKPOINT_DIALOG });
 
+  vault_find = $state({ ...INITIAL_VAULT_FIND });
+  vault_replace_dialog = $state({ ...INITIAL_VAULT_REPLACE_DIALOG });
+
   quit_confirm = $state<{
     open: boolean;
     is_quitting: boolean;
@@ -379,6 +440,10 @@ export class UIStore {
 
   set_user_themes(themes: Theme[]) {
     this.user_themes = themes;
+  }
+
+  set_theme_file(theme_file: ThemeFileState) {
+    this.theme_file = theme_file;
   }
 
   toggle_sidebar() {
@@ -502,6 +567,7 @@ export class UIStore {
     this.rename_folder_dialog = { ...INITIAL_RENAME_FOLDER_DIALOG };
     this.settings_dialog = initial_settings_dialog(this.editor_settings);
     this.omnibar = { ...INITIAL_OMNIBAR };
+    this.tags_pane_focus_pending = false;
     this.find_in_file = { ...INITIAL_FIND_IN_FILE };
     this.filetree = initial_filetree();
     this.filetree_scoped_root_path = null;
@@ -518,6 +584,7 @@ export class UIStore {
     this.version_history_dialog = { ...INITIAL_VERSION_HISTORY_DIALOG };
     this.markdown_cleanup_dialog = { ...INITIAL_MARKDOWN_CLEANUP_DIALOG };
     this.checkpoint_dialog = { ...INITIAL_CHECKPOINT_DIALOG };
+    this.vault_replace_dialog = { ...INITIAL_VAULT_REPLACE_DIALOG };
     this.quit_confirm = { ...INITIAL_QUIT_CONFIRM };
     this.context_rail_open = false;
     this.context_rail_tab = "links";

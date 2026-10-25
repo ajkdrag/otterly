@@ -75,6 +75,14 @@ describe("DEFAULT_HOTKEYS", () => {
     expect(action_ids.has("find_in_file.toggle")).toBe(true);
   });
 
+  it("binds find in vault to Cmd+Shift+F and moves all-vault search off it", () => {
+    const key_of = (action_id: string) =>
+      DEFAULT_HOTKEYS.find((b) => b.action_id === action_id)?.key;
+    expect(key_of("omnibar.open_find")).toBe("CmdOrCtrl+Shift+F");
+    expect(key_of("omnibar.open_all_vaults")).toBe("CmdOrCtrl+Alt+Shift+F");
+    expect(key_of("find_in_file.toggle_replace")).toBe("CmdOrCtrl+Alt+F");
+  });
+
   it("defaults are loaded on first launch (no overrides)", () => {
     expect(DEFAULT_HOTKEYS.length).toBeGreaterThan(0);
     const save = DEFAULT_HOTKEYS.find(

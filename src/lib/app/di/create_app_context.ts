@@ -8,7 +8,7 @@ import { VaultService } from "$lib/features/vault";
 import { NoteService, LegacyMarkdownCleanupService } from "$lib/features/note";
 import { FolderService } from "$lib/features/folder";
 import { SettingsService } from "$lib/features/settings";
-import { SearchService } from "$lib/features/search";
+import { SearchService, VaultFindService } from "$lib/features/search";
 import { EditorService } from "$lib/features/editor";
 import { ClipboardService } from "$lib/features/clipboard";
 import { ShellService } from "$lib/features/shell";
@@ -18,8 +18,10 @@ import { GitService } from "$lib/features/git";
 import { HotkeyService } from "$lib/features/hotkey";
 import { ThemeService } from "$lib/features/theme";
 import { LinkRepairService, LinksService } from "$lib/features/links";
+import { TagsService } from "$lib/features/tags";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
+import { VimService } from "$lib/features/vim";
 import { mount_reactors } from "$lib/reactors";
 
 export type AppContext = ReturnType<typeof create_app_context>;
@@ -38,6 +40,13 @@ export function create_app_context(input: {
     stores.vault,
     stores.op,
     now_ms,
+  );
+
+  // Before EditorService: its tag callbacks ask this for suggestions.
+  const tags_service = new TagsService(
+    input.ports.tags,
+    stores.vault,
+    stores.tags,
   );
 
   const editor_service = new EditorService(
@@ -65,6 +74,22 @@ export function create_app_context(input: {
           note_path,
           image,
         }),
+      on_tag_click: (tag) =>
+        void action_registry.execute(ACTION_IDS.omnibar_open_tags, {
+          tags: [tag],
+        }),
+      suggest_tags: (partial) => tags_service.suggest_tags(partial, [], 20),
+      // :w and :wq. :wq on a draft opens the save dialog, and the tab stays
+      // open after you save it.
+      on_save_request: () =>
+        action_registry.execute(ACTION_IDS.note_request_save),
+      // :q never discards. The tab asks first when it has unsaved changes.
+      // A draft that :wq just sent to the save dialog skips the close, or its
+      // confirm dialog would pile up on the save dialog.
+      on_close_request: () => {
+        if (stores.ui.save_note_dialog.open) return;
+        void action_registry.execute(ACTION_IDS.tab_close);
+      },
     },
     search_service,
   );
@@ -107,6 +132,17 @@ export function create_app_context(input: {
     },
   );
 
+  const vault_find_service = new VaultFindService(
+    input.ports.vault_find,
+    stores.vault,
+    stores.search,
+    stores.op,
+    now_ms,
+    (path) => {
+      watcher_service.suppress_next(path);
+    },
+  );
+
   const markdown_cleanup_service = new LegacyMarkdownCleanupService(
     input.ports.notes,
     input.ports.index,
@@ -142,7 +178,6 @@ export function create_app_context(input: {
 
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,
-    stores.editor,
     stores.op,
     now_ms,
   );
@@ -181,8 +216,17 @@ export function create_app_context(input: {
 
   const theme_service = new ThemeService(
     input.ports.settings,
+    input.ports.theme_file,
     stores.op,
     now_ms,
+  );
+
+  const vim_service = new VimService(
+    input.ports.vimrc,
+    input.ports.vim_engine,
+    input.ports.press_and_hold,
+    stores.vim,
+    stores.op,
   );
 
   const vault_service = new VaultService(
@@ -218,15 +262,19 @@ export function create_app_context(input: {
       folder: folder_service,
       settings: settings_service,
       search: search_service,
+      vault_find: vault_find_service,
       editor: editor_service,
       clipboard: clipboard_service,
       shell: shell_service,
       session: session_service,
       tab: tab_service,
       git: git_service,
+      links: links_service,
       hotkey: hotkey_service,
       theme: theme_service,
       updater: updater_service,
+      tags: tags_service,
+      vim: vim_service,
     },
     default_mount_config: input.default_mount_config,
   });
@@ -238,6 +286,7 @@ export function create_app_context(input: {
     notes_store: stores.notes,
     search_store: stores.search,
     search_service,
+    vault_find_service,
     vault_store: stores.vault,
     tab_store: stores.tab,
     git_store: stores.git,
@@ -250,7 +299,10 @@ export function create_app_context(input: {
     session_service,
     git_service,
     links_service,
+    tags_service,
     watcher_service,
+    theme_service,
+    vim_service,
     action_registry,
   });
 

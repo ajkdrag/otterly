@@ -10,6 +10,27 @@ export type OpenNoteState = NoteDoc & {
 // other file, which only has a source view.
 export type EditorViewMode = "rich" | "source" | "text";
 
+// What the Vim editor shows while Vim mode is on. Stores hold null while it
+// is off.
+export type VimMode =
+  | "normal"
+  | "insert"
+  // One normal mode command after <C-o> in insert mode.
+  | "insert_normal"
+  | "visual"
+  | "visual_line"
+  | "visual_block"
+  | "replace";
+
+export type VimStatus = {
+  mode: VimMode;
+  // Vim's showcmd: keys of a command still being typed, or in visual mode
+  // the size of the selection ("3", "2", "2x3").
+  showcmd: string;
+  // Register of the macro being recorded, or null.
+  recording: string | null;
+};
+
 export type CursorInfo = {
   line: number;
   column: number;

@@ -14,7 +14,10 @@ const file: DocumentFile = {
   mtime_ms: 100,
 };
 
-function setup(read: DocumentFile | Error = file) {
+function setup(
+  read: DocumentFile | Error = file,
+  session_start_gate: Promise<void> = Promise.resolve(),
+) {
   const store = new DocumentStore();
   let events: EditorEventHandlers | null = null;
   let markdown = file.text;
@@ -24,12 +27,17 @@ function setup(read: DocumentFile | Error = file) {
     get_markdown: () => markdown,
     mark_clean: vi.fn(),
     open_buffer: vi.fn(),
+    update_find_state: vi.fn(),
     toggle_source_mode: vi.fn(),
+    set_vim_enabled: vi.fn(),
   } as unknown as EditorSession;
+  const session_configs: EditorSessionConfig[] = [];
   const editor_port: EditorPort = {
-    start_session: vi.fn((config: EditorSessionConfig) => {
+    start_session: vi.fn(async (config: EditorSessionConfig) => {
       events = config.events;
-      return Promise.resolve(session);
+      session_configs.push(config);
+      await session_start_gate;
+      return session;
     }),
   };
   const document_port: DocumentPort = {
@@ -37,22 +45,32 @@ function setup(read: DocumentFile | Error = file) {
       read instanceof Error ? Promise.reject(read) : Promise.resolve(read),
     ),
     write_document: vi.fn(() => Promise.resolve(200)),
+    reveal_document: vi.fn(() => Promise.resolve()),
+  };
+  const callbacks = {
+    on_external_link_click: vi.fn(),
+    on_unsupported_link_click: vi.fn(),
+    on_save_request: vi.fn(),
+    on_close_request: vi.fn(),
   };
   const service = new DocumentService(
     document_port,
     editor_port,
     store,
     () => 5,
-    {
-      on_external_link_click: vi.fn(),
-      on_unsupported_link_click: vi.fn(),
-    },
+    callbacks,
   );
   return {
     store,
     service,
     session,
+    session_configs,
     document_port,
+    callbacks,
+    events: () => {
+      if (!events) throw new Error("The editor has not started");
+      return events;
+    },
     type: (text: string) => {
       markdown = text;
       events?.on_markdown_change(text);
@@ -70,6 +88,60 @@ async function open(read?: DocumentFile | Error) {
 }
 
 describe("DocumentService", () => {
+  it("starts the editor with the current Vim setting", async () => {
+    const { service, session_configs } = setup();
+    await service.load();
+
+    service.set_vim_enabled(true);
+    await service.mount_editor({} as HTMLElement);
+
+    expect(session_configs[0]?.vim_enabled).toBe(true);
+  });
+
+  it("passes on a Vim setting that arrives while the editor starts", async () => {
+    let finish_start: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      finish_start = resolve;
+    });
+    const { service, session, session_configs } = setup(file, gate);
+    await service.load();
+
+    const mounting = service.mount_editor({} as HTMLElement);
+    service.set_vim_enabled(true);
+    finish_start();
+    await mounting;
+
+    expect(session_configs[0]?.vim_enabled).toBe(false);
+    expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it("shows the Vim status of the editor and passes :w and :q on", async () => {
+    const { store, callbacks, events } = await open();
+
+    events().on_vim_status_change?.({
+      mode: "insert_normal",
+      showcmd: "2d",
+      recording: "q",
+    });
+    expect(store.vim_status).toEqual({
+      mode: "insert_normal",
+      showcmd: "2d",
+      recording: "q",
+    });
+    events().on_vim_status_change?.(null);
+    expect(store.vim_status).toBeNull();
+
+    void events().on_save_request?.();
+    events().on_close_request?.();
+    expect(callbacks.on_save_request).toHaveBeenCalledOnce();
+    expect(callbacks.on_close_request).toHaveBeenCalledOnce();
+  });
+
+  it("takes the file's mtime as its last save when it opens", async () => {
+    const { store } = await open();
+    expect(store.last_saved_at).toBe(100);
+  });
+
   it("saves the edited text against the mtime it read", async () => {
     const { service, store, session, document_port, type } = await open();
     type("# Hello there");
@@ -139,5 +211,49 @@ describe("DocumentService", () => {
     );
     expect(store.load_state).toBe("error");
     expect(store.load_error).toMatch(/not text/);
+  });
+
+  it("keeps the store's markdown current for find", async () => {
+    const { store, type } = await open();
+    expect(store.markdown).toBe("# Hello");
+
+    type("# Hello there");
+
+    expect(store.markdown).toBe("# Hello there");
+  });
+
+  it("passes find state to the editor session", async () => {
+    const { service, session } = await open();
+
+    const spec = {
+      text: "hello",
+      regex: true,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    service.update_find_state(spec, 1);
+
+    expect(session.update_find_state).toHaveBeenCalledWith(spec, 1);
+  });
+
+  it("replaces find matches through the editor session", async () => {
+    const { service, session } = await open();
+    session.replace_find_match = vi.fn(() => 2);
+    session.replace_all_find_matches = vi.fn(() => 5);
+
+    expect(service.replace_find_match("bar")).toBe(2);
+    expect(service.replace_all_find_matches("bar")).toBe(5);
+    expect(session.replace_find_match).toHaveBeenCalledWith("bar");
+    expect(session.replace_all_find_matches).toHaveBeenCalledWith("bar");
+  });
+
+  it("reveals its file and reports whether that worked", async () => {
+    const { service, document_port } = await open();
+    expect(await service.reveal_in_file_manager()).toBe(true);
+
+    vi.mocked(document_port.reveal_document).mockRejectedValueOnce(
+      new Error("tauri invoke failed: reveal_document"),
+    );
+    expect(await service.reveal_in_file_manager()).toBe(false);
   });
 });

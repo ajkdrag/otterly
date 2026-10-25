@@ -1,4 +1,5 @@
 import type { Theme } from "$lib/shared/types/theme";
+import { TREE_ROW_HEIGHT_PX } from "$lib/shared/types/theme";
 import { resolve_font_stack } from "$lib/shared/utils/theme_helpers";
 
 const SPACING_MAP: Record<string, string> = {
@@ -62,6 +63,13 @@ function build_token_entries(theme: Theme): [string, string][] {
     ["--editor-padding-x", `${String(theme.editor_padding_x)}rem`],
     ["--editor-padding-y", `${String(theme.editor_padding_y)}rem`],
 
+    // Interface
+    ["--radius", `${String(theme.ui_radius)}rem`],
+    [
+      "--size-tree-row",
+      `${String(TREE_ROW_HEIGHT_PX[theme.file_tree_density])}px`,
+    ],
+
     // Code block radius
     [
       "--editor-code-radius",
@@ -70,6 +78,13 @@ function build_token_entries(theme: Theme): [string, string][] {
 
     // Table cell padding
     ["--editor-table-cell-padding", String(theme.table_cell_padding)],
+
+    // Tag chips
+    [
+      "--editor-tag-radius",
+      `calc(var(--radius) * ${String(theme.tag_radius)})`,
+    ],
+    ["--editor-tag-padding-x", `${String(theme.tag_padding_x)}em`],
   ];
 
   if (theme.bold_style === "color-accent") {
@@ -123,6 +138,9 @@ function build_token_entries(theme: Theme): [string, string][] {
   apply_optional(entries, "--editor-mark-text", theme.highlight_text_color);
   apply_optional(entries, "--editor-selection-bg", theme.selection_bg);
   apply_optional(entries, "--caret-color", theme.caret_color);
+  apply_optional(entries, "--editor-tag-text", theme.tag_text_color);
+  apply_optional(entries, "--editor-tag-bg", theme.tag_bg);
+  apply_optional(entries, "--editor-tag-border", theme.tag_border_color);
   apply_optional(entries, "--editor-table-border", theme.table_border_color);
   apply_optional(entries, "--editor-table-header-bg", theme.table_header_bg);
 

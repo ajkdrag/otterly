@@ -1,5 +1,6 @@
 export const ACTION_IDS = {
   app_mounted: "app.mounted",
+  app_reload_app_settings: "app.reload_app_settings",
   app_check_for_updates: "app.check_for_updates",
   app_check_for_updates_in_background: "app.check_for_updates_in_background",
   app_restart_to_update: "app.restart_to_update",
@@ -54,6 +55,7 @@ export const ACTION_IDS = {
   vault_confirm_discard_change: "vault.confirm_discard_change",
   vault_cancel_discard_change: "vault.cancel_discard_change",
   vault_select_pinned_slot: "vault.select_pinned_slot",
+  vault_open_new_window: "vault.open_new_window",
   vault_remove_from_registry: "vault.remove_from_registry",
   vault_toggle_pin: "vault.toggle_pin",
   vault_sync_index: "vault.sync_index",
@@ -117,8 +119,13 @@ export const ACTION_IDS = {
   omnibar_set_selected_index: "omnibar.set_selected_index",
   omnibar_set_scope: "omnibar.set_scope",
   omnibar_confirm_item: "omnibar.confirm_item",
+  omnibar_confirm_tag_suggestion: "omnibar.confirm_tag_suggestion",
   omnibar_confirm_cross_vault_open: "omnibar.confirm_cross_vault_open",
   omnibar_cancel_cross_vault_open: "omnibar.cancel_cross_vault_open",
+  omnibar_open_tags: "omnibar.open_tags",
+  omnibar_remove_tag: "omnibar.remove_tag",
+  omnibar_open_find: "omnibar.open_find",
+  omnibar_set_target: "omnibar.set_target",
 
   find_in_file_toggle: "find_in_file.toggle",
   find_in_file_open: "find_in_file.open",
@@ -126,6 +133,18 @@ export const ACTION_IDS = {
   find_in_file_set_query: "find_in_file.set_query",
   find_in_file_next: "find_in_file.next",
   find_in_file_prev: "find_in_file.prev",
+  find_in_file_toggle_replace: "find_in_file.toggle_replace",
+  find_in_file_set_options: "find_in_file.set_options",
+  find_in_file_set_replacement: "find_in_file.set_replacement",
+  find_in_file_replace: "find_in_file.replace",
+  find_in_file_replace_all: "find_in_file.replace_all",
+
+  vault_find_open_match: "vault_find.open_match",
+  vault_find_replace_match: "vault_find.replace_match",
+  vault_find_replace_file: "vault_find.replace_file",
+  vault_find_request_replace_all: "vault_find.request_replace_all",
+  vault_find_confirm_replace_all: "vault_find.confirm_replace_all",
+  vault_find_cancel_replace_all: "vault_find.cancel_replace_all",
 
   tab_close: "tab.close",
   tab_close_other: "tab.close_other",
@@ -169,6 +188,11 @@ export const ACTION_IDS = {
   theme_update: "theme.update",
   theme_save: "theme.save",
   theme_revert: "theme.revert",
+  theme_reload_file: "theme.reload_file",
+  theme_create_file: "theme.create_file",
+  theme_open_file: "theme.open_file",
+  theme_reveal_file: "theme.reveal_file",
+  theme_copy_file_path: "theme.copy_file_path",
 
   hotkey_open_editor: "hotkey.open_editor",
   hotkey_close_editor: "hotkey.close_editor",
@@ -177,13 +201,24 @@ export const ACTION_IDS = {
   hotkey_reset_all: "hotkey.reset_all",
   hotkey_reset_single: "hotkey.reset_single",
 
+  tags_open_tag: "tags.open_tag",
+  tags_close_tag: "tags.close_tag",
+  tags_open_note: "tags.open_note",
+  tags_show_pane: "tags.show_pane",
+  tags_leave_pane: "tags.leave_pane",
+
   document_editor_mount: "document.editor_mount",
   document_editor_unmount: "document.editor_unmount",
+  document_copy_path: "document.copy_path",
+  document_reveal_in_file_manager: "document.reveal_in_file_manager",
   document_reload: "document.reload",
   document_overwrite: "document.overwrite",
   document_request_close: "document.request_close",
   document_confirm_close: "document.confirm_close",
   document_cancel_close: "document.cancel_close",
+
+  vim_load_vimrc: "vim.load_vimrc",
+  vim_open_vimrc: "vim.open_vimrc",
 } as const;
 
 export type ActionId = (typeof ACTION_IDS)[keyof typeof ACTION_IDS];

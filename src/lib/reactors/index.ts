@@ -3,6 +3,7 @@ import { create_editor_sync_reactor } from "$lib/reactors/editor_sync.reactor.sv
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
 import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
+import { create_theme_file_reactor } from "$lib/reactors/theme_file.reactor.svelte";
 import { create_autosave_reactor } from "$lib/reactors/autosave.reactor.svelte";
 import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_recent_notes_persist_reactor } from "$lib/reactors/recent_notes_persist.reactor.svelte";
@@ -12,12 +13,18 @@ import { create_session_persist_reactor } from "$lib/reactors/session_persist.re
 import { create_git_autocommit_reactor } from "$lib/reactors/git_autocommit.reactor.svelte";
 import { create_recent_commands_persist_reactor } from "$lib/reactors/recent_commands_persist.reactor.svelte";
 import { create_find_in_file_reactor } from "$lib/reactors/find_in_file.reactor.svelte";
+import { create_vault_find_reactor } from "$lib/reactors/vault_find.reactor.svelte";
 import { create_backlinks_sync_reactor } from "$lib/reactors/backlinks_sync.reactor.svelte";
 import { create_local_links_sync_reactor } from "$lib/reactors/local_links_sync.reactor.svelte";
+import { create_note_tags_sync_reactor } from "$lib/reactors/note_tags_sync.reactor.svelte";
+import { create_tag_pane_sync_reactor } from "$lib/reactors/tag_pane_sync.reactor.svelte";
 import { create_watcher_reactor } from "$lib/reactors/watcher.reactor.svelte";
 import { create_window_title_reactor } from "$lib/reactors/window_title.reactor.svelte";
 import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reactor.svelte";
 import { create_update_check_reactor } from "$lib/reactors/update_check.reactor.svelte";
+import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { create_app_settings_reload_reactor } from "$lib/reactors/app_settings_reload.reactor.svelte";
+import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { ConflictToastManager } from "$lib/reactors/conflict_toast";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorStore } from "$lib/features/editor";
@@ -35,9 +42,16 @@ import type { TabService } from "$lib/features/tab";
 import type { GitStore } from "$lib/features/git";
 import type { GitService } from "$lib/features/git";
 import type { LinksService } from "$lib/features/links";
-import type { SearchService, SearchStore } from "$lib/features/search";
+import type {
+  SearchService,
+  SearchStore,
+  VaultFindService,
+} from "$lib/features/search";
 import type { LinksStore } from "$lib/features/links";
+import type { TagsService } from "$lib/features/tags";
 import type { WatcherService } from "$lib/features/watcher";
+import type { ThemeService } from "$lib/features/theme";
+import type { VimService } from "$lib/features/vim";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
 export type ReactorContext = {
@@ -47,6 +61,7 @@ export type ReactorContext = {
   notes_store: NotesStore;
   search_store: SearchStore;
   search_service: SearchService;
+  vault_find_service: VaultFindService;
   vault_store: VaultStore;
   tab_store: TabStore;
   git_store: GitStore;
@@ -59,7 +74,10 @@ export type ReactorContext = {
   tab_service: TabService;
   git_service: GitService;
   links_service: LinksService;
+  tags_service: TagsService;
   watcher_service: WatcherService;
+  theme_service: ThemeService;
+  vim_service: VimService;
   action_registry: ActionRegistry;
 };
 
@@ -73,6 +91,10 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.action_registry,
     ),
     create_update_check_reactor(context.action_registry),
+    create_app_settings_reload_reactor(
+      context.action_registry,
+      subscribe_to_window_focus,
+    ),
     create_editor_sync_reactor(
       context.editor_store,
       context.tab_store,
@@ -81,6 +103,13 @@ export function mount_reactors(context: ReactorContext): () => void {
     ),
     create_editor_width_reactor(context.ui_store),
     create_editor_zoom_reactor(context.ui_store),
+    create_vim_mode_reactor(
+      context.ui_store,
+      context.editor_service,
+      context.vim_service,
+      context.action_registry,
+      subscribe_to_window_focus,
+    ),
     create_autosave_reactor(
       context.editor_store,
       context.tab_store,
@@ -91,6 +120,7 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.editor_service,
     ),
     create_theme_reactor(context.ui_store),
+    create_theme_file_reactor(context.theme_service, context.action_registry),
     create_op_toast_reactor(context.op_store),
     create_recent_notes_persist_reactor(
       context.notes_store,
@@ -133,10 +163,20 @@ export function mount_reactors(context: ReactorContext): () => void {
     ),
     create_find_in_file_reactor(
       context.ui_store,
-      context.editor_store,
       context.search_store,
-      context.editor_service,
+      {
+        read_buffer_id: () => context.editor_store.open_note?.buffer_id ?? null,
+        read_markdown: () => context.editor_store.open_note?.markdown ?? "",
+        update_find_state: (spec, selected_index) => {
+          context.editor_service.update_find_state(spec, selected_index);
+        },
+      },
       context.search_service,
+    ),
+    create_vault_find_reactor(
+      context.ui_store,
+      context.vault_store,
+      context.vault_find_service,
     ),
     create_local_links_sync_reactor(
       context.editor_store,
@@ -150,6 +190,18 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.search_store,
       context.links_store,
       context.links_service,
+    ),
+    create_note_tags_sync_reactor(
+      context.editor_store,
+      context.ui_store,
+      context.tags_service,
+    ),
+    create_tag_pane_sync_reactor(
+      context.vault_store,
+      context.ui_store,
+      context.search_store,
+      context.editor_store,
+      context.tags_service,
     ),
     create_window_title_reactor(
       context.vault_store,

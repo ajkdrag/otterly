@@ -119,7 +119,6 @@ function create_tab_actions_harness() {
     services: services as never,
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   });
 
@@ -129,7 +128,6 @@ function create_tab_actions_harness() {
     services: services as never,
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   });
 
@@ -139,7 +137,6 @@ function create_tab_actions_harness() {
     services: services as never,
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   });
 
@@ -1221,7 +1218,6 @@ describe("register_tab_actions", () => {
         services: services as never,
         default_mount_config: {
           reset_app_state: true,
-          bootstrap_default_vault_path: null,
         },
       });
 
@@ -1246,7 +1242,6 @@ describe("register_tab_actions", () => {
         services: services as never,
         default_mount_config: {
           reset_app_state: true,
-          bootstrap_default_vault_path: null,
         },
       });
 
@@ -1275,7 +1270,6 @@ describe("register_tab_actions", () => {
         services: services as never,
         default_mount_config: {
           reset_app_state: true,
-          bootstrap_default_vault_path: null,
         },
       });
 

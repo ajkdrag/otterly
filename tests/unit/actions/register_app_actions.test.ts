@@ -106,9 +106,13 @@ function create_harness(options: HarnessOptions = {}) {
         has_vault: false,
         editor_settings: null,
       }),
+      reload_vault_list: vi.fn().mockResolvedValue(undefined),
     },
     settings: {
       load_recent_command_ids: vi.fn().mockResolvedValue(["settings.open"]),
+      load_global_editor_settings: vi
+        .fn()
+        .mockResolvedValue({ ...DEFAULT_EDITOR_SETTINGS }),
     },
     hotkey: {
       load_hotkey_overrides: vi.fn().mockResolvedValue([]),
@@ -116,6 +120,10 @@ function create_harness(options: HarnessOptions = {}) {
     },
     theme: {
       load_themes: vi.fn().mockResolvedValue({
+        user_themes: [],
+        active_theme_id: "theme-light",
+      }),
+      load_stored_themes: vi.fn().mockResolvedValue({
         user_themes: [],
         active_theme_id: "theme-light",
       }),
@@ -166,7 +174,6 @@ function create_harness(options: HarnessOptions = {}) {
     services: services as never,
     default_mount_config: {
       reset_app_state: options.reset_app_state ?? false,
-      bootstrap_default_vault_path: null,
     },
   });
 
@@ -204,6 +211,51 @@ describe("register_app_actions", () => {
     const test_window = get_test_window();
     delete test_window.__TAURI__;
     delete test_window.__TAURI_INTERNALS__;
+  });
+
+  it("reloads app-wide settings and keeps the vault's own editor settings", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.ui.set_editor_settings({
+      ...DEFAULT_EDITOR_SETTINGS,
+      max_open_tabs: 9,
+      editor_zoom: 1,
+    });
+    services.settings.load_recent_command_ids.mockResolvedValue(["git.commit"]);
+    services.theme.load_stored_themes.mockResolvedValue({
+      user_themes: [],
+      active_theme_id: "theme-dark",
+    });
+    services.settings.load_global_editor_settings.mockResolvedValue({
+      ...DEFAULT_EDITOR_SETTINGS,
+      max_open_tabs: 3,
+      editor_zoom: 1.5,
+    });
+
+    await registry.execute(ACTION_IDS.app_reload_app_settings);
+
+    expect(stores.ui.active_theme_id).toBe("theme-dark");
+    expect(stores.ui.recent_command_ids).toEqual(["git.commit"]);
+    expect(stores.ui.editor_settings.editor_zoom).toBe(1.5);
+    expect(stores.ui.editor_settings.max_open_tabs).toBe(9);
+    expect(services.vault.reload_vault_list).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload app-wide settings under an open settings dialog", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.ui.settings_dialog.open = true;
+    services.theme.load_stored_themes.mockResolvedValue({
+      user_themes: [],
+      active_theme_id: "theme-dark",
+    });
+    services.settings.load_global_editor_settings.mockResolvedValue({
+      ...DEFAULT_EDITOR_SETTINGS,
+      editor_zoom: 1.5,
+    });
+
+    await registry.execute(ACTION_IDS.app_reload_app_settings);
+
+    expect(stores.ui.active_theme_id).not.toBe("theme-dark");
+    expect(stores.ui.editor_settings.editor_zoom).toBe(1);
   });
 
   it("initializes app state and loads vault UI when vault exists", async () => {
@@ -381,6 +433,30 @@ describe("register_app_actions", () => {
       "Otterly v0.5.0 is ready",
       expect.objectContaining({ id: "update-ready" }),
     );
+  });
+
+  it("explains that a portable build updates by downloading the zip", async () => {
+    const { registry, services } = create_harness();
+    get_test_window().__TAURI__ = {};
+    services.updater.download_update.mockResolvedValue({ status: "portable" });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates);
+
+    expect(toast.info).toHaveBeenCalledWith(
+      "Portable builds do not update themselves",
+      {
+        description: "Download the latest portable zip from the releases page.",
+      },
+    );
+  });
+
+  it("stays quiet in the background for a portable build", async () => {
+    const { registry, services } = create_harness();
+    services.updater.download_update.mockResolvedValue({ status: "portable" });
+
+    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
+
+    expect(toast.info).not.toHaveBeenCalled();
   });
 
   it("stops background prompts for the session after Later", async () => {

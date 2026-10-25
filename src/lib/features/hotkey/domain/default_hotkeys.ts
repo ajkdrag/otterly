@@ -27,6 +27,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "general",
   },
   {
+    action_id: ACTION_IDS.omnibar_open_tags,
+    key: "CmdOrCtrl+T",
+    phase: "capture",
+    label: "Search Tags",
+    description: "Find notes by tag. With the caret in a #tag, search that tag",
+    category: "general",
+  },
+  {
     action_id: ACTION_IDS.note_request_save,
     key: "CmdOrCtrl+S",
     phase: "bubble",
@@ -59,6 +67,14 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
+    action_id: ACTION_IDS.find_in_file_toggle_replace,
+    key: "CmdOrCtrl+Alt+F",
+    phase: "capture",
+    label: "Replace in File",
+    description: "Find and replace within the current file",
+    category: "navigation",
+  },
+  {
     action_id: ACTION_IDS.vault_request_change,
     key: "CmdOrCtrl+Shift+O",
     phase: "capture",
@@ -75,8 +91,16 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     category: "navigation",
   },
   {
-    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    action_id: ACTION_IDS.omnibar_open_find,
     key: "CmdOrCtrl+Shift+F",
+    phase: "capture",
+    label: "Find in Vault",
+    description: "Find and replace text in every file",
+    category: "navigation",
+  },
+  {
+    action_id: ACTION_IDS.omnibar_open_all_vaults,
+    key: "CmdOrCtrl+Alt+Shift+F",
     phase: "capture",
     label: "Search All Vaults",
     description: "Search notes across all vaults",

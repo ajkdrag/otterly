@@ -112,6 +112,12 @@ export {
   type WikiLinkOptions,
   type WikiSuggestion,
 } from "./plugins/wiki_links/index.js";
+export {
+  tags,
+  tag_at,
+  type TagOptions,
+  type TagSuggestion,
+} from "./plugins/tags/index.js";
 export { slash_menu } from "./plugins/menus/slash_menu.js";
 export {
   find,
@@ -119,9 +125,25 @@ export {
   update_find_query,
   get_find_matches,
   get_find_query,
+  literal_find_spec,
+  find_regexp,
+  find_matches_in_line,
+  replace_find_match,
+  replace_all_find_matches,
+  expand_replacement,
+  type FindSpec,
 } from "./plugins/find.js";
 export {
   clipboard,
   type MarkdownClipboardOptions,
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
+export {
+  vim_keybindings,
+  close_vim_prompt,
+  sync_clipboard_from_host,
+  type VimMode,
+  type VimStatus,
+  type VimKeybindingsOptions,
+} from "./plugins/vim/index.js";
+export { apply_vimrc, type VimrcProblem } from "./plugins/vim/vimrc.js";

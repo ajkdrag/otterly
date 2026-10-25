@@ -24,6 +24,7 @@ import {
   find,
   focus_selection,
   frontmatter,
+  get_find_query,
   get_markdown_source,
   get_editor_mode,
   get_markdown_source_document,
@@ -33,10 +34,17 @@ import {
   links,
   read_code_block_view_states,
   refresh_code_diagrams,
+  replace_all_find_matches,
+  replace_find_match,
   set_editor_mode,
   set_code_block_view_states as code_block_view_states_effect,
   slash_menu,
+  tag_at,
+  tags,
   update_find_query,
+  close_vim_prompt,
+  sync_clipboard_from_host,
+  vim_keybindings,
   wiki_links,
   type CodeBlockViewState,
   type MarkdownPlugin,
@@ -71,6 +79,9 @@ type AdapterOptions = {
     path: AssetPath,
   ) => string | Promise<string>;
   copy_text: (text: string) => Promise<void>;
+  // Vim's "+p and set clipboard=unnamed read through this. It reads natively,
+  // because the web clipboard shows a Paste button for text from other apps.
+  read_clipboard_text: () => Promise<string>;
   // Outside a vault (a document window), relative images resolve here.
   resolve_document_asset_url?: (relative_path: string) => string;
 };
@@ -97,6 +108,9 @@ const metrics_themes = [
   EditorView.theme({ "&": { "--editor-metrics": "0" } }),
   EditorView.theme({ "&": { "--editor-metrics": "1" } }),
 ];
+// Holds the Vim extension while Vim mode is on. A compartment, so the toggle
+// keeps every cached buffer state and its undo history.
+const vim_compartment = new Compartment();
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -108,6 +122,13 @@ const default_code_view: CodeBlockViewState = {
 export function create_codemirror_editor_port(
   options: AdapterOptions,
 ): EditorPort {
+  // The code block copy button and Copy link write the clipboard behind Vim's
+  // back. Under set clipboard=unnamed the next p would put an older register,
+  // so pull the copied text into it.
+  const copy_text_and_sync_vim = async (text: string) => {
+    await options.copy_text(text);
+    await sync_clipboard_from_host().catch(() => {});
+  };
   return {
     start_session(config) {
       const { root, events } = config;
@@ -138,6 +159,7 @@ export function create_codemirror_editor_port(
           );
         else events.on_internal_link_click?.(link.path, current.note_path);
       };
+      const find_plugin = find();
       const plugins: MarkdownPlugin[] = [
         commonmark(),
         gfm(),
@@ -145,7 +167,7 @@ export function create_codemirror_editor_port(
         callouts(),
         code_blocks({
           languages: code_languages,
-          copy_code: options.copy_text,
+          copy_code: copy_text_and_sync_vim,
           code_extensions: [
             code_block_theme,
             syntaxHighlighting(code_block_highlight),
@@ -158,8 +180,12 @@ export function create_codemirror_editor_port(
         }),
         links({
           open_link,
-          copy_link: options.copy_text,
+          copy_link: copy_text_and_sync_vim,
           edit_key: "Alt-Enter",
+        }),
+        tags({
+          ...(events.on_tag_click ? { open_tag: events.on_tag_click } : {}),
+          ...(events.query_tags ? { query_tags: events.query_tags } : {}),
         }),
         images({
           resolve_image(source, signal) {
@@ -201,7 +227,7 @@ export function create_codemirror_editor_port(
           },
         }),
         slash_menu(),
-        find(),
+        find_plugin,
         clipboard({
           html_to_markdown: clipboard_html_to_markdown,
           on_image_paste(file) {
@@ -223,6 +249,20 @@ export function create_codemirror_editor_port(
         }),
       ];
       let metrics_theme_index = 0;
+      let vim_enabled = config.vim_enabled;
+      // One value per session, so sync_vim_compartment can tell whether a
+      // state already holds it.
+      const { on_save_request, on_close_request } = events;
+      const vim_extension = vim_keybindings({
+        on_status_change: (status) => events.on_vim_status_change?.(status),
+        // Without these, :w and :q tell the user they do nothing here.
+        ...(on_save_request && { on_write: on_save_request }),
+        ...(on_close_request && { on_quit: on_close_request }),
+        clipboard: {
+          read_text: options.read_clipboard_text,
+          write_text: options.copy_text,
+        },
+      });
       const extensions: Extension = [
         metrics_compartment.of(metrics_themes[0] ?? []),
         // CodeMirror catches exceptions from plugins, listeners, and widgets
@@ -286,6 +326,8 @@ export function create_codemirror_editor_port(
       refresh_word_count();
       publish_cursor();
       publish_view_mode();
+      // With Vim on, its plugin already reported the status.
+      if (!vim_enabled) events.on_vim_status_change?.(null);
 
       return Promise.resolve<EditorSession>({
         destroy() {
@@ -347,15 +389,48 @@ export function create_codemirror_editor_port(
           publish_view_mode();
           focus_editor();
         },
+        set_vim_enabled(enabled) {
+          vim_enabled = enabled;
+          sync_vim_compartment();
+        },
         set_wiki_suggestions(items) {
           pending_wiki?.(items);
         },
-        update_find_state(query, selected_index) {
-          update_find_query(view, query, selected_index);
+        update_find_state(spec, selected_index) {
+          update_find_query(view, spec, selected_index);
+        },
+        replace_find_match(replacement) {
+          if (!replace_find_match(view, replacement)) return null;
+          return get_find_query(view.state).selected_index;
+        },
+        replace_all_find_matches(replacement) {
+          return replace_all_find_matches(view, replacement);
+        },
+        select_line_range(line_number, column, length) {
+          const document = view.state.doc;
+          if (line_number < 1 || line_number > document.lines) return;
+          const line = document.line(line_number);
+          // Vault find columns skip the BOM. The display document keeps it.
+          const bom =
+            line_number === 1 && line.text.startsWith("\ufeff") ? 1 : 0;
+          const from = Math.min(line.to, line.from + bom + column);
+          const to = Math.min(line.to, from + length);
+          view.dispatch({
+            selection: EditorSelection.single(from, to),
+            effects: EditorView.scrollIntoView(from, { y: "center" }),
+          });
+        },
+        // A focused table cell has its own nested editor, so the outer view
+        // does not have focus and this gives null there.
+        tag_at_cursor() {
+          if (!current.is_markdown || !view.hasFocus) return null;
+          return tag_at(view.state, view.state.selection.main.head);
         },
         open_buffer(next: BufferConfig) {
           cancel_pending();
           cancel_word_count();
+          // An open / or : prompt would come back as an empty strip.
+          close_vim_prompt(view);
           current.state = view.state;
           const cached =
             next.restore_policy === "reuse_cache"
@@ -363,6 +438,7 @@ export function create_codemirror_editor_port(
               : undefined;
           current = cached ?? create_buffer(next);
           view.setState(current.state);
+          if (cached) sync_vim_compartment();
           refresh_word_count();
           if (!cached && next.view_state) restore_view_state(next.view_state);
           reported_dirty = !get_markdown_source_document(view.state).eq(
@@ -395,14 +471,22 @@ export function create_codemirror_editor_port(
         initial_markdown: string;
       }): BufferEntry {
         const is_markdown = is_markdown_path(input.note_path);
+        // Built per buffer, so a new buffer starts with the current setting.
+        const vim = vim_compartment.of(vim_enabled ? vim_extension : []);
         const state = is_markdown
           ? create_markdown_state(input.initial_markdown, {
               plugins,
-              extensions,
+              extensions: [extensions, vim],
               source_extensions: syntaxHighlighting(markdown_source_highlight),
             })
           : create_text_state(input.initial_markdown, [
               extensions,
+              // Text files have no plugins. Find still needs its state and
+              // highlight style, or the bar would count matches it cannot show
+              // or replace.
+              find_plugin.extensions ?? [],
+              find_plugin.theme ? EditorView.theme(find_plugin.theme) : [],
+              vim,
               text_language.of([]),
               syntaxHighlighting(code_block_highlight),
             ]);
@@ -445,6 +529,20 @@ export function create_codemirror_editor_port(
           ? get_editor_mode(current.state)
           : "text";
         events.on_view_mode_change?.(mode);
+      }
+
+      // Only the shown state is reconfigured. A cached buffer keeps the Vim
+      // setting it had when it was last shown, until open_buffer syncs it.
+      function sync_vim_compartment() {
+        const has_vim = vim_compartment.get(view.state) === vim_extension;
+        if (has_vim === vim_enabled) return;
+        view.dispatch({
+          effects: vim_compartment.reconfigure(
+            vim_enabled ? vim_extension : [],
+          ),
+        });
+        // Turning Vim on reports the status from its plugin.
+        if (!vim_enabled) events.on_vim_status_change?.(null);
       }
 
       function publish_dirty() {

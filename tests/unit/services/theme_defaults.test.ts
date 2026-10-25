@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ThemeService } from "$lib/features/theme/application/theme_service";
 import { OpStore } from "$lib/app/orchestration/op_store.svelte";
+import { create_test_theme_file_adapter } from "../../adapters/test_theme_file_adapter";
 import {
   BUILTIN_MOCHA,
   BUILTIN_NORDIC_DARK,
@@ -19,7 +20,12 @@ function create_theme_service(settings: Record<string, unknown>) {
       ),
     set_setting: vi.fn().mockResolvedValue(undefined),
   };
-  return new ThemeService(port, new OpStore(), () => 0);
+  return new ThemeService(
+    port,
+    create_test_theme_file_adapter(),
+    new OpStore(),
+    () => 0,
+  );
 }
 
 describe("theme defaults", () => {
@@ -46,6 +52,11 @@ describe("theme defaults", () => {
       code_block_style: "default",
       code_block_radius: 0.5,
       table_cell_padding: 0.65,
+      tag_text_color: null,
+      tag_bg: null,
+      tag_border_color: null,
+      tag_radius: 1.5,
+      tag_padding_x: 0.25,
     } as const;
 
     expect(BUILTIN_NORDIC_LIGHT).toMatchObject(shared_style);
@@ -76,6 +87,32 @@ describe("theme defaults", () => {
     expect(resolve_theme(get_all_themes([]), result.active_theme_id)).toBe(
       BUILTIN_NORDIC_LIGHT,
     );
+  });
+
+  it("fills the interface fields on a theme saved before they existed", async () => {
+    const saved_before: Record<string, unknown> = {
+      ...BUILTIN_NORDIC_LIGHT,
+      id: "old",
+      name: "Saved last year",
+      is_builtin: false,
+    };
+    delete saved_before.ui_radius;
+    delete saved_before.file_tree_density;
+    delete saved_before.editor_max_width_ch;
+    const service = create_theme_service({
+      active_theme_id: "old",
+      user_themes: [saved_before],
+    });
+
+    const result = await service.load_themes();
+
+    expect(result.user_themes).toHaveLength(1);
+    expect(result.user_themes[0]).toMatchObject({
+      id: "old",
+      ui_radius: 0.25,
+      file_tree_density: "normal",
+      editor_max_width_ch: null,
+    });
   });
 
   it("keeps a saved custom theme and its fonts", async () => {

@@ -11,5 +11,6 @@ export function create_test_clipboard_adapter(): ClipboardPort & {
       calls.write_text.push(text);
       return Promise.resolve();
     },
+    read_text: () => Promise.resolve(""),
   };
 }

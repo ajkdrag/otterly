@@ -6,6 +6,7 @@ import {
   dropCursor,
   keymap,
   type KeyBinding,
+  type ViewUpdate,
 } from "@codemirror/view";
 import {
   block_at,
@@ -13,6 +14,7 @@ import {
   controller_for_block,
   is_block_rendered,
   mounted_controllers,
+  reveal_surfaces_at_caret,
   surface_input,
 } from "./block_field.js";
 import {
@@ -28,13 +30,17 @@ import {
   construct_registry,
   type MarkdownPlugin,
 } from "./plugin.js";
-import { reveal_freeze_extension } from "./reveal.js";
+import { reveal_freeze, reveal_freeze_extension } from "./reveal.js";
 import {
   create_source_state,
   source_redo,
   source_undo,
 } from "./source_state.js";
-import { focus_selection, surface_highlights } from "./surface.js";
+import {
+  focus_selection,
+  surface_highlights,
+  take_focus_back,
+} from "./surface.js";
 import { markdown_syntax } from "./syntax.js";
 
 export type MarkdownEditorConfig = {
@@ -181,6 +187,7 @@ const surface_selection_sync = EditorView.updateListener.of((update) => {
   }
   if ((update.focusChanged || update.selectionSet) && update.view.hasFocus)
     move_caret_into_surface(update.view);
+  if (nested_editor_may_hold_focus(update)) take_focus_back(update.view);
   if (!update.selectionSet && !update.docChanged) return;
   if (
     update.transactions.some((transaction) =>
@@ -230,6 +237,29 @@ function move_caret_into_surface(view: EditorView) {
       selection.head - block.from <= block.to - selection.head;
     controller.enter?.(nearer_start ? 1 : -1, null);
   });
+}
+
+// Under reveal_surfaces_at_caret the outer view owns every key, so focus must
+// not stay in a nested editor, which has no Vim. A click inside a rendered code
+// block or table still focuses the nested editor. The reveal freeze holds the
+// block rendered until about 100 ms after the button comes up. Then the block
+// turns into source, whether the click left a caret or a range (double click,
+// drag), because a selection inside a block reveals it. The nested view is
+// destroyed together with its focus. This finds the moments to check: the
+// freeze just ended, or a nested editor published a selection or edit while no
+// click was in progress.
+function nested_editor_may_hold_focus(update: ViewUpdate): boolean {
+  const { startState, state } = update;
+  if (!state.facet(reveal_surfaces_at_caret)) return false;
+  const frozen = state.field(reveal_freeze, false)?.frozen === true;
+  const click_ended =
+    startState.field(reveal_freeze, false)?.frozen === true && !frozen;
+  const nested_editor_published =
+    !frozen &&
+    update.transactions.some((transaction) =>
+      transaction.annotation(surface_input),
+    );
+  return click_ended || nested_editor_published;
 }
 
 function highlights_changed(before: EditorState, after: EditorState): boolean {

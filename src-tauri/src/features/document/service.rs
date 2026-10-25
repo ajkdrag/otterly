@@ -1,9 +1,11 @@
 use crate::features::notes::service::{atomic_write, file_meta, read_text_file, safe_vault_abs};
+use crate::shared::paths::display_path;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
 
 // A file the OS asks us to open (double click, "Open With", a second launch
 // with a path) gets its own window, outside any vault. A document window can
@@ -16,6 +18,13 @@ const DOCUMENT_WINDOW_PREFIX: &str = "document-";
 pub struct DocumentState {
     // Window label to the canonical path of the file it shows.
     windows: Mutex<HashMap<String, PathBuf>>,
+}
+
+impl DocumentState {
+    // Canonical paths of the files that document windows show right now.
+    pub fn open_paths(&self) -> Vec<PathBuf> {
+        lock(self).values().cloned().collect()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -64,6 +73,21 @@ pub fn write_document(
     Ok(mtime_ms)
 }
 
+// Like read_document, this takes no path: the window can only reveal its own
+// file. The file manager gets the display form, because it may not accept a
+// Windows verbatim path.
+#[tauri::command]
+pub fn reveal_document(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<DocumentState>,
+) -> Result<(), String> {
+    let path = document_path(&state, window.label())?;
+    app.opener()
+        .reveal_item_in_dir(display_path(&path))
+        .map_err(|e| e.to_string())
+}
+
 pub fn open_document_windows(app: &AppHandle, paths: Vec<PathBuf>) {
     for path in paths {
         if let Err(error) = open_document_window(app, &path) {
@@ -73,7 +97,7 @@ pub fn open_document_windows(app: &AppHandle, paths: Vec<PathBuf>) {
 }
 
 // One window per file. Opening the same file again focuses its window.
-fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
+pub(crate) fn open_document_window(app: &AppHandle, path: &Path) -> Result<(), String> {
     let path = path.canonicalize().map_err(|e| e.to_string())?;
     if !path.is_file() {
         return Err("not a file".to_string());
@@ -159,10 +183,4 @@ fn file_name(path: &Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
-}
-
-// canonicalize gives Windows verbatim paths (\\?\C:\...). Show the usual form.
-fn display_path(path: &Path) -> String {
-    let text = path.to_string_lossy();
-    text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
 }

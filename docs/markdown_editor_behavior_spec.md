@@ -49,7 +49,7 @@ The editor package is a plugin framework. [Its design](../packages/markdown_edit
 
 ## Coverage and open checks
 
-The package suites under `packages/markdown_editor/tests` cover source/history, formatting, block commands, lists/quotes, code, tables, frontmatter, links, images, completions, clipboard, find, and the plugin contract. App suites cover the adapter, lifecycle, and reactor restoration. These tests run in jsdom and do not establish geometry, focus, or IME behavior in a real WebView.
+The package suites under `packages/markdown_editor/tests` cover source/history, formatting, block commands, lists/quotes, code, tables, frontmatter, links, images, tags, completions, clipboard, find, and the plugin contract. App suites cover the adapter, lifecycle, and reactor restoration. These tests run in jsdom and do not establish geometry, focus, or IME behavior in a real WebView.
 
 | Area                        | Existing evidence                                                                | Remaining acceptance obligation                                                                                 |
 | --------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -1015,6 +1015,24 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** Count meaningful text under the app's current rule, excluding formatting/destinations/metadata; code body text remains counted.
 - **Edge cases/notes:** Do not count table delimiters or image source. Mark incomplete large-note counts as pending and publish the final count for the correct note.
 
+### FIND-007. Regex, case, and whole-word options
+
+- **Setup/action:** Search with a `FindSpec` that turns on regex, case-sensitive, or whole-word matching.
+- **Expected:** Matching runs one line at a time, so `\s` and `[^x]` never cross a line and `^`/`$` anchor lines. Offsets stay in UTF-16 display units.
+- **Edge cases/notes:** An empty or invalid pattern has no matches and no error inside the editor. Empty matches (`^`, `a*`) are skipped. A backslash before punctuation (`\#`, `\-`, `\_`) is accepted, as in the Rust regex used by the vault find. Whole word wraps the pattern in a Unicode word boundary on both sides, built from lookarounds so it agrees with Rust's `\b` (`café` and `привет` work). A WebView without lookbehind falls back to the ASCII `\b`.
+
+### FIND-008. Replace the selected match
+
+- **Setup/action:** Replace the selected match, in literal and regex mode.
+- **Expected:** One transaction and one undo step. The next match after the inserted text becomes selected, wrapping to the first. Regex mode expands `$1`, `${1}`, `$name`, `${name}`, `$0`, and `$$` like Rust's `Captures::expand`. Literal mode inserts the text as is.
+- **Edge cases/notes:** A replacement that contains the query does not select its own inserted text. A read-only editor replaces nothing.
+
+### FIND-009. Replace all matches
+
+- **Setup/action:** Replace every match of the active query.
+- **Expected:** One transaction, so one `source_undo` restores the whole note. The saved source keeps its original line endings.
+- **Edge cases/notes:** Returns the number of replaced matches. The match list is empty afterward unless the replacement matches the query again. With no match left the selected index stays 0, so undoing the replace selects the first match again.
+
 ## 18. Note, vault, and session lifecycle
 
 ### LIFE-001. Cached notes retain selection and history
@@ -1303,6 +1321,78 @@ These scenarios apply to the editor package as a framework.
 - **Setup/action:** Open a note with relative images and links.
 - **Expected:** Images from the file's folder or below load. Links to other files show a short notice and do not open them. Links to websites open in the browser.
 
+## 26. Tags
+
+A `#tag` is plain text. The editor draws it as a chip, and the index counts it for the Tags pane, the context rail and tag search. The editor package and the Rust indexer each have their own parser, so one rule set and one case table keep them in step: [tests/fixtures/tag_cases.json](../tests/fixtures/tag_cases.json). Both parsers name rules R1 to R6 in their top comment.
+
+### TAG-001. The editor and the index agree on what a tag is
+
+- **Setup/action:** Open a note with `#tags` in every construct the rules mention. Compare the chips with the rail and the Tags pane. The shared cases do this in code: Rust runs them in `tag_parser.rs` (`shared_tag_cases`), and `packages/markdown_editor/tests/tags.test.ts` runs them against the Lezer parser.
+- **Expected:** A chip is a tag the index counts, and the other way around, except for the divergences below. The rules:
+  - **R1 Where.** Inline text of paragraphs, headings and table cells. Never inside code (fenced, indented, inline), HTML (blocks and tags), link text or destinations (`[..](..)`, `[..][..]`), images, wiki links, autolinks and bare URLs, escapes (`\#`) or entities (`&#35;`). A bare `[text]` shortcut reference counts as text. The editor cannot resolve link definitions, and without a definition comrak reads it as text too. Frontmatter `tags:` is read separately, by the index only.
+  - **R2 Start.** A `#` starts a tag when the character before it is nothing (the start of the inline text), Unicode whitespace (`char::is_whitespace`, which includes NBSP and the ideographic space U+3000), or a run of `*`, `_`, `~` that itself starts the text or follows whitespace. So `**#bold**`, `~~#x~~` and an unclosed `**#x` all start a tag. `foo**#x**` does not. A BOM at the start of the note counts as the start of the text.
+  - **R3 Body.** The longest run of Unicode Alphabetic, numbers (Nd, Nl, No), combining marks (Mn, Mc, Me), emoji, `_`, `-` and `/`. Emoji are Extended_Pictographic and the skin tone modifiers. The variation selector U+FE0F and the keycap U+20E3 are marks already. A zero width joiner (U+200D) counts only when an Extended_Pictographic emoji follows it, so a family emoji stays whole and a dangling joiner is left out.
+  - **R4 Trim.** Drop trailing `_` and `/`. A trailing `_` is often the closer of `_..._` emphasis. comrak resolves emphasis before we scan, and Lezer resolves it after our parser ran, so dropping it always is the only rule both sides can compute. `_see #todo_` is `todo`, and `#snake_case_` is `snake_case`.
+  - **R5 Valid.** At least one letter, number or Extended_Pictographic emoji, no empty `/` segment, and not numbers only. `#123`, `#١٢٣` and `#²` are not tags. `#1st`, `#2024-q1` and `#1🔥` are.
+  - **R6 Identity.** The key is `lowercase(NFC(body))`. `#Work` and `#work` are one tag, and so are precomposed and decomposed `café`. Per note, the first spelling wins: frontmatter first, then body order.
+- **Edge cases/notes:**
+  - Whitespace is the explicit Rust set. TypeScript must not use `\s`, which adds U+FEFF and misses U+0085.
+  - Punctuation ends the body: `#tag.`, `#tag?`, `#tag,` and `#tag's` are `tag`. `(#tag)` is not a tag. `#a#b` is only `a`. Emoji are tag characters: `#🔥hot`, `#party🎉` and `#🎉` are tags, and `🔥#hot` is not (R2). A skin tone modifier alone is no tag.
+  - Extended_Pictographic also holds `©`, `®`, `™` and arrows like `↔`, so `#brand™` is the tag `brand™`. `→` is not in it and ends the tag.
+  - A multi-line paragraph in a quote or a list counts on every line, including lazy continuation lines.
+  - A bare URL ends at a Unicode space (NBSP, U+3000), so `http://e.com/　#メモ` has a tag. comrak only stops at ASCII whitespace, so the Rust parser cuts the URL there itself.
+  - Known divergence: `~#x~` with a single tilde pair. Lezer reads it as subscript and never looks inside, so the editor draws plain text and the index counts `x`. `~~#x~~` agrees.
+  - Known divergence: `[ #x]` with a matching link definition. The index reads a link and skips it. The editor does not resolve definitions and draws a chip.
+  - Known divergence: a tag glued to an autolink, like `#éhttp://e.com/`, `#a_www.a.com/` or `#n@e.co`. comrak starts the autolink inside the word, so the index counts `é`, `a` and nothing. The editor already took the whole word and draws `#éhttp`, `#a_www` and `#n`. Nobody types these on purpose.
+  - Known divergence: frontmatter `tags:` values are indexed, and never chips.
+  - @Robustness: Rust's `unicode_categories` and `icu_properties` and the WebView's ICU can disagree about letters, marks and emoji added in recent Unicode versions.
+
+### TAG-002. Tags draw as chips without moving text
+
+- **Setup/action:** Open notes with tags in paragraphs, headings, list items, quotes and table cells. Move the caret into and out of a tag. Put a find match over part of one.
+- **Expected:** Each tag is one rounded chip with a dimmed `#`. The chip is a mark over real text, not a widget. It looks the same with the caret inside, so arrowing through a paragraph moves nothing. A find match, or the dimmed `#`, never splits a chip into two rounded pieces. A long tag wraps like a word, and each piece keeps its own padding and corners.
+- **Edge cases/notes:** The chip has horizontal padding only, so the line box keeps its height (SPACE-009). The one shift is a tag being born or dying: typing the first character after `#` adds the chip padding. Tags in link text, link titles and image alt text are not chips. A chip has no pointer or hover when the host passes no `open_tag`, as in the document window. Class names are public: `md-tag`, `md-tag-hash`, `md-tag-clickable`, `md-tag-source` and `md-tag-option`.
+
+### TAG-003. Caret and editing treat a tag as ordinary text
+
+- **Setup/action:** Type `#`, then letters. Backspace through the tag. Undo and redo. Select across chips and copy. Compose text with an IME inside a chip. Paste HTML that contains `#tag`.
+- **Expected:** There are no cursor traps and no atomic ranges. Arrows move one character at a time through a tag. Typing, deleting, Undo and Redo are plain source edits. Copy gives `#tag`, and pasted `#tag` stays `#tag` (the HTML converter only escapes `# ` at the start of a line). IME composition inside a chip is mapped, not redrawn, until it ends.
+- **Edge cases/notes:** A lone `#` is not a chip. The chip appears with the first body character and goes away when the last one is deleted.
+
+### TAG-004. A click or Cmd+T opens the tag search
+
+- **Setup/action:** Plain-click a chip. Click into a tag that already holds the caret. Drag from a chip. Cmd-click, Shift-click and Alt-click. Press Cmd+T (Ctrl+T on Windows and Linux) with the caret in a tag, right after one, and elsewhere.
+- **Expected:** A plain left click opens the omnibar with that tag as a filter chip. If the caret already touches the tag, the click only moves the caret. Otherwise the caret stays where it was, so the same chip opens again after the omnibar closes. A drag that starts on a chip selects as usual, and a modified click keeps its editor meaning (LINK-003). Cmd+T with the caret in or right after a tag searches that tag, and anywhere else it opens the tag picker with `#`. A read-only note still opens the search on click, but offers no completion.
+- **Edge cases/notes:** A double click opens on the first click, because the omnibar takes focus. It does not select the word. That is accepted. In a focused table-cell editor, Cmd+T does not see the cell's tag and opens the picker. A document window has no tag search, so there it has no pointer and Cmd+T is not registered. With chips set, the search text matches every field. The `title:` and `path:` prefixes are ignored there. The All/Files/Text strip stays: Files drops content hits, and Text (Cmd+Shift+F) finds exact matches only inside the tagged notes.
+
+### TAG-005. Typing `#` offers the vault's tags
+
+- **Setup/action:** Type `#` and a letter at a place where a tag can start. Press Ctrl+Space right after `#`. Pick an option with Enter. Type a tag that already exists in full. Complete in the middle of a tag (`#pr|oj`).
+- **Expected:** A menu lists existing tags with their note counts, ranked by the host (the same ranking as the omnibar). It asks again on every keystroke, and an answer that arrives late is dropped. Ctrl+Space right after `#` shows the top tags. Picking replaces from the `#` to the end of the tag characters after the caret, so no `oj` is left behind. No space is added. When the typed tag is already complete, the menu hides, so Enter makes a newline.
+- **Edge cases/notes:** The menu opens wherever the parser would draw a chip, including right after a quote mark or a table pipe (`>#ta`, `|#ta|`). No menu after a letter (`C#`), in code, a URL, link text, or when the selection is not empty or the note is read-only. A lone `#` waits for a letter. @Incomplete: no completion inside frontmatter `tags:`.
+
+### TAG-006. Source mode colors tags and nothing else
+
+- **Setup/action:** Switch a note with tags to source mode. Click a tag. Type `#` and a letter.
+- **Expected:** The tag text has the tag color. There is no chip, so monospace columns stay aligned. A click only moves the caret. Completion and Cmd+T still work.
+
+### TAG-007. Tags in tables
+
+- **Setup/action:** Put a tag in a table cell that is not active. Click it. Then activate the cell.
+- **Expected:** The inactive cell draws the chip as static HTML. A plain click opens the tag search and does not turn the cell into an editor (the table activates a cell on mousedown, so the chip stops that too). The active cell's nested editor shows the tag as plain text, like every other inline construct.
+
+### TAG-008. Chip colors come from theme tokens
+
+- **Setup/action:** Switch between Nordic Light, Nordic Dark and Mocha. Set only the tag background in a custom theme. Open Theme Settings, Tags.
+- **Expected:** The chips in the editor, the omnibar, the Tags pane and the rail all use `--editor-tag-text`, `--editor-tag-bg`, `--editor-tag-border`, `--editor-tag-radius`, `--editor-tag-padding-x` and `--editor-tag-hash-opacity`. The defaults follow `--interactive` and `--interactive-bg`, which already flip in dark mode. The hover tokens (`--editor-tag-text-hover`, `--editor-tag-bg-hover`) derive from the base tokens, so a theme that sets only the background still gets a matching hover. Text on the chip background has a contrast of at least 4.5:1 in Nordic Light, Nordic Dark and Mocha, hover included (5.6, 5.9 and 6.2 at rest, 4.7, 5.0 and 5.0 on hover).
+- **Edge cases/notes:** The Tags category has five controls: text, background, border, radius and side padding. Radius and padding always apply. The three colors apply only when set. @Robustness: a copy of Mocha switched to a light base (the Latte colors) is 4.8:1 at rest and 4.1:1 on hover. Nobody ships that today, so we did not retune it.
+
+### TAG-009. Large notes stay responsive
+
+- **Setup/action:** Open a note with thousands of paragraphs and a tag in each. Scroll, type at the top and in the middle, and move the caret across chips.
+- **Expected:** Chips are drawn for the visible part only. The tag parser runs only at a `#`, so Lezer stays incremental and typing latency does not grow with the number of tags. Neither the editor nor completion scans the whole document.
+- **Edge cases/notes:** One giant paragraph is the known PERF-006 limit and is not made worse by tags. Record the measurement setup with the result.
+
 ## Acceptance record for future changes
 
 For each run, record scenario IDs, platform/WebView, app build, fixture identity, and the result. Separate automated state checks, real-browser interaction, and native Tauri computer use. Record failed scenarios and unmeasured combinations alongside passes.
@@ -1311,7 +1401,7 @@ A source check should name the expected and actual edit span or exact original b
 
 Existing tests are starting points, not a substitute for this contract:
 
-- Package suites in packages/markdown_editor/tests: source_history, lists_and_quotes, formatting, inline_rendering, code_blocks, tables, frontmatter, link_editing, menus, find, clipboard, plugin_api.
+- Package suites in packages/markdown_editor/tests: source_history, lists_and_quotes, formatting, inline_rendering, code_blocks, tables, frontmatter, link_editing, tags, menus, find, clipboard, plugin_api.
 - App suites in tests/unit: codemirror_adapter, editor_service, html_clipboard, mermaid_preview, find_in_file_reactor, legacy_markdown_cleanup, plus app/Rust backup and conflict checks.
 
 Add regression coverage where a failure can be expressed meaningfully, and retain native acceptance for browser geometry, keyboard focus, and rapid input. Do not mark the entire spec verified because the repository suite passes.

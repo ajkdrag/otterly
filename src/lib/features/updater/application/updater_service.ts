@@ -7,6 +7,7 @@ const log = create_logger("updater_service");
 export type UpdateDownloadResult =
   | { status: "ready"; version: string }
   | { status: "up_to_date" }
+  | { status: "portable" }
   | { status: "failed" };
 
 export class UpdaterService {
@@ -44,6 +45,11 @@ export class UpdaterService {
 
   private async check_and_download(): Promise<UpdateDownloadResult> {
     try {
+      // The updater would run the installer, which turns a portable copy into
+      // an installed one. Portable users download the new zip themselves.
+      if (await this.updater_port.is_portable_install()) {
+        return { status: "portable" };
+      }
       const version = await this.updater_port.download_update();
       if (version === null) return { status: "up_to_date" };
       this.downloaded_version = version;

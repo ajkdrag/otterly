@@ -8,8 +8,13 @@
   import Plus from "@lucide/svelte/icons/plus";
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import SearchIcon from "@lucide/svelte/icons/search";
-  import type { Theme } from "$lib/shared/types/theme";
-  import { get_all_themes, BUILTIN_NORDIC_DARK } from "$lib/shared/types/theme";
+  import ThemeFileCard from "$lib/features/settings/ui/theme_file_card.svelte";
+  import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
+  import {
+    get_all_themes,
+    BUILTIN_NORDIC_DARK,
+    FILE_THEME_ID,
+  } from "$lib/shared/types/theme";
   import {
     parse_hsl,
     format_hsl,
@@ -30,27 +35,38 @@
   type Props = {
     user_themes: Theme[];
     active_theme: Theme;
+    theme_file: ThemeFileState;
     on_switch: (theme_id: string) => void;
     on_create: (name: string, base: Theme) => void;
     on_duplicate: (theme_id: string) => void;
     on_rename: (id: string, name: string) => void;
     on_delete: (theme_id: string) => void;
     on_update: (theme: Theme) => void;
+    on_open_file: () => void;
+    on_reveal_file: () => void;
+    on_copy_file_path: () => void;
+    on_create_file: () => void;
   };
 
   let {
     user_themes,
     active_theme,
+    theme_file,
     on_switch,
     on_create,
     on_duplicate,
     on_rename,
     on_delete,
     on_update,
+    on_open_file,
+    on_reveal_file,
+    on_copy_file_path,
+    on_create_file,
   }: Props = $props();
 
-  const all_themes = $derived(get_all_themes(user_themes));
+  const all_themes = $derived(get_all_themes(user_themes, theme_file.theme));
   const locked = $derived(active_theme.is_builtin);
+  const is_file_theme_active = $derived(active_theme.id === FILE_THEME_ID);
   const defaults = BUILTIN_NORDIC_DARK;
 
   let search_query = $state("");
@@ -218,7 +234,8 @@
 {/snippet}
 
 {#snippet slider_field(desc: ThemeStyleDescriptor)}
-  {@const val = active_theme[desc.theme_key] as number}
+  <!-- Only nullable sliders hold null. Reset puts them back to null. -->
+  {@const val = active_theme[desc.theme_key] as number | null}
   {@const modified = is_modified(desc.theme_key)}
   <div class="ThemeSettings__row--stacked">
     <div class="flex items-center justify-between">
@@ -237,12 +254,14 @@
           </button>
         {/if}
       </div>
-      <span class="ThemeSettings__badge">{format_display_value(desc)}</span>
+      <span class="ThemeSettings__badge"
+        >{val === null ? "Layout setting" : format_display_value(desc)}</span
+      >
     </div>
     <Slider.Root
       type="single"
       aria-label={desc.label}
-      value={val}
+      value={val ?? desc.min ?? 0}
       onValueChange={(v: number) => {
         const step = desc.step ?? 1;
         const rounded = Math.round(v / step) * step;
@@ -362,6 +381,15 @@
 {/snippet}
 
 <div class="ThemeSettings">
+  <ThemeFileCard
+    {theme_file}
+    is_applied={is_file_theme_active}
+    on_open={on_open_file}
+    on_reveal={on_reveal_file}
+    on_copy_path={on_copy_file_path}
+    on_create={on_create_file}
+  />
+
   <!-- ─── Profile Bar ─── -->
   <div class="ThemeSettings__profile-bar">
     <Select.Root
@@ -375,11 +403,15 @@
         class="ThemeSettings__theme-select"
         aria-label="Active theme"
       >
-        <span data-slot="select-value">{active_theme.name}</span>
+        <span data-slot="select-value"
+          ><span class="truncate">{active_theme.name}</span></span
+        >
       </Select.Trigger>
-      <Select.Content>
+      <Select.Content class="max-w-80">
         {#each all_themes as theme (theme.id)}
-          <Select.Item value={theme.id}>{theme.name}</Select.Item>
+          <Select.Item value={theme.id}
+            ><div class="truncate">{theme.name}</div></Select.Item
+          >
         {/each}
       </Select.Content>
     </Select.Root>
@@ -453,7 +485,11 @@
     </div>
   {/if}
 
-  {#if locked}
+  {#if is_file_theme_active}
+    <p class="ThemeSettings__hint">
+      This theme comes from the theme file. Edit the file or duplicate it.
+    </p>
+  {:else if locked}
     <p class="ThemeSettings__hint">Duplicate this theme to customize it.</p>
   {/if}
 

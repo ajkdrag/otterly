@@ -1,20 +1,29 @@
-import type { InFileMatch } from "$lib/shared/types/search";
+import { find_matches_in_line, find_regexp } from "@otterly/markdown-editor";
+import type { FindSpec, InFileMatch } from "$lib/shared/types/search";
 
-export function search_within_text(text: string, query: string): InFileMatch[] {
-  if (!query || !text) return [];
+const CONTEXT_CHARS = 30;
+
+// Counts matches with the editor's own pattern and line loop, so the count
+// cannot disagree with the highlights.
+export function search_within_text(
+  text: string,
+  spec: FindSpec,
+): InFileMatch[] {
+  const pattern = find_regexp(spec);
+  if (!pattern || !text) return [];
 
   const matches: InFileMatch[] = [];
-  const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const expression = new RegExp(pattern, "gi");
-  const lines = text.split("\n");
+  // CodeMirror also breaks lines at a lone \r and at \r\n.
+  const lines = text.split(/\r\n?|\n/);
 
   for (let line_idx = 0; line_idx < lines.length; line_idx++) {
     const line = lines[line_idx] ?? "";
-    for (const match of line.matchAll(expression)) {
-      const col = match.index;
+    for (const found of find_matches_in_line(line, pattern)) {
+      const col = found.index;
+      const length = found[0].length;
 
-      const context_start = Math.max(0, col - 30);
-      const context_end = Math.min(line.length, col + query.length + 30);
+      const context_start = Math.max(0, col - CONTEXT_CHARS);
+      const context_end = Math.min(line.length, col + length + CONTEXT_CHARS);
       let context = line.slice(context_start, context_end);
       if (context_start > 0) context = "..." + context;
       if (context_end < line.length) context = context + "...";
@@ -22,7 +31,7 @@ export function search_within_text(text: string, query: string): InFileMatch[] {
       matches.push({
         line: line_idx + 1,
         column: col + 1,
-        length: query.length,
+        length,
         context,
       });
     }

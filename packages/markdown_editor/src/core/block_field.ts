@@ -2,6 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import {
   Annotation,
+  Facet,
   StateEffect,
   StateField,
   type EditorState,
@@ -42,6 +43,15 @@ export type Block = {
 // Transactions dispatched by an editing surface carry this annotation.
 export const surface_input = Annotation.define<boolean>();
 
+// When true, surface blocks (code, tables) show their source while an empty
+// caret touches them, the same as "caret" blocks, and also while a selection
+// lies inside them. The caret never enters a nested editor. Vim turns this
+// on, so one Vim instance edits the whole document instead of losing its
+// keys to a nested view, and visual mode inside a block keeps the source.
+export const reveal_surfaces_at_caret = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
+
 // Keep a block as source until the caret leaves it.
 export const edit_block_source = StateEffect.define<number>();
 // End construction early, for example after Enter completes a fence header.
@@ -63,6 +73,8 @@ type BlockFieldValue = {
   decorations: DecorationSet;
   // The block being typed or edited as source, by its start position.
   constructing: number | null;
+  // Start of every block shown as source because the caret is in it.
+  revealed: readonly number[];
 };
 
 export const block_field = StateField.define<BlockFieldValue>({
@@ -72,6 +84,7 @@ export const block_field = StateField.define<BlockFieldValue>({
       blocks,
       decorations: build_decorations(state, blocks, null),
       constructing: null,
+      revealed: revealed_blocks(state, blocks),
     };
   },
   update(value, transaction) {
@@ -106,16 +119,25 @@ export const block_field = StateField.define<BlockFieldValue>({
     }
     const constructing = next_constructing(value, blocks, transaction);
     if (constructing !== value.constructing) changed = true;
-    // Caret-revealed blocks follow the selection.
+    // Caret-revealed blocks follow the selection. Rebuilding every widget on
+    // each caret move costs about 10 ms in a note with 5000 blocks, and Vim
+    // moves the caret on every key, so rebuild only when the set changed.
+    // Finding the set walks every block, so a rebuild reuses this one.
+    let revealed: number[] | undefined;
     if (
+      !changed &&
       transaction.selection &&
-      !state.field(reveal_freeze, false)?.frozen &&
-      blocks.some((block) => block.construct.reveal === "caret")
-    )
-      changed = true;
+      !state.field(reveal_freeze, false)?.frozen
+    ) {
+      revealed = revealed_blocks(state, blocks);
+      changed = !same_positions(value.revealed, revealed);
+    }
     if (
       transaction.startState.field(reveal_freeze, false)?.frozen !==
-      state.field(reveal_freeze, false)?.frozen
+        state.field(reveal_freeze, false)?.frozen ||
+      // A compartment turned the facet on or off.
+      transaction.startState.facet(reveal_surfaces_at_caret) !==
+        state.facet(reveal_surfaces_at_caret)
     )
       changed = true;
     if (!changed) return value;
@@ -123,6 +145,7 @@ export const block_field = StateField.define<BlockFieldValue>({
       blocks,
       decorations: build_decorations(state, blocks, constructing),
       constructing,
+      revealed: revealed ?? revealed_blocks(state, blocks),
     };
   },
   provide: (field) => [
@@ -418,8 +441,11 @@ function find_blocks(state: EditorState, previous: readonly Block[]): Block[] {
     }
   };
   visit(tree.topNode);
+  // A block whose text was deleted maps to a point and is no block. dG over a
+  // table at the end of the note left one at the very end, which counts as
+  // past the parsed end even for a complete tree, and drawing it threw.
   for (const block of previous) {
-    if (block.from >= parsed_to) blocks.push(block);
+    if (block.from >= parsed_to && block.to > block.from) blocks.push(block);
   }
   return blocks;
 }
@@ -525,11 +551,7 @@ function build_decorations(
   const ranges: Range<Decoration>[] = [];
   for (const block of blocks) {
     if (block.from === constructing) continue;
-    if (
-      block.construct.reveal === "caret" &&
-      touches(state, block.from, block.to)
-    )
-      continue;
+    if (shows_source(state, block)) continue;
     if (block.construct.complete && !block.construct.complete(block, state))
       continue;
     const construct = block.construct;
@@ -540,6 +562,44 @@ function build_decorations(
     );
   }
   return Decoration.set(ranges, true);
+}
+
+function revealed_blocks(
+  state: EditorState,
+  blocks: readonly Block[],
+): number[] {
+  return blocks
+    .filter((block) => shows_source(state, block))
+    .map((block) => block.from);
+}
+
+function same_positions(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((position, index) => position === right[index])
+  );
+}
+
+// A "caret" block shows its source while an empty caret touches it, like an
+// inline construct. A surface block does the same under
+// reveal_surfaces_at_caret, and also while a selection lies inside it, so
+// Vim's visual mode in a code block does not swap the widget back in and move
+// the text. A selection that reaches past the block keeps the widget, which
+// draws as selected. The mouse freeze holds the layout, so it skips the
+// selection check.
+function shows_source(state: EditorState, block: Block): boolean {
+  const { reveal } = block.construct;
+  if (reveal === "surface" && !state.facet(reveal_surfaces_at_caret))
+    return false;
+  if (touches(state, block.from, block.to)) return true;
+  if (reveal === "caret" || state.field(reveal_freeze, false)?.frozen)
+    return false;
+  return state.selection.ranges.some(
+    (range) => range.from >= block.from && range.to <= block.to,
+  );
 }
 
 const measured_heights = new Map<string, number>();

@@ -453,7 +453,8 @@ export function register_note_actions(input: ActionRegistrationInput) {
       id: ACTION_IDS.note_copy_markdown,
       label: "Copy Markdown",
       execute: async () => {
-        await services.clipboard.copy_open_note_markdown();
+        const markdown = stores.editor.open_note?.markdown;
+        if (markdown) await services.clipboard.copy_markdown(markdown);
       },
     });
   }

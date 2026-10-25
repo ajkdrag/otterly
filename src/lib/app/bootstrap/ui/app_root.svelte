@@ -12,7 +12,6 @@
     now_ms: () => Date.now(),
     default_mount_config: {
       reset_app_state: false,
-      bootstrap_default_vault_path: null,
     },
   });
 

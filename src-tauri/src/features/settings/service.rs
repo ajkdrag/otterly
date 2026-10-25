@@ -2,7 +2,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager, State};
+
+// set_setting is an async command, so Tauri can run two calls at once, and
+// every window writes the same settings.json. Each call reads the file,
+// changes its key and writes it all back through one shared temp file, so the
+// later write would drop the other's key. This lock makes that one step.
+#[derive(Default)]
+pub struct SettingsLock(Mutex<()>);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsStore {
@@ -54,8 +62,19 @@ pub async fn get_setting(key: String, app: AppHandle) -> Result<Option<Value>, S
 }
 
 #[tauri::command]
-pub async fn set_setting(key: String, value: Value, app: AppHandle) -> Result<(), String> {
+pub async fn set_setting(
+    key: String,
+    value: Value,
+    app: AppHandle,
+    lock: State<'_, SettingsLock>,
+) -> Result<(), String> {
     log::debug!("Setting key={}", key);
+    // The mutex holds no data, so a panic in an earlier save leaves nothing
+    // broken. A poisoned lock is safe to take.
+    let _guard = lock
+        .0
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut store = load_settings(&app)?;
     store.settings.insert(key, value);
     save_settings(&app, &store)?;

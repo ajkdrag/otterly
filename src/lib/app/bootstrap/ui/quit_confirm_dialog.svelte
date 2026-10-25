@@ -20,10 +20,9 @@
 >
   <Dialog.Content class="max-w-md">
     <Dialog.Header>
-      <Dialog.Title>Quit Otterly?</Dialog.Title>
+      <Dialog.Title>Close window?</Dialog.Title>
       <Dialog.Description>
-        Your current workspace session will be restored the next time you open
-        this vault.
+        Your tabs come back the next time you open this vault.
       </Dialog.Description>
     </Dialog.Header>
     <Dialog.Footer>
@@ -32,9 +31,9 @@
       </Button>
       <Button onclick={on_confirm} disabled={is_quitting}>
         {#if is_quitting}
-          Quitting...
+          Closing…
         {:else}
-          Quit
+          Close
         {/if}
       </Button>
     </Dialog.Footer>

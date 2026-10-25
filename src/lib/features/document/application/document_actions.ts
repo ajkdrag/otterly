@@ -1,15 +1,22 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistry, UIStore } from "$lib/app";
 import type { DocumentService } from "$lib/features/document/application/document_service";
+import type { DocumentStore } from "$lib/features/document/state/document_store.svelte";
 import type { DocumentSaveResult } from "$lib/features/document/types/document";
+import type { ClipboardService } from "$lib/features/clipboard";
 import type { ShellService } from "$lib/features/shell";
+import { reveal_in_file_manager_label } from "$lib/shared/utils/file_manager_label";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "svelte-sonner";
 
 export type DocumentActionInput = {
   registry: ActionRegistry;
-  stores: { ui: UIStore };
-  services: { document: DocumentService; shell: ShellService };
+  stores: { ui: UIStore; document: DocumentStore };
+  services: {
+    document: DocumentService;
+    shell: ShellService;
+    clipboard: ClipboardService;
+  };
 };
 
 // A document window registers the vault app's action ids where the meaning
@@ -54,6 +61,39 @@ export function register_document_actions(input: DocumentActionInput) {
     label: "Open URL",
     execute: async (url: unknown) => {
       await services.shell.open_url(String(url));
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.note_copy_markdown,
+    label: "Copy Markdown",
+    execute: async () => {
+      const markdown = services.document.get_markdown();
+      if (markdown) await services.clipboard.copy_markdown(markdown);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.document_copy_path,
+    label: "Copy File Path",
+    execute: async () => {
+      const path = stores.document.file?.path;
+      if (!path) return;
+      try {
+        await services.clipboard.copy_text(path);
+        toast.success("Path copied");
+      } catch {
+        toast.error("Failed to copy path");
+      }
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.document_reveal_in_file_manager,
+    label: reveal_in_file_manager_label(),
+    execute: async () => {
+      const ok = await services.document.reveal_in_file_manager();
+      if (!ok) toast.error("Could not show the file in the file manager");
     },
   });
 

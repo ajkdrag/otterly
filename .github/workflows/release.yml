@@ -189,6 +189,59 @@ jobs:
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
+      # The portable zip is the plain release binary plus portable.txt. The
+      # app looks for that file to turn off its installer based updater.
+      - name: Package Windows portable zip
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $stageDir = Join-Path $env:RUNNER_TEMP "otterly-portable"
+          $zipName = "otterly_${version}_x64_portable.zip"
+
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+          Copy-Item src-tauri/target/release/otterly.exe $stageDir
+          Copy-Item src-tauri/windows/portable.txt $stageDir
+
+          # Skips by itself when the certificate secrets are not set.
+          & scripts/sign_windows.ps1 -FilePath (Join-Path $stageDir "otterly.exe")
+
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $zipName -Force
+          gh release upload $env:TAG_NAME $zipName --clobber
+
+      # appimage.github.io lints the AppDir with `[ -e .DirIcon ]`, and -e
+      # follows symlinks. Older tauri CLIs (before 2.12) wrote .DirIcon as an
+      # absolute symlink into the runner's build dir, so it dangled on every
+      # other machine. Extract the real artifact and check it the same way.
+      - name: Check AppImage has a usable .DirIcon
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          appimage_path="$(ls "$PWD"/${{ matrix.bundle_root }}/appimage/*.AppImage)"
+          extract_dir="$(mktemp -d)"
+          cd "$extract_dir"
+          "$appimage_path" --appimage-extract >/dev/null
+
+          for required in AppRun .DirIcon; do
+            if [ ! -e "squashfs-root/$required" ]; then
+              echo "::error::$required is missing or a dangling symlink in $appimage_path"
+              ls -la squashfs-root
+              exit 1
+            fi
+          done
+
+          # Resolving on the runner hides an absolute link, so reject those too.
+          dir_icon_target="$(readlink squashfs-root/.DirIcon || true)"
+          case "$dir_icon_target" in
+            /*)
+              echo "::error::.DirIcon is an absolute symlink to $dir_icon_target"
+              exit 1
+              ;;
+          esac
+
       - name: Write updater metadata
         shell: bash
         run: |

@@ -122,6 +122,20 @@ describe("apply_theme", () => {
     expect(store.get("--editor-bold-weight")).toBe("600");
   });
 
+  it("sets the interface radius and tree row height from the theme", () => {
+    apply_theme({
+      ...BUILTIN_NORDIC_DARK,
+      ui_radius: 0.5,
+      file_tree_density: "compact",
+    });
+    expect(store.get("--radius")).toBe("0.5rem");
+    expect(store.get("--size-tree-row")).toBe("26px");
+
+    apply_theme(BUILTIN_NORDIC_DARK);
+    expect(store.get("--radius")).toBe("0.25rem");
+    expect(store.get("--size-tree-row")).toBe("30px");
+  });
+
   it("applies bold accent color style", () => {
     const custom = {
       ...BUILTIN_NORDIC_DARK,
@@ -131,6 +145,16 @@ describe("apply_theme", () => {
     };
     apply_theme(custom);
     expect(store.get("--editor-bold-color")).toBe("var(--primary)");
+  });
+
+  it("always sets tag shape and leaves tag colors and hover to the defaults", () => {
+    apply_theme({ ...BUILTIN_NORDIC_DARK, tag_bg: "hotpink", tag_radius: 6 });
+
+    expect(store.get("--editor-tag-radius")).toBe("calc(var(--radius) * 6)");
+    expect(store.get("--editor-tag-padding-x")).toBe("0.25em");
+    expect(store.get("--editor-tag-bg")).toBe("hotpink");
+    expect(store.has("--editor-tag-text")).toBe(false);
+    expect(store.has("--editor-tag-bg-hover")).toBe(false);
   });
 
   it("does not throw when document is undefined", () => {

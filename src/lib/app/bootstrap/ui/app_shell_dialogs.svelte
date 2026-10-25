@@ -19,7 +19,7 @@
     FiletreeMoveConflictDialog,
   } from "$lib/features/folder";
   import { SettingsDialog } from "$lib/features/settings";
-  import { Omnibar } from "$lib/features/search";
+  import { Omnibar, VaultReplaceDialog } from "$lib/features/search";
   import { TabCloseConfirmDialog } from "$lib/features/tab";
   import { VersionHistoryDialog, CheckpointDialog } from "$lib/features/git";
   import { HotkeyRecorderDialog } from "$lib/features/hotkey";
@@ -27,8 +27,11 @@
   import QuitConfirmDialog from "$lib/app/bootstrap/ui/quit_confirm_dialog.svelte";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
-  import type { OmnibarItem } from "$lib/shared/types/search";
-  import type { OmnibarScope } from "$lib/shared/types/search";
+  import type {
+    OmnibarItem,
+    OmnibarScope,
+    OmnibarTarget,
+  } from "$lib/shared/types/search";
   import type {
     EditorSettings,
     SettingsCategory,
@@ -69,6 +72,7 @@
       stores.op.get("settings.load").error,
   );
   const image_paste_error = $derived(stores.op.get("asset.write").error);
+  const vimrc_error = $derived(stores.op.get("vim.load_vimrc").error);
 
   const settings_has_unsaved_changes = $derived.by(() => {
     const { current_settings, persisted_settings, hotkey_draft_overrides } =
@@ -119,6 +123,8 @@
       void action_registry.execute(ACTION_IDS.vault_choose)}
     on_select_vault={(vault_id: VaultId) =>
       void action_registry.execute(ACTION_IDS.vault_select, vault_id)}
+    on_open_vault_in_new_window={(vault_id: VaultId) =>
+      void action_registry.execute(ACTION_IDS.vault_open_new_window, vault_id)}
     on_toggle_pin_vault={(vault_id: VaultId) =>
       void action_registry.execute(ACTION_IDS.vault_toggle_pin, vault_id)}
     on_remove_vault={(vault_id: VaultId) =>
@@ -274,6 +280,10 @@
   hotkeys_config={stores.ui.settings_dialog.hotkey_draft_config}
   user_themes={stores.ui.user_themes}
   active_theme={stores.ui.active_theme}
+  theme_file={stores.ui.theme_file}
+  vimrc={stores.vim.vimrc}
+  {vimrc_error}
+  is_loading_vimrc={stores.op.is_pending("vim.load_vimrc")}
   on_update_settings={(settings: EditorSettings) =>
     void action_registry.execute(ACTION_IDS.settings_update, settings)}
   on_category_change={(category: SettingsCategory) => {
@@ -305,6 +315,17 @@
     void action_registry.execute(ACTION_IDS.theme_delete, id)}
   on_theme_update={(theme: Theme) =>
     void action_registry.execute(ACTION_IDS.theme_update, theme)}
+  on_theme_open_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_open_file)}
+  on_theme_reveal_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_reveal_file)}
+  on_theme_copy_file_path={() =>
+    void action_registry.execute(ACTION_IDS.theme_copy_file_path)}
+  on_theme_create_file={() =>
+    void action_registry.execute(ACTION_IDS.theme_create_file)}
+  on_open_vimrc={() => void action_registry.execute(ACTION_IDS.vim_open_vimrc)}
+  on_reload_vimrc={() =>
+    void action_registry.execute(ACTION_IDS.vim_load_vimrc)}
 />
 
 <CreateFolderDialog
@@ -323,6 +344,8 @@
 
 <Omnibar
   open={stores.ui.omnibar.open}
+  mode={stores.ui.omnibar.mode}
+  return_to_find={stores.ui.omnibar.return_to_find}
   query={stores.ui.omnibar.query}
   selected_index={stores.ui.omnibar.selected_index}
   is_searching={stores.ui.omnibar.is_searching}
@@ -334,6 +357,14 @@
   editor_settings={stores.ui.editor_settings}
   hotkeys_config={stores.ui.hotkeys_config}
   {has_multiple_vaults}
+  tags={stores.ui.omnibar.tags}
+  truncated={stores.search.omnibar_truncated}
+  failed={stores.search.omnibar_failed}
+  is_indexing={stores.search.index_progress.status === "indexing"}
+  find_inputs={stores.ui.vault_find}
+  find_results={stores.search.vault_find}
+  is_replacing={stores.op.is_pending("vault_find.replace")}
+  git_enabled={stores.git.enabled}
   on_open_change={(open) => {
     if (open) {
       void action_registry.execute(ACTION_IDS.omnibar_open);
@@ -349,6 +380,37 @@
     void action_registry.execute(ACTION_IDS.omnibar_set_scope, scope)}
   on_confirm={(item: OmnibarItem) =>
     void action_registry.execute(ACTION_IDS.omnibar_confirm_item, item)}
+  on_confirm_tag_suggestion={() =>
+    void action_registry.execute(ACTION_IDS.omnibar_confirm_tag_suggestion)}
+  on_remove_tag={(tag: string) =>
+    void action_registry.execute(ACTION_IDS.omnibar_remove_tag, tag)}
+  on_open_tags={() =>
+    void action_registry.execute(ACTION_IDS.omnibar_open_tags)}
+  on_target_change={(target: OmnibarTarget) =>
+    void action_registry.execute(ACTION_IDS.omnibar_set_target, target)}
+  on_find_inputs_change={(patch) => {
+    Object.assign(stores.ui.vault_find, patch);
+  }}
+  on_open_match={(row) =>
+    void action_registry.execute(ACTION_IDS.vault_find_open_match, {
+      path: row.file.path,
+      index: row.match.index,
+      line: row.match.line,
+      column: row.match.column,
+      length: row.match.length,
+    })}
+  on_replace_match={(row) =>
+    void action_registry.execute(ACTION_IDS.vault_find_replace_match, {
+      path: row.file.path,
+      match_index: row.match.index,
+    })}
+  on_replace_file={(row) =>
+    void action_registry.execute(
+      ACTION_IDS.vault_find_replace_file,
+      row.file.path,
+    )}
+  on_replace_all={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_request_replace_all)}
 />
 
 <ImagePasteDialog
@@ -434,6 +496,21 @@
     void action_registry.execute(ACTION_IDS.git_confirm_checkpoint)}
   on_cancel={() =>
     void action_registry.execute(ACTION_IDS.git_cancel_checkpoint)}
+/>
+
+<VaultReplaceDialog
+  open={stores.ui.vault_replace_dialog.open}
+  query={stores.ui.vault_replace_dialog.query}
+  match_count={stores.ui.vault_replace_dialog.match_count}
+  file_count={stores.ui.vault_replace_dialog.file_count}
+  replacement={stores.ui.vault_replace_dialog.replacement}
+  unsaved_paths={stores.ui.vault_replace_dialog.unsaved_paths}
+  will_checkpoint={stores.git.enabled}
+  is_replacing={stores.ui.vault_replace_dialog.is_replacing}
+  on_confirm={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_confirm_replace_all)}
+  on_cancel={() =>
+    void action_registry.execute(ACTION_IDS.vault_find_cancel_replace_all)}
 />
 
 <HelpDialog

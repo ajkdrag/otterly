@@ -5,6 +5,7 @@ import type {
   DocumentFile,
   DocumentSaveResult,
 } from "$lib/features/document/types/document";
+import type { FindSpec } from "$lib/shared/types/search";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -13,11 +14,18 @@ const log = create_logger("document_service");
 export type DocumentServiceCallbacks = {
   on_external_link_click: (url: string) => void;
   on_unsupported_link_click: () => void;
+  // :w and :wq in the Vim editor. The promise settles when the save has
+  // finished, so :wq closes only after it.
+  on_save_request: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request: () => void;
 };
 
 // Owns the one file and the one editor of a document window.
 export class DocumentService {
   private session: EditorSession | null = null;
+  // The editor starts with this. The vim_mode reactor sets it.
+  private vim_enabled = false;
 
   constructor(
     private readonly document_port: DocumentPort,
@@ -46,9 +54,10 @@ export class DocumentService {
       // images resolve through the document window's own handlers.
       note_path: file.path,
       vault_id: null,
+      vim_enabled: this.vim_enabled,
       events: {
-        on_markdown_change: () => {
-          this.store.note_edit();
+        on_markdown_change: (markdown) => {
+          this.store.note_edit(markdown);
         },
         on_dirty_state_change: (is_dirty) => {
           this.store.set_dirty(is_dirty);
@@ -58,6 +67,13 @@ export class DocumentService {
         },
         on_view_mode_change: (mode) => {
           this.store.set_view_mode(mode);
+        },
+        on_vim_status_change: (status) => {
+          this.store.set_vim_status(status);
+        },
+        on_save_request: () => this.callbacks.on_save_request(),
+        on_close_request: () => {
+          this.callbacks.on_close_request();
         },
         on_external_link_click: (url) => {
           this.callbacks.on_external_link_click(url);
@@ -70,6 +86,9 @@ export class DocumentService {
         },
       },
     });
+    // The setting may have changed while the editor started, before
+    // this.session could take the call. It does nothing if they match.
+    this.session.set_vim_enabled(this.vim_enabled);
     this.session.focus();
   }
 
@@ -148,6 +167,43 @@ export class DocumentService {
 
   toggle_source_mode() {
     this.session?.toggle_source_mode();
+  }
+
+  set_vim_enabled(enabled: boolean) {
+    this.vim_enabled = enabled;
+    this.session?.set_vim_enabled(enabled);
+  }
+
+  focus() {
+    this.session?.focus();
+  }
+
+  update_find_state(spec: FindSpec, selected_index: number) {
+    this.session?.update_find_state?.(spec, selected_index);
+  }
+
+  replace_find_match(replacement: string): number | null {
+    return this.session?.replace_find_match?.(replacement) ?? null;
+  }
+
+  replace_all_find_matches(replacement: string): number {
+    return this.session?.replace_all_find_matches?.(replacement) ?? 0;
+  }
+
+  // The editor's canonical source, which can be newer than the store's copy.
+  get_markdown(): string | null {
+    return this.session?.get_markdown() ?? null;
+  }
+
+  // Returns false on failure so the action can tell the user.
+  async reveal_in_file_manager(): Promise<boolean> {
+    try {
+      await this.document_port.reveal_document();
+      return true;
+    } catch (error) {
+      log.error("Reveal document failed", { error: error_message(error) });
+      return false;
+    }
   }
 }
 

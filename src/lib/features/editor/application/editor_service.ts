@@ -10,8 +10,10 @@ import type {
   OpenNoteState,
   CursorInfo,
   PastedImagePayload,
+  VimStatus,
 } from "$lib/shared/types/editor";
 import type { MarkdownText, NoteId, NotePath } from "$lib/shared/types/ids";
+import type { FindSpec } from "$lib/shared/types/search";
 import { as_markdown_text } from "$lib/shared/types/ids";
 import type { EditorStore } from "$lib/features/editor/state/editor_store.svelte";
 import type { VaultStore } from "$lib/features/vault";
@@ -38,6 +40,13 @@ export type EditorServiceCallbacks = {
     note_path: NotePath,
     image: PastedImagePayload,
   ) => void;
+  on_tag_click: (tag: string) => void;
+  suggest_tags: (partial: string) => Promise<{ tag: string; count: number }[]>;
+  // :w and :wq in the Vim editor. The promise settles when the save has
+  // finished, so :wq closes only after it.
+  on_save_request: () => void | Promise<void>;
+  // :q, and the second half of :wq.
+  on_close_request: () => void;
 };
 
 type EditorFlushResult = {
@@ -52,6 +61,8 @@ export class EditorService {
   private host_root: HTMLDivElement | null = null;
   private active_note: OpenNoteState | null = null;
   private session_generation = 0;
+  // The next session starts with this. The vim_mode reactor sets it.
+  private vim_enabled = false;
 
   constructor(
     private readonly editor_port: EditorPort,
@@ -214,12 +225,41 @@ export class EditorService {
     this.session?.toggle_source_mode();
   }
 
+  tag_at_cursor(): string | null {
+    return this.session?.tag_at_cursor() ?? null;
+  }
+
+  set_vim_enabled(enabled: boolean) {
+    this.vim_enabled = enabled;
+    this.session?.set_vim_enabled(enabled);
+  }
+
   close_buffer(note_path: NotePath) {
     this.session?.close_buffer(note_path);
   }
 
-  update_find_state(query: string, selected_index: number) {
-    this.session?.update_find_state?.(query, selected_index);
+  update_find_state(spec: FindSpec, selected_index: number) {
+    this.session?.update_find_state?.(spec, selected_index);
+  }
+
+  replace_find_match(replacement: string): number | null {
+    return this.session?.replace_find_match?.(replacement) ?? null;
+  }
+
+  replace_all_find_matches(replacement: string): number {
+    return this.session?.replace_all_find_matches?.(replacement) ?? 0;
+  }
+
+  // Waits a frame, like restore_cursor, so the editor-sync reactor has
+  // switched to the note that was just opened.
+  select_line_range(line: number, column: number, length: number) {
+    const session = this.session;
+    if (!session) return;
+    requestAnimationFrame(() => {
+      if (this.session !== session) return;
+      session.select_line_range?.(line, column, length);
+      session.focus();
+    });
   }
 
   private next_session_generation(): number {
@@ -328,6 +368,18 @@ export class EditorService {
         if (!this.is_generation_current(generation)) return;
         this.editor_store.set_view_mode(mode);
       },
+      on_vim_status_change: (status: VimStatus | null) => {
+        if (!this.is_generation_current(generation)) return;
+        this.editor_store.set_vim_status(status);
+      },
+      on_save_request: () => {
+        if (!this.is_generation_current(generation)) return;
+        return this.callbacks.on_save_request();
+      },
+      on_close_request: () => {
+        if (!this.is_generation_current(generation)) return;
+        this.callbacks.on_close_request();
+      },
       on_code_block_view_states_change: (heights: CodeBlockViewStates) => {
         if (!this.is_generation_current(generation)) return;
         const active_tab = this.tab_store.active_tab;
@@ -354,6 +406,16 @@ export class EditorService {
         this.with_active_note_identity(generation, (id, path) => {
           this.callbacks.on_image_paste_requested(id, path, image);
         });
+      },
+      on_tag_click: (tag: string) => {
+        if (!this.is_generation_current(generation)) return;
+        this.callbacks.on_tag_click(tag);
+      },
+      // The editor aborts the lookup when the text changes. The index answers
+      // fast, so we let a stale answer finish and the editor drops it.
+      query_tags: async (partial: string) => {
+        if (!this.is_generation_current(generation)) return [];
+        return this.callbacks.suggest_tags(partial);
       },
     };
 
@@ -383,6 +445,7 @@ export class EditorService {
       initial_markdown: active_note.markdown,
       note_path: active_note.meta.path,
       vault_id: this.vault_store.vault?.id ?? null,
+      vim_enabled: this.vim_enabled,
       events: this.create_session_events(generation),
     });
 
@@ -392,6 +455,9 @@ export class EditorService {
     }
 
     this.session = next_session;
+    // The setting may have changed while the session started, before
+    // this.session could take the call. It does nothing if they match.
+    next_session.set_vim_enabled(this.vim_enabled);
   }
 
   private teardown_session() {

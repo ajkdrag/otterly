@@ -8,6 +8,7 @@ import {
   type VaultId,
   type VaultPath,
 } from "$lib/shared/types/ids";
+import { is_vault_open_in_other_window_error } from "$lib/features/vault/domain/vault_errors";
 import type { Vault } from "$lib/shared/types/vault";
 import type { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 import type { NotesStore } from "$lib/features/note";
@@ -38,7 +39,6 @@ const is_performance_logging_enabled =
 
 export type AppMountConfig = {
   reset_app_state: boolean;
-  bootstrap_default_vault_path: VaultPath | null;
 };
 
 const RECENT_NOTES_KEY = "recent_notes";
@@ -112,23 +112,22 @@ export class VaultService {
     try {
       let editor_settings: EditorSettings | null = null;
 
-      const has_vault = this.vault_store.vault !== null;
+      // Loaded first, so the picker has its list also when this window's
+      // vault fails to open.
+      await this.reload_vault_list();
+      // New Window opened this window for a vault, or the page reloaded.
+      const window_vault_id =
+        this.vault_store.vault === null
+          ? await this.vault_port.get_window_vault_id()
+          : null;
 
-      if (!has_vault && config.bootstrap_default_vault_path) {
-        const default_path = config.bootstrap_default_vault_path;
+      if (window_vault_id) {
         const open_revision = await this.begin_open_revision();
         editor_settings = await this.open_vault(
-          () => this.vault_port.open_vault(default_path),
+          () => this.vault_port.open_vault_by_id(window_vault_id),
           open_revision,
         );
       } else {
-        const [recent_vaults, pinned_vault_ids] = await Promise.all([
-          this.vault_port.list_vaults(),
-          this.load_pinned_vault_ids(),
-        ]);
-        this.vault_store.set_recent_vaults(recent_vaults);
-        this.vault_store.set_pinned_vault_ids(pinned_vault_ids);
-
         const current_vault_id = this.get_active_vault_id();
         if (current_vault_id) {
           editor_settings = await this.load_editor_settings(current_vault_id);
@@ -152,6 +151,42 @@ export class VaultService {
         status: "error",
         error: message,
       };
+    }
+  }
+
+  async reload_vault_list(): Promise<void> {
+    const [recent_vaults, pinned_vault_ids] = await Promise.all([
+      this.vault_port.list_vaults(),
+      this.load_pinned_vault_ids(),
+    ]);
+    this.vault_store.set_recent_vaults(recent_vaults);
+    this.vault_store.set_pinned_vault_ids(pinned_vault_ids);
+  }
+
+  async open_new_window(
+    vault_id: VaultId | null,
+  ): Promise<{ status: "opened" } | { status: "failed"; error: string }> {
+    try {
+      await this.vault_port.open_new_vault_window(vault_id);
+      return { status: "opened" };
+    } catch (error) {
+      const message = error_message(error);
+      log.error("Open new window failed", { error: message });
+      return { status: "failed", error: message };
+    }
+  }
+
+  // A failed check is logged and counts as "no other window", so the caller
+  // goes on to open the vault here. Rust refuses that open when the vault is
+  // in another window after all.
+  async focus_window_with_vault(vault_id: VaultId): Promise<boolean> {
+    try {
+      return await this.vault_port.focus_window_with_vault(vault_id);
+    } catch (error) {
+      log.error("Focus window with vault failed", {
+        error: error_message(error),
+      });
+      return false;
     }
   }
 
@@ -245,12 +280,7 @@ export class VaultService {
 
     try {
       await this.vault_port.remove_vault(vault_id);
-      const [recent_vaults, pinned_vault_ids] = await Promise.all([
-        this.vault_port.list_vaults(),
-        this.load_pinned_vault_ids(),
-      ]);
-      this.vault_store.set_recent_vaults(recent_vaults);
-      this.vault_store.set_pinned_vault_ids(pinned_vault_ids);
+      await this.reload_vault_list();
       await this.save_pinned_vault_ids(this.vault_store.pinned_vault_ids);
       this.succeed_operation("vault.remove");
       return { status: "success" };
@@ -352,8 +382,35 @@ export class VaultService {
       if (error instanceof StaleVaultOpenError) {
         return { status: "stale" };
       }
+      // Rust claims the new vault, and frees the one this window shows, before
+      // we load it. So an open that ends here can leave the window claiming a
+      // vault it does not show, and another window could open the shown one.
+      // Only the newest open puts the claim back, because a newer open owns it.
+      if (this.is_current_open_revision(open_revision)) {
+        await this.claim_shown_vault_again();
+      }
+      if (is_vault_open_in_other_window_error(error_message(error))) {
+        this.op_store.reset("vault.change");
+        return { status: "in_other_window" };
+      }
       const message = this.fail_operation("vault.change", error_label, error);
       return { status: "failed", error: message };
+    }
+  }
+
+  // open_vault_by_id is the claim. Its error is only logged, because the
+  // switch already failed and the window shows its vault either way.
+  private async claim_shown_vault_again(): Promise<void> {
+    const shown_vault_id = this.get_active_vault_id();
+    if (!shown_vault_id) {
+      return;
+    }
+    try {
+      await this.vault_port.open_vault_by_id(shown_vault_id);
+    } catch (error) {
+      log.error("Claim shown vault again failed", {
+        error: error_message(error),
+      });
     }
   }
 

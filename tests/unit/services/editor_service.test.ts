@@ -54,11 +54,13 @@ function create_session(initial_markdown: string): EditorSession {
     is_dirty: vi.fn(() => false),
     focus: vi.fn(),
     toggle_source_mode: vi.fn(),
+    set_vim_enabled: vi.fn(),
     open_buffer: vi.fn((config: BufferConfig) => {
       current_markdown = config.initial_markdown;
     }),
     rename_buffer: vi.fn(),
     close_buffer: vi.fn(),
+    tag_at_cursor: vi.fn(() => null),
   };
 }
 
@@ -96,6 +98,10 @@ function create_setup(
     on_external_link_click: vi.fn(),
     on_file_link_click: vi.fn(),
     on_image_paste_requested: vi.fn(),
+    on_tag_click: vi.fn(),
+    suggest_tags: vi.fn().mockResolvedValue([]),
+    on_save_request: vi.fn(),
+    on_close_request: vi.fn(),
   };
 
   const service = new EditorService(
@@ -540,6 +546,67 @@ describe("EditorService", () => {
 
     expect(late_session.destroy).toHaveBeenCalledTimes(1);
     expect(service.is_mounted()).toBe(false);
+  });
+
+  it("starts the session with the current Vim setting", async () => {
+    const session = create_session("# Alpha");
+    const { service, editor_store, session_configs } = create_setup(() =>
+      Promise.resolve(session),
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+
+    service.set_vim_enabled(true);
+    await service.mount({ root: {} as HTMLDivElement, note });
+
+    expect(session_config_at(session_configs, 0).vim_enabled).toBe(true);
+  });
+
+  it("passes on a Vim setting that arrives while the session starts", async () => {
+    const deferred = create_deferred<EditorSession>();
+    const session = create_session("# Alpha");
+    const { service, editor_store, session_configs } = create_setup(
+      () => deferred.promise,
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+
+    const mount_promise = service.mount({ root: {} as HTMLDivElement, note });
+    service.set_vim_enabled(true);
+    deferred.resolve(session);
+    await mount_promise;
+
+    expect(session_config_at(session_configs, 0).vim_enabled).toBe(false);
+    expect(session.set_vim_enabled).toHaveBeenLastCalledWith(true);
+  });
+
+  it("shows the Vim status of the session and passes :w and :q on", async () => {
+    const session = create_session("# Alpha");
+    const { service, editor_store, callbacks, session_configs } = create_setup(
+      () => Promise.resolve(session),
+    );
+    const note = create_open_note("docs/alpha.md", "# Alpha");
+    editor_store.set_open_note(note);
+    await service.mount({ root: {} as HTMLDivElement, note });
+    const { events } = session_config_at(session_configs, 0);
+
+    events.on_vim_status_change?.({
+      mode: "visual",
+      showcmd: "3",
+      recording: null,
+    });
+    expect(editor_store.vim_status).toEqual({
+      mode: "visual",
+      showcmd: "3",
+      recording: null,
+    });
+    events.on_vim_status_change?.(null);
+    expect(editor_store.vim_status).toBeNull();
+
+    void events.on_save_request?.();
+    events.on_close_request?.();
+    expect(callbacks.on_save_request).toHaveBeenCalledOnce();
+    expect(callbacks.on_close_request).toHaveBeenCalledOnce();
   });
 
   it("flushes session markdown and syncs editor store", async () => {

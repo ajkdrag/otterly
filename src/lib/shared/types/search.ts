@@ -10,9 +10,13 @@ export type SearchCommandDefinition = {
     | "change_vault"
     | "open_settings"
     | "open_theme_settings"
+    | "open_theme_file"
+    | "reveal_theme_file"
+    | "copy_theme_file_path"
     | "open_hotkeys"
     | "toggle_sidebar"
     | "find_in_note"
+    | "find_in_vault"
     | "open_help"
     | "next_tab"
     | "previous_tab"
@@ -25,7 +29,10 @@ export type SearchCommandDefinition = {
     | "git_create_checkpoint"
     | "git_init_repo"
     | "toggle_links_panel"
-    | "check_for_updates";
+    | "search_tags"
+    | "show_tags_pane"
+    | "check_for_updates"
+    | "new_window";
   label: string;
   description: string;
   keywords: string[];
@@ -39,7 +46,9 @@ export type SearchCommandDefinition = {
     | "bookmark"
     | "link"
     | "refresh-cw"
-    | "code";
+    | "code"
+    | "tag"
+    | "text-search";
 };
 
 export type SearchSettingDefinition = {
@@ -50,10 +59,15 @@ export type SearchSettingDefinition = {
   keywords: string[];
 };
 
-export type SearchScope = "all" | "path" | "title" | "content";
-export type SearchDomain = "notes" | "commands" | "planned";
+export type SearchScope = "all" | "path" | "title";
+export type SearchDomain = "notes" | "commands" | "planned" | "tags";
 export type OmnibarScope = "current_vault" | "all_vaults";
-export type OmnibarQueryTarget = "all" | "files" | "path" | "title" | "content";
+// Notes parses the text (`>`, `#`, `@file`). Find is Text mode: the text is a
+// raw pattern for the vault find engine.
+export type OmnibarMode = "notes" | "find";
+// The filter strip. All and Files are Notes mode, Text is find mode.
+export type OmnibarTarget = "all" | "files" | "text";
+export type OmnibarQueryTarget = "all" | "files" | "path" | "title";
 export type NoteMatchKind = "file" | "content";
 export type NoteMatchDetail = "filename" | "title" | "path" | "content";
 
@@ -63,6 +77,8 @@ export type SearchQuery = {
   scope: SearchScope;
   domain: SearchDomain;
   target: OmnibarQueryTarget;
+  // Tags domain only: the raw text before the `#` token, trimmed at the end.
+  before_tag?: string;
 };
 
 export type NoteSearchHit = {
@@ -94,6 +110,14 @@ export type PlannedWikiSuggestion = {
 };
 
 export type WikiSuggestion = ExistingWikiSuggestion | PlannedWikiSuggestion;
+
+// What find looks for. The editor's find bar and the omnibar's Text mode share it.
+export type FindSpec = {
+  text: string;
+  regex: boolean;
+  case_sensitive: boolean;
+  whole_word: boolean;
+};
 
 export type InFileMatch = {
   line: number;
@@ -152,6 +176,7 @@ export type OmnibarItem =
       ref_count: number;
       score: number;
     }
+  | { kind: "tag"; tag: string; count: number }
   | { kind: "command"; command: SearchCommandDefinition; score: number }
   | { kind: "setting"; setting: SearchSettingDefinition; score: number }
   | { kind: "recent_note"; note: NoteMeta };

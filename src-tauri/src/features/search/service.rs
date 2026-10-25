@@ -1,18 +1,22 @@
+use crate::features::document::service::DocumentState;
 use crate::features::notes::service as notes_service;
 use crate::features::search::db as search_db;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
+use crate::features::search::tag_parser;
+use crate::features::search::vault_find::{self, FindQuery, FindSpec, VaultFindFile};
 use crate::shared::storage;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use tauri::{AppHandle, Emitter, Manager};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Instant, SystemTime};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 #[derive(Debug, Serialize)]
 pub struct NoteLinksSnapshot {
@@ -182,7 +186,8 @@ fn dispatch_command(
             let _ = reply.send(result);
         }
         DbCommand::RemoveNote { note_id, reply } => {
-            let result = search_db::remove_note(conn, &note_id);
+            let result =
+                search_db::in_write_transaction(conn, || search_db::remove_note(conn, &note_id));
             if let Err(ref e) = result {
                 log::warn!("writer: remove failed for {note_id}: {e}");
             } else {
@@ -191,7 +196,8 @@ fn dispatch_command(
             let _ = reply.send(result);
         }
         DbCommand::RemoveNotes { note_ids, reply } => {
-            let result = search_db::remove_notes(conn, &note_ids);
+            let result =
+                search_db::in_write_transaction(conn, || search_db::remove_notes(conn, &note_ids));
             if let Err(ref e) = result {
                 log::warn!("writer: batch remove failed: {e}");
             } else {
@@ -312,7 +318,7 @@ fn handle_upsert(
     let markdown = match std::fs::read_to_string(&abs) {
         Ok(content) => content,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            let _ = search_db::remove_note(conn, note_id);
+            let _ = search_db::in_write_transaction(conn, || search_db::remove_note(conn, note_id));
             notes_cache.remove(note_id);
             return Ok(());
         }
@@ -320,9 +326,7 @@ fn handle_upsert(
     };
     let meta = search_db::extract_meta(&abs, vault_root)?;
 
-    search_db::upsert_note(conn, &meta, &markdown)?;
-    notes_cache.insert(meta.path.clone(), meta.clone());
-
+    let tags = tag_parser::extract_note_tags(&markdown);
     let targets = search_db::internal_link_targets(&markdown, &meta.path);
     let mut resolved: BTreeSet<String> = BTreeSet::new();
     for target in targets {
@@ -330,7 +334,17 @@ fn handle_upsert(
             resolved.insert(target);
         }
     }
-    search_db::set_outlinks(conn, &meta.path, &resolved.into_iter().collect::<Vec<_>>())
+    let resolved: Vec<String> = resolved.into_iter().collect();
+
+    // The file reads and tag parsing above stay outside the transaction, so
+    // the write lock is held only for the statements.
+    search_db::in_write_transaction(conn, || {
+        search_db::upsert_note(conn, &meta, &markdown)?;
+        search_db::set_note_tags(conn, &meta.path, &tags)?;
+        search_db::set_outlinks(conn, &meta.path, &resolved)
+    })?;
+    notes_cache.insert(meta.path.clone(), meta);
+    Ok(())
 }
 
 type IndexFn = fn(
@@ -801,6 +815,60 @@ pub fn index_note_links_snapshot(
     })
 }
 
+// Async (thread pool): the tag pane reloads this on every note switch.
+#[tauri::command(async)]
+pub fn index_list_tags(
+    app: AppHandle,
+    vault_id: String,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, search_db::list_tags)
+}
+
+// Async (thread pool): the omnibar runs this on every keystroke in tag mode.
+#[tauri::command(async)]
+pub fn index_search_tagged_notes(
+    app: AppHandle,
+    vault_id: String,
+    query: search_db::TagNoteQuery,
+) -> Result<search_db::TagNotePage, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::search_tagged_notes(conn, &query)
+    })
+}
+
+// Async (thread pool): the omnibar and the editor's completion ask on every keystroke.
+#[tauri::command(async)]
+pub fn index_suggest_tags(
+    app: AppHandle,
+    vault_id: String,
+    partial: String,
+    exclude: Vec<String>,
+    limit: usize,
+) -> Result<Vec<search_db::TagCount>, String> {
+    with_read_conn(&app, &vault_id, |conn| {
+        search_db::suggest_tags(conn, &partial, &exclude, limit)
+    })
+}
+
+// Pure, like rewrite_note_links: the right rail asks about unsaved editor
+// text, so there is no vault or index involved. It sends tag names only,
+// the rail does not show excerpts.
+//
+// `async` makes Tauri run this plain fn on its thread pool. A sync command
+// runs on the main thread, and this parses the whole note on every typing
+// pause while the rail is open.
+//
+// @Speed: The rail also calls index_extract_local_note_links, which parses the
+// same text again, and the note crosses IPC twice. One command returning links
+// and tags would halve both.
+#[tauri::command(async)]
+pub fn extract_note_tags(markdown: String) -> Vec<String> {
+    tag_parser::extract_note_tags(&markdown)
+        .into_iter()
+        .map(|note_tag| note_tag.tag)
+        .collect()
+}
+
 #[tauri::command]
 pub fn index_extract_local_note_links(
     app: AppHandle,
@@ -826,4 +894,254 @@ pub fn rewrite_note_links(
 #[tauri::command]
 pub fn resolve_note_link(source_path: String, raw_target: String) -> Option<String> {
     link_parser::resolve_wiki_target(&source_path, &raw_target)
+}
+
+// Only the cancel token of each window's running vault find, keyed by window
+// label. Starting a new find cancels that window's old one, so each window
+// runs at most one walk, and a find in one window leaves the others alone.
+#[derive(Default)]
+pub struct VaultFindState {
+    cancel_by_window: Mutex<HashMap<String, Arc<AtomicBool>>>,
+}
+
+fn lock_vault_find_cancels(app: &AppHandle) -> MutexGuard<'_, HashMap<String, Arc<AtomicBool>>> {
+    // The map only holds flags, so a poisoned lock leaves nothing broken.
+    app.state::<VaultFindState>()
+        .inner()
+        .cancel_by_window
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+fn replace_vault_find_cancel_token(app: &AppHandle, window_label: &str) -> Arc<AtomicBool> {
+    let next_cancel = Arc::new(AtomicBool::new(false));
+    let previous =
+        lock_vault_find_cancels(app).insert(window_label.to_string(), Arc::clone(&next_cancel));
+    if let Some(previous) = previous {
+        previous.store(true, Ordering::Relaxed);
+    }
+    next_cancel
+}
+
+// Also runs when a window is destroyed, so its walk stops with it.
+pub fn cancel_window_vault_find(app: &AppHandle, window_label: &str) {
+    let cancel = lock_vault_find_cancels(app).remove(window_label);
+    if let Some(cancel) = cancel {
+        cancel.store(true, Ordering::Relaxed);
+    }
+}
+
+// What the omnibar sends: the engine's request plus its tag chips. Tags live
+// in the index, so they are turned into a file list here and the engine only
+// ever sees paths.
+#[derive(Debug, Deserialize)]
+pub struct VaultFindStartRequest {
+    #[serde(flatten)]
+    pub find: vault_find::VaultFindRequest,
+    pub tags: Vec<String>,
+}
+
+// Validates on the calling thread, so a bad regex or glob comes back as
+// Err("invalid_query:...") / Err("invalid_glob:..."). Results stream through
+// on_event; the call itself returns right away.
+#[tauri::command]
+pub fn vault_find_start(
+    app: AppHandle,
+    window: WebviewWindow,
+    vault_id: String,
+    request: VaultFindStartRequest,
+    on_event: Channel<vault_find::VaultFindEvent>,
+) -> Result<(), String> {
+    // The index and the walker both normalize with storage::normalize_relative_path,
+    // so these paths match the walker's.
+    let only = if request.tags.is_empty() {
+        None
+    } else {
+        let paths = with_read_conn(&app, &vault_id, |conn| {
+            search_db::list_tagged_paths(conn, &request.tags)
+        })?;
+        Some(paths.into_iter().collect::<HashSet<String>>())
+    };
+    let find =
+        vault_find::CompiledFind::from_request(&request.find, only).map_err(|e| e.to_string())?;
+    let vault_root = storage::vault_path(&app, &vault_id)?;
+    let cancel = replace_vault_find_cancel_token(&app, window.label());
+    std::thread::spawn(move || {
+        vault_find::find_in_vault(&vault_root, &find, &cancel, |event| {
+            if let Err(e) = on_event.send(event) {
+                log::warn!("vault find: send failed: {e}");
+            }
+        });
+    });
+    Ok(())
+}
+
+// Cancels and keeps the entry: the next find in this window replaces it.
+#[tauri::command]
+pub fn vault_find_cancel(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    if let Some(cancel) = lock_vault_find_cancels(&app).get(window.label()) {
+        cancel.store(true, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VaultReplaceFile {
+    pub path: String,
+    pub content_hash: String,
+    // Ordinals into the file's match list.
+    pub match_indexes: Vec<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VaultReplaceRequest {
+    #[serde(flatten)]
+    pub spec: FindSpec,
+    pub replacement: String,
+    pub files: Vec<VaultReplaceFile>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReplacedFile {
+    pub path: String,
+    pub count: usize,
+    pub remaining: Option<VaultFindFile>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplaceSkipReason {
+    Changed,
+    Missing,
+    NotText,
+    ReadFailed,
+    WriteFailed,
+    // A document window has its own buffer of this file, and its next save
+    // would overwrite the replace.
+    OpenInWindow,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SkippedFile {
+    pub path: String,
+    pub reason: ReplaceSkipReason,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct VaultReplaceResponse {
+    pub replaced: Vec<ReplacedFile>,
+    pub skipped: Vec<SkippedFile>,
+}
+
+// Files are independent: one that fails is reported in `skipped` and the rest
+// still go through. The undo story is the git checkpoint the frontend makes
+// before Replace All.
+#[tauri::command]
+pub async fn vault_replace(
+    app: AppHandle,
+    vault_id: String,
+    request: VaultReplaceRequest,
+) -> Result<VaultReplaceResponse, String> {
+    let query = FindQuery::compile(&request.spec).map_err(|e| e.to_string())?;
+    let vault_root = storage::vault_path(&app, &vault_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let open_documents = app.state::<DocumentState>().open_paths();
+        let mut response = VaultReplaceResponse::default();
+        for file in &request.files {
+            match replace_vault_file(
+                &vault_root,
+                file,
+                &query,
+                &request.replacement,
+                &open_documents,
+            ) {
+                Ok(replaced) => {
+                    if replaced.count > 0 && notes_service::is_markdown_file(Path::new(&file.path))
+                    {
+                        refresh_index_after_replace(&app, &vault_id, &vault_root, &file.path);
+                    }
+                    response.replaced.push(replaced);
+                }
+                Err(reason) => response.skipped.push(SkippedFile {
+                    path: file.path.clone(),
+                    reason,
+                }),
+            }
+        }
+        response
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// Waits for the index worker, so links and backlinks are fresh when the
+// response arrives. A failure only leaves the index stale until the next sync.
+fn refresh_index_after_replace(app: &AppHandle, vault_id: &str, vault_root: &Path, note_id: &str) {
+    let result = send_write_blocking(app, vault_id, |reply| DbCommand::UpsertNote {
+        vault_root: vault_root.to_path_buf(),
+        note_id: note_id.to_string(),
+        reply,
+    });
+    if let Err(e) = result {
+        log::warn!("vault replace: index upsert failed for {note_id}: {e}");
+    }
+}
+
+fn modified_time(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok()?.modified().ok()
+}
+
+// open_documents are the canonical paths of files that document windows show.
+pub(crate) fn replace_vault_file(
+    vault_root: &Path,
+    file: &VaultReplaceFile,
+    query: &FindQuery,
+    replacement: &str,
+    open_documents: &[PathBuf],
+) -> Result<ReplacedFile, ReplaceSkipReason> {
+    let abs = notes_service::safe_vault_abs_for_write(vault_root, &file.path)
+        .map_err(|_| ReplaceSkipReason::ReadFailed)?;
+    if abs
+        .canonicalize()
+        .is_ok_and(|canonical| open_documents.contains(&canonical))
+    {
+        return Err(ReplaceSkipReason::OpenInWindow);
+    }
+    // Taken before the read, so a save in between shows up as a changed mtime.
+    let modified_before_read = modified_time(&abs);
+    let text = match vault_find::read_searchable_text(&abs) {
+        Ok(Some(text)) => text,
+        Ok(None) => return Err(ReplaceSkipReason::NotText),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ReplaceSkipReason::Missing)
+        }
+        Err(_) => return Err(ReplaceSkipReason::ReadFailed),
+    };
+    // The match ordinals only mean something for the text they came from.
+    if vault_find::content_hash(&text) != file.content_hash {
+        return Err(ReplaceSkipReason::Changed);
+    }
+    let replaced = vault_find::replace_in_text(&text, query, replacement, &file.match_indexes);
+    if replaced.count > 0 {
+        // Autosave can write the note after the hash check, and we would
+        // overwrite that save without noticing.
+        // @Robustness: A save that lands between this check and the rename
+        // (atomic_write writes its temp file first) is still lost. The window
+        // is milliseconds. Closing it needs a lock that write_note shares.
+        if modified_time(&abs) != modified_before_read {
+            return Err(ReplaceSkipReason::Changed);
+        }
+        notes_service::atomic_write(&abs, &replaced.text)
+            .map_err(|_| ReplaceSkipReason::WriteFailed)?;
+    }
+    let remaining = (!replaced.remaining.is_empty()).then(|| VaultFindFile {
+        path: file.path.clone(),
+        content_hash: vault_find::content_hash(&replaced.text),
+        matches: replaced.remaining,
+    });
+    Ok(ReplacedFile {
+        path: file.path.clone(),
+        count: replaced.count,
+        remaining,
+    })
 }

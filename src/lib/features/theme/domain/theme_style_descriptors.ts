@@ -10,6 +10,7 @@ export type ThemeStyleCategory =
   | "inline_code"
   | "code_blocks"
   | "links_highlights"
+  | "tags"
   | "tables";
 
 export type ThemeStyleControl = "slider" | "select" | "color" | "font_select";
@@ -28,6 +29,9 @@ export type ThemeStyleDescriptor = {
   step?: number;
   unit?: string;
   format_value?: (v: number) => string;
+  // A slider that also takes null, meaning "not set by the theme". Only
+  // editor_max_width_ch has it, where null means the Layout setting decides.
+  nullable?: boolean;
 };
 
 export const STYLE_CATEGORY_ORDER: ThemeStyleCategory[] = [
@@ -40,6 +44,7 @@ export const STYLE_CATEGORY_ORDER: ThemeStyleCategory[] = [
   "inline_code",
   "code_blocks",
   "links_highlights",
+  "tags",
   "tables",
 ];
 
@@ -53,6 +58,7 @@ export const STYLE_CATEGORY_LABELS: Record<ThemeStyleCategory, string> = {
   inline_code: "Inline Code",
   code_blocks: "Code Blocks",
   links_highlights: "Links & Highlights",
+  tags: "Tags",
   tables: "Tables",
 };
 
@@ -113,6 +119,33 @@ export const STYLE_DESCRIPTORS: ThemeStyleDescriptor[] = [
     min: 0.02,
     max: 0.3,
     step: 0.01,
+  },
+  {
+    id: "ui_radius",
+    theme_key: "ui_radius",
+    label: "Corner Radius",
+    description: "Corner rounding for buttons, inputs, menus and dialogs",
+    category: "interface",
+    control: "slider",
+    tags: ["radius", "rounded", "corner", "round", "interface"],
+    min: 0,
+    max: 1.25,
+    step: 0.0625,
+    unit: "rem",
+  },
+  {
+    id: "file_tree_density",
+    theme_key: "file_tree_density",
+    label: "File tree density",
+    description: "Row height in the file tree",
+    category: "interface",
+    control: "select",
+    tags: ["density", "compact", "comfortable", "row", "tree", "sidebar"],
+    options: [
+      { value: "compact", label: "Compact" },
+      { value: "normal", label: "Normal" },
+      { value: "comfortable", label: "Comfortable" },
+    ],
   },
 
   // ── Typography ──
@@ -238,6 +271,21 @@ export const STYLE_DESCRIPTORS: ThemeStyleDescriptor[] = [
     max: 6,
     step: 0.25,
     unit: "rem",
+  },
+  {
+    id: "editor_max_width_ch",
+    theme_key: "editor_max_width_ch",
+    label: "Editor Max Width",
+    description:
+      "Maximum line width in characters. Unset uses the Layout setting",
+    category: "layout",
+    control: "slider",
+    tags: ["width", "max", "line", "length", "measure", "editor", "column"],
+    min: 60,
+    max: 140,
+    step: 5,
+    unit: "ch",
+    nullable: true,
   },
 
   // ── Headings ──
@@ -527,6 +575,63 @@ export const STYLE_DESCRIPTORS: ThemeStyleDescriptor[] = [
     category: "links_highlights",
     control: "color",
     tags: ["caret", "cursor", "blink", "color"],
+  },
+
+  // ── Tags ──
+  {
+    id: "tag_text_color",
+    theme_key: "tag_text_color",
+    label: "Text",
+    description: "Text color for #tags in notes and tag chips",
+    category: "tags",
+    control: "color",
+    tags: ["tag", "hashtag", "chip", "text", "color"],
+  },
+  {
+    id: "tag_bg",
+    theme_key: "tag_bg",
+    label: "Background",
+    description: "Background behind #tags",
+    category: "tags",
+    control: "color",
+    tags: ["tag", "hashtag", "chip", "background", "bg"],
+  },
+  {
+    id: "tag_border_color",
+    theme_key: "tag_border_color",
+    label: "Border",
+    description: "Outline around #tags. Leave unset for none",
+    category: "tags",
+    control: "color",
+    tags: ["tag", "hashtag", "chip", "border", "outline", "color"],
+  },
+  {
+    id: "tag_radius",
+    theme_key: "tag_radius",
+    label: "Border Radius",
+    description: "Corner rounding for #tags. High values make a pill",
+    category: "tags",
+    control: "slider",
+    tags: ["tag", "hashtag", "chip", "radius", "rounded", "pill", "corner"],
+    min: 0,
+    max: 6,
+    step: 0.25,
+    unit: "\u00D7",
+    format_value: (v: number) => `${String(v)}\u00D7`,
+  },
+  {
+    id: "tag_padding_x",
+    theme_key: "tag_padding_x",
+    label: "Side Padding",
+    description: "Space on each side of a #tag's text",
+    category: "tags",
+    control: "slider",
+    tags: ["tag", "hashtag", "chip", "padding", "spacing", "side"],
+    min: 0,
+    max: 0.6,
+    step: 0.05,
+    unit: "em",
+    format_value: (v: number) => `${String(v)}em`,
   },
 
   // ── Tables ──

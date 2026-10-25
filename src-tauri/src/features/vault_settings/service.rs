@@ -1,11 +1,20 @@
+use crate::features::notes::service::atomic_write;
 use crate::shared::constants;
 use crate::shared::storage::{load_store, vault_path_by_id};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use std::sync::Mutex;
+use tauri::{AppHandle, State};
 
 const SETTINGS_FILE: &str = "settings.json";
+
+// set_vault_setting is an async command, so Tauri can run two calls at once
+// (a recent notes save and a starred notes save, say). Each one reads the
+// file, changes its key and writes it all back, and the later write would drop
+// the other's key. This lock makes the read-modify-write one step.
+#[derive(Default)]
+pub struct VaultSettingsLock(Mutex<()>);
 
 fn vault_settings_path(app: &AppHandle, vault_id: &str) -> Result<PathBuf, String> {
     let store = load_store(app)?;
@@ -52,21 +61,16 @@ fn read_vault_settings_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
     }
 }
 
-fn write_vault_settings_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temporary_path = path.with_extension("json.tmp");
-    std::fs::write(&temporary_path, bytes).map_err(|e| e.to_string())?;
-    std::fs::rename(&temporary_path, path).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
+// Saves go through atomic_write. Its temp name has a counter, so parallel
+// saves never share a temp file.
 fn save_vault_settings(
     app: &AppHandle,
     vault_id: &str,
     settings: &HashMap<String, Value>,
 ) -> Result<(), String> {
     let path = vault_settings_path(app, vault_id)?;
-    let bytes = serde_json::to_vec_pretty(settings).map_err(|e| e.to_string())?;
-    write_vault_settings_file(&path, &bytes)
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    atomic_write(&path, &json)
 }
 
 #[tauri::command]
@@ -86,8 +90,15 @@ pub async fn set_vault_setting(
     key: String,
     value: Value,
     app: AppHandle,
+    lock: State<'_, VaultSettingsLock>,
 ) -> Result<(), String> {
     log::debug!("Setting vault setting vault_id={} key={}", vault_id, key);
+    // The mutex holds no data, so a panic in an earlier save leaves nothing
+    // broken. A poisoned lock is safe to take.
+    let _guard = lock
+        .0
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut settings = load_vault_settings(&app, &vault_id)?;
     settings.insert(key, value);
     save_vault_settings(&app, &vault_id, &settings)?;

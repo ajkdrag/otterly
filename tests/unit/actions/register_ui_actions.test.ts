@@ -22,7 +22,6 @@ function register_with_shell(shell: object) {
     services: { shell },
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   } as never);
   return registry;
@@ -80,7 +79,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -122,7 +120,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -130,5 +127,24 @@ describe("register_ui_actions", () => {
     await registry.execute(ACTION_IDS.ui_set_sidebar_view, "dashboard");
     expect(stores.ui.sidebar_view).toBe("dashboard");
     expect(refresh_called).toBe(1);
+  });
+});
+
+describe("ui.set_sidebar_view", () => {
+  it("accepts the tags view", async () => {
+    const stores = { ui: new UIStore() };
+    const registry = new ActionRegistry();
+    register_ui_actions({
+      registry,
+      stores,
+      services: {},
+      default_mount_config: {
+        reset_app_state: true,
+      },
+    } as never);
+
+    await registry.execute(ACTION_IDS.ui_set_sidebar_view, "tags");
+
+    expect(stores.ui.sidebar_view).toBe("tags");
   });
 });

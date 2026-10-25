@@ -12,14 +12,16 @@
   import GitBranchIcon from "@lucide/svelte/icons/git-branch";
   import SlidersIcon from "@lucide/svelte/icons/sliders-horizontal";
   import KeyboardIcon from "@lucide/svelte/icons/keyboard";
+  import TerminalIcon from "@lucide/svelte/icons/square-terminal";
   import { HotkeysPanel } from "$lib/features/hotkey";
+  import { VimSettings, type VimrcStatus } from "$lib/features/vim";
   import ThemeSettings from "$lib/features/settings/ui/theme_settings.svelte";
   import type {
     EditorSettings,
     SettingsCategory,
   } from "$lib/shared/types/editor_settings";
   import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
-  import type { Theme } from "$lib/shared/types/theme";
+  import type { Theme, ThemeFileState } from "$lib/shared/types/theme";
   import type { HotkeyConfig, HotkeyBinding } from "$lib/features/hotkey";
   import { draggable } from "$lib/shared/utils/draggable";
 
@@ -33,6 +35,10 @@
     hotkeys_config: HotkeyConfig;
     user_themes: Theme[];
     active_theme: Theme;
+    theme_file: ThemeFileState;
+    vimrc: VimrcStatus | null;
+    vimrc_error: string | null;
+    is_loading_vimrc: boolean;
     on_update_settings: (settings: EditorSettings) => void;
     on_category_change: (category: SettingsCategory) => void;
     on_save: () => void;
@@ -47,6 +53,12 @@
     on_theme_rename: (id: string, name: string) => void;
     on_theme_delete: (theme_id: string) => void;
     on_theme_update: (theme: Theme) => void;
+    on_theme_open_file: () => void;
+    on_theme_reveal_file: () => void;
+    on_theme_copy_file_path: () => void;
+    on_theme_create_file: () => void;
+    on_open_vimrc: () => void;
+    on_reload_vimrc: () => void;
   };
 
   let {
@@ -59,6 +71,10 @@
     hotkeys_config,
     user_themes,
     active_theme,
+    theme_file,
+    vimrc,
+    vimrc_error,
+    is_loading_vimrc,
     on_update_settings,
     on_category_change,
     on_save,
@@ -73,7 +89,16 @@
     on_theme_rename,
     on_theme_delete,
     on_theme_update,
+    on_theme_open_file,
+    on_theme_reveal_file,
+    on_theme_copy_file_path,
+    on_theme_create_file,
+    on_open_vimrc,
+    on_reload_vimrc,
   }: Props = $props();
+
+  // A theme can set its own editor width, which wins over the Layout setting.
+  const theme_max_width_ch = $derived(active_theme.editor_max_width_ch);
 
   const tab_count_options = Array.from({ length: 10 }, (_, i) => ({
     value: String(i + 1),
@@ -103,6 +128,7 @@
     { id: "files", label: "Files", icon: FolderIcon },
     { id: "git", label: "Git", icon: GitBranchIcon },
     { id: "misc", label: "Misc", icon: SlidersIcon },
+    { id: "vim", label: "Vim", icon: TerminalIcon },
     { id: "hotkeys", label: "Hotkeys", icon: KeyboardIcon },
   ];
 
@@ -182,12 +208,17 @@
           <ThemeSettings
             {user_themes}
             {active_theme}
+            {theme_file}
             on_switch={on_theme_switch}
             on_create={on_theme_create}
             on_duplicate={on_theme_duplicate}
             on_rename={on_theme_rename}
             on_delete={on_theme_delete}
             on_update={on_theme_update}
+            on_open_file={on_theme_open_file}
+            on_reveal_file={on_theme_reveal_file}
+            on_copy_file_path={on_theme_copy_file_path}
+            on_create_file={on_theme_create_file}
           />
         {:else if active_category === "layout"}
           <h2 class="SettingsDialog__content-header">Layout</h2>
@@ -196,9 +227,13 @@
             <div class="SettingsDialog__row">
               <div class="SettingsDialog__label-group">
                 <span class="SettingsDialog__label">Editor Max Width</span>
-                <span class="SettingsDialog__description"
-                  >Maximum line width for the editor content (in characters)</span
-                >
+                <span class="SettingsDialog__description">
+                  {#if theme_max_width_ch === null}
+                    Maximum line width for the editor content (in characters)
+                  {:else}
+                    Overridden by the active theme ({theme_max_width_ch}ch)
+                  {/if}
+                </span>
               </div>
               <div class="flex items-center gap-3">
                 <Slider
@@ -214,6 +249,7 @@
                   max={140}
                   step={5}
                   class="w-32"
+                  disabled={theme_max_width_ch !== null}
                 />
                 <span class="text-sm tabular-nums w-10"
                   >{editor_settings.editor_max_width_ch}ch</span
@@ -227,8 +263,9 @@
                       DEFAULT_EDITOR_SETTINGS.editor_max_width_ch,
                     )}
                   aria-label="Reset editor max width to default"
-                  disabled={editor_settings.editor_max_width_ch ===
-                    DEFAULT_EDITOR_SETTINGS.editor_max_width_ch}
+                  disabled={theme_max_width_ch !== null ||
+                    editor_settings.editor_max_width_ch ===
+                      DEFAULT_EDITOR_SETTINGS.editor_max_width_ch}
                   title={`Reset to default (${String(DEFAULT_EDITOR_SETTINGS.editor_max_width_ch)}ch)`}
                 >
                   <RotateCcw />
@@ -475,6 +512,24 @@
               />
             </div>
           </div>
+        {:else if active_category === "vim"}
+          <h2 class="SettingsDialog__content-header">Vim</h2>
+
+          <VimSettings
+            enabled={editor_settings.vim_mode_enabled}
+            {vimrc}
+            load_error={vimrc_error}
+            is_loading={is_loading_vimrc}
+            on_toggle={(enabled: boolean) => {
+              update("vim_mode_enabled", enabled);
+            }}
+            repeat_held_keys={editor_settings.vim_repeat_held_keys}
+            on_toggle_repeat_held_keys={(repeat: boolean) => {
+              update("vim_repeat_held_keys", repeat);
+            }}
+            {on_open_vimrc}
+            {on_reload_vimrc}
+          />
         {:else if active_category === "hotkeys"}
           <h2 class="SettingsDialog__content-header">Hotkeys</h2>
 

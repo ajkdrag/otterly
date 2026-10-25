@@ -11,9 +11,7 @@ const scope_tokens: Array<{
 }> = [
   { token: "@file", scope: "all", target: "files" },
   { token: "@path", scope: "path", target: "path" },
-  { token: "@content", scope: "content", target: "content" },
   { token: "path:", scope: "path", target: "path" },
-  { token: "content:", scope: "content", target: "content" },
   { token: "title:", scope: "title", target: "title" },
 ];
 
@@ -37,6 +35,11 @@ function consume_token(
   return null;
 }
 
+// The last whitespace separated token starts with `#`: the user is picking a
+// tag filter. Matched on the raw query, so a trailing space ends the token.
+// That covers `#pro` and `meeting #pro` without tracking the caret.
+const tag_token = /(^|\s)#(\S*)$/;
+
 export function parse_search_query(raw: string): SearchQuery {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -52,6 +55,20 @@ export function parse_search_query(raw: string): SearchQuery {
       scope: "all",
       domain: "commands",
       target: "all",
+    };
+  }
+
+  // Before #planned, so a bare `#planned` is a tag token. It used to show an
+  // empty planned list. `#planned ` and `#planned docs` stay planned.
+  const tag = tag_token.exec(raw);
+  if (tag) {
+    return {
+      raw,
+      text: tag[2] ?? "",
+      scope: "all",
+      domain: "tags",
+      target: "all",
+      before_tag: raw.slice(0, tag.index + (tag[1] ?? "").length).trimEnd(),
     };
   }
 
@@ -112,8 +129,6 @@ export function set_search_query_target(
         return "@file ";
       case "path":
         return "@path ";
-      case "content":
-        return "@content ";
       case "title":
         return "title: ";
       default:
@@ -126,8 +141,6 @@ export function set_search_query_target(
       return `@file ${text}`;
     case "path":
       return `@path ${text}`;
-    case "content":
-      return `@content ${text}`;
     case "title":
       return `title: ${text}`;
     default:

@@ -29,7 +29,6 @@ describe("search_queries", () => {
     expect(search_match_expression("alpha", "all")).toBe('"alpha"');
     expect(search_match_expression("alpha", "title")).toBe('title : "alpha"');
     expect(search_match_expression("alpha", "path")).toBe('path : "alpha"');
-    expect(search_match_expression("alpha", "content")).toBe('body : "alpha"');
   });
 
   it("builds wiki suggest expression on title/name/path columns", () => {

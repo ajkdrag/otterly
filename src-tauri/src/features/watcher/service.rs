@@ -2,15 +2,18 @@ use crate::shared::constants;
 use crate::shared::storage;
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
+// One watcher per vault window, keyed by window label. Each window shows its
+// own vault, so window B opening a vault must not stop window A's watcher.
 #[derive(Default)]
 pub struct WatcherState {
-    inner: Arc<Mutex<Option<WatcherRuntime>>>,
+    runtimes: Mutex<HashMap<String, WatcherRuntime>>,
 }
 
 struct WatcherRuntime {
@@ -47,37 +50,29 @@ fn rel_path(root: &Path, abs: &Path) -> Option<String> {
     Some(rel)
 }
 
-fn emit(app: &AppHandle, event: VaultFsEvent) {
-    let _ = app.emit("vault_fs_event", event);
+// The watcher belongs to the window that started it, so only that window
+// hears about its vault.
+fn emit(app: &AppHandle, window_label: &str, event: VaultFsEvent) {
+    let _ = app.emit_to(window_label, "vault_fs_event", event);
 }
 
-fn with_runtime_lock<T>(
-    state: &State<'_, WatcherState>,
-    update: impl FnOnce(&mut Option<WatcherRuntime>) -> T,
-) -> Result<T, String> {
-    let mut guard = state.inner.lock().map_err(|_| "watcher lock poisoned")?;
-    Ok(update(&mut guard))
+fn lock_runtimes(app: &AppHandle) -> MutexGuard<'_, HashMap<String, WatcherRuntime>> {
+    // A poisoned lock only means another thread panicked mid-insert. The map
+    // is still usable.
+    app.state::<WatcherState>()
+        .inner()
+        .runtimes
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
-fn stop_runtime(runtime: WatcherRuntime) {
-    let _ = runtime.stop_tx.send(());
-}
-
-fn stop_active_runtime(state: &State<'_, WatcherState>) -> Result<(), String> {
-    let runtime = with_runtime_lock(state, |slot| slot.take())?;
+// Also runs when a window is destroyed, so its watcher thread does not
+// outlive it.
+pub fn stop_window_watcher(app: &AppHandle, window_label: &str) {
+    let runtime = lock_runtimes(app).remove(window_label);
     if let Some(runtime) = runtime {
-        stop_runtime(runtime);
+        let _ = runtime.stop_tx.send(());
     }
-    Ok(())
-}
-
-fn set_active_runtime(
-    state: &State<'_, WatcherState>,
-    runtime: WatcherRuntime,
-) -> Result<(), String> {
-    with_runtime_lock(state, |slot| {
-        *slot = Some(runtime);
-    })
 }
 
 // Every file is a note to the frontend now, since the tree shows all of them
@@ -101,13 +96,14 @@ fn classify_event(kind: &EventKind, vault_id: &str, rel_path: String) -> Option<
 }
 
 #[tauri::command]
-pub fn watch_vault(
-    app: AppHandle,
-    state: State<WatcherState>,
-    vault_id: String,
-) -> Result<(), String> {
-    log::info!("Watching vault vault_id={}", vault_id);
-    stop_active_runtime(&state)?;
+pub fn watch_vault(app: AppHandle, window: WebviewWindow, vault_id: String) -> Result<(), String> {
+    let window_label = window.label().to_string();
+    log::info!(
+        "Watching vault vault_id={} window={}",
+        vault_id,
+        window_label
+    );
+    stop_window_watcher(&app, &window_label);
 
     let root = storage::vault_path(&app, &vault_id)?;
     let root_canon = root.canonicalize().map_err(|e| e.to_string())?;
@@ -115,6 +111,7 @@ pub fn watch_vault(
 
     let app_handle = app.clone();
     let vault_id_clone = vault_id.clone();
+    let window_label_clone = window_label.clone();
 
     std::thread::spawn(move || {
         let (tx, rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
@@ -174,18 +171,19 @@ pub fn watch_vault(
                 }
 
                 if let Some(vault_event) = classify_event(kind, &vault_id_clone, rel) {
-                    emit(&app_handle, vault_event);
+                    emit(&app_handle, &window_label_clone, vault_event);
                 }
             }
         }
     });
 
-    set_active_runtime(&state, WatcherRuntime { stop_tx })?;
+    lock_runtimes(&app).insert(window_label, WatcherRuntime { stop_tx });
     Ok(())
 }
 
 #[tauri::command]
-pub fn unwatch_vault(state: State<WatcherState>) -> Result<(), String> {
-    log::info!("Unwatching vault");
-    stop_active_runtime(&state)
+pub fn unwatch_vault(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    log::info!("Unwatching vault window={}", window.label());
+    stop_window_watcher(&app, window.label());
+    Ok(())
 }

@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { search_within_text } from "$lib/features/search/domain/search_within_text";
+import { search_within_text as search_with_spec } from "$lib/features/search/domain/search_within_text";
+import type { FindSpec } from "$lib/shared/types/search";
+
+function find(overrides: Partial<FindSpec> & { text: string }): FindSpec {
+  return {
+    regex: false,
+    case_sensitive: false,
+    whole_word: false,
+    ...overrides,
+  };
+}
+
+// Most cases are plain literal searches.
+function search_within_text(text: string, query: string) {
+  return search_with_spec(text, find({ text: query }));
+}
 
 describe("search_within_text", () => {
   it("returns empty array for empty text", () => {
@@ -89,4 +104,54 @@ it("keeps source offsets valid when earlier characters change length under lower
 });
 it("treats regex punctuation as literal text", () => {
   expect(search_within_text("before [a.*] after", "[a.*]")[0]?.column).toBe(8);
+});
+
+describe("search_within_text options", () => {
+  it("matches case when asked to", () => {
+    const spec = find({ text: "Foo", case_sensitive: true });
+    expect(search_with_spec("Foo foo FOO", spec)).toHaveLength(1);
+  });
+
+  it("matches whole words only", () => {
+    const spec = find({ text: "cat", whole_word: true });
+    expect(search_with_spec("cat concat cats cat", spec)).toHaveLength(2);
+  });
+
+  it("reads the query as a regex", () => {
+    const spec = find({ text: "v\\d+", regex: true });
+    const result = search_with_spec("v1 and v22", spec);
+    expect(result.map((match) => match.length)).toEqual([2, 3]);
+  });
+
+  it("finds nothing for an invalid regex", () => {
+    const spec = find({ text: "(oops", regex: true });
+    expect(search_with_spec("(oops", spec)).toEqual([]);
+  });
+
+  it("skips empty regex matches", () => {
+    expect(search_with_spec("abc", find({ text: "^", regex: true }))).toEqual(
+      [],
+    );
+    expect(search_with_spec("bbb", find({ text: "a*", regex: true }))).toEqual(
+      [],
+    );
+  });
+
+  it("never lets a match cross a line", () => {
+    const spec = find({ text: "a\\sb", regex: true });
+    expect(search_with_spec("a\nb", spec)).toEqual([]);
+    expect(search_with_spec("a b", spec)).toHaveLength(1);
+  });
+
+  it("counts lines like the editor does, including CRLF", () => {
+    const result = search_with_spec(
+      "x\r\nneedle\rneedle",
+      find({ text: "needle" }),
+    );
+    expect(result.map((match) => match.line)).toEqual([2, 3]);
+  });
+
+  it("counts a whitespace-only query literally", () => {
+    expect(search_with_spec("a b c", find({ text: " " }))).toHaveLength(2);
+  });
 });

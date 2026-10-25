@@ -114,7 +114,6 @@ export function search_match_expression(
   const escaped = escape_fts_query(query.trim());
   if (scope === "title") return `title : ${escaped}`;
   if (scope === "path") return `path : ${escaped}`;
-  if (scope === "content") return `body : ${escaped}`;
   return escaped;
 }
 

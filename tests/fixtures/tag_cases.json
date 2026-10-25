@@ -1,0 +1,510 @@
+{
+  "cases": [
+    {
+      "name": "inline code",
+      "markdown": "see `#x` here",
+      "index": []
+    },
+    {
+      "name": "fenced code",
+      "markdown": "```\n#x\n```\n",
+      "index": []
+    },
+    {
+      "name": "indented code",
+      "markdown": "para\n\n    #x\n",
+      "index": []
+    },
+    {
+      "name": "hash right after inline code",
+      "markdown": "`c`#x",
+      "index": []
+    },
+    {
+      "name": "heading marker",
+      "markdown": "# Heading",
+      "index": []
+    },
+    {
+      "name": "lone hash",
+      "markdown": "#",
+      "index": []
+    },
+    {
+      "name": "hash and space",
+      "markdown": "# ",
+      "index": []
+    },
+    {
+      "name": "tag in heading text",
+      "markdown": "## Plan #work",
+      "index": ["work"]
+    },
+    {
+      "name": "bold tag in heading",
+      "markdown": "# **#bold** title",
+      "index": ["bold"]
+    },
+    {
+      "name": "setext heading",
+      "markdown": "#idea\n===",
+      "index": ["idea"]
+    },
+    {
+      "name": "start of line",
+      "markdown": "#start of line",
+      "index": ["start"]
+    },
+    {
+      "name": "second line",
+      "markdown": "first\n#second",
+      "index": ["second"]
+    },
+    {
+      "name": "lazy quote continuation",
+      "markdown": "> a\n#lazy",
+      "index": ["lazy"]
+    },
+    {
+      "name": "list continuation line",
+      "markdown": "- item\n  #cont",
+      "index": ["cont"]
+    },
+    {
+      "name": "lazy list continuation line",
+      "markdown": "- item\n#lazy",
+      "index": ["lazy"]
+    },
+    {
+      "name": "hash inside a word",
+      "markdown": "foo#bar and C# code",
+      "index": []
+    },
+    {
+      "name": "after a paren",
+      "markdown": "(#y)",
+      "index": []
+    },
+    {
+      "name": "after a bracket",
+      "markdown": "[#x]",
+      "index": []
+    },
+    {
+      "name": "after a caret",
+      "markdown": "^#x^",
+      "index": []
+    },
+    {
+      "name": "after a dollar",
+      "markdown": "$#x$",
+      "index": []
+    },
+    {
+      "name": "spaced dollars",
+      "markdown": "$ #y $",
+      "index": ["y"]
+    },
+    {
+      "name": "punctuation ends a tag",
+      "markdown": "#done. #x, #a,b #q? #tag's",
+      "index": ["done", "x", "a", "q", "tag"]
+    },
+    {
+      "name": "three tags",
+      "markdown": "#a #b #c",
+      "index": ["a", "b", "c"]
+    },
+    {
+      "name": "glued tags",
+      "markdown": "#a#b",
+      "index": ["a"]
+    },
+    {
+      "name": "double hash",
+      "markdown": "##x",
+      "index": []
+    },
+    {
+      "name": "urls and autolinks",
+      "markdown": "https://a.com/#frag www.a.com/#f <https://a.com/#x> example.com/#y",
+      "index": []
+    },
+    {
+      "name": "tag after a url",
+      "markdown": "https://a.com/ #real",
+      "index": ["real"]
+    },
+    {
+      "name": "tag after a url and a no-break or ideographic space",
+      "markdown": "http://e.com/ #x and www.a.com/p　#メモ",
+      "index": ["x", "メモ"]
+    },
+    {
+      "name": "tag after a url and a next line character",
+      "markdown": "http://e.com/\u0085#x",
+      "index": []
+    },
+    {
+      "name": "link text with an ideographic space",
+      "markdown": "[メモ　#x](http://e.com/) <http://e.com/>　#y",
+      "index": ["y"]
+    },
+    {
+      "name": "tag glued to an autolink",
+      "markdown": "#éhttp://e.com/ and #a_www.a.com/ and #n@e.co",
+      "index": ["é", "a"],
+      "editor": ["éhttp", "a_www", "n"],
+      "note": "@Incomplete: comrak starts an autolink inside the tag body, or eats it for an email address. Lezer's tag parser has already taken the word, so the editor draws it as a tag"
+    },
+    {
+      "name": "links, images and wiki links",
+      "markdown": "[#x](url) [see #x](url) [[note#h]] [[#h]] ![#alt](a.png) [a](u \"#t\") [a](b)#x",
+      "index": []
+    },
+    {
+      "name": "wiki link alias",
+      "markdown": "[[note#h|#alias]] then #real",
+      "index": ["real"]
+    },
+    {
+      "name": "shortcut reference text",
+      "markdown": "[ #x]",
+      "index": ["x"]
+    },
+    {
+      "name": "bracketed list",
+      "markdown": "[#a, #b]",
+      "index": ["b"]
+    },
+    {
+      "name": "defined shortcut reference",
+      "markdown": "[ #x]\n\n[ #x]: https://e.com\n",
+      "index": [],
+      "editor": ["x"],
+      "note": "@Incomplete: the editor does not resolve link definitions"
+    },
+    {
+      "name": "escaped hash",
+      "markdown": "\\#x",
+      "index": []
+    },
+    {
+      "name": "escaped backslash",
+      "markdown": "\\\\#x",
+      "index": []
+    },
+    {
+      "name": "escaped star",
+      "markdown": "\\*#x",
+      "index": []
+    },
+    {
+      "name": "inline html",
+      "markdown": "<span>#x</span>",
+      "index": []
+    },
+    {
+      "name": "html block",
+      "markdown": "<div>\n#x\n</div>\n",
+      "index": []
+    },
+    {
+      "name": "space inside inline html",
+      "markdown": "<span> #x</span>",
+      "index": ["x"]
+    },
+    {
+      "name": "hash entities",
+      "markdown": "foo &#35;bar &#x23;baz &num;qux",
+      "index": []
+    },
+    {
+      "name": "hash entity at the start",
+      "markdown": "&#35;x and a&#35;y",
+      "index": []
+    },
+    {
+      "name": "nbsp entity",
+      "markdown": "a &nbsp;#x",
+      "index": []
+    },
+    {
+      "name": "escaped entity",
+      "markdown": "x &amp;#35;y",
+      "index": []
+    },
+    {
+      "name": "numbers only",
+      "markdown": "#123 #2024 #١٢٣ #² #½",
+      "index": []
+    },
+    {
+      "name": "numbers and letters",
+      "markdown": "#1st #v2 #2024-q1",
+      "index": ["1st", "v2", "2024-q1"]
+    },
+    {
+      "name": "nested names",
+      "markdown": "#a/b and #a/b/",
+      "index": ["a/b"]
+    },
+    {
+      "name": "empty segments",
+      "markdown": "x #/a #a//b # #",
+      "index": []
+    },
+    {
+      "name": "scripts with marks",
+      "markdown": "#日本語 #café #क्या hello #ไม่ ok",
+      "index": ["日本語", "café", "क्या", "ไม่"]
+    },
+    {
+      "name": "emoji after the hash",
+      "markdown": "#🔥hot",
+      "index": ["🔥hot"]
+    },
+    {
+      "name": "emoji alone",
+      "markdown": "#🔥",
+      "index": ["🔥"]
+    },
+    {
+      "name": "emoji between letters",
+      "markdown": "#a🔥b",
+      "index": ["a🔥b"]
+    },
+    {
+      "name": "digit then emoji is not numbers only",
+      "markdown": "#1🔥",
+      "index": ["1🔥"]
+    },
+    {
+      "name": "emoji ends a tag and punctuation still does",
+      "markdown": "#party🎉 #ok #🎉, #done🎉.",
+      "index": ["party🎉", "ok", "🎉", "done🎉"]
+    },
+    {
+      "name": "emoji sequences stay whole",
+      "markdown": "#👨\u200d👩\u200d👧 #🧑🏽\u200d💻 #👍🏽 #❤\ufe0f #🏳\ufe0f\u200d🌈x",
+      "index": [
+        "👨\u200d👩\u200d👧",
+        "🧑🏽\u200d💻",
+        "👍🏽",
+        "❤\ufe0f",
+        "🏳\ufe0f\u200d🌈x"
+      ]
+    },
+    {
+      "name": "a joiner needs an emoji after it",
+      "markdown": "#🔥\u200d and #a\u200db",
+      "index": ["🔥", "a"]
+    },
+    {
+      "name": "a lone modifier is no tag and emoji before the hash is no start",
+      "markdown": "#🏽 and 🔥#hot",
+      "index": []
+    },
+    {
+      "name": "pictographic symbols are tag chars and plain arrows are not",
+      "markdown": "#brand™ #a→b",
+      "index": ["brand™", "a"]
+    },
+    {
+      "name": "keycap emoji is only marks",
+      "markdown": "#\ufe0f\u20e3 and see #\ufe0f\u20e3 now",
+      "index": []
+    },
+    {
+      "name": "astral letters",
+      "markdown": "#𠮷野家 #𝒜bc ok",
+      "index": ["𠮷野家", "𝒜bc"]
+    },
+    {
+      "name": "separators only",
+      "markdown": "#_ #- #---",
+      "index": []
+    },
+    {
+      "name": "tags in emphasis",
+      "markdown": "**#bold** *#em* _#under_ ~~#strike~~ ~see #tilde~",
+      "index": ["bold", "em", "under", "strike", "tilde"]
+    },
+    {
+      "name": "single tilde around one tag",
+      "markdown": "~#tilde~",
+      "index": ["tilde"],
+      "editor": [],
+      "note": "@Incomplete: Lezer reads ~x~ with no space inside as subscript and does not parse inside it. The editor shows it as plain text"
+    },
+    {
+      "name": "emphasis glued to a word",
+      "markdown": "foo**#bold** a_#x_",
+      "index": []
+    },
+    {
+      "name": "unclosed emphasis",
+      "markdown": "**#open",
+      "index": ["open"]
+    },
+    {
+      "name": "underscore closers",
+      "markdown": "__#x__ _#a_b_ _#a/_ _#a_/",
+      "index": ["x", "a_b", "a"]
+    },
+    {
+      "name": "trailing underscore goes, trailing dash stays",
+      "markdown": "#snake_case_ #kebab-case-",
+      "index": ["snake_case", "kebab-case-"]
+    },
+    {
+      "name": "tag at the end of emphasis",
+      "markdown": "_see #todo_ and *ask #bob*",
+      "index": ["todo", "bob"]
+    },
+    {
+      "name": "table cell",
+      "markdown": "| h |\n| --- |\n| #cell |\n",
+      "index": ["cell"]
+    },
+    {
+      "name": "block quote",
+      "markdown": "> #quote\n> more #two",
+      "index": ["quote", "two"]
+    },
+    {
+      "name": "task item",
+      "markdown": "- [ ] #task",
+      "index": ["task"]
+    },
+    {
+      "name": "list item",
+      "markdown": "- #item",
+      "index": ["item"]
+    },
+    {
+      "name": "callout body",
+      "markdown": "> [!note] Title\n> body #callout",
+      "index": ["callout"]
+    },
+    {
+      "name": "case folds",
+      "markdown": "#Work and #work",
+      "index": ["Work"]
+    },
+    {
+      "name": "nfc folds",
+      "markdown": "#cafe\u0301 and #café",
+      "index": ["cafe\u0301"]
+    },
+    {
+      "name": "unicode whitespace",
+      "markdown": "a\u00a0#nbsp b\u3000#ideo c\t#tab",
+      "index": ["nbsp", "ideo", "tab"]
+    },
+    {
+      "name": "zero width no break space is not whitespace",
+      "markdown": "a\ufeff#x",
+      "index": []
+    },
+    {
+      "name": "byte order mark",
+      "markdown": "\ufeff#bom",
+      "index": ["bom"]
+    },
+    {
+      "name": "long tag",
+      "markdown": "#long-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag",
+      "index": [
+        "long-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag-tag"
+      ]
+    },
+    {
+      "name": "frontmatter flow list",
+      "markdown": "---\ntags: [a, \"b\", '#c']\n---\n",
+      "index": ["a", "b", "c"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter comma list",
+      "markdown": "---\ntags: a, b\n---\n",
+      "index": ["a", "b"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter space list",
+      "markdown": "---\ntags: a b\n---\n",
+      "index": ["a", "b"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter block list",
+      "markdown": "---\ntitle: x\ntags:\n  - a\n  - \"#b\"\n- c\nother: 1\n---\n",
+      "index": ["a", "b", "c"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter invalid values",
+      "markdown": "---\ntags: [123, ok, bad tag]\n---\n",
+      "index": ["ok"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter comment",
+      "markdown": "---\ntags: a # comment\n---\n",
+      "index": ["a"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter comment after list",
+      "markdown": "---\ntags: [a, b] # x\n---\n",
+      "index": ["a", "b"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter comments in block list",
+      "markdown": "---\ntags: # why\n  - a # first\n  - \"#b\"\n---\n",
+      "index": ["a", "b"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter flow list over lines",
+      "markdown": "---\ntags: [a, b\n  , c]\n---\n",
+      "index": ["a", "b", "c"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter flow list with comments",
+      "markdown": "---\ntags: [a, # why\n  b,\n  c] # end\n---\n",
+      "index": ["a", "b", "c"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter item broken over lines",
+      "markdown": "---\ntags: [ok, ab\n  cd]\n---\n",
+      "index": ["ok"],
+      "editor": []
+    },
+    {
+      "name": "frontmatter unterminated list",
+      "markdown": "---\ntags: [a, b\ntitle: x\n---\n",
+      "index": []
+    },
+    {
+      "name": "frontmatter singular and nested keys",
+      "markdown": "---\ntag: a\nmeta:\n  tags: [b]\n---\n",
+      "index": []
+    },
+    {
+      "name": "frontmatter then body",
+      "markdown": "---\ntags: [b]\n---\nBody #a and #B",
+      "index": ["b", "a"],
+      "editor": ["a", "B"]
+    },
+    {
+      "name": "dashes later are not frontmatter",
+      "markdown": "text\n\n---\ntags: [a]\n---\n",
+      "index": []
+    }
+  ]
+}

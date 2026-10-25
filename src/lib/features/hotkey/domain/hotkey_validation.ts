@@ -69,6 +69,19 @@ export function is_reserved_key(key: string): boolean {
   return RESERVED_SET.has(key);
 }
 
+// Option changes the character on macOS (Option+F is "ƒ", Option+E is a dead
+// key), so a binding like CmdOrCtrl+Alt+F never matches event.key. The
+// physical key still names the letter. Ctrl+Alt is AltGr on Windows, where
+// the typed character is what the user meant, so we leave it alone.
+function option_physical_key(event: KeyboardEvent): string | null {
+  if (!event.altKey || event.ctrlKey) return null;
+  const typed_other_char =
+    event.key === "Dead" ||
+    (event.key.length === 1 && event.key.charCodeAt(0) > 0x7e);
+  if (!typed_other_char) return null;
+  return /^(?:Key|Digit)(.)$/.exec(event.code)?.[1] ?? null;
+}
+
 export function normalize_event_to_key(event: KeyboardEvent): string {
   const parts: string[] = [];
 
@@ -82,7 +95,7 @@ export function normalize_event_to_key(event: KeyboardEvent): string {
     parts.push("Shift");
   }
 
-  let key = event.key;
+  let key = option_physical_key(event) ?? event.key;
   if (key === " ") {
     key = "Space";
   } else if (key === "+") {

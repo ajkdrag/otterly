@@ -18,3 +18,13 @@ mod git_service_local_repo;
 
 #[path = "../../tests/document_service.rs"]
 mod document_service;
+
+#[path = "../../tests/portable_install.rs"]
+mod portable_install;
+
+#[path = "../../tests/theme_file_service.rs"]
+mod theme_file_service;
+#[path = "../../tests/vault_find.rs"]
+mod vault_find;
+#[path = "../../tests/vim_service.rs"]
+mod vim_service;

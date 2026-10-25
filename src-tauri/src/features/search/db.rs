@@ -1,11 +1,12 @@
 use crate::features::notes::service as notes_service;
 use crate::features::search::link_parser;
 use crate::features::search::model::{IndexNoteMeta, SearchHit, SearchScope};
+use crate::features::search::tag_parser::{self, NoteTag, TAG_PARSER_VERSION};
 use crate::shared::constants;
 use crate::shared::storage;
-use rusqlite::{params, Connection};
-use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use rusqlite::{params, params_from_iter, Connection};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use walkdir::WalkDir;
@@ -26,6 +27,34 @@ pub struct PlannedSuggestionHit {
 pub struct OrphanLink {
     pub target_path: String,
     pub ref_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagCount {
+    pub tag: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TagNoteQuery {
+    pub tags: Vec<String>,
+    pub text: String,
+    pub limit: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagNoteHit {
+    pub note: IndexNoteMeta,
+    pub snippet: Option<String>,
+    // "filename", "title", "path" or "content". None when there is no text.
+    pub match_detail: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagNotePage {
+    pub notes: Vec<TagNoteHit>,
+    pub total: usize,
+    pub truncated: bool,
 }
 
 #[allow(dead_code)]
@@ -102,7 +131,40 @@ fn fts_schema_needs_migration(conn: &Connection) -> bool {
     }
 }
 
+fn table_exists(conn: &Connection, name: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?1",
+        params![name],
+        |_| Ok(()),
+    )
+    .is_ok()
+}
+
+// PRAGMA user_version holds the tag parser rules the stored tags came from.
+// A new db has 0, and so does one from before we stored a version.
+fn stored_tag_parser_version(conn: &Connection) -> Result<u32, String> {
+    conn.pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
 fn init_schema(conn: &Connection) -> Result<(), String> {
+    // Stored tags are only as good as the parser rules that made them. A db
+    // from before tags, or from other rules, has every note in the manifest,
+    // so sync would skip unchanged notes and they would keep their old tags.
+    // Empty the manifest and the next sync re-parses the whole vault once.
+    // note_tags is dropped, not emptied, because a db from before tags does
+    // not have it. The CREATE below makes it again.
+    let stored_version = stored_tag_parser_version(conn)?;
+    if table_exists(conn, "notes") && stored_version != TAG_PARSER_VERSION {
+        conn.execute_batch(
+            "DELETE FROM notes;
+             DELETE FROM notes_fts;
+             DELETE FROM outlinks;
+             DROP TABLE IF EXISTS note_tags;",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     if fts_schema_needs_migration(conn) {
         conn.execute_batch(
             "DROP TABLE IF EXISTS notes_fts;
@@ -131,9 +193,26 @@ fn init_schema(conn: &Connection) -> Result<(), String> {
             PRIMARY KEY (source_path, target_path)
         );
 
-        CREATE INDEX IF NOT EXISTS idx_outlinks_target ON outlinks(target_path);"
+        CREATE INDEX IF NOT EXISTS idx_outlinks_target ON outlinks(target_path);
+
+        CREATE TABLE IF NOT EXISTS note_tags (
+            path TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            tag_key TEXT NOT NULL,
+            excerpt TEXT,
+            PRIMARY KEY (path, tag_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_note_tags_key ON note_tags(tag_key);"
     ))
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    // Last, so a failure above repeats the clearing on the next open.
+    if stored_version == TAG_PARSER_VERSION {
+        return Ok(());
+    }
+    conn.pragma_update(None, "user_version", TAG_PARSER_VERSION)
+        .map_err(|e| e.to_string())
 }
 
 pub fn open_search_db(vault_root: &Path) -> Result<Connection, String> {
@@ -176,7 +255,31 @@ pub fn remove_note(conn: &Connection, path: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM outlinks WHERE source_path = ?1", params![path])
         .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM note_tags WHERE path = ?1", params![path])
+        .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// Runs `write` as one transaction. An error from `write` rolls everything
+// back, so a failed batch leaves no half-written note and no transaction open
+// on this connection (the next BEGIN would fail on it).
+//
+// Do not call this where a transaction is already open. SQLite has no nested
+// BEGIN.
+pub fn in_write_transaction<T>(
+    conn: &Connection,
+    write: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|e| e.to_string())?;
+    let result = write().and_then(|value| {
+        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+        Ok(value)
+    });
+    if result.is_err() {
+        let _ = conn.execute_batch("ROLLBACK");
+    }
+    result
 }
 
 pub fn remove_notes(conn: &Connection, paths: &[String]) -> Result<(), String> {
@@ -206,6 +309,12 @@ pub fn remove_notes_by_prefix(conn: &Connection, prefix: &str) -> Result<(), Str
         .and_then(|_| {
             conn.execute(
                 "DELETE FROM outlinks WHERE source_path LIKE ?1 ESCAPE '\\'",
+                params![like_pattern],
+            )
+        })
+        .and_then(|_| {
+            conn.execute(
+                "DELETE FROM note_tags WHERE path LIKE ?1 ESCAPE '\\'",
                 params![like_pattern],
             )
         })
@@ -354,12 +463,17 @@ pub fn rebuild_index(
     on_progress: &dyn Fn(usize, usize),
     yield_fn: &mut dyn FnMut(),
 ) -> Result<IndexResult, String> {
-    conn.execute("DELETE FROM notes", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM notes_fts", [])
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM outlinks", [])
-        .map_err(|e| e.to_string())?;
+    in_write_transaction(conn, || {
+        conn.execute("DELETE FROM notes", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM notes_fts", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM outlinks", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM note_tags", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })?;
 
     let paths = list_markdown_files(vault_root);
     let total = paths.len();
@@ -370,36 +484,35 @@ pub fn rebuild_index(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
-
-        conn.execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
-
-        for abs in batch {
-            indexed += 1;
-            let markdown = match std::fs::read_to_string(abs) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
+        // Notes and their outlinks go in together, so an error undoes the
+        // whole batch.
+        in_write_transaction(conn, || {
+            let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
+            for abs in batch {
+                indexed += 1;
+                let markdown = match std::fs::read_to_string(abs) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                let meta = match extract_meta(abs, vault_root) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                upsert_note(conn, &meta, &markdown)?;
+                set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
+                let targets = internal_link_targets(&markdown, &meta.path);
+                if !targets.is_empty() {
+                    pending_links.push((meta.path.clone(), targets));
                 }
-            };
-            let meta = match extract_meta(abs, vault_root) {
-                Ok(m) => m,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
-                }
-            };
-            upsert_note(conn, &meta, &markdown)?;
-            let targets = internal_link_targets(&markdown, &meta.path);
-            if !targets.is_empty() {
-                pending_links.push((meta.path.clone(), targets));
             }
-        }
-
-        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
-        resolve_batch_outlinks(conn, &pending_links)?;
+            resolve_batch_outlinks(conn, &pending_links)
+        })?;
         on_progress(indexed, total);
         yield_fn();
     }
@@ -452,13 +565,13 @@ pub fn sync_index(
                     indexed,
                 });
             }
-            conn.execute_batch("BEGIN IMMEDIATE")
-                .map_err(|e| e.to_string())?;
-            for path in batch {
-                remove_note(conn, path)?;
-                indexed += 1;
-            }
-            conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+            in_write_transaction(conn, || {
+                for path in batch {
+                    remove_note(conn, path)?;
+                    indexed += 1;
+                }
+                Ok(())
+            })?;
             on_progress(indexed, total);
             yield_fn();
         }
@@ -470,36 +583,34 @@ pub fn sync_index(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
-
-        conn.execute_batch("BEGIN IMMEDIATE")
-            .map_err(|e| e.to_string())?;
-
-        for abs in batch {
-            indexed += 1;
-            let markdown = match std::fs::read_to_string(abs) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
+        // Same as rebuild_index: notes and outlinks share one transaction.
+        in_write_transaction(conn, || {
+            let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
+            for abs in batch {
+                indexed += 1;
+                let markdown = match std::fs::read_to_string(abs) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                let meta = match extract_meta(abs, vault_root) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        log::warn!("skip {}: {}", abs.display(), e);
+                        continue;
+                    }
+                };
+                upsert_note(conn, &meta, &markdown)?;
+                set_note_tags(conn, &meta.path, &tag_parser::extract_note_tags(&markdown))?;
+                let targets = internal_link_targets(&markdown, &meta.path);
+                if !targets.is_empty() {
+                    pending_links.push((meta.path.clone(), targets));
                 }
-            };
-            let meta = match extract_meta(abs, vault_root) {
-                Ok(m) => m,
-                Err(e) => {
-                    log::warn!("skip {}: {}", abs.display(), e);
-                    continue;
-                }
-            };
-            upsert_note(conn, &meta, &markdown)?;
-            let targets = internal_link_targets(&markdown, &meta.path);
-            if !targets.is_empty() {
-                pending_links.push((meta.path.clone(), targets));
             }
-        }
-
-        conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
-        resolve_batch_outlinks(conn, &pending_links)?;
+            resolve_batch_outlinks(conn, &pending_links)
+        })?;
         on_progress(indexed, total);
         yield_fn();
     }
@@ -709,12 +820,13 @@ pub fn search(
         return Ok(Vec::new());
     }
 
+    // The parentheses matter: a column filter without them only covers the
+    // first phrase, and the other words could match in any column.
     let escaped = escape_fts_query(trimmed);
     let match_expr = match scope {
         SearchScope::All => escaped,
-        SearchScope::Title => format!("title : {escaped}"),
-        SearchScope::Path => format!("path : {escaped}"),
-        SearchScope::Content => format!("body : {escaped}"),
+        SearchScope::Title => format!("title : ({escaped})"),
+        SearchScope::Path => format!("path : ({escaped})"),
     };
 
     let sql = "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,
@@ -912,13 +1024,296 @@ pub fn get_orphan_outlinks(conn: &Connection, path: &str) -> Result<Vec<OrphanLi
         .map_err(|e| e.to_string())
 }
 
+pub fn set_note_tags(conn: &Connection, path: &str, tags: &[NoteTag]) -> Result<(), String> {
+    conn.execute("DELETE FROM note_tags WHERE path = ?1", params![path])
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare("INSERT INTO note_tags (path, tag, tag_key, excerpt) VALUES (?1, ?2, ?3, ?4)")
+        .map_err(|e| e.to_string())?;
+
+    for note_tag in tags {
+        stmt.execute(params![
+            path,
+            note_tag.tag,
+            tag_parser::tag_key(&note_tag.tag),
+            note_tag.excerpt
+        ])
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// One row per tag. `#Work` and `#work` count as one; MIN picks a stable spelling.
+// The JOIN matches search_tagged_notes, so a row left behind by a deleted note
+// cannot make the list say 12 while the drill-down shows 11.
+pub fn list_tags(conn: &Connection) -> Result<Vec<TagCount>, String> {
+    let sql = "SELECT MIN(t.tag), COUNT(*)
+               FROM note_tags t
+               JOIN notes n ON n.path = t.path
+               GROUP BY t.tag_key
+               ORDER BY t.tag_key";
+
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(TagCount {
+                tag: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+// Ranks tags for the omnibar and the editor's `#` completion, so both show
+// the same order: exact, prefix, prefix of a later `/` segment, contains,
+// fuzzy. Ties go to the tag used in more notes. An empty partial lists every
+// tag by count.
+//
+// @Speed: This recounts every tag on each keystroke. Cache the counts per
+// omnibar session if a big vault feels slow.
+pub fn suggest_tags(
+    conn: &Connection,
+    partial: &str,
+    exclude: &[String],
+    limit: usize,
+) -> Result<Vec<TagCount>, String> {
+    let partial_key = tag_parser::tag_key(partial.trim());
+    let exclude_keys: HashSet<String> =
+        exclude.iter().map(|tag| tag_parser::tag_key(tag)).collect();
+
+    let mut ranked: Vec<(u8, String, TagCount)> = list_tags(conn)?
+        .into_iter()
+        .filter_map(|entry| {
+            let key = tag_parser::tag_key(&entry.tag);
+            if exclude_keys.contains(&key) {
+                return None;
+            }
+            let tier = tag_suggestion_tier(&key, &partial_key)?;
+            Some((tier, key, entry))
+        })
+        .collect();
+    ranked.sort_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then(right.2.count.cmp(&left.2.count))
+            .then_with(|| left.1.cmp(&right.1))
+    });
+    ranked.truncate(limit);
+    Ok(ranked.into_iter().map(|(_, _, entry)| entry).collect())
+}
+
+fn tag_suggestion_tier(key: &str, partial: &str) -> Option<u8> {
+    if partial.is_empty() || key == partial {
+        return Some(0);
+    }
+    if key.starts_with(partial) {
+        return Some(1);
+    }
+    // `pro` finds `work/projects`.
+    if key
+        .match_indices('/')
+        .any(|(idx, _)| key[idx + 1..].starts_with(partial))
+    {
+        return Some(2);
+    }
+    if key.contains(partial) {
+        return Some(3);
+    }
+    fuzzy_subsequence_score(key, partial).map(|_| 4)
+}
+
+// The keys of `tags` in their order, each once.
+fn unique_tag_keys(tags: &[String]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for tag in tags {
+        let key = tag_parser::tag_key(tag);
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys
+}
+
+// Paths of the notes with every one of `key_count` tag keys, bound as `?`
+// params. The tag mode search and vault find both use it, so chips narrow
+// the same way in both.
+fn tagged_paths_sql(key_count: usize) -> String {
+    let key_placeholders = vec!["?"; key_count].join(", ");
+    // PRIMARY KEY (path, tag_key) makes COUNT(*) a count of distinct tags.
+    format!(
+        "SELECT path FROM note_tags WHERE tag_key IN ({key_placeholders}) GROUP BY path HAVING COUNT(*) = {key_count}"
+    )
+}
+
+// The files vault find reads when the omnibar has tag chips.
+pub fn list_tagged_paths(conn: &Connection, tags: &[String]) -> Result<Vec<String>, String> {
+    let keys = unique_tag_keys(tags);
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = tagged_paths_sql(keys.len());
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params_from_iter(&keys), |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<String>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+// One query for the sidebar drill-down and the omnibar tag mode: notes with
+// every one of `tags`, narrowed by `text`, at most `limit` of them.
+//
+// Without text the newest notes come first. With text, notes whose name,
+// title or path match come first (the same scoring as the omnibar file
+// search), then notes whose body matches, by bm25.
+pub fn search_tagged_notes(conn: &Connection, query: &TagNoteQuery) -> Result<TagNotePage, String> {
+    let owned_keys = unique_tag_keys(&query.tags);
+    let keys: Vec<&str> = owned_keys.iter().map(String::as_str).collect();
+    if keys.is_empty() {
+        return Ok(TagNotePage {
+            notes: Vec::new(),
+            total: 0,
+            truncated: false,
+        });
+    }
+
+    let tagged_paths = tagged_paths_sql(keys.len());
+    // Every note here carries the first tag, so the excerpt is the one around it.
+    let tagged_notes = format!(
+        "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,
+                (SELECT excerpt FROM note_tags WHERE path = n.path AND tag_key = ?)
+         FROM notes n
+         WHERE n.path IN ({tagged_paths})"
+    );
+    let tagged_notes_params: Vec<&str> = [&keys[..1], keys.as_slice()].concat();
+    // One extra row tells us the page is truncated.
+    let limit_plus_one = query.limit + 1;
+
+    let text = query.text.trim();
+    if text.is_empty() {
+        let sql = format!("{tagged_notes} ORDER BY n.mtime_ms DESC, n.path LIMIT {limit_plus_one}");
+        let mut notes = query_tag_note_hits(conn, &sql, &tagged_notes_params, None)?;
+        let total: usize = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM notes n WHERE n.path IN ({tagged_paths})"),
+                params_from_iter(&keys),
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        let truncated = notes.len() > query.limit;
+        notes.truncate(query.limit);
+        return Ok(TagNotePage {
+            notes,
+            total,
+            truncated,
+        });
+    }
+
+    let candidates = query_tag_note_hits(conn, &tagged_notes, &tagged_notes_params, None)?;
+    let mut notes = score_file_hits(candidates, text);
+    let listed: HashSet<String> = notes.iter().map(|hit| hit.note.path.clone()).collect();
+
+    let content_sql = format!(
+        "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,
+                snippet(notes_fts, 3, '', '', '…', 24)
+         FROM notes_fts
+         JOIN notes n ON n.path = notes_fts.path
+         WHERE notes_fts MATCH ? AND n.path IN ({tagged_paths})
+         ORDER BY bm25(notes_fts)
+         LIMIT {limit_plus_one}"
+    );
+    // Parenthesized, so every word has to be in the body (see `search`).
+    let match_expr = format!("body : ({})", escape_fts_query(text));
+    let content_params: Vec<&str> = [&[match_expr.as_str()], keys.as_slice()].concat();
+    let content_hits = query_tag_note_hits(conn, &content_sql, &content_params, Some("content"))?;
+    notes.extend(
+        content_hits
+            .into_iter()
+            .filter(|hit| !listed.contains(&hit.note.path)),
+    );
+
+    let total = notes.len();
+    let truncated = total > query.limit;
+    notes.truncate(query.limit);
+    Ok(TagNotePage {
+        notes,
+        total,
+        truncated,
+    })
+}
+
+// Rows are note meta plus a snippet in column 4.
+fn query_tag_note_hits(
+    conn: &Connection,
+    sql: &str,
+    params: &[&str],
+    match_detail: Option<&'static str>,
+) -> Result<Vec<TagNoteHit>, String> {
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params_from_iter(params), |row| {
+            Ok(TagNoteHit {
+                note: note_meta_from_row(row)?,
+                snippet: row.get(4)?,
+                match_detail,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+// Scores tagged notes on name, title and path, like suggest_files, and keeps
+// the field that won. Only tagged notes get here, so this stays cheap in a
+// big vault.
+fn score_file_hits(candidates: Vec<TagNoteHit>, text: &str) -> Vec<TagNoteHit> {
+    let query = normalize_match_text(text);
+    let mut scored: Vec<(f64, TagNoteHit)> = Vec::new();
+    for mut hit in candidates {
+        let fields = [
+            ("filename", &hit.note.name, 1.3),
+            ("title", &hit.note.title, 1.15),
+            ("path", &hit.note.path, 1.0),
+        ];
+        // The first field wins a tie.
+        let mut best: Option<(&'static str, f64)> = None;
+        for (field, value, weight) in fields {
+            let Some(score) = field_score(&normalize_match_text(value), &query, weight) else {
+                continue;
+            };
+            if best.map_or(true, |(_, best_score)| score > best_score) {
+                best = Some((field, score));
+            }
+        }
+        if let Some((field, score)) = best {
+            hit.match_detail = Some(field);
+            scored.push((score, hit));
+        }
+    }
+
+    scored.sort_by(|left, right| {
+        right
+            .0
+            .total_cmp(&left.0)
+            .then(right.1.note.mtime_ms.cmp(&left.1.note.mtime_ms))
+            .then_with(|| left.1.note.path.cmp(&right.1.note.path))
+    });
+    scored.into_iter().map(|(_, hit)| hit).collect()
+}
+
 pub fn rename_folder_paths(
     conn: &Connection,
     old_prefix: &str,
     new_prefix: &str,
 ) -> Result<usize, String> {
     let like_pattern = like_prefix_pattern(old_prefix);
-    let old_len = old_prefix.len() as i64;
+    // SQLite substr counts characters, not bytes. `len()` would cut paths
+    // short for folders with non-ASCII names.
+    let old_len = old_prefix.chars().count() as i64;
 
     let count: usize = conn
         .query_row(
@@ -967,6 +1362,10 @@ pub fn rename_folder_paths(
          WHERE target_path LIKE ?3 ESCAPE '\\'",
         params![new_prefix, old_len, like_pattern],
     ))
+    .and_then(|_| conn.execute(
+        "UPDATE note_tags SET path = ?1 || substr(path, ?2 + 1) WHERE path LIKE ?3 ESCAPE '\\'",
+        params![new_prefix, old_len, like_pattern],
+    ))
     .map_err(|e| e.to_string());
 
     match result {
@@ -999,6 +1398,12 @@ pub fn rename_note_path(conn: &Connection, old_path: &str, new_path: &str) -> Re
         .and_then(|_| {
             conn.execute(
                 "UPDATE outlinks SET source_path = ?1 WHERE source_path = ?2",
+                params![new_path, old_path],
+            )
+        })
+        .and_then(|_| {
+            conn.execute(
+                "UPDATE note_tags SET path = ?1 WHERE path = ?2",
                 params![new_path, old_path],
             )
         })

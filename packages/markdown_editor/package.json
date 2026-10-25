@@ -32,6 +32,7 @@
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.13",
+    "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "^1.7.2"
   },
   "devDependencies": {
@@ -46,5 +47,8 @@
     "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "^1.7.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@replit/codemirror-vim": "^6.4.0"
   }
 }

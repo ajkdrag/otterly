@@ -1,5 +1,6 @@
 import { history, redo, undo, isolateHistory } from "@codemirror/commands";
 import {
+  Annotation,
   EditorSelection,
   EditorState,
   Facet,
@@ -76,6 +77,19 @@ export function insert_markdown_source(view: EditorView, raw_text: string) {
 export const source_undo: StateCommand = create_source_history_command(undo);
 export const source_redo: StateCommand = create_source_history_command(redo);
 
+// Lets an extension decide undo steps itself instead of CodeMirror's 500 ms
+// groups. "start" opens a new step with this change, "join" adds the change
+// to the current step. Vim mode uses it (plugins/vim/undo_steps.ts). Without
+// it the history groups as usual.
+export const source_history_group = Annotation.define<"start" | "join">();
+
+// The selection to restore when the step this change starts is undone. By
+// default that is the selection right before the change. Vim restores the
+// cursor from before the command instead (o moves the cursor to the line end
+// before it changes anything). Positions are in the transaction's start
+// document.
+export const source_history_selection = Annotation.define<EditorSelection>();
+
 const markdown_source_field = StateField.define<MarkdownSourceState>({
   create(state) {
     const raw_source = state.facet(source_config).raw_source;
@@ -147,7 +161,18 @@ const markdown_source_field = StateField.define<MarkdownSourceState>({
       ({ from, to, insert }) => old_document.sliceString(from, to) !== insert,
     );
     const annotations = forward_history_annotations(transaction);
-    const raw_state = value.raw_state.update({
+    // The history takes the selection of the state a change starts from.
+    const selection_before = transaction.annotation(source_history_selection);
+    const start_state = selection_before
+      ? value.raw_state.update({
+          selection: map_selection(
+            selection_before,
+            value.position_map.visible_to_raw,
+          ),
+          annotations: Transaction.addToHistory.of(false),
+        }).state
+      : value.raw_state;
+    const raw_state = start_state.update({
       changes: source_changed ? raw_changes : [],
       annotations: source_changed
         ? annotations
@@ -294,7 +319,17 @@ function separate_line_ending_boundaries(
 
 function forward_history_annotations(transaction: Transaction) {
   const annotations = [];
-  const user_event = transaction.annotation(Transaction.userEvent);
+  const group = transaction.annotation(source_history_group);
+  let user_event = transaction.annotation(Transaction.userEvent);
+  // CodeMirror's history always joins an "input.type.compose" change to the
+  // previous step, whatever the time or position. isolate "before" plus any
+  // other user event always opens a new step. (@codemirror/commands 6.11,
+  // HistoryState.addChanges and isolate.)
+  if (group === "join") user_event = "input.type.compose";
+  if (group === "start") {
+    annotations.push(isolateHistory.of("before"));
+    if (user_event === "input.type.compose") user_event = "input.type";
+  }
   if (user_event !== undefined) {
     annotations.push(Transaction.userEvent.of(user_event));
   }
@@ -305,7 +340,7 @@ function forward_history_annotations(transaction: Transaction) {
   const time = transaction.annotation(Transaction.time);
   if (time !== undefined) annotations.push(Transaction.time.of(time));
   const history_boundary = transaction.annotation(isolateHistory);
-  if (history_boundary !== undefined) {
+  if (history_boundary !== undefined && group === undefined) {
     annotations.push(isolateHistory.of(history_boundary));
   }
   return annotations;
@@ -335,7 +370,14 @@ function history_projection_changes(
   raw_changes: Transaction["changes"],
   previous_map: PositionMap,
 ) {
-  const affected: { from: number; to: number }[] = [];
+  // from and to grow by a character on each side to keep CRLF pairs whole.
+  // changed_from and changed_to are where the real change was.
+  const affected: {
+    from: number;
+    to: number;
+    changed_from: number;
+    changed_to: number;
+  }[] = [];
   raw_changes.iterChanges((from, to) => {
     let expanded_from = Math.max(0, from - 1);
     let expanded_to = Math.min(previous_raw.length, to + 1);
@@ -356,17 +398,50 @@ function history_projection_changes(
     const last = affected.at(-1);
     if (last && expanded_from <= last.to) {
       last.to = Math.max(last.to, expanded_to);
+      last.changed_to = Math.max(last.changed_to, to);
     } else {
-      affected.push({ from: expanded_from, to: expanded_to });
+      affected.push({
+        from: expanded_from,
+        to: expanded_to,
+        changed_from: from,
+        changed_to: to,
+      });
     }
   });
-  return affected.map(({ from, to }) => {
+  return affected.map(({ from, to, changed_from, changed_to }) => {
     const next_from = raw_changes.mapPos(from, -1);
     const next_to = raw_changes.mapPos(to, 1);
+    const removed = normalize_line_endings(previous_raw.slice(from, to));
+    const inserted = normalize_line_endings(next_raw.slice(next_from, next_to));
+    // Trim the unchanged context off again, so the visible change starts
+    // where the real one does. Vim puts the caret there after u. The real
+    // bounds cap the trim: without them, undoing x on the first "a" of "aa"
+    // would put the "a" back after the second one.
+    const visible_from = previous_map.raw_to_visible(from);
+    const start_cap = previous_map.raw_to_visible(changed_from) - visible_from;
+    const end_cap =
+      previous_map.raw_to_visible(to) - previous_map.raw_to_visible(changed_to);
+    let same_start = 0;
+    while (
+      same_start < start_cap &&
+      same_start < removed.length &&
+      same_start < inserted.length &&
+      removed[same_start] === inserted[same_start]
+    )
+      same_start++;
+    let same_end = 0;
+    while (
+      same_end < end_cap &&
+      same_end < removed.length - same_start &&
+      same_end < inserted.length - same_start &&
+      removed[removed.length - 1 - same_end] ===
+        inserted[inserted.length - 1 - same_end]
+    )
+      same_end++;
     return {
-      from: previous_map.raw_to_visible(from),
-      to: previous_map.raw_to_visible(to),
-      insert: normalize_line_endings(next_raw.slice(next_from, next_to)),
+      from: visible_from + same_start,
+      to: visible_from + removed.length - same_end,
+      insert: inserted.slice(same_start, inserted.length - same_end),
     };
   });
 }

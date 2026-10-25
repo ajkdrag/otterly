@@ -7,6 +7,7 @@ import { register_settings_actions } from "$lib/features/settings";
 import {
   register_omnibar_actions,
   register_find_in_file_actions,
+  register_vault_find_actions,
 } from "$lib/features/search";
 import { register_ui_actions } from "$lib/app/orchestration/ui_actions";
 import { register_help_actions } from "$lib/app/orchestration/help_actions";
@@ -14,6 +15,8 @@ import { register_tab_actions } from "$lib/features/tab";
 import { register_git_actions } from "$lib/features/git";
 import { register_hotkey_actions } from "$lib/features/hotkey";
 import { register_theme_actions } from "$lib/features/theme";
+import { register_tags_actions } from "$lib/features/tags";
+import { register_vim_actions } from "$lib/features/vim";
 
 export function register_actions(input: ActionRegistrationInput) {
   register_app_actions(input);
@@ -24,9 +27,12 @@ export function register_actions(input: ActionRegistrationInput) {
   register_omnibar_actions(input);
   register_ui_actions(input);
   register_find_in_file_actions(input);
+  register_vault_find_actions(input);
   register_tab_actions(input);
   register_git_actions(input);
   register_hotkey_actions(input);
   register_help_actions(input);
-  register_theme_actions(input);
+  register_theme_actions({ ...input, persist_file_switch: true });
+  register_tags_actions(input);
+  register_vim_actions({ ...input, has_settings_dialog: true });
 }

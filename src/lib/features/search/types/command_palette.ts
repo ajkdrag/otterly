@@ -6,9 +6,13 @@ export type CommandId =
   | "change_vault"
   | "open_settings"
   | "open_theme_settings"
+  | "open_theme_file"
+  | "reveal_theme_file"
+  | "copy_theme_file_path"
   | "open_hotkeys"
   | "toggle_sidebar"
   | "find_in_note"
+  | "find_in_vault"
   | "open_help"
   | "next_tab"
   | "previous_tab"
@@ -21,7 +25,10 @@ export type CommandId =
   | "git_create_checkpoint"
   | "git_init_repo"
   | "toggle_links_panel"
-  | "check_for_updates";
+  | "search_tags"
+  | "show_tags_pane"
+  | "check_for_updates"
+  | "new_window";
 
 export type CommandIcon =
   | "file-plus"
@@ -33,7 +40,9 @@ export type CommandIcon =
   | "bookmark"
   | "link"
   | "refresh-cw"
-  | "code";
+  | "code"
+  | "tag"
+  | "text-search";
 
 export type CommandDefinition = {
   id: CommandId;

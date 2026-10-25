@@ -67,6 +67,18 @@ describe("tables", () => {
     expect(table_model(state, block)?.rows).toHaveLength(2);
   });
 
+  test("TABLE-006 deleting from above a table to the end of the note drops the table", () => {
+    // The deleted table maps to a point at the end of the note. Drawing it
+    // there threw.
+    const view = editor(`‸before\n\n${table}\n\nafter\n`);
+    const { state } = view.view;
+    view.view.dispatch({
+      changes: { from: state.doc.line(2).from, to: state.doc.length },
+    });
+    expect(view.view.state.doc.toString()).toBe("before\n");
+    expect(view.view.state.field(block_field).blocks).toHaveLength(0);
+  });
+
   test("NAV-009 a selection covering the whole table draws the table as selected", () => {
     const view = editor(`before\n\n${table}\n\n‸after`);
     const root = () => cell(view, 0, 0)?.closest("[data-md-block]");

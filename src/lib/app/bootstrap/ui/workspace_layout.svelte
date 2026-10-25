@@ -10,17 +10,22 @@
   import { TabBar } from "$lib/features/tab";
   import { FindInFileBar } from "$lib/features/search";
   import { EditorStatusBar } from "$lib/features/editor";
+  import { GitStatusWidget } from "$lib/features/git";
   import { ContextRail } from "$lib/features/links";
+  import { TagsPanel } from "$lib/features/tags";
   import { SvelteSet } from "svelte/reactivity";
   import { build_filetree, sort_tree } from "$lib/features/folder";
   import { flatten_filetree, scope_flat_tree } from "$lib/features/folder";
   import { as_note_path } from "$lib/shared/types/ids";
+  import { TREE_ROW_HEIGHT_PX } from "$lib/shared/types/theme";
   import { use_app_context } from "$lib/app/context/app_context.svelte";
   import { ACTION_IDS } from "$lib/app";
   import type { NoteMeta } from "$lib/shared/types/note";
   import {
     FilePlus,
+    FolderOpen,
     FolderPlus,
+    Info,
     RefreshCw,
     FoldVertical,
   } from "@lucide/svelte";
@@ -80,6 +85,10 @@
       show_hidden_files: stores.ui.editor_settings.show_hidden_files,
       pagination: stores.ui.filetree.pagination,
     }),
+  );
+
+  const tree_row_height_px = $derived(
+    TREE_ROW_HEIGHT_PX[stores.ui.active_theme.file_tree_density],
   );
 
   const scoped_flat_nodes = $derived.by(() =>
@@ -282,6 +291,30 @@
 
   let details_dialog_open = $state(false);
 
+  const index_progress = $derived(stores.search.index_progress);
+  const is_indexing = $derived(index_progress.status === "indexing");
+  const show_index_counts = $derived(
+    index_progress.total > 1 || index_progress.indexed > 0,
+  );
+  const sync_tooltip = $derived.by(() => {
+    if (is_indexing) return "Indexing in progress…";
+    if (index_progress.status === "failed")
+      return "Last index failed — click to retry";
+    return "Sync index";
+  });
+
+  // "Indexed" shows for 3 s after an index finishes.
+  let show_index_completed = $state(false);
+
+  $effect(() => {
+    if (index_progress.status !== "completed") return;
+    show_index_completed = true;
+    const handle = setTimeout(() => {
+      show_index_completed = false;
+    }, 3000);
+    return () => clearTimeout(handle);
+  });
+
   type HeaderAction = {
     icon: typeof FilePlus;
     label: string;
@@ -336,10 +369,21 @@
     },
   ];
 
+  // Refresh syncs the index, not just the tree, so it also picks up edits
+  // made outside the app.
+  const tags_header_actions: HeaderAction[] = [
+    {
+      icon: RefreshCw,
+      label: "Refresh",
+      onclick: () => void action_registry.execute(ACTION_IDS.vault_sync_index),
+    },
+  ];
+
   const sidebar_header_actions = $derived.by(() => {
     const view = stores.ui.sidebar_view;
     if (view === "starred") return starred_header_actions;
     if (view === "dashboard") return dashboard_header_actions;
+    if (view === "tags") return tags_header_actions;
     return explorer_header_actions;
   });
 </script>
@@ -379,6 +423,13 @@
             "starred",
           );
         }}
+        on_open_tags={() => {
+          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "tags") {
+            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
+            return;
+          }
+          void action_registry.execute(ACTION_IDS.tags_show_pane);
+        }}
         on_open_dashboard={() => {
           if (
             stores.ui.sidebar_open &&
@@ -417,6 +468,8 @@
                       <span class="SidebarHeader__title">Starred</span>
                     {:else if stores.ui.sidebar_view === "dashboard"}
                       <span class="SidebarHeader__title">Dashboard</span>
+                    {:else if stores.ui.sidebar_view === "tags"}
+                      <span class="SidebarHeader__title">Tags</span>
                     {:else}
                       <button
                         type="button"
@@ -489,6 +542,7 @@
                       <Sidebar.GroupContent class="h-full">
                         <VirtualFileTree
                           nodes={starred_nodes}
+                          row_height_px={tree_row_height_px}
                           selected_path={stores.ui.selected_folder_path}
                           revealed_note_path={stores.ui
                             .filetree_revealed_note_path}
@@ -617,6 +671,14 @@
                     </Sidebar.Group>
                   {/if}
 
+                  {#if stores.ui.sidebar_view === "tags"}
+                    <Sidebar.Group class="h-full">
+                      <Sidebar.GroupContent class="h-full">
+                        <TagsPanel />
+                      </Sidebar.GroupContent>
+                    </Sidebar.Group>
+                  {/if}
+
                   <Sidebar.Group
                     class="h-full"
                     hidden={stores.ui.sidebar_view !== "explorer"}
@@ -624,6 +686,7 @@
                     <Sidebar.GroupContent class="h-full">
                       <VirtualFileTree
                         nodes={scoped_flat_nodes}
+                        row_height_px={tree_row_height_px}
                         selected_path={stores.ui.selected_folder_path}
                         revealed_note_path={stores.ui
                           .filetree_revealed_note_path}
@@ -751,6 +814,11 @@
                 <FindInFileBar
                   open={stores.ui.find_in_file.open}
                   query={stores.ui.find_in_file.query}
+                  replacement={stores.ui.find_in_file.replacement}
+                  replace_open={stores.ui.find_in_file.replace_open}
+                  regex={stores.ui.find_in_file.regex}
+                  case_sensitive={stores.ui.find_in_file.case_sensitive}
+                  whole_word={stores.ui.find_in_file.whole_word}
                   matches={stores.search.in_file_matches}
                   selected_match_index={stores.ui.find_in_file
                     .selected_match_index}
@@ -758,6 +826,28 @@
                     void action_registry.execute(
                       ACTION_IDS.find_in_file_set_query,
                       query,
+                    )}
+                  on_replacement_change={(replacement: string) =>
+                    void action_registry.execute(
+                      ACTION_IDS.find_in_file_set_replacement,
+                      replacement,
+                    )}
+                  on_options_change={(options) =>
+                    void action_registry.execute(
+                      ACTION_IDS.find_in_file_set_options,
+                      options,
+                    )}
+                  on_toggle_replace={() =>
+                    void action_registry.execute(
+                      ACTION_IDS.find_in_file_toggle_replace,
+                    )}
+                  on_replace={() =>
+                    void action_registry.execute(
+                      ACTION_IDS.find_in_file_replace,
+                    )}
+                  on_replace_all={() =>
+                    void action_registry.execute(
+                      ACTION_IDS.find_in_file_replace_all,
                     )}
                   on_next={() =>
                     void action_registry.execute(ACTION_IDS.find_in_file_next)}
@@ -786,31 +876,93 @@
     </div>
     <EditorStatusBar
       cursor_info={stores.editor.cursor}
-      {word_count}
-      {line_count}
-      has_note={!!stores.editor.open_note}
+      has_open_file={!!stores.editor.open_note}
       view_mode={stores.editor.view_mode}
+      vim_status={stores.editor.vim_status}
       is_dirty={stores.tab.is_open_note_dirty(stores.editor.open_note)}
       last_saved_at={stores.editor.last_saved_at}
-      index_progress={stores.search.index_progress}
-      vault_name={stores.vault.vault?.name ?? null}
-      git_enabled={stores.git.enabled}
-      git_branch={stores.git.branch}
-      git_is_dirty={stores.git.is_dirty}
-      git_pending_files={stores.git.pending_files}
-      git_sync_status={stores.git.sync_status}
-      is_repairing_links={stores.op.is_pending("links.repair")}
-      link_repair_message={stores.op.get("links.repair").message}
-      on_vault_click={() =>
-        void action_registry.execute(ACTION_IDS.vault_request_change)}
       on_view_mode_click={() =>
         void action_registry.execute(ACTION_IDS.editor_toggle_source_mode)}
-      on_info_click={() => (details_dialog_open = true)}
-      on_git_click={() =>
-        void action_registry.execute(ACTION_IDS.git_open_history)}
-      on_sync_click={() =>
-        void action_registry.execute(ACTION_IDS.vault_sync_index)}
-    />
+    >
+      {#if stores.op.is_pending("links.repair")}
+        <span class="StatusBar__item text-primary">
+          <RefreshCw class="animate-spin" />
+          <span
+            >{stores.op.get("links.repair").message ??
+              "Repairing links..."}</span
+          >
+        </span>
+        <span class="StatusBar__separator" aria-hidden="true"></span>
+      {/if}
+      {#if is_indexing}
+        <span class="StatusBar__item text-primary">
+          {show_index_counts
+            ? `Indexing ${index_progress.indexed}/${index_progress.total}`
+            : "Indexing..."}
+        </span>
+        <span class="StatusBar__separator" aria-hidden="true"></span>
+      {:else if index_progress.status === "failed"}
+        <span class="StatusBar__item text-destructive">Index failed</span>
+        <span class="StatusBar__separator" aria-hidden="true"></span>
+      {:else if show_index_completed}
+        <span class="StatusBar__item">Indexed</span>
+        <span class="StatusBar__separator" aria-hidden="true"></span>
+      {/if}
+      <button
+        type="button"
+        class="StatusBar__button"
+        onclick={() =>
+          void action_registry.execute(ACTION_IDS.vault_request_change)}
+        aria-label="Switch vault"
+      >
+        <FolderOpen />
+        <span>{stores.vault.vault.name}</span>
+      </button>
+      <button
+        type="button"
+        class="StatusBar__icon-button"
+        onclick={() => (details_dialog_open = true)}
+        disabled={!stores.editor.open_note}
+        aria-label="Note details"
+      >
+        <Info />
+      </button>
+      {#if stores.git.enabled}
+        <span class="StatusBar__separator" aria-hidden="true"></span>
+        <GitStatusWidget
+          enabled={stores.git.enabled}
+          branch={stores.git.branch}
+          is_dirty={stores.git.is_dirty}
+          pending_files={stores.git.pending_files}
+          sync_status={stores.git.sync_status}
+          on_click={() =>
+            void action_registry.execute(ACTION_IDS.git_open_history)}
+        />
+      {/if}
+      <Tooltip.Provider delayDuration={0}>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
+            {#snippet child({ props })}
+              <button
+                {...props}
+                type="button"
+                class="StatusBar__icon-button"
+                class:text-primary={is_indexing}
+                onclick={() =>
+                  void action_registry.execute(ACTION_IDS.vault_sync_index)}
+                disabled={is_indexing}
+                aria-label={sync_tooltip}
+              >
+                <RefreshCw class={is_indexing ? "animate-spin" : ""} />
+              </button>
+            {/snippet}
+          </Tooltip.Trigger>
+          <Tooltip.Content side="top" sideOffset={4}>
+            {sync_tooltip}
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </Tooltip.Provider>
+    </EditorStatusBar>
   </div>
 
   <NoteDetailsDialog

@@ -13,9 +13,19 @@ Open a folder of Markdown notes and get to work. Otterly gives you a clean edito
 | Platform                       | Package to choose                                                  |
 | ------------------------------ | ------------------------------------------------------------------ |
 | macOS (Apple Silicon or Intel) | `.dmg` for your Mac                                                |
-| Windows x64                    | `setup.exe` or `.msi`                                              |
+| Windows x64                    | `setup.exe` or `.msi`, or `portable.zip` (no install)              |
 | Linux x64                      | `.AppImage` or `.deb`                                              |
 | Arch Linux x86_64              | [AUR package](https://aur.archlinux.org/packages/otterly-appimage) |
+
+### Windows portable zip
+
+Unzip it anywhere and run `otterly.exe`. Everything in the editor works the same as the installed app. Three things differ:
+
+- Updates: a portable copy does not update itself. Download the newest zip and replace `otterly.exe`. Keep `portable.txt` next to it, because the app reads that file to know it is portable.
+- File association: nothing is registered with Windows, so use "Open with" > "Choose another app" > "Choose an app on your PC" and pick `otterly.exe`.
+- Settings and the vault list still live in your app data folder (`%APPDATA%\com.otterly.app`), not next to the exe. Installed and portable copies share them.
+
+Otterly needs the WebView2 runtime. Windows 11 and up-to-date Windows 10 already have it.
 
 ## See it in action
 
@@ -36,13 +46,46 @@ If you stop using Otterly, your notes are still just Markdown files in a folder 
 
 ## Open Markdown Files With Otterly
 
-Otterly can open any `.md` file, not just notes in a vault. The file opens in its own window. Edits save back to the same file, with its line endings kept.
+Otterly can open any `.md` file, not just notes in a vault. The file opens in its own window. Edits save back to the same file, with its line endings kept. Find in file (Cmd/Ctrl+F), source mode, zoom, and F1 help work there too. Right-click the path in the status bar to copy the Markdown or the path, or to show the file in your file manager.
 
 To make Otterly the default app for Markdown:
 
 - **macOS:** Select a `.md` file in Finder, press Cmd+I, pick Otterly under "Open with", and click "Change All".
 - **Windows:** Right-click a `.md` file, choose "Open with" > "Choose another app", pick Otterly, and tick "Always use this app".
 - **Linux:** Right-click a `.md` file in your file manager, open its properties, and set Otterly as the default for "Markdown". From a terminal: `xdg-mime default otterly.desktop text/markdown`. The desktop file name depends on how you installed Otterly.
+
+## Several Windows
+
+- New Window opens another Otterly window on the vault picker. On macOS use the Dock menu or File > New Window (Shift+Cmd+N). The command palette has New Window too. On Windows and Linux, starting Otterly again also opens one.
+- In the vault picker and the vault switcher, the window button on a row (or Cmd/Ctrl+Enter on the highlighted row) opens that vault in a new window. Clicking the row opens it in this window.
+- A vault is open in one window at a time. Opening a vault that another window has brings that window to the front. Settings, themes and hotkeys are shared by all windows.
+
+## Vim Mode
+
+Turn it on in Settings, under Vim. Notes and text files then use Vim keys: `hjkl`, `w` `b` `e`, `0` `$`, `gg` `G`, `d` `c` `y` with motions and text objects, `dd` `yy` `p`, `v` `V` and Ctrl-v, `u` and Ctrl-r, `/` search, `i` `a` `o` `O`, registers, macros, counts, and `.`. The status bar shows the mode, the keys of a command you are still typing, and the register of a macro you are recording. Normal and visual mode draw a block cursor. Code blocks and tables show their Markdown source while the cursor is inside them, so Vim edits the whole file.
+
+It follows real Vim. The few places where it does not are listed in the package design (`packages/markdown_editor/DESIGN.md`).
+
+- `u` undoes one typed command or one insert session, like Vim. A macro, a map and `.` are one step each.
+- `:w` saves, `:q` closes the tab (it asks first when there are unsaved changes), and `:wq` does both. On a new note, `:wq` opens the save dialog and keeps the tab open.
+- `"+y` and `"+p` use the system clipboard. `set clipboard=unnamed` in your vimrc uses it for every yank and put.
+- `o` and `O` continue a list, task or quote, like Enter does in insert mode.
+- Search ignores case unless the pattern has a capital letter.
+
+Cmd keys stay app shortcuts. On macOS, Ctrl keys go to Vim inside the editor. On Windows and Linux the app shortcuts on Ctrl (Ctrl+F, Ctrl+O and so on) win. On macOS, Settings has a "Repeat held keys" switch that turns off the accent menu, so holding `l` keeps moving right.
+
+Key maps and options go in a `vimrc` file next to `settings.json`, at `<app config dir>/otterly/vimrc`. That is `~/Library/Application Support/com.otterly.app/otterly/vimrc` on macOS. Settings, under Vim, shows the path. "Open vimrc" there creates it with examples and opens it in its own window. A window reloads it when you come back to it.
+
+```vim
+let mapleader = " "
+imap jk <Esc>
+nnoremap Y y$
+nnoremap <leader>w :w<CR>
+set clipboard=unnamed
+set timeoutlen=500
+```
+
+You get `map`, `nmap`, `vmap`, `xmap`, `imap`, `omap`, their `noremap` and `unmap` forms (and Vim's short names, such as `nn` and `ino`), `let mapleader`, and `set`. A vimrc pasted from terminal Vim works: Vimscript (`if`, `function`, `autocmd`, `Plug`), plugin maps (`<Plug>`, `<SID>`), command-line maps, and settings this editor has no use for (`syntax on`, `set number`, `set smarttab`, `set textwidth=80`) are skipped, and Settings lists them apart from the lines that really failed.
 
 ## Build From Source
 

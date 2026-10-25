@@ -1,5 +1,14 @@
 export { register_theme_actions } from "$lib/features/theme/application/theme_actions";
 export { ThemeService } from "$lib/features/theme/application/theme_service";
+export type {
+  ThemeFilePort,
+  ThemeFileSnapshot,
+} from "$lib/features/theme/ports";
+export { create_theme_file_tauri_adapter } from "$lib/features/theme/adapters/theme_file_tauri_adapter";
+export {
+  format_theme_file_error,
+  may_have_more_theme_file_errors,
+} from "$lib/features/theme/domain/parse_theme_file";
 export type { Theme } from "$lib/shared/types/theme";
 export {
   STYLE_DESCRIPTORS,

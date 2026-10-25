@@ -7,6 +7,7 @@ import {
   syntaxTreeAvailable,
 } from "@codemirror/language";
 import {
+  apply_vimrc,
   read_code_block_view_states,
   source_undo,
   source_redo,
@@ -42,6 +43,7 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  apply_vimrc("");
 });
 
 async function open_editor(
@@ -60,16 +62,23 @@ async function open_editor(
     on_code_block_view_states_change: vi.fn(),
     on_view_mode_change:
       vi.fn<NonNullable<EditorEventHandlers["on_view_mode_change"]>>(),
+    on_vim_status_change:
+      vi.fn<NonNullable<EditorEventHandlers["on_vim_status_change"]>>(),
+    on_save_request: vi.fn(() => Promise.resolve()),
+    on_close_request: vi.fn(),
   };
+  const read_clipboard_text = vi.fn(() => Promise.resolve("from outside"));
   const port = create_codemirror_editor_port({
     resolve_asset_url_for_vault,
     copy_text: vi.fn(async () => {}),
+    read_clipboard_text,
   });
   const session = await port.start_session({
     root,
     initial_markdown: markdown,
     note_path,
     vault_id: as_vault_id("test-vault"),
+    vim_enabled: false,
     events,
   });
   sessions.push(session);
@@ -77,10 +86,48 @@ async function open_editor(
   if (!dom) throw new Error("Missing editor");
   const view = EditorView.findFromDOM(dom);
   if (!view) throw new Error("Missing view");
-  return { root, session, view, events };
+  return { root, session, view, events, read_clipboard_text };
+}
+
+function press_vim_keys(view: EditorView, ...keys: string[]) {
+  for (const key of keys)
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+    );
+}
+
+function run_ex_command(view: EditorView, command: string) {
+  press_vim_keys(view, ":");
+  const input = view.dom.querySelector<HTMLInputElement>(".cm-vim-panel input");
+  if (!input) throw new Error("The : prompt did not open");
+  input.value = command;
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Enter",
+      keyCode: 13,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 describe("CodeMirror editor port", () => {
+  it("reports the tag at the caret only while the note has focus", async () => {
+    const { session, view } = await open_editor("see #idea now\n");
+    session.set_selection(9, 9);
+    expect(view.hasFocus).toBe(true);
+    expect(session.tag_at_cursor()).toBe("idea");
+
+    view.contentDOM.blur();
+    expect(session.tag_at_cursor()).toBeNull();
+  });
+
+  it("draws tag chips that are not clickable when the host has no tag click handler", async () => {
+    const plain = await open_editor("top\n\nsee #idea");
+    expect(plain.view.dom.querySelector(".md-tag")?.textContent).toBe("#idea");
+    expect(plain.view.dom.querySelector(".md-tag-clickable")).toBeNull();
+  });
+
   it("passes malformed percent escapes through as a local asset path", async () => {
     const resolve_asset = vi.fn((_vault: unknown, path: string) => path);
     const source = "intro\n\n![broken path](assets/bad%ZZ.png)";
@@ -147,6 +194,7 @@ describe("CodeMirror editor port", () => {
         is_omnibar_topmost: () => false,
         is_vault_switcher_open: () => false,
         is_hotkey_recorder_open: () => false,
+        is_vim_enabled: () => false,
         has_tabs: () => true,
         action_registry: registry,
         on_close_vault_switcher: vi.fn(),
@@ -739,6 +787,141 @@ describe("CodeMirror editor port", () => {
     expect(events.on_view_mode_change).toHaveBeenLastCalledWith("source");
   });
 
+  it("turns Vim on and off for the shown buffer and for cached ones it shows later", async () => {
+    const { session, view, events } = await open_editor("one");
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
+
+    session.set_vim_enabled(true);
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith({
+      mode: "normal",
+      showcmd: "",
+      recording: null,
+    });
+    expect(view.dom.classList).toContain("md-vim");
+    view.dispatch({ changes: { from: 3, insert: "!" } });
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).toContain("md-vim");
+
+    session.set_vim_enabled(false);
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
+    session.open_buffer({
+      note_path: "alpha.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "one",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).not.toContain("md-vim");
+    expect(events.on_vim_status_change).toHaveBeenLastCalledWith(null);
+    source_undo(view);
+    expect(session.get_markdown()).toBe("one");
+  });
+
+  it('sends :w, :q and :wq to the host, and reads the system clipboard for "+p', async () => {
+    const { session, view, events, read_clipboard_text } =
+      await open_editor("one");
+    session.set_vim_enabled(true);
+
+    run_ex_command(view, "w");
+    expect(events.on_save_request).toHaveBeenCalledOnce();
+    expect(events.on_close_request).not.toHaveBeenCalled();
+
+    run_ex_command(view, "q");
+    expect(events.on_close_request).toHaveBeenCalledOnce();
+
+    run_ex_command(view, "wq");
+    await vi.waitFor(() => {
+      expect(events.on_close_request).toHaveBeenCalledTimes(2);
+    });
+    expect(events.on_save_request).toHaveBeenCalledTimes(2);
+
+    press_vim_keys(view, '"', "+", "p");
+    await vi.waitFor(() => {
+      expect(session.get_markdown()).toBe("ofrom outsidene");
+    });
+    expect(read_clipboard_text).toHaveBeenCalledOnce();
+  });
+
+  it("puts text copied with the code block button into the register under clipboard=unnamed", async () => {
+    const { session, view } = await open_editor(
+      "intro\n\n```js\nconst a = 1\n```",
+    );
+    session.set_vim_enabled(true);
+    expect(apply_vimrc("set clipboard=unnamed")).toEqual([]);
+
+    const copy_button = view.dom.querySelector<HTMLElement>(".md-code-copy");
+    if (!copy_button) throw new Error("Missing copy button");
+    copy_button.click();
+    await vi.waitFor(() => {
+      expect(
+        view.dom.querySelector(".md-code-toolbar [role=status]"),
+      ).toHaveProperty("textContent", "Copied");
+    });
+
+    press_vim_keys(view, "p");
+    expect(session.get_markdown()).toContain("ifrom outsidentro");
+  });
+
+  it("closes an open Vim / prompt before it shows another buffer", async () => {
+    const { session, view } = await open_editor("one");
+    session.set_vim_enabled(true);
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "/",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(view.dom.querySelector(".cm-vim-panel input")).not.toBeNull();
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    session.open_buffer({
+      note_path: "alpha.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "one",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.querySelector(".cm-vim-panel")).toBeNull();
+  });
+
+  it("builds a new buffer with the current Vim setting", async () => {
+    const { session, view, events } = await open_editor("one");
+    session.set_vim_enabled(true);
+    events.on_vim_status_change.mockClear();
+
+    session.open_buffer({
+      note_path: "beta.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "two",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).toContain("md-vim");
+    expect(events.on_vim_status_change.mock.calls).toEqual([
+      [{ mode: "normal", showcmd: "", recording: null }],
+    ]);
+
+    session.set_vim_enabled(false);
+    events.on_vim_status_change.mockClear();
+    session.open_buffer({
+      note_path: "gamma.md",
+      vault_id: as_vault_id("test-vault"),
+      initial_markdown: "three",
+      restore_policy: "reuse_cache",
+    });
+    expect(view.dom.classList).not.toContain("md-vim");
+    expect(events.on_vim_status_change).not.toHaveBeenCalled();
+  });
+
   it("opens a draft note, which has no file name yet, as Markdown", async () => {
     const { session, view, events } = await open_editor(
       "# Draft",
@@ -764,5 +947,74 @@ describe("CodeMirror editor port", () => {
     expect(events.on_view_mode_change).toHaveBeenLastCalledWith("text");
     view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 1" } });
     expect(session.get_markdown()).toBe(`${source}x: 1`);
+  });
+
+  it("replaces find matches in one undo step and keeps line endings", async () => {
+    const { session, view } = await open_editor("foo bar\r\nfoo baz foo\r\n");
+    const spec = {
+      text: "foo",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 0);
+
+    expect(session.replace_find_match?.("qux")).toBe(0);
+    expect(session.get_markdown()).toBe("qux bar\r\nfoo baz foo\r\n");
+    expect(session.replace_all_find_matches?.("qux")).toBe(2);
+    expect(session.get_markdown()).toBe("qux bar\r\nqux baz qux\r\n");
+
+    source_undo(view);
+    expect(session.get_markdown()).toBe("qux bar\r\nfoo baz foo\r\n");
+    expect(session.replace_find_match?.("qux")).toBe(0);
+  });
+
+  it("wraps to the first match after replacing the last one, and reports nothing left to replace", async () => {
+    const { session } = await open_editor("foo foo");
+    const spec = {
+      text: "foo",
+      regex: false,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 1);
+
+    expect(session.replace_find_match?.("bar")).toBe(0);
+    expect(session.replace_find_match?.("bar")).toBe(0);
+    expect(session.get_markdown()).toBe("bar bar");
+    expect(session.replace_find_match?.("bar")).toBeNull();
+    expect(session.replace_all_find_matches?.("bar")).toBe(0);
+  });
+
+  it("replaces matches in a text file, not only in Markdown notes", async () => {
+    const { session } = await open_editor(
+      "port: 80\nother: 80\n",
+      undefined,
+      "config.yaml",
+    );
+    const spec = {
+      text: "(\\w+): 80",
+      regex: true,
+      case_sensitive: false,
+      whole_word: false,
+    };
+    session.update_find_state?.(spec, 0);
+
+    expect(session.replace_all_find_matches?.("$1: 8080")).toBe(2);
+    expect(session.get_markdown()).toBe("port: 8080\nother: 8080\n");
+  });
+
+  it("selects a vault find match by UTF-16 column after emoji", async () => {
+    const { session, view } = await open_editor("# T\n\n😀 needle here");
+    session.select_line_range?.(3, 3, 6);
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("needle");
+  });
+
+  it("selects a vault find match on line 1 of a file that starts with a BOM", async () => {
+    const { session, view } = await open_editor("\uFEFFneedle first");
+    session.select_line_range?.(1, 0, 6);
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("needle");
   });
 });

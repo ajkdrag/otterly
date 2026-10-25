@@ -1,10 +1,17 @@
-import type { CursorInfo, EditorViewMode } from "$lib/shared/types/editor";
+import type {
+  CursorInfo,
+  EditorViewMode,
+  VimStatus,
+} from "$lib/shared/types/editor";
 import type { DocumentFile } from "$lib/features/document/types/document";
 
 export type DocumentLoadState = "loading" | "ready" | "error";
 
 export class DocumentStore {
   file = $state<DocumentFile | null>(null);
+  // A mirror of the editor text, up to 200 ms behind typing. It is for display
+  // and find only. Save and copy read the editor session, which is current.
+  markdown = $state("");
   load_state = $state<DocumentLoadState>("loading");
   load_error = $state<string | null>(null);
   is_dirty = $state(false);
@@ -15,14 +22,20 @@ export class DocumentStore {
   has_conflict = $state(false);
   last_saved_at = $state<number | null>(null);
   view_mode = $state<EditorViewMode>("rich");
+  // null while Vim mode is off.
+  vim_status = $state<VimStatus | null>(null);
   cursor = $state<CursorInfo | null>(null);
 
   set_loaded(file: DocumentFile) {
     this.file = file;
+    this.markdown = file.text;
     this.load_state = "ready";
     this.load_error = null;
     this.is_dirty = false;
     this.has_conflict = false;
+    // Same as EditorStore.set_open_note: the status bar shows when the file
+    // was last saved from the moment it opens.
+    this.last_saved_at = file.mtime_ms || null;
   }
 
   set_load_error(error: string) {
@@ -34,7 +47,8 @@ export class DocumentStore {
     this.is_dirty = is_dirty;
   }
 
-  note_edit() {
+  note_edit(markdown: string) {
+    this.markdown = markdown;
     this.edit_revision += 1;
   }
 
@@ -54,6 +68,10 @@ export class DocumentStore {
 
   set_view_mode(mode: EditorViewMode) {
     this.view_mode = mode;
+  }
+
+  set_vim_status(status: VimStatus | null) {
+    this.vim_status = status;
   }
 
   set_cursor(cursor: CursorInfo) {

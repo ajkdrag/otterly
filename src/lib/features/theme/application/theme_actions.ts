@@ -1,14 +1,37 @@
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
-import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
+import type { ActionRegistry, UIStore } from "$lib/app";
+import type { ClipboardService } from "$lib/features/clipboard";
+import type { ThemeService } from "$lib/features/theme/application/theme_service";
 import type { Theme } from "$lib/shared/types/theme";
 import {
   BUILTIN_THEMES,
   get_all_themes,
   DEFAULT_THEME_ID,
+  FILE_THEME_ID,
 } from "$lib/shared/types/theme";
+import { toast } from "svelte-sonner";
 
-export function register_theme_actions(input: ActionRegistrationInput): void {
-  const { registry, stores, services } = input;
+// Narrower than ActionRegistrationInput, so a document window can register
+// these with its own stores and services.
+export type ThemeActionInput = {
+  registry: ActionRegistry;
+  stores: { ui: UIStore };
+  services: { theme: ThemeService; clipboard: ClipboardService };
+  // Only the vault app's window saves the switch to the file theme. Every
+  // window reloads on a file save, so all of them would write settings.json
+  // at once, and set_setting is a read-modify-write that can lose a write. A
+  // document window also can't see a theme draft held by the main window.
+  //
+  // @Incomplete: On macOS a file opened from Finder can leave only a document
+  // window open. An edit of the theme file then switches that window, but the
+  // choice is not saved and the next launch has the old theme. Fixing it
+  // means asking the backend whether the `main` window is open, and saving
+  // from the document window when it is not.
+  persist_file_switch: boolean;
+};
+
+export function register_theme_actions(input: ThemeActionInput): void {
+  const { registry, stores, services, persist_file_switch } = input;
 
   let persisted_user_themes_snapshot: Theme[] | null = null;
   let persisted_active_theme_id: string | null = null;
@@ -57,8 +80,18 @@ export function register_theme_actions(input: ActionRegistrationInput): void {
     stores.ui.theme_has_draft = false;
   }
 
+  // The command palette lists Open and Reveal even before there is a file.
+  function require_theme_file(): boolean {
+    if (stores.ui.theme_file.status !== "missing") return true;
+    toast.error("There is no theme file yet. Create one in Settings > Theme.");
+    return false;
+  }
+
   function find_theme(theme_id: string): Theme | undefined {
-    return get_all_themes(stores.ui.user_themes).find((t) => t.id === theme_id);
+    return get_all_themes(
+      stores.ui.user_themes,
+      stores.ui.theme_file.theme,
+    ).find((t) => t.id === theme_id);
   }
 
   registry.register({
@@ -68,6 +101,7 @@ export function register_theme_actions(input: ActionRegistrationInput): void {
       const result = await services.theme.load_themes();
       stores.ui.set_user_themes(result.user_themes);
       stores.ui.set_active_theme_id(result.active_theme_id);
+      stores.ui.set_theme_file(result.theme_file);
       reset_theme_draft_state();
     },
   });
@@ -130,6 +164,7 @@ export function register_theme_actions(input: ActionRegistrationInput): void {
     label: "Delete Theme",
     execute: (theme_id: unknown) => {
       if (typeof theme_id !== "string") return;
+      if (theme_id === FILE_THEME_ID) return;
       if (BUILTIN_THEMES.some((t) => t.id === theme_id)) return;
       mark_theme_draft();
       const updated = stores.ui.user_themes.filter((t) => t.id !== theme_id);
@@ -145,7 +180,8 @@ export function register_theme_actions(input: ActionRegistrationInput): void {
     label: "Update Theme (draft)",
     execute: (args: unknown) => {
       const theme = args as Theme;
-      if (theme.is_builtin) return;
+      // Read-only here. The file theme only changes through its file.
+      if (theme.is_builtin || theme.id === FILE_THEME_ID) return;
       mark_theme_draft();
       const updated = stores.ui.user_themes.map((t) =>
         t.id === theme.id ? theme : t,
@@ -174,6 +210,102 @@ export function register_theme_actions(input: ActionRegistrationInput): void {
         stores.ui.set_active_theme_id(persisted_active_theme_id);
       }
       reset_theme_draft_state();
+    },
+  });
+
+  // The theme_file reactor runs this after each save of the theme file.
+  registry.register({
+    id: ACTION_IDS.theme_reload_file,
+    label: "Reload Theme File",
+    execute: async () => {
+      const loaded = await services.theme.load_theme_file();
+      // Keep the last valid theme while the file has errors, so the app does
+      // not jump around while someone is halfway through an edit. Keep the
+      // last known path too: a read that rejects (the config folder is out of
+      // reach) comes back without one.
+      if (loaded.status === "invalid") {
+        stores.ui.set_theme_file({
+          ...loaded,
+          theme: stores.ui.theme_file.theme,
+          path: loaded.path ?? stores.ui.theme_file.path,
+        });
+        return;
+      }
+      stores.ui.set_theme_file(loaded);
+      if (loaded.status !== "valid") return;
+
+      // Editing the file means "show me this". Not while the settings dialog
+      // holds unsaved theme edits, which would lose their theme mid-edit.
+      if (stores.ui.theme_has_draft) return;
+      if (stores.ui.active_theme_id === FILE_THEME_ID) return;
+      stores.ui.set_active_theme_id(FILE_THEME_ID);
+      if (persist_file_switch) {
+        await services.theme.save_active_theme_id(FILE_THEME_ID);
+      }
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.theme_create_file,
+    label: "Create Theme File",
+    execute: async () => {
+      const result = await services.theme.create_theme_file_from(
+        stores.ui.active_theme,
+      );
+      if (result.status === "failed") {
+        toast.error(`Could not create the theme file: ${result.error}`);
+        return;
+      }
+      // The watcher reloads it too. Loading here shows it without waiting.
+      await registry.execute(ACTION_IDS.theme_reload_file);
+      await registry.execute(ACTION_IDS.theme_open_file);
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.theme_open_file,
+    label: "Open Theme File",
+    execute: async () => {
+      if (!require_theme_file()) return;
+      if (await services.theme.open_theme_file()) return;
+
+      // Some systems have no default app for .yaml (macOS says so and fails),
+      // and with more than one theme file there is no one file to open.
+      // The file manager lets the person pick an app or fix the folder.
+      const revealed = await services.theme.reveal_theme_file();
+      toast.error(
+        revealed
+          ? "Could not open the theme file. Showing it in the file manager."
+          : "Could not open the theme file",
+      );
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.theme_reveal_file,
+    label: "Reveal Theme File",
+    execute: async () => {
+      if (!require_theme_file()) return;
+      const revealed = await services.theme.reveal_theme_file();
+      if (!revealed) toast.error("Could not show the theme file");
+    },
+  });
+
+  registry.register({
+    id: ACTION_IDS.theme_copy_file_path,
+    label: "Copy Theme File Path",
+    execute: async () => {
+      const path = stores.ui.theme_file.path;
+      if (!path) {
+        toast.error("The theme file path is not known yet");
+        return;
+      }
+      try {
+        await services.clipboard.copy_text(path);
+        toast.success("Theme file path copied");
+      } catch {
+        toast.error("Failed to copy the theme file path");
+      }
     },
   });
 }

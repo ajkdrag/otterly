@@ -63,7 +63,11 @@ function enter_block(view: EditorView, direction: 1 | -1, vertical: boolean) {
 
 // Construct keys assume the rendered view, like Backspace removing a hidden
 // heading mark. Source mode edits the text as plain characters instead.
-function run_construct_key(view: EditorView, key: ConstructKeyName): boolean {
+// Vim's o and O run Enter through here too (plugins/vim/index.ts).
+export function run_construct_key(
+  view: EditorView,
+  key: ConstructKeyName,
+): boolean {
   const { state } = view;
   if (state.readOnly || !is_rich(state)) return false;
   const position = state.selection.main.head;
