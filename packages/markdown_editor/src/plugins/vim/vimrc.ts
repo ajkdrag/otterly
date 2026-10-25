@@ -52,6 +52,7 @@ type VimrcCommand = MapCommand | UnmapCommand | SetCommand;
 const script_reason = "Vimscript is not run here";
 const terminal_reason = "Terminal Vim only";
 const indent_reason = "Indentation follows the editor here";
+const no_effect_reason = "Has no effect here";
 
 export function parse_vimrc(text: string): {
   commands: VimrcCommand[];
@@ -63,12 +64,19 @@ export function parse_vimrc(text: string): {
   // "let mapleader" only changes the maps after it.
   const leaders = { leader: "\\", localleader: "\\" };
   // We do not run conditions or functions, so every line inside an if,
-  // function, augroup, for or while is skipped, maps included.
+  // function, augroup, for, while or try is skipped, maps included.
   let block_depth = 0;
+  // The line that ends a "lua << EOF" script, while we are inside one.
+  let script_end: string | null = null;
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
-    if (!line || line.startsWith('"')) return;
     const command_line = { line: index + 1, text: line };
+    if (script_end !== null) {
+      problems.push(problem(command_line, script_reason, "skipped"));
+      if (line === script_end) script_end = null;
+      return;
+    }
+    if (!line || line.startsWith('"')) return;
     const [, typed_name = "", rest = ""] =
       /^:?\s*(\S+)\s*(.*)$/.exec(line) ?? [];
     const skipped = find_command(
@@ -76,11 +84,13 @@ export function parse_vimrc(text: string): {
       typed_name.replace(/!$/, ""),
     );
     if (block_depth > 0 || skipped) {
-      if (skipped)
+      if (skipped) {
         block_depth = Math.max(
           0,
           block_depth + block_change(skipped[0], rest, line),
         );
+        script_end = script_end_marker(skipped[0], rest);
+      }
       problems.push(
         problem(command_line, skipped?.[2] ?? script_reason, "skipped"),
       );
@@ -238,11 +248,32 @@ const skipped_commands: readonly (readonly [string, string, string])[] = [
   ["endfor", "endfo", script_reason],
   ["while", "wh", script_reason],
   ["endwhile", "endw", script_reason],
+  ["try", "try", script_reason],
+  ["catch", "cat", script_reason],
+  ["finally", "fina", script_reason],
+  ["endtry", "endt", script_reason],
   ["call", "cal", script_reason],
+  ["execute", "exe", script_reason],
+  ["silent", "sil", script_reason],
+  ["setlocal", "setl", script_reason],
+  ["setglobal", "setg", script_reason],
+  ["unlet", "unl", script_reason],
+  ["echo", "ec", script_reason],
   ["source", "so", script_reason],
   ["runtime", "ru", script_reason],
   ["packadd", "pa", script_reason],
   ["command", "com", script_reason],
+  ["iabbrev", "ia", script_reason],
+  ["abbreviate", "ab", script_reason],
+  ["inoreabbrev", "inorea", script_reason],
+  ["cabbrev", "ca", script_reason],
+  ["nohlsearch", "noh", script_reason],
+  ["vim9script", "vim9", script_reason],
+  ["lua", "lua", script_reason],
+  ["python", "py", script_reason],
+  ["python3", "py3", script_reason],
+  ["perl", "pe", script_reason],
+  ["ruby", "rub", script_reason],
   ["Plug", "Plug", script_reason],
 ];
 
@@ -261,10 +292,22 @@ function block_change(command: string, rest: string, line: string): number {
   // "if has('mac') | set x | endif" opens and closes on one line.
   if (/\|\s*end\w*\s*$/.test(line)) return 0;
   if (command === "augroup") return /^end$/i.test(rest.trim()) ? -1 : 1;
-  if (["if", "function", "for", "while"].includes(command)) return 1;
-  if (["endif", "endfunction", "endfor", "endwhile"].includes(command))
+  if (["if", "function", "for", "while", "try"].includes(command)) return 1;
+  if (
+    ["endif", "endfunction", "endfor", "endwhile", "endtry"].includes(command)
+  )
     return -1;
   return 0;
+}
+
+// "lua << EOF" runs the lines up to EOF as a script, and those lines are not
+// Vim commands. Returns the line that ends the script, or null when this is
+// not the start of one. Without a marker, Vim ends it at a lone ".".
+function script_end_marker(command: string, rest: string): string | null {
+  if (!["lua", "python", "python3", "perl", "ruby"].includes(command))
+    return null;
+  const heredoc = /^<<\s*(?:trim\s+)?(\S*)\s*$/.exec(rest);
+  return heredoc ? heredoc[1] || "." : null;
 }
 
 const map_contexts: Record<string, MapContext> = {
@@ -292,10 +335,8 @@ function parse_line(
 
   if (name === "set") {
     // Vim ends a set line at a " that follows a space, like a comment.
-    const items = rest
-      .replace(/(^|\s)".*$/, "")
-      .split(/\s+/)
-      .filter(Boolean);
+    // A backslash keeps a space in the value (statusline=%f\ %m).
+    const items = rest.replace(/(^|\s)".*$/, "").match(/(?:\\.|\S)+/g) ?? [];
     if (!items.length) return problem(command, "set needs an option");
     return { ...command, kind: "set", items };
   }
@@ -311,6 +352,9 @@ function parse_line(
     /^((?:<(?:buffer|nowait|silent|special|script|expr|unique)>\s*)*)(.*)$/.exec(
       rest,
     ) ?? [];
+  // The rhs of an <expr> map is a Vimscript expression.
+  if (/<expr>/i.test(map_arguments))
+    return problem(command, script_reason, "skipped");
   const unsupported_argument = map_arguments
     .match(/<\w+>/g)
     ?.find((argument) => argument !== "<silent>");
@@ -564,6 +608,7 @@ function runs_keys(keys: string, wanted: string, from: number): boolean {
 }
 
 // Terminal Vim settings mean nothing here, so these are skipped, set or not.
+// So is every t_ option (t_Co, t_ut...), which are terminal codes.
 const skipped_options = new Map<string, string>([
   ...`number nu relativenumber rnu ruler ru showcmd sc showmode smd laststatus
   ls cmdheight ch cursorline cul cursorcolumn cuc colorcolumn cc signcolumn scl
@@ -574,9 +619,15 @@ const skipped_options = new Map<string, string>([
   splitright spr hidden hid wildmenu wmnu wildmode wim history hi undofile udf
   undodir udir undolevels ul backup bk writebackup wb swapfile swf encoding
   enc fileencoding fenc fileformat ff fileformats ffs autoread ar autowrite aw
-  updatetime ut compatible cp modeline ml shortmess shm backspace bs`
+  updatetime ut compatible cp modeline ml shortmess shm backspace bs
+  showmatch sm matchtime mat ttimeout ttimeoutlen ttm statusline stl
+  showtabline stal guicursor gcr display dy inccommand icm`
     .split(/\s+/)
     .map((name) => [name, terminal_reason] as const),
+  ...`joinspaces js autochdir acd virtualedit ve confirm cf startofline sol
+  modelines mls completeopt cot path pa wildignore wig whichwrap ww`
+    .split(/\s+/)
+    .map((name) => [name, no_effect_reason] as const),
   ...`tabstop ts shiftwidth sw softtabstop sts expandtab et autoindent ai
   smartindent si cindent cin`
     .split(/\s+/)
@@ -605,13 +656,18 @@ function apply_set_item(
   const [, typed_name = "", operator = ""] = /^(\w*)(.*)$/.exec(item) ?? [];
   const negated = !operator && /^(no|inv)/.test(typed_name);
   const base = negated ? typed_name.replace(/^(no|inv)/, "") : typed_name;
-  const skip_reason = skipped_options.get(base);
+  const skip_reason =
+    skipped_options.get(base) ?? (base.startsWith("t_") ? terminal_reason : "");
   if (skip_reason) return { message: skip_reason, severity: "skipped" };
   const error = (message: string) => ({ message, severity: "error" as const });
   if (always_on_options.has(base))
     return negated || operator ? error(`${base} is always on here`) : null;
   if (/^[+\-^]=/.test(operator))
-    return error(`${item}: write the whole value, like ${typed_name}=...`);
+    return error(
+      is_engine_option(typed_name)
+        ? `${item}: write the whole value, like ${typed_name}=...`
+        : `Unknown option: ${typed_name}`,
+    );
   if (operator && !operator.startsWith("="))
     return error(`Invalid argument: ${item}`);
 
@@ -623,14 +679,10 @@ function apply_set_item(
     name = name.slice(2);
     value = false;
   }
-  // The engine keeps its options in a plain {}, so a name like __proto__ or
-  // constructor would write to Object.prototype.
-  if (!/^[A-Za-z]+$/.test(name) || name in Object.prototype)
-    return error(`Unknown option: ${name}`);
+  if (!is_engine_option(name)) return error(`Unknown option: ${name}`);
   if (name === "clipboard" && !clipboard_values.has(String(value)))
     return error(`Invalid argument: ${item}`);
   const before: unknown = Vim.getOption(name);
-  if (before instanceof Error) return error(before.message);
   if (typeof value === "boolean" && typeof before !== "boolean")
     return error(`${name} needs a value, like ${name}=...`);
   // The engine stores number options as given, and a timeout of "abc"
@@ -647,6 +699,17 @@ function apply_set_item(
   if (Vim.getOption(name) !== value)
     return error(`${name} is a per-editor option, so vimrc cannot set it`);
   return null;
+}
+
+// The engine keeps its options in a plain {}, so a name like __proto__ or
+// constructor would write to Object.prototype. Check the name before any
+// engine call.
+function is_engine_option(name: string): boolean {
+  return (
+    /^[A-Za-z]+$/.test(name) &&
+    !(name in Object.prototype) &&
+    !(Vim.getOption(name) instanceof Error)
+  );
 }
 
 function problem(

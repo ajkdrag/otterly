@@ -1029,39 +1029,78 @@ describe("vimrc", () => {
   });
 
   test("VIM-004 a pasted terminal vimrc reports only real errors, and skips the rest", () => {
+    const real_lines = [
+      "set nocompatible",
+      "syntax on",
+      "filetype plugin indent on",
+      "set number relativenumber",
+      "set tabstop=4 shiftwidth=4 expandtab",
+      "set ignorecase smartcase",
+      "set nosmartcase",
+      "set clipboard=unnamed",
+      'let mapleader = ","',
+      "nnoremap <leader>w :w<CR>",
+      "nnormap Q gq",
+      "xnoremap < <gv",
+      "inoremap jk <Esc>",
+      'if has("gui_running")',
+      "  set guifont=Menlo:h14",
+      "  nnoremap <C-s> :w<CR>",
+      "endif",
+      "call plug#begin()",
+      "Plug 'tpope/vim-surround'",
+      "call plug#end()",
+      "autocmd BufWritePre * %s/\\s\\+$//e",
+      "let g:netrw_banner = 0",
+    ];
+    // More of what terminal Vim and Neovim users have. None of it applies
+    // here, and none of it is an error.
+    const terminal_lines = [
+      "set t_Co=256",
+      "set showmatch matchtime=2",
+      "set ttimeout ttimeoutlen=50",
+      "set statusline=%f\\ %m",
+      "set showtabline=2 completeopt=menu,preview",
+      "set nojoinspaces display=lastline autochdir virtualedit=onemore confirm",
+      "set nostartofline modelines=0 guicursor= inccommand=split",
+      "set path+=** wildignore+=*.pyc whichwrap+=<,>",
+      "try",
+      "  colorscheme gruvbox",
+      "catch",
+      "  colorscheme default",
+      "endtry",
+      "lua << EOF",
+      "require('plugin').setup {}",
+      "nnoremap Z zz",
+      "EOF",
+      "execute 'set background=' . g:mode",
+      "silent! source ~/.vimrc.local",
+      "setlocal spell",
+      "unlet g:loaded_netrw",
+      "echo 'loaded'",
+      "iabbrev teh the",
+      "nohlsearch",
+      "vim9script",
+      "nnoremap <expr> j v:count ? 'j' : 'gj'",
+    ];
     const problems = apply_vimrc(
-      [
-        "set nocompatible",
-        "syntax on",
-        "filetype plugin indent on",
-        "set number relativenumber",
-        "set tabstop=4 shiftwidth=4 expandtab",
-        "set ignorecase smartcase",
-        "set nosmartcase",
-        "set clipboard=unnamed",
-        'let mapleader = ","',
-        "nnoremap <leader>w :w<CR>",
-        "nnormap Q gq",
-        "xnoremap < <gv",
-        "inoremap jk <Esc>",
-        'if has("gui_running")',
-        "  set guifont=Menlo:h14",
-        "  nnoremap <C-s> :w<CR>",
-        "endif",
-        "call plug#begin()",
-        "Plug 'tpope/vim-surround'",
-        "call plug#end()",
-        "autocmd BufWritePre * %s/\\s\\+$//e",
-        "let g:netrw_banner = 0",
-      ].join("\n"),
+      [...real_lines, ...terminal_lines, "nnoremap Y y$"].join("\n"),
     );
     const lines = (severity: string) =>
       problems
         .filter((problem) => problem.severity === severity)
         .map((problem) => problem.line);
+    const after = (count: number, length: number) =>
+      Array.from({ length }, (_, offset) => count + 1 + offset);
     expect(lines("error")).toEqual([7, 11]);
     expect(lines("skipped")).toEqual([
-      1, 2, 3, 4, 5, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+      1,
+      2,
+      3,
+      4,
+      5,
+      ...after(13, 9),
+      ...after(real_lines.length, terminal_lines.length),
     ]);
     expect(Vim.getOption("clipboard")).toBe("unnamed");
   });
