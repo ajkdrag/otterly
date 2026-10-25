@@ -739,7 +739,7 @@
                   }}
                 >
                   <div class="Omnibar__item-row">
-                    <HashIcon />
+                    <TagIcon />
                     <span class="Omnibar__item-title text-sm font-medium"
                       ><span class="text-muted-foreground">#</span
                       >{item.tag}</span
@@ -819,6 +819,8 @@
             {:else if tag_match === "all" && tags.length > 1}
               <p>No notes have all of these tags</p>
               <p class="text-xs">Remove a tag with ⌫ or match any tag</p>
+            {:else if tags.length === 1}
+              No notes with #{tags[0]}
             {:else}
               No notes with these tags
             {/if}
