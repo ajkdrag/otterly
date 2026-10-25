@@ -109,7 +109,11 @@ const key_names: Record<string, string> = {
   Down: "ArrowDown",
 };
 
-function keydown(view: EditorView, vim_key: string): KeyboardEvent {
+function keydown(
+  view: EditorView,
+  vim_key: string,
+  target: Element = view.contentDOM,
+): KeyboardEvent {
   const [, modifiers = "", name = vim_key] =
     /^<((?:[CSAM]-)*)(.+)>$/.exec(vim_key) ?? [];
   const event = new KeyboardEvent("keydown", {
@@ -121,7 +125,7 @@ function keydown(view: EditorView, vim_key: string): KeyboardEvent {
     bubbles: true,
     cancelable: true,
   });
-  view.contentDOM.dispatchEvent(event);
+  target.dispatchEvent(event);
   return event;
 }
 
@@ -914,6 +918,69 @@ describe("the final line break", () => {
 
     press(view, "d", "d");
     expect(doc(view)).toBe("one\n");
+  });
+});
+
+describe("keys in a table cell", () => {
+  // A click into a rendered table focuses the cell's editor until the reveal
+  // freeze ends, about 100 ms after the button comes up.
+  function click_cell(view: EditorView) {
+    view.focus();
+    view.dom
+      .querySelector<HTMLElement>("[data-row='1'][data-col='0']")
+      ?.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+    expect(view.hasFocus).toBe(false);
+  }
+
+  // Keys on whatever has focus. Text no handler prevents is typed into the
+  // focused editor, like the browser would.
+  function type_in_focus(view: EditorView, ...keys: string[]) {
+    for (const key of keys) {
+      const target = document.activeElement ?? view.contentDOM;
+      const editor = target.closest<HTMLElement>(".cm-editor");
+      const focused = editor ? EditorView.findFromDOM(editor) : null;
+      if (keydown(view, key, target).defaultPrevented) continue;
+      if (key.length !== 1 || !focused) continue;
+      focused.dispatch(
+        focused.state.update(focused.state.replaceSelection(key), {
+          userEvent: "input.type",
+        }),
+      );
+    }
+  }
+
+  const source = `before\n\n${table}\n\nafter`;
+
+  test("VIM-034 normal mode keys typed in a cell run in Vim and type nothing", async () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor(source, { statuses });
+    click_cell(view);
+    type_in_focus(view, "g", "g", "x");
+    expect(doc(view)).toBe(source.slice(1));
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    await vi.waitFor(() => {
+      expect(view.hasFocus).toBe(true);
+    });
+  });
+
+  test("VIM-034 in insert mode the cell types text, and Esc still leaves insert mode", async () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor(source, { statuses });
+    press(view, "i");
+    click_cell(view);
+    const caret = view.state.selection.main.head;
+    type_in_focus(view, "Z", "<Esc>");
+    expect(doc(view)).toBe(source.slice(0, caret) + "Z" + source.slice(caret));
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    await vi.waitFor(() => {
+      expect(view.hasFocus).toBe(true);
+    });
   });
 });
 

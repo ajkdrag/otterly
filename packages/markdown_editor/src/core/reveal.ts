@@ -94,6 +94,13 @@ export const reveal_freeze = StateField.define<FreezeState>({
   },
 });
 
+// Reveal follows the selection again. Also for a key typed while a click's
+// freeze holds, because the click is over as far as the keyboard goes.
+export function end_reveal_freeze(view: EditorView) {
+  if (view.state.field(reveal_freeze, false)?.frozen)
+    view.dispatch({ effects: set_reveal_freeze.of(false) });
+}
+
 function frozen_selection_touches(
   state: EditorState,
   from: number,
@@ -142,8 +149,7 @@ const reveal_freeze_plugin = ViewPlugin.fromClass(
       window.removeEventListener("mouseup", this.release, true);
       this.timer = setTimeout(() => {
         this.timer = null;
-        if (this.view.state.field(reveal_freeze).frozen)
-          this.view.dispatch({ effects: set_reveal_freeze.of(false) });
+        end_reveal_freeze(this.view);
       }, reveal_release_delay_ms);
     };
   },

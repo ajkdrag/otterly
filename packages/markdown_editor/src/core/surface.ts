@@ -4,6 +4,7 @@ import {
   EditorSelection,
   EditorState,
   Facet,
+  Prec,
   StateEffect,
   StateField,
   Transaction,
@@ -33,6 +34,7 @@ import {
   type Block,
 } from "./block_field.js";
 import { line_container } from "./context.js";
+import { end_reveal_freeze } from "./reveal.js";
 import { source_redo, source_undo } from "./source_state.js";
 
 // A source window is the part of the outer document a surface edits, as one
@@ -61,6 +63,13 @@ export type NestedEditorOptions = {
 };
 
 const sync_inner = Annotation.define<boolean>();
+
+// Keys typed in a surface go to these first. A host that owns every key in
+// the outer editor, like Vim, returns true for a key it took. The keyboard
+// then goes back to the outer editor: the reveal freeze ends, so the block at
+// the caret shows its source, and the outer editor gets focus.
+export const surface_keydown =
+  Facet.define<(outer: EditorView, event: KeyboardEvent) => boolean>();
 
 // Outer ranges that surfaces should highlight inside their own text, such as
 // find matches. Each surface draws the ranges inside its window.
@@ -99,6 +108,11 @@ export class NestedEditor {
       parent: options.parent,
       doc: options.initial_window.text,
       extensions: [
+        Prec.highest(
+          EditorView.domEventHandlers({
+            keydown: (event) => this.outer_takes_key(event),
+          }),
+        ),
         // The outer drawSelection theme hides native carets in nested
         // contenteditable nodes too. This editor needs its own cursor layer.
         drawSelection(),
@@ -316,6 +330,21 @@ export class NestedEditor {
     });
   }
 
+  private outer_takes_key(event: KeyboardEvent): boolean {
+    const outer = this.outer;
+    const taken = outer.state
+      .facet(surface_keydown)
+      .some((run) => run(outer, event));
+    if (taken) {
+      // Once this key is done: showing the source destroys this view.
+      queueMicrotask(() => {
+        end_reveal_freeze(outer);
+      });
+      take_focus_back(outer);
+    }
+    return taken;
+  }
+
   private run_history(command: typeof source_undo): boolean {
     const changed = command(this.outer);
     if (changed) focus_selection(this.outer);
@@ -363,6 +392,24 @@ function map_range(
       range.assoc,
     ),
   ]);
+}
+
+// Give focus back to the outer editor, keeping its selection, so the next key
+// lands where Vim sees it. Focus is on the body when the nested view went away
+// and inside a nested editor when it stayed. Anywhere else it is there on
+// purpose, such as the find bar or Vim's own prompt.
+export function take_focus_back(view: EditorView) {
+  // Focusing dispatches, which cannot happen inside an update.
+  queueMicrotask(() => {
+    if (view.hasFocus) return;
+    const doc = view.contentDOM.ownerDocument;
+    const nested_editor = doc.activeElement?.closest(".cm-editor");
+    const in_nested_editor =
+      nested_editor &&
+      nested_editor !== view.dom &&
+      view.dom.contains(nested_editor);
+    if (doc.activeElement === doc.body || in_nested_editor) view.focus();
+  });
 }
 
 // Focus the surface that owns the outer selection, scrolling only when the

@@ -36,7 +36,11 @@ import {
   source_redo,
   source_undo,
 } from "./source_state.js";
-import { focus_selection, surface_highlights } from "./surface.js";
+import {
+  focus_selection,
+  surface_highlights,
+  take_focus_back,
+} from "./surface.js";
 import { markdown_syntax } from "./syntax.js";
 
 export type MarkdownEditorConfig = {
@@ -256,24 +260,6 @@ function nested_editor_may_hold_focus(update: ViewUpdate): boolean {
       transaction.annotation(surface_input),
     );
   return click_ended || nested_editor_published;
-}
-
-// Give focus back to the outer editor, keeping its selection, so the next key
-// lands where Vim sees it. Focus is on the body when the nested view went away
-// and inside a nested editor when it stayed. Anywhere else it is there on
-// purpose, such as the find bar or Vim's own prompt.
-function take_focus_back(view: EditorView) {
-  // Focusing dispatches, which cannot happen inside this update.
-  queueMicrotask(() => {
-    if (view.hasFocus) return;
-    const doc = view.contentDOM.ownerDocument;
-    const nested_editor = doc.activeElement?.closest(".cm-editor");
-    const in_nested_editor =
-      nested_editor &&
-      nested_editor !== view.dom &&
-      view.dom.contains(nested_editor);
-    if (doc.activeElement === doc.body || in_nested_editor) view.focus();
-  });
 }
 
 function highlights_changed(before: EditorState, after: EditorState): boolean {

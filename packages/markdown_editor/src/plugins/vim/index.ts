@@ -26,6 +26,7 @@ import { source_redo, source_undo } from "../../core/source_state.js";
 import {
   close_menu_before_leaving_insert,
   normal_mode_guards,
+  vim_keys_in_surfaces,
 } from "./input_guards.js";
 import { map_prefix_wait } from "./map_prefix_wait.js";
 import { status_plugin, type VimMode, type VimStatus } from "./status.js";
@@ -84,6 +85,7 @@ export function vim_keybindings(
     // One Vim instance edits the whole document. Code blocks and tables show
     // their source under the caret instead of handing keys to a nested view.
     reveal_surfaces_at_caret.of(true),
+    vim_keys_in_surfaces,
     caret_stays_off_final_empty_line,
     // These plugins come after vim(), so getCM(view) exists when they are
     // built.

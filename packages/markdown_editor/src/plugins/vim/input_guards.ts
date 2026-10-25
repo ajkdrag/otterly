@@ -16,6 +16,7 @@ import {
 import { Prec, type Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, keymap } from "@codemirror/view";
 import { CodeMirror, getCM } from "@replit/codemirror-vim";
+import { surface_keydown } from "../../core/surface.js";
 
 // Keys and text that reach the editor around Vim. vim_keybindings puts
 // close_menu_before_leaving_insert before Prec.highest(vim()) and
@@ -132,3 +133,45 @@ export const normal_mode_guards: Extension = Prec.highest([
     return !!vim && !vim.insertMode && !vim.expectLiteralNext;
   }),
 ]);
+
+// A key typed in a code block or table cell editor goes to Vim, the same as a
+// key typed anywhere else in the note. Focus is only in there for a moment
+// after a click into a rendered block (the reveal freeze), but a key typed
+// then must not land in the cell as text while the status says NORMAL.
+//
+// Insert mode text that Vim turns down stays with the surface, which writes
+// it into the same source. In the other modes a key Vim turns down is
+// swallowed, like normal_mode_guards does, except the platform's command key
+// (Cmd on macOS, Ctrl elsewhere): copy, paste and app hotkeys.
+export const vim_keys_in_surfaces: Extension = surface_keydown.of(
+  (view, event) => {
+    const cm = getCM(view);
+    if (!cm?.state.vim) return false;
+    if (run_engine_keydown(cm, event, view)) return true;
+    if (cm.state.vim.insertMode) return false;
+    return !(CodeMirror.isMac ? event.metaKey : event.ctrlKey);
+  },
+);
+
+// The engine's own keydown handler: it turns the event into a Vim key, runs
+// it, and keeps showcmd and the block cursor up to date. It lives on the
+// engine's view plugin, which the engine keeps in cm.state, typed any.
+function run_engine_keydown(
+  cm: CodeMirror,
+  event: KeyboardEvent,
+  view: EditorView,
+): boolean {
+  const plugin: unknown = cm.state.vimPlugin;
+  return has_key_handler(plugin) && plugin.handleKey(event, view) === true;
+}
+
+function has_key_handler(value: unknown): value is {
+  handleKey(event: KeyboardEvent, view: EditorView): unknown;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "handleKey" in value &&
+    typeof value.handleKey === "function"
+  );
+}
