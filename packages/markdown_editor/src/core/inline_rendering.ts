@@ -45,6 +45,11 @@ export type Render = {
   prefix_revealed(container: LineContainer): boolean;
   text(from: number, to: number): string;
   mark(from: number, to: number, class_name: string): void;
+  // A mark that stays in one piece: other marks nest inside it, and only
+  // another outer mark can split it. For boxes with padding or a radius, like
+  // tag chips, which would otherwise draw as two rounded halves under a
+  // partly overlapping find match.
+  outer_mark(from: number, to: number, class_name: string): void;
   // Hidden source is atomic: arrows skip over it.
   hide(from: number, to: number): void;
   replace(from: number, to: number, widget: WidgetType): void;
@@ -84,12 +89,14 @@ export function inline_rendering(): Extension {
   const plugin = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      outer: DecorationSet;
       atomic: DecorationSet;
       wrappers: RangeSet<BlockWrapper>;
 
       constructor(view: EditorView) {
         ({
           decorations: this.decorations,
+          outer: this.outer,
           atomic: this.atomic,
           wrappers: this.wrappers,
         } = render_view(view));
@@ -100,6 +107,7 @@ export function inline_rendering(): Extension {
         // stays inside the changing document during an IME replacement.
         if (update.view.composing) {
           this.decorations = this.decorations.map(update.changes);
+          this.outer = this.outer.map(update.changes);
           this.atomic = this.atomic.map(update.changes);
           this.wrappers = this.wrappers.map(update.changes);
           return;
@@ -107,6 +115,7 @@ export function inline_rendering(): Extension {
         if (needs_render(update)) {
           ({
             decorations: this.decorations,
+            outer: this.outer,
             atomic: this.atomic,
             wrappers: this.wrappers,
           } = render_view(update.view));
@@ -116,6 +125,9 @@ export function inline_rendering(): Extension {
     {
       decorations: (value) => value.decorations,
       provide: (extension) => [
+        EditorView.outerDecorations.of(
+          (view) => view.plugin(extension)?.outer ?? Decoration.none,
+        ),
         EditorView.atomicRanges.of(
           (view) => view.plugin(extension)?.atomic ?? Decoration.none,
         ),
@@ -192,6 +204,7 @@ const gap_rank = 100;
 
 class RenderCollector {
   readonly decorations: Range<Decoration>[] = [];
+  readonly outer: Range<Decoration>[] = [];
   readonly atomic: Range<Decoration>[] = [];
   readonly line_styles = new Map<number, LineStyle>();
   // Lines that hold an element of ours (mark, widget, hidden range).
@@ -222,6 +235,11 @@ class RenderCollector {
         this.decorations.push(
           Decoration.mark({ class: class_name }).range(from, to),
         );
+        this.inline_lines.add(state.doc.lineAt(from).from);
+      },
+      outer_mark: (from, to, class_name) => {
+        if (from >= to) return;
+        this.outer.push(Decoration.mark({ class: class_name }).range(from, to));
         this.inline_lines.add(state.doc.lineAt(from).from);
       },
       hide: (from, to) => {
@@ -352,6 +370,7 @@ class RenderCollector {
     );
     return {
       decorations: Decoration.set(this.decorations, true),
+      outer: Decoration.set(this.outer, true),
       atomic: Decoration.set(this.atomic, true),
       wrappers: BlockWrapper.set(wrappers, true),
     };

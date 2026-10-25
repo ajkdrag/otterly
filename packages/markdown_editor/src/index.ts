@@ -112,6 +112,12 @@ export {
   type WikiLinkOptions,
   type WikiSuggestion,
 } from "./plugins/wiki_links/index.js";
+export {
+  tags,
+  tag_at,
+  type TagOptions,
+  type TagSuggestion,
+} from "./plugins/tags/index.js";
 export { slash_menu } from "./plugins/menus/slash_menu.js";
 export {
   find,
