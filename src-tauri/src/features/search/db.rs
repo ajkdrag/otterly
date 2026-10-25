@@ -818,7 +818,6 @@ pub fn search(
         SearchScope::All => escaped,
         SearchScope::Title => format!("title : ({escaped})"),
         SearchScope::Path => format!("path : ({escaped})"),
-        SearchScope::Content => format!("body : ({escaped})"),
     };
 
     let sql = "SELECT n.path, n.title, n.mtime_ms, n.size_bytes,

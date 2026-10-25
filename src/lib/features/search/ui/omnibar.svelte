@@ -489,13 +489,11 @@
     }
 
     const label =
-      active_query.target === "content"
-        ? "Content"
-        : active_query.target === "path"
-          ? "Paths"
-          : active_query.target === "title"
-            ? "Titles"
-            : "Files";
+      active_query.target === "path"
+        ? "Paths"
+        : active_query.target === "title"
+          ? "Titles"
+          : "Files";
     return note_items.length > 0
       ? [{ id: active_query.target, label, items: note_items }]
       : [];

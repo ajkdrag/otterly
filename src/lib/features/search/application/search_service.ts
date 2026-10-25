@@ -364,8 +364,6 @@ export class SearchService {
       case "path":
       case "title":
         return this.search_file_hits(vault_id, query, OMNIBAR_FILE_LIMIT);
-      case "content":
-        return this.search_content_hits(vault_id, query, OMNIBAR_CONTENT_LIMIT);
       default:
         return this.search_blended_hits(vault_id, query);
     }

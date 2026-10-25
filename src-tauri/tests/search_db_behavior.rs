@@ -757,10 +757,8 @@ fn scoped_search_needs_every_word_in_the_scoped_column() {
     upsert_note(&conn, &other, "notes here").expect("upsert should succeed");
 
     // Each note has one word in its title and the other in its body.
-    for scope in [SearchScope::Content, SearchScope::Title] {
-        let hits = search(&conn, "start notes", scope, 10).expect("search should succeed");
-        assert!(hits.is_empty());
-    }
+    let hits = search(&conn, "start notes", SearchScope::Title, 10).expect("search should succeed");
+    assert!(hits.is_empty());
 }
 
 #[test]
