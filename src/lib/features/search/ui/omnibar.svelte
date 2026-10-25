@@ -501,6 +501,20 @@
     input_ref?.focus({ preventScroll: true });
   }
 
+  // The input is only one chip tall. A press on the row padding, the icon or
+  // a chip label would move focus out of it, so keep focus in the input.
+  // Buttons and the input itself handle their own presses.
+  function keep_focus_in_input(event: MouseEvent) {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("button, input")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    input_ref?.focus({ preventScroll: true });
+  }
+
   // Esc while picking a tag drops the `#...` token instead of closing.
   // preventDefault keeps bits-ui from closing the dialog.
   function handle_escape(event: KeyboardEvent) {
@@ -572,6 +586,16 @@
     }, 0);
   });
 
+  // Past two lines of chips the field scrolls. Bring the input back into view
+  // whenever a chip comes or goes. Every omnibar patch replaces the store
+  // object, so reading tags.length here directly would rerun this, and force
+  // a layout, on every keystroke. The $derived only changes with the count.
+  const tag_count = $derived(tags.length);
+  $effect(() => {
+    if (tag_count === 0) return;
+    input_ref?.scrollIntoView({ block: "nearest" });
+  });
+
   $effect(() => {
     if (!open) return;
     const selected_item = visible_items[selected_index];
@@ -597,58 +621,87 @@
         >Find notes, run commands, and customize your workspace.</Dialog.Description
       >
     </Dialog.Header>
-    <div class="Omnibar__search">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="Omnibar__search" onmousedown={keep_focus_in_input}>
       <SearchIcon />
-      {#if tags.length > 0}
-        <div class="Omnibar__chips" role="group" aria-label="Tag filters">
-          {#each tags as tag, index (tag)}
-            {#if index > 0}
-              <span class="text-xs text-muted-foreground" aria-hidden="true"
-                >{tag_match === "all" ? "and" : "or"}</span
-              >
-            {/if}
-            <TagChip
-              {tag}
-              size="md"
-              on_remove={() => {
-                remove_tag_and_refocus(tag);
+      <div class="Omnibar__field">
+        {#if tags.length > 0}
+          <div class="contents" role="group" aria-label="Tag filters">
+            {#each tags as tag, index (tag)}
+              <!-- The join word wraps together with the chip after it, so a
+                   line never ends on a lone "and" or "or". -->
+              <span class="Omnibar__chip">
+                {#if index > 0}
+                  <span class="Omnibar__chip-join" aria-hidden="true"
+                    >{tag_match === "all" ? "and" : "or"}</span
+                  >
+                {/if}
+                <TagChip
+                  {tag}
+                  size="md"
+                  on_remove={() => {
+                    remove_tag_and_refocus(tag);
+                  }}
+                />
+              </span>
+            {/each}
+          </div>
+        {/if}
+        <Input
+          bind:ref={input_ref}
+          id="omnibar-input"
+          type="text"
+          role="combobox"
+          aria-label="Search notes, commands, and settings"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls="omnibar-results"
+          aria-activedescendant={visible_items[selected_index]
+            ? get_item_id(visible_items[selected_index])
+            : undefined}
+          placeholder={is_all_vaults
+            ? "Search every vault by file, path, or content"
+            : is_command_mode
+              ? "Search commands and settings"
+              : tags.length > 0
+                ? "Search within tagged notes"
+                : "Search notes, or type # for tags"}
+          value={query}
+          oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+            on_query_change(e.currentTarget.value);
+          }}
+          class="h-(--omnibar-line) min-w-0 flex-[1_1_12rem] border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+      </div>
+      {#if show_tag_match}
+        <div class="Omnibar__tag-match" role="group" aria-label="Tag match">
+          {#each TAG_MATCH_OPTIONS as option (option.mode)}
+            <button
+              type="button"
+              class="Omnibar__tag-match-btn"
+              class:Omnibar__tag-match-btn--active={tag_match === option.mode}
+              aria-pressed={tag_match === option.mode}
+              onclick={() => {
+                on_tag_match_change(option.mode);
+                input_ref?.focus({ preventScroll: true });
               }}
-            />
+            >
+              {option.label}
+            </button>
           {/each}
         </div>
       {/if}
-      <Input
-        bind:ref={input_ref}
-        id="omnibar-input"
-        type="text"
-        role="combobox"
-        aria-label="Search notes, commands, and settings"
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls="omnibar-results"
-        aria-activedescendant={visible_items[selected_index]
-          ? get_item_id(visible_items[selected_index])
-          : undefined}
-        placeholder={is_all_vaults
-          ? "Search every vault by file, path, or content"
-          : is_command_mode
-            ? "Search commands and settings"
-            : tags.length > 0
-              ? "Search within tagged notes"
-              : "Search notes, or type # for tags"}
-        value={query}
-        oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-          on_query_change(e.currentTarget.value);
-        }}
-        class="h-12 min-w-0 border-0 bg-transparent dark:bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-      />
-      {#if is_searching}
-        <div class="Omnibar__spinner" aria-hidden="true"></div>
-      {/if}
+      <!-- Always in the row, so a search starting or ending does not change
+           the field width and reflow the chips. -->
+      <div
+        class="Omnibar__spinner"
+        class:Omnibar__spinner--active={is_searching}
+        aria-hidden="true"
+      ></div>
     </div>
 
-    {#if show_scope_toggle || show_note_filters || show_tag_match}
+    {#if show_scope_toggle || show_note_filters}
       <div class="Omnibar__toolbar">
         {#if show_scope_toggle}
           <Select.Root
@@ -695,29 +748,6 @@
                 onclick={() => apply_note_filter(filter.target)}
               >
                 {filter.label}
-              </button>
-            {/each}
-          </div>
-        {/if}
-
-        {#if show_tag_match}
-          <div
-            class="Omnibar__filter-strip"
-            role="group"
-            aria-label="Tag match"
-          >
-            <span class="text-xs text-muted-foreground">Match</span>
-            {#each TAG_MATCH_OPTIONS as option (option.mode)}
-              <button
-                class="Omnibar__filter-btn"
-                class:Omnibar__filter-btn--active={tag_match === option.mode}
-                aria-pressed={tag_match === option.mode}
-                onclick={() => {
-                  on_tag_match_change(option.mode);
-                  input_ref?.focus({ preventScroll: true });
-                }}
-              >
-                {option.label}
               </button>
             {/each}
           </div>
@@ -1157,29 +1187,60 @@
     gap: 0;
   }
 
+  /* Every item in the search row is one line tall, the TagChip md height.
+     The padding makes a one line row 3.5rem tall, with or without chips.
+     The icon, the Match control and the spinner sit on the first line. */
   .Omnibar__search {
+    --omnibar-line: 1.5rem;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-2);
-    min-height: 3.5rem;
-    padding-inline: var(--space-4);
+    padding: var(--space-4);
   }
 
-  :global(.Omnibar__search svg) {
+  .Omnibar__search > :global(svg),
+  .Omnibar__spinner {
     width: var(--size-icon);
     height: var(--size-icon);
+    margin-block: calc((var(--omnibar-line) - var(--size-icon)) / 2);
     flex-shrink: 0;
+  }
+
+  .Omnibar__search > :global(svg) {
     color: var(--muted-foreground);
   }
 
-  /* Chips wrap inside their own box, so the input keeps at least a quarter
-     of the row. */
-  .Omnibar__chips {
+  /* Chips and the input wrap in one box with one gap. Same height and font
+     size, so the placeholder sits on the chip baseline. The input drops to
+     its own line below 12rem instead of squeezing. Past two lines the box
+     scrolls, so more chips never push the results down. */
+  .Omnibar__field {
     display: flex;
+    flex: 1;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-1);
-    max-width: 75%;
+    gap: var(--space-1-5);
+    min-width: 0;
+    max-height: calc(2 * var(--omnibar-line) + var(--space-1-5));
+    overflow: hidden auto;
+    /* The app styles its scrollbars, so WebKit gives them real width.
+       Reserve it, so the chips do not reflow when a third line starts the
+       scrollbar. */
+    scrollbar-gutter: stable;
+  }
+
+  .Omnibar__chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .Omnibar__chip-join {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--muted-foreground);
   }
 
   .Omnibar__tags-button {
@@ -1192,12 +1253,14 @@
   }
 
   .Omnibar__spinner {
-    width: var(--size-icon);
-    height: var(--size-icon);
     border: 2px solid var(--muted-foreground);
     border-top-color: transparent;
     border-radius: 50%;
-    flex-shrink: 0;
+    visibility: hidden;
+  }
+
+  .Omnibar__spinner--active {
+    visibility: visible;
     animation: spin 1s linear infinite;
   }
 
@@ -1208,11 +1271,10 @@
     margin-left: auto;
   }
 
-  .Omnibar__filter-btn {
+  .Omnibar__filter-btn,
+  .Omnibar__tag-match-btn {
     display: inline-flex;
     align-items: center;
-    min-height: 2rem;
-    padding: var(--space-1) var(--space-2);
     font-size: var(--text-xs);
     font-weight: 500;
     border-radius: var(--radius-sm);
@@ -1220,6 +1282,11 @@
     transition:
       background-color var(--duration-fast) var(--ease-default),
       color var(--duration-fast) var(--ease-default);
+  }
+
+  .Omnibar__filter-btn {
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-2);
   }
 
   .Omnibar__filter-btn:hover {
@@ -1230,6 +1297,31 @@
   .Omnibar__filter-btn--active {
     background-color: var(--interactive-bg);
     color: var(--interactive);
+  }
+
+  /* A segmented control one line tall. Neutral colors on purpose: the
+     filter strip's active button has the same tint as the chips and would
+     read as one more chip. */
+  .Omnibar__tag-match {
+    display: flex;
+    flex-shrink: 0;
+    height: var(--omnibar-line);
+    padding: var(--space-0-5);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .Omnibar__tag-match-btn {
+    padding-inline: var(--space-2);
+  }
+
+  .Omnibar__tag-match-btn:hover {
+    color: var(--foreground);
+  }
+
+  .Omnibar__tag-match-btn--active {
+    background-color: var(--muted);
+    color: var(--foreground);
   }
 
   .Omnibar__toolbar {
@@ -1522,6 +1614,7 @@
   }
 
   .Omnibar__filter-btn:focus-visible,
+  .Omnibar__tag-match-btn:focus-visible,
   .Omnibar__scope-hint:focus-visible,
   .Omnibar__commands:focus-visible,
   .Omnibar__item:focus-visible {
