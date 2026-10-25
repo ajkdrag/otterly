@@ -212,9 +212,9 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
     return;
   }
 
-  const loading_toast_id = toast.loading("Checking for updates...");
+  // The status bar shows the check and the download with its progress, so a
+  // toast only reports how it ended.
   const result = await input.services.updater.download_update();
-  toast.dismiss(loading_toast_id);
 
   if (result.status === "failed") {
     toast.error("Failed to check for updates");

@@ -11,6 +11,7 @@
   import { FindInFileBar } from "$lib/features/search";
   import { EditorStatusBar } from "$lib/features/editor";
   import { GitStatusWidget } from "$lib/features/git";
+  import { UpdateStatusItem } from "$lib/features/updater";
   import { ContextRail } from "$lib/features/links";
   import { TagsPanel } from "$lib/features/tags";
   import { SvelteSet } from "svelte/reactivity";
@@ -884,6 +885,11 @@
       on_view_mode_click={() =>
         void action_registry.execute(ACTION_IDS.editor_toggle_source_mode)}
     >
+      <UpdateStatusItem
+        status={stores.updater.status}
+        on_restart={() =>
+          void action_registry.execute(ACTION_IDS.app_restart_to_update)}
+      />
       {#if stores.op.is_pending("links.repair")}
         <span class="StatusBar__item text-primary">
           <RefreshCw class="animate-spin" />

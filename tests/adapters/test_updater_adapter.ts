@@ -5,8 +5,11 @@ export function create_test_updater_adapter(): UpdaterPort {
     is_portable_install() {
       return Promise.resolve(false);
     },
-    download_update() {
+    check_update() {
       return Promise.resolve(null);
+    },
+    download_update() {
+      return Promise.resolve();
     },
     install_and_relaunch() {
       return Promise.resolve();

@@ -1,4 +1,5 @@
 import type { UpdaterPort } from "$lib/features/updater/ports";
+import type { UpdaterStore } from "$lib/features/updater/state/updater_store.svelte";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
 
@@ -16,7 +17,10 @@ export class UpdaterService {
   private pending_download: Promise<UpdateDownloadResult> | null = null;
   private downloaded_version: string | null = null;
 
-  constructor(private readonly updater_port: UpdaterPort) {}
+  constructor(
+    private readonly updater_port: UpdaterPort,
+    private readonly updater_store: UpdaterStore,
+  ) {}
 
   download_update(): Promise<UpdateDownloadResult> {
     if (this.downloaded_version !== null) {
@@ -50,12 +54,31 @@ export class UpdaterService {
       if (await this.updater_port.is_portable_install()) {
         return { status: "portable" };
       }
-      const version = await this.updater_port.download_update();
-      if (version === null) return { status: "up_to_date" };
+      this.updater_store.set_status({ kind: "checking" });
+      const version = await this.updater_port.check_update();
+      if (version === null) {
+        this.updater_store.set_status({ kind: "idle" });
+        return { status: "up_to_date" };
+      }
+      this.updater_store.set_status({
+        kind: "downloading",
+        version,
+        downloaded_bytes: 0,
+        total_bytes: null,
+      });
+      await this.updater_port.download_update((progress) => {
+        this.updater_store.set_status({
+          kind: "downloading",
+          version,
+          ...progress,
+        });
+      });
       this.downloaded_version = version;
+      this.updater_store.set_status({ kind: "ready", version });
       return { status: "ready", version };
     } catch (error) {
       log.error("Update download failed", { error: error_message(error) });
+      this.updater_store.set_status({ kind: "idle" });
       return { status: "failed" };
     }
   }

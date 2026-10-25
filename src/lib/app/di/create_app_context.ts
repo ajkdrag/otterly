@@ -174,7 +174,10 @@ export function create_app_context(input: {
 
   const shell_service = new ShellService(input.ports.shell, stores.vault);
 
-  const updater_service = new UpdaterService(input.ports.updater);
+  const updater_service = new UpdaterService(
+    input.ports.updater,
+    stores.updater,
+  );
 
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,
