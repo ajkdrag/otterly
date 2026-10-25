@@ -19,6 +19,8 @@ function request(text: string): VaultFindRequest {
     whole_word: false,
     include: "",
     exclude: "",
+    tags: [],
+    tag_match: "all",
   };
 }
 
@@ -108,6 +110,7 @@ describe("VaultFindService", () => {
     ]);
     expect(results.status).toBe("done");
     expect(results.stats?.match_count).toBe(3);
+    expect(results.was_stopped).toBe(false);
     expect(results.request?.text).toBe("foo");
   });
 
@@ -137,6 +140,7 @@ describe("VaultFindService", () => {
     expect(results.files.map((f) => f.path)).toEqual(["a.md"]);
     expect(results.status).toBe("done");
     expect(results.stats).toBeNull();
+    expect(results.was_stopped).toBe(true);
     expect(results.can_replace_all).toBe(false);
   });
 
@@ -154,6 +158,17 @@ describe("VaultFindService", () => {
       kind: "invalid_query",
       message: "unclosed group",
     });
+  });
+
+  it("shows a failed search as a one-line error and keeps the engine message as details", async () => {
+    const { service, port, results } = create_harness();
+    port.start_find.mockRejectedValueOnce(new Error("search worker is gone"));
+
+    await service.search(request("foo"));
+
+    expect(results.status).toBe("error");
+    expect(results.error?.kind).toBe("failed");
+    expect(results.error?.details).toBe("search worker is gone");
   });
 
   it("replace leaves the results alone when a newer search started meanwhile", async () => {

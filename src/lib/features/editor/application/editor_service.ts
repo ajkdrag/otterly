@@ -252,18 +252,13 @@ export class EditorService {
 
   // Waits a frame, like restore_cursor, so the editor-sync reactor has
   // switched to the note that was just opened.
-  select_line_range(
-    line: number,
-    column: number,
-    length: number,
-    focus_editor: boolean,
-  ) {
+  select_line_range(line: number, column: number, length: number) {
     const session = this.session;
     if (!session) return;
     requestAnimationFrame(() => {
       if (this.session !== session) return;
       session.select_line_range?.(line, column, length);
-      if (focus_editor) session.focus();
+      session.focus();
     });
   }
 

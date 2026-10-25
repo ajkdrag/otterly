@@ -103,11 +103,13 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
   {
     id: "find_in_vault",
     label: "Find in Vault",
-    description: "Search every file in this vault, with regex and replace",
+    description: "Find and replace text in every file",
     keywords: [
       "find",
       "find in vault",
       "search in files",
+      "search text",
+      "content",
       "replace",
       "find and replace",
       "grep",

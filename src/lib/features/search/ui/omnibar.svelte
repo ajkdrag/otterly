@@ -20,10 +20,16 @@
   import HashIcon from "@lucide/svelte/icons/hash";
   import TagIcon from "@lucide/svelte/icons/tag";
   import TextSearchIcon from "@lucide/svelte/icons/text-search";
+  import CaseSensitiveIcon from "@lucide/svelte/icons/case-sensitive";
+  import WholeWordIcon from "@lucide/svelte/icons/whole-word";
+  import RegexIcon from "@lucide/svelte/icons/regex";
+  import ReplaceIcon from "@lucide/svelte/icons/replace";
+  import ReplaceAllIcon from "@lucide/svelte/icons/replace-all";
   import type {
     OmnibarItem,
-    OmnibarQueryTarget,
+    OmnibarMode,
     OmnibarScope,
+    OmnibarTarget,
   } from "$lib/shared/types/search";
   import type { NoteMeta } from "$lib/shared/types/note";
   import { TagChip, TagExcerpt } from "$lib/features/tags";
@@ -32,10 +38,25 @@
   import type { EditorSettings } from "$lib/shared/types/editor_settings";
   import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
   import { COMMAND_TO_ACTION_ID } from "$lib/features/search/application/omnibar_actions";
+  import { parse_search_query } from "$lib/features/search/domain/search_query_parser";
   import {
-    parse_search_query,
-    set_search_query_target,
-  } from "$lib/features/search/domain/search_query_parser";
+    build_vault_find_request,
+    vault_find_request_key,
+    type VaultFindInputs,
+  } from "$lib/features/search/domain/vault_find_request";
+  import {
+    build_find_rows,
+    resolve_selected_row,
+    step_find_selection,
+    type VaultFindMatchRow,
+  } from "$lib/features/search/domain/find_result_rows";
+  import {
+    find_option_for_shortcut,
+    type FindOption,
+  } from "$lib/features/search/domain/find_option_shortcut";
+  import type { VaultFindResults } from "$lib/features/search/state/search_store.svelte";
+  import type { VaultFindSelection } from "$lib/features/search/types/vault_find";
+  import OmnibarFindResults from "$lib/features/search/ui/omnibar_find_results.svelte";
   import { format_hotkey_for_display, HotkeyKey } from "$lib/features/hotkey";
   import { ACTION_IDS } from "$lib/app";
   import type { HotkeyConfig } from "$lib/features/hotkey";
@@ -57,14 +78,48 @@
     "text-search": TextSearchIcon,
   };
 
-  const NOTE_FILTERS: Array<{
-    label: string;
-    target: OmnibarQueryTarget;
-  }> = [
+  const TARGETS: Array<{ label: string; target: OmnibarTarget }> = [
     { label: "All", target: "all" },
     { label: "Files", target: "files" },
-    { label: "Content", target: "content" },
+    { label: "Text", target: "text" },
   ];
+
+  const FIND_OPTIONS: Array<{
+    option: FindOption;
+    label: string;
+    keys: string;
+    Icon: Component;
+  }> = [
+    {
+      option: "case_sensitive",
+      label: "Match case",
+      keys: "Alt+C",
+      Icon: CaseSensitiveIcon,
+    },
+    {
+      option: "whole_word",
+      label: "Match whole word",
+      keys: "Alt+W",
+      Icon: WholeWordIcon,
+    },
+    {
+      option: "regex",
+      label: "Use regular expression",
+      keys: "Alt+R",
+      Icon: RegexIcon,
+    },
+  ];
+
+  // Key labels: glyphs on macOS, words elsewhere.
+  const REPLACE_FILE_KEYS = format_hotkey_for_display("CmdOrCtrl+Shift+↵");
+  const REPLACE_ALL_KEYS = format_hotkey_for_display("CmdOrCtrl+↵");
+
+  // UIStore.vault_find, the Text mode inputs.
+  type FindInputs = VaultFindInputs & {
+    replacement: string;
+    focus_nonce: number;
+    selected_match: VaultFindSelection | null;
+  };
 
   const TAG_MATCH_OPTIONS: Array<{ mode: TagMatch; label: string }> = [
     { mode: "all", label: "All tags" },
@@ -73,6 +128,9 @@
 
   type Props = {
     open: boolean;
+    mode: OmnibarMode;
+    // The tag picker was opened from Text mode and goes back there.
+    return_to_find: boolean;
     query: string;
     selected_index: number;
     is_searching: boolean;
@@ -92,6 +150,10 @@
     // The tagged notes search failed, so an empty list means nothing.
     failed: boolean;
     is_indexing: boolean;
+    find_inputs: FindInputs;
+    find_results: VaultFindResults;
+    is_replacing: boolean;
+    git_enabled: boolean;
     on_open_change: (open: boolean) => void;
     on_query_change: (query: string) => void;
     on_selected_index_change: (index: number) => void;
@@ -101,10 +163,22 @@
     on_remove_tag: (tag: string) => void;
     on_tag_match_change: (mode: TagMatch) => void;
     on_open_tags: () => void;
+    on_target_change: (target: OmnibarTarget) => void;
+    // Options, replacement, globs and selection: ephemeral, written straight
+    // into UIStore.vault_find. The pattern goes through on_query_change.
+    on_find_inputs_change: (
+      patch: Partial<Omit<FindInputs, "query" | "focus_nonce">>,
+    ) => void;
+    on_open_match: (row: VaultFindMatchRow) => void;
+    on_replace_match: (row: VaultFindMatchRow) => void;
+    on_replace_file: (row: VaultFindMatchRow) => void;
+    on_replace_all: () => void;
   };
 
   let {
     open,
+    mode,
+    return_to_find,
     query,
     selected_index,
     is_searching,
@@ -121,6 +195,10 @@
     truncated,
     failed,
     is_indexing,
+    find_inputs,
+    find_results,
+    is_replacing,
+    git_enabled,
     on_open_change,
     on_query_change,
     on_selected_index_change,
@@ -130,9 +208,19 @@
     on_remove_tag,
     on_tag_match_change,
     on_open_tags,
+    on_target_change,
+    on_find_inputs_change,
+    on_open_match,
+    on_replace_match,
+    on_replace_file,
+    on_replace_all,
   }: Props = $props();
 
   let input_ref: HTMLInputElement | null = $state(null);
+  let replace_ref: HTMLInputElement | null = $state(null);
+  // Which control has focus decides the footer, and the replace input
+  // turns the preview on.
+  let focused_control = $state<"main" | "replace" | "other">("main");
   let dialog_ref: HTMLElement | null = $state(null);
   let focus_before_open: HTMLElement | null = null;
   let mouse_moved = $state(false);
@@ -143,6 +231,9 @@
     }
   });
 
+  // Text mode: the input holds a raw find pattern (UIStore.vault_find.query),
+  // the notes query is empty, and the find reactor searches.
+  const is_find_mode = $derived(mode === "find");
   const active_query = $derived.by(() => parse_search_query(query));
   const is_command_mode = $derived(active_query.domain === "commands");
   const has_query = $derived(
@@ -155,17 +246,26 @@
   const is_tag_suggestions = $derived(active_query.domain === "tags");
   // Notes carrying the chip tags, narrowed by the query text.
   const is_tag_mode = $derived(
-    tags.length > 0 && active_query.domain === "notes",
+    !is_find_mode && tags.length > 0 && active_query.domain === "notes",
   );
   const show_scope_toggle = $derived(
-    has_multiple_vaults && active_query.domain === "notes" && tags.length === 0,
+    !is_find_mode &&
+      has_multiple_vaults &&
+      active_query.domain === "notes" &&
+      tags.length === 0,
   );
-  const show_note_filters = $derived(
-    active_query.domain === "notes" && tags.length === 0,
+  const show_target_strip = $derived(
+    is_find_mode || active_query.domain === "notes",
   );
-  // The chips only do something in tag mode and in tag suggestions.
+  const active_target = $derived(is_find_mode ? "text" : active_query.target);
+  // Text walks one vault, so the all vaults scope does not offer it.
+  const visible_targets = $derived(
+    is_all_vaults ? TARGETS.filter(({ target }) => target !== "text") : TARGETS,
+  );
+  // The chips only do something in tag mode, in tag suggestions and in Text
+  // mode.
   const show_tag_match = $derived(
-    tags.length > 1 && (is_tag_mode || is_tag_suggestions),
+    tags.length > 1 && (is_tag_mode || is_tag_suggestions || is_find_mode),
   );
 
   // "#a", "#a and #b", "#a, #b and #c".
@@ -186,6 +286,59 @@
     truncated
       ? `${String(tagged_note_items.length)}+`
       : String(tagged_note_items.length),
+  );
+
+  // Text mode. The request the inputs ask for, and the one behind the rows on
+  // screen. While a new search waits for its debounce they differ, and the
+  // rows on screen are stale.
+  const find_request_key = $derived.by(() => {
+    if (!is_find_mode) return null;
+    const request = build_vault_find_request(find_inputs, { tags, tag_match });
+    return request && vault_find_request_key(request);
+  });
+  const results_request_key = $derived(
+    find_results.request ? vault_find_request_key(find_results.request) : null,
+  );
+  const find_rows_stale = $derived(find_request_key !== results_request_key);
+  const find_is_busy = $derived(
+    find_results.status === "searching" || find_rows_stale,
+  );
+
+  // Flattened once per batch, see build_find_rows.
+  const find_rows = $derived(build_find_rows(find_results.files));
+  // Null while the remembered match is still streaming in, so the arrows and
+  // Enter wait for it (see resolve_selected_row).
+  const selected_find_row = $derived(
+    resolve_selected_row(
+      find_rows,
+      find_inputs.selected_match,
+      results_request_key,
+      find_results.status === "searching",
+    ),
+  );
+
+  const find_preview_on = $derived(
+    find_inputs.replacement !== "" || focused_control === "replace",
+  );
+  const replace_all_title = $derived.by(() => {
+    if (find_results.stats?.truncated) {
+      return "Too many results to replace all. Narrow the search.";
+    }
+    if (find_results.was_stopped) {
+      return "Search stopped. Reopen to search again before replacing all.";
+    }
+    return `Replace all (${REPLACE_ALL_KEYS})`;
+  });
+  const find_query_invalid = $derived(
+    find_results.error?.kind === "invalid_query",
+  );
+  const find_glob_invalid = $derived(
+    find_results.error?.kind === "invalid_glob",
+  );
+  const find_option_id = $derived(
+    selected_find_row
+      ? `omnibar-find-row-${String(selected_find_row.row_index)}`
+      : undefined,
   );
 
   type VaultGroup = {
@@ -322,13 +475,11 @@
     }
 
     const label =
-      active_query.target === "content"
-        ? "Content"
-        : active_query.target === "path"
-          ? "Paths"
-          : active_query.target === "title"
-            ? "Titles"
-            : "Files";
+      active_query.target === "path"
+        ? "Paths"
+        : active_query.target === "title"
+          ? "Titles"
+          : "Files";
     return note_items.length > 0
       ? [{ id: active_query.target, label, items: note_items }]
       : [];
@@ -347,6 +498,7 @@
   );
 
   $effect(() => {
+    if (is_find_mode) return;
     const last_index = visible_items.length - 1;
     const clamped_index = Math.max(0, Math.min(selected_index, last_index));
     if (clamped_index !== selected_index) {
@@ -374,7 +526,13 @@
     action_id_to_key.get(ACTION_IDS.omnibar_open_tags),
   );
 
+  const find_shortcut = $derived(
+    action_id_to_key.get(ACTION_IDS.omnibar_open_find),
+  );
+
+  // Text mode announces from its own list.
   const status_text = $derived.by(() => {
+    if (is_find_mode) return "";
     if (is_searching) return "Searching…";
     if (is_tag_suggestions)
       return `${String(tag_items.length)} ${tag_items.length === 1 ? "tag" : "tags"}`;
@@ -390,6 +548,22 @@
   const show_recent_header = $derived(
     !has_query && !is_command_mode && !is_all_vaults && recent_notes.length > 0,
   );
+
+  const active_option_id = $derived.by(() => {
+    if (is_find_mode) return find_option_id;
+    const item = visible_items[selected_index];
+    return item ? get_item_id(item) : undefined;
+  });
+
+  const main_input_placeholder = $derived.by(() => {
+    if (is_find_mode) {
+      return tags.length > 0 ? "Find in tagged notes" : "Find in vault";
+    }
+    if (is_all_vaults) return "Search every vault by file, path, or content";
+    if (is_command_mode) return "Search commands and settings";
+    if (tags.length > 0) return "Search within tagged notes";
+    return "Search notes, or type # for tags";
+  });
   function get_item_id(item: OmnibarItem): string {
     switch (item.kind) {
       case "note":
@@ -476,9 +650,17 @@
     });
   }
 
-  function apply_note_filter(target: OmnibarQueryTarget) {
-    on_query_change(set_search_query_target(query, target));
+  function choose_target(target: OmnibarTarget) {
+    on_target_change(target);
     input_ref?.focus({ preventScroll: true });
+  }
+
+  function target_title(target: OmnibarTarget): string | undefined {
+    if (target !== "text") return undefined;
+    const title = "Find exact text, with regex and replace";
+    return find_shortcut
+      ? `${title} (${format_hotkey_for_display(find_shortcut)})`
+      : title;
   }
 
   function match_badge_label(item: OmnibarItem): string | null {
@@ -505,32 +687,59 @@
     input_ref?.focus({ preventScroll: true });
   }
 
-  // The input is only one chip tall. A press on the row padding, the icon or
-  // a chip label would move focus out of it, so keep focus in the input.
-  // Buttons and the input itself handle their own presses.
-  function keep_focus_in_input(event: MouseEvent) {
-    if (
-      event.target instanceof Element &&
-      event.target.closest("button, input")
-    ) {
-      return;
-    }
-    event.preventDefault();
-    input_ref?.focus({ preventScroll: true });
+  // The inputs are only one line tall. A press on the row padding, the icon
+  // or a chip label would move focus out of them, so keep focus in the row's
+  // input. Buttons and inputs handle their own presses.
+  function keep_focus_in(get_input: () => HTMLInputElement | null) {
+    return (event: MouseEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, input")
+      ) {
+        return;
+      }
+      event.preventDefault();
+      get_input()?.focus({ preventScroll: true });
+    };
   }
 
-  // Esc while picking a tag drops the `#...` token instead of closing.
-  // preventDefault keeps bits-ui from closing the dialog.
+  function track_focus(event: FocusEvent) {
+    focused_control =
+      event.target === input_ref
+        ? "main"
+        : event.target === replace_ref
+          ? "replace"
+          : "other";
+  }
+
+  // Esc goes one step at a time: it drops the `#...` token while picking a
+  // tag, then brings focus back to the main input from any other control,
+  // then closes. preventDefault keeps bits-ui from closing the dialog.
   function handle_escape(event: KeyboardEvent) {
-    if (!is_tag_suggestions) return;
-    event.preventDefault();
-    on_query_change(active_query.before_tag ?? "");
+    if (is_tag_suggestions) {
+      event.preventDefault();
+      on_query_change(active_query.before_tag ?? "");
+      return;
+    }
+    const active_element = document.activeElement;
+    if (
+      active_element instanceof HTMLElement &&
+      active_element !== input_ref &&
+      dialog_ref?.contains(active_element)
+    ) {
+      event.preventDefault();
+      input_ref?.focus({ preventScroll: true });
+    }
   }
 
   function handle_keydown(event: KeyboardEvent) {
-    if (!open || event.isComposing) return;
+    if (!open || event.isComposing || event.defaultPrevented) return;
+    if (is_find_mode) {
+      handle_find_keydown(event);
+      return;
+    }
     // Tab reaches the scope, filter and command controls normally.
-    if (event.defaultPrevented || event.target !== input_ref) return;
+    if (event.target !== input_ref) return;
 
     const is_plain_key =
       !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
@@ -581,12 +790,110 @@
     );
   }
 
+  // Text mode keys, in the pattern and in the replace input. Enter is "the
+  // main thing for where you are": open in the pattern, replace in the
+  // replace input. Replace keys only work there, where the preview is on, so
+  // you only ever replace what you can see.
+  function handle_find_keydown(event: KeyboardEvent) {
+    const in_pattern = event.target === input_ref;
+    const in_replace = event.target === replace_ref;
+    if (!in_pattern && !in_replace) return;
+
+    const option = find_option_for_shortcut(event);
+    if (option) {
+      event.preventDefault();
+      on_find_inputs_change({ [option]: !find_inputs[option] });
+      return;
+    }
+
+    const is_plain_key =
+      !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
+    const last_tag = tags.at(-1);
+    if (
+      in_pattern &&
+      event.key === "Backspace" &&
+      is_plain_key &&
+      find_inputs.query === "" &&
+      last_tag !== undefined
+    ) {
+      event.preventDefault();
+      on_remove_tag(last_tag);
+      return;
+    }
+
+    const step =
+      picker_shortcut_step(event) ??
+      (event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : null);
+    if (step !== null) {
+      event.preventDefault();
+      move_find_selection(step);
+      return;
+    }
+
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    // The rows on screen belong to an older request until the new search
+    // starts. They are dimmed, and Enter waits.
+    if (find_rows_stale) return;
+    const row = selected_find_row;
+    const is_mod = event.metaKey || event.ctrlKey;
+    if (in_pattern) {
+      if (row && !is_mod) on_open_match(row);
+      return;
+    }
+    // The buttons are disabled while a replace runs, and so are the keys.
+    if (is_replacing) return;
+    if (is_mod && event.shiftKey) {
+      if (row) on_replace_file(row);
+    } else if (is_mod) {
+      on_replace_all();
+    } else if (row) {
+      on_replace_match(row);
+    }
+  }
+
+  function move_find_selection(step: 1 | -1) {
+    const from = selected_find_row;
+    if (!from || results_request_key === null) return;
+    const next = step_find_selection(find_rows.rows, from, step);
+    if (!next) return;
+    on_find_inputs_change({
+      selected_match: {
+        request_key: results_request_key,
+        path: next.file.path,
+        index: next.match.index,
+      },
+    });
+  }
+
+  // Focus the main input when the omnibar opens or the mode changes. Text
+  // mode also selects the pattern, so typing replaces it: on open, on a
+  // switch from Notes, and when Find in Vault asks again (focus_nonce).
+  // Coming back from the tag picker keeps the caret instead, since you were
+  // in the middle of that pattern.
+  const input_mode = $derived(
+    !open
+      ? null
+      : is_find_mode
+        ? "find"
+        : return_to_find
+          ? "tag_picker_for_find"
+          : "notes",
+  );
+  const find_focus_nonce = $derived(find_inputs.focus_nonce);
+  let previous_input_mode: typeof input_mode = null;
   $effect(() => {
-    if (!open) return;
+    const current = input_mode;
+    void find_focus_nonce;
     const ref = input_ref;
-    if (!ref) return;
+    const previous = previous_input_mode;
+    previous_input_mode = current;
+    if (current === null || !ref) return;
+    const select_pattern =
+      current === "find" && previous !== "tag_picker_for_find";
     setTimeout(() => {
       ref.focus({ preventScroll: true });
+      if (select_pattern) ref.select();
     }, 0);
   });
 
@@ -601,7 +908,7 @@
   });
 
   $effect(() => {
-    if (!open) return;
+    if (!open || is_find_mode) return;
     const selected_item = visible_items[selected_index];
     if (!selected_item) return;
     document
@@ -618,6 +925,7 @@
     onOpenAutoFocus={remember_focus_before_open}
     onCloseAutoFocus={restore_focus_after_close}
     onEscapeKeydown={handle_escape}
+    onfocusin={track_focus}
   >
     <Dialog.Header class="sr-only">
       <Dialog.Title>Search and commands</Dialog.Title>
@@ -626,7 +934,11 @@
       >
     </Dialog.Header>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="Omnibar__search" onmousedown={keep_focus_in_input}>
+    <div
+      class="Omnibar__search"
+      class:Omnibar__search--with-replace={is_find_mode}
+      onmousedown={keep_focus_in(() => input_ref)}
+    >
       <SearchIcon />
       <div class="Omnibar__field">
         {#if tags.length > 0}
@@ -656,28 +968,57 @@
           id="omnibar-input"
           type="text"
           role="combobox"
-          aria-label="Search notes, commands, and settings"
+          aria-label={is_find_mode
+            ? "Find in vault"
+            : "Search notes, commands, and settings"}
           aria-autocomplete="list"
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls="omnibar-results"
-          aria-activedescendant={visible_items[selected_index]
-            ? get_item_id(visible_items[selected_index])
-            : undefined}
-          placeholder={is_all_vaults
-            ? "Search every vault by file, path, or content"
-            : is_command_mode
-              ? "Search commands and settings"
-              : tags.length > 0
-                ? "Search within tagged notes"
-                : "Search notes, or type # for tags"}
-          value={query}
+          aria-activedescendant={active_option_id}
+          aria-invalid={is_find_mode && find_query_invalid}
+          autocomplete="off"
+          autocorrect={is_find_mode ? "off" : undefined}
+          autocapitalize={is_find_mode ? "off" : undefined}
+          spellcheck={is_find_mode ? "false" : undefined}
+          placeholder={main_input_placeholder}
+          value={is_find_mode ? find_inputs.query : query}
           oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
             on_query_change(e.currentTarget.value);
           }}
           class="h-(--omnibar-line) min-w-0 flex-[1_1_12rem] border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
+      {#if is_find_mode}
+        <!-- Out of the Tab order: Tab goes from the pattern to Replace, and
+             Alt+C/W/R flip them from either input. A press keeps focus in
+             the input you were typing in. -->
+        <div
+          class="Omnibar__find-options"
+          role="group"
+          aria-label="Find options"
+        >
+          {#each FIND_OPTIONS as { option, label, keys, Icon } (option)}
+            <button
+              type="button"
+              tabindex="-1"
+              class="text-muted-foreground hover:bg-accent hover:text-accent-foreground aria-pressed:bg-accent aria-pressed:text-foreground aria-pressed:ring-ring flex size-6 items-center justify-center rounded-sm aria-pressed:ring-1"
+              aria-pressed={find_inputs[option]}
+              aria-label={label}
+              aria-keyshortcuts={keys}
+              title={`${label} (${format_hotkey_for_display(keys)})`}
+              onmousedown={(event) => {
+                event.preventDefault();
+              }}
+              onclick={() => {
+                on_find_inputs_change({ [option]: !find_inputs[option] });
+              }}
+            >
+              <Icon class="size-4" />
+            </button>
+          {/each}
+        </div>
+      {/if}
       {#if show_tag_match}
         <div class="Omnibar__tag-match" role="group" aria-label="Tag match">
           {#each TAG_MATCH_OPTIONS as option (option.mode)}
@@ -700,14 +1041,87 @@
            the field width and reflow the chips. -->
       <div
         class="Omnibar__spinner"
-        class:Omnibar__spinner--active={is_searching}
+        class:Omnibar__spinner--active={is_find_mode
+          ? find_is_busy
+          : is_searching}
         aria-hidden="true"
       ></div>
     </div>
 
-    {#if show_scope_toggle || show_note_filters}
+    {#if is_find_mode}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="Omnibar__search Omnibar__replace"
+        onmousedown={keep_focus_in(() => replace_ref)}
+      >
+        <ReplaceIcon />
+        <div class="Omnibar__field">
+          <Input
+            bind:ref={replace_ref}
+            type="text"
+            aria-label="Replace"
+            aria-controls="omnibar-results"
+            aria-activedescendant={find_option_id}
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="Replace"
+            value={find_inputs.replacement}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              on_find_inputs_change({ replacement: e.currentTarget.value });
+            }}
+            class="h-(--omnibar-line) min-w-0 flex-1 border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+        </div>
+        <button
+          type="button"
+          class="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-sm disabled:opacity-50"
+          aria-label="Replace all"
+          title={replace_all_title}
+          disabled={!find_results.can_replace_all ||
+            is_replacing ||
+            find_rows_stale}
+          onmousedown={(event) => {
+            event.preventDefault();
+          }}
+          onclick={on_replace_all}
+        >
+          <ReplaceAllIcon class="size-4" />
+        </button>
+      </div>
+    {/if}
+
+    {#if is_find_mode || show_scope_toggle || show_target_strip}
       <div class="Omnibar__toolbar">
-        {#if show_scope_toggle}
+        {#if is_find_mode}
+          <Input
+            type="text"
+            aria-label="Files to include"
+            aria-invalid={find_glob_invalid}
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Include, e.g. *.md, daily"
+            value={find_inputs.include}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              on_find_inputs_change({ include: e.currentTarget.value });
+            }}
+            class="h-7 min-w-0 flex-1 text-xs md:text-xs"
+          />
+          <Input
+            type="text"
+            aria-label="Files to exclude"
+            aria-invalid={find_glob_invalid}
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Exclude, e.g. archive/**"
+            value={find_inputs.exclude}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              on_find_inputs_change({ exclude: e.currentTarget.value });
+            }}
+            class="h-7 min-w-0 flex-1 text-xs md:text-xs"
+          />
+        {:else if show_scope_toggle}
           <Select.Root
             type="single"
             value={scope}
@@ -737,21 +1151,24 @@
           </Select.Root>
         {/if}
 
-        {#if show_note_filters}
+        {#if show_target_strip}
           <div
             class="Omnibar__filter-strip"
             role="group"
             aria-label="Search in"
           >
-            {#each NOTE_FILTERS as filter}
+            {#each visible_targets as { label, target } (target)}
               <button
+                type="button"
                 class="Omnibar__filter-btn"
-                class:Omnibar__filter-btn--active={active_query.target ===
-                  filter.target}
-                aria-pressed={active_query.target === filter.target}
-                onclick={() => apply_note_filter(filter.target)}
+                class:Omnibar__filter-btn--active={active_target === target}
+                aria-pressed={active_target === target}
+                title={target_title(target)}
+                onclick={() => {
+                  choose_target(target);
+                }}
               >
-                {filter.label}
+                {label}
               </button>
             {/each}
           </div>
@@ -759,27 +1176,101 @@
       </div>
     {/if}
 
-    <div
-      id="omnibar-results"
-      role="listbox"
-      tabindex="-1"
-      aria-label="Search results"
-      class="Omnibar__list"
-      onmousemove={() => {
-        mouse_moved = true;
-      }}
-    >
-      {#if is_tag_suggestions}
-        {#if tag_items.length > 0}
-          <div
-            role="group"
-            aria-label={active_query.text ? "Tags" : "Top tags"}
-          >
+    {#if is_find_mode}
+      <OmnibarFindResults
+        results={find_results}
+        rows={find_rows.rows}
+        selected_row={selected_find_row}
+        stale={find_rows_stale}
+        has_pattern={find_inputs.query !== ""}
+        preview_on={find_preview_on}
+        replacement={find_inputs.replacement}
+        can_replace={!is_replacing && !find_rows_stale}
+        {git_enabled}
+        tag_list_label={tags.length > 0 ? tag_list_label : ""}
+        include={find_inputs.include}
+        {is_indexing}
+        {on_open_match}
+        {on_replace_match}
+        {on_replace_file}
+      />
+    {:else}
+      <div
+        id="omnibar-results"
+        role="listbox"
+        tabindex="-1"
+        aria-label="Search results"
+        class="Omnibar__list"
+        onmousemove={() => {
+          mouse_moved = true;
+        }}
+      >
+        {#if is_tag_suggestions}
+          {#if tag_items.length > 0}
+            <div
+              role="group"
+              aria-label={active_query.text ? "Tags" : "Top tags"}
+            >
+              <div class="Omnibar__header" role="presentation">
+                <HashIcon />
+                <span>{active_query.text ? "Tags" : "Top tags"}</span>
+              </div>
+              {#each tag_items as item, index (get_item_id(item))}
+                <button
+                  id={get_item_id(item)}
+                  role="option"
+                  tabindex="-1"
+                  aria-selected={index === selected_index}
+                  class="Omnibar__item"
+                  class:Omnibar__item--selected={index === selected_index}
+                  onmouseenter={() => {
+                    if (!mouse_moved) return;
+                    on_selected_index_change(index);
+                  }}
+                  onclick={() => {
+                    on_confirm(item);
+                    input_ref?.focus({ preventScroll: true });
+                  }}
+                >
+                  <div class="Omnibar__item-row">
+                    <TagIcon />
+                    <span class="Omnibar__item-title text-sm font-medium"
+                      ><span class="text-muted-foreground">#</span
+                      >{item.tag}</span
+                    >
+                    <span
+                      class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                      >{item.count}</span
+                    >
+                  </div>
+                </button>
+              {/each}
+            </div>
+          {:else if !is_searching}
+            <div class="Omnibar__empty" aria-hidden="true">
+              {#if is_indexing}
+                Indexing notes. Tags show up when it finishes.
+              {:else if active_query.text}
+                <p>No tags match #{active_query.text}</p>
+                <p class="text-xs">Press Space to search it as text</p>
+              {:else}
+                No tags yet. Type #tag in a note to add one.
+              {/if}
+            </div>
+          {/if}
+        {:else if is_tag_mode}
+          <div role="group" aria-label={`Notes tagged ${tag_list_label}`}>
             <div class="Omnibar__header" role="presentation">
               <HashIcon />
-              <span>{active_query.text ? "Tags" : "Top tags"}</span>
+              <span class="min-w-0 truncate">Notes tagged {tag_list_label}</span
+              >
+              {#if tagged_note_items.length > 0}
+                <span class="ml-auto shrink-0 tabular-nums"
+                  >{tag_mode_count}</span
+                >
+              {/if}
             </div>
-            {#each tag_items as item, index (get_item_id(item))}
+            {#each tagged_note_items as item, index (get_item_id(item))}
               <button
                 id={get_item_id(item)}
                 role="option"
@@ -793,46 +1284,184 @@
                 }}
                 onclick={() => {
                   on_confirm(item);
-                  input_ref?.focus({ preventScroll: true });
                 }}
               >
                 <div class="Omnibar__item-row">
-                  <TagIcon />
-                  <span class="Omnibar__item-title text-sm font-medium"
-                    ><span class="text-muted-foreground">#</span
-                    >{item.tag}</span
-                  >
-                  <span
-                    class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
-                    >{item.count}</span
-                  >
+                  <FileIcon />
+                  <div class="Omnibar__item-content">
+                    <span class="Omnibar__item-title">{item.note.title}</span>
+                    <span class="Omnibar__item-path">{item.note.path}</span>
+                    {#if item.snippet}
+                      <span class="Omnibar__item-snippet"
+                        ><TagExcerpt text={item.snippet} {tags} /></span
+                      >
+                    {/if}
+                  </div>
+                  {#if match_badge_label(item)}
+                    <span class="Omnibar__badge">{match_badge_label(item)}</span
+                    >
+                  {/if}
                 </div>
               </button>
             {/each}
           </div>
-        {:else if !is_searching}
-          <div class="Omnibar__empty" aria-hidden="true">
-            {#if is_indexing}
-              Indexing notes. Tags show up when it finishes.
-            {:else if active_query.text}
-              <p>No tags match #{active_query.text}</p>
-              <p class="text-xs">Press Space to search it as text</p>
-            {:else}
-              No tags yet. Type #tag in a note to add one.
-            {/if}
-          </div>
-        {/if}
-      {:else if is_tag_mode}
-        <div role="group" aria-label={`Notes tagged ${tag_list_label}`}>
-          <div class="Omnibar__header" role="presentation">
-            <HashIcon />
-            <span class="min-w-0 truncate">Notes tagged {tag_list_label}</span>
-            {#if tagged_note_items.length > 0}
-              <span class="ml-auto shrink-0 tabular-nums">{tag_mode_count}</span
+          {#if tagged_note_items.length === 0 && !is_searching}
+            <div class="Omnibar__empty" aria-hidden="true">
+              {#if failed}
+                Couldn't search tagged notes. Try again.
+              {:else if active_query.text}
+                No tagged notes match "{active_query.text}"
+              {:else if tag_match === "all" && tags.length > 1}
+                <p>No notes have all of these tags</p>
+                <p class="text-xs">Remove a tag with ⌫ or match any tag</p>
+              {:else if tags.length === 1}
+                No notes with #{tags[0]}
+              {:else}
+                No notes with these tags
+              {/if}
+            </div>
+          {/if}
+        {:else if is_all_vaults && has_query}
+          {#if vault_groups.length > 0}
+            {#each vault_groups as group, group_idx}
+              <div role="group" aria-label={group.vault_name}>
+                <div
+                  class="Omnibar__vault-facet"
+                  title={`${group.vault_note_count ?? "Unknown"} notes · ${group.vault_last_opened_at ? `Opened ${format_relative_time(group.vault_last_opened_at)}` : "Not opened yet"}`}
+                  class:Omnibar__vault-facet--bordered={group_idx > 0}
+                  class:Omnibar__vault-facet--unavailable={!group.vault_is_available}
+                >
+                  <div class="Omnibar__vault-facet-header">
+                    <LibraryIcon />
+                    <span class="Omnibar__vault-facet-name"
+                      >{group.vault_name}</span
+                    >
+                    {#if !group.vault_is_available}
+                      <span class="Omnibar__vault-facet-unavailable"
+                        >Unavailable</span
+                      >
+                    {/if}
+                    <span class="Omnibar__vault-facet-count"
+                      >{group.items.length}</span
+                    >
+                  </div>
+                </div>
+                {#each group.items as item (get_item_id(item))}
+                  {@const vis_index = visible_items.indexOf(item)}
+                  <button
+                    id={get_item_id(item)}
+                    role="option"
+                    tabindex="-1"
+                    aria-selected={vis_index === selected_index}
+                    class="Omnibar__item"
+                    class:Omnibar__item--selected={vis_index === selected_index}
+                    onmouseenter={() => {
+                      if (!mouse_moved) return;
+                      on_selected_index_change(vis_index);
+                    }}
+                    onclick={() => {
+                      on_confirm(item);
+                    }}
+                  >
+                    {#if item.kind === "cross_vault_note"}
+                      <div class="Omnibar__item-row">
+                        <FileIcon />
+                        <div class="Omnibar__item-content">
+                          <span class="Omnibar__item-title"
+                            >{item.note.title}</span
+                          >
+                          <span class="Omnibar__item-path"
+                            >{item.note.path}</span
+                          >
+                          {#if item.snippet && item.match_kind !== "file"}
+                            <span class="Omnibar__item-snippet"
+                              >{item.snippet}</span
+                            >
+                          {/if}
+                        </div>
+                        <div class="Omnibar__item-meta">
+                          {#if match_badge_label(item)}
+                            <span class="Omnibar__badge"
+                              >{match_badge_label(item)}</span
+                            >
+                          {/if}
+                        </div>
+                      </div>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/each}
+          {:else if !is_searching}
+            <div class="Omnibar__empty" aria-hidden="true">
+              No results across vaults
+            </div>
+          {/if}
+        {:else if query_sections.length > 0}
+          {#each query_sections as section, section_index}
+            <div role="group" aria-label={section.label}>
+              <div
+                class="Omnibar__header"
+                role="presentation"
+                class:Omnibar__header--bordered={section_index > 0}
               >
-            {/if}
-          </div>
-          {#each tagged_note_items as item, index (get_item_id(item))}
+                <FileIcon />
+                <span>{section.label}</span>
+              </div>
+
+              {#each section.items as item (get_item_id(item))}
+                {@const section_item_index = visible_items.indexOf(item)}
+                <button
+                  id={get_item_id(item)}
+                  role="option"
+                  tabindex="-1"
+                  aria-selected={section_item_index === selected_index}
+                  class="Omnibar__item"
+                  class:Omnibar__item--selected={section_item_index ===
+                    selected_index}
+                  class:Omnibar__item--file={item.match_kind === "file"}
+                  onmouseenter={() => {
+                    if (!mouse_moved) return;
+                    on_selected_index_change(section_item_index);
+                  }}
+                  onclick={() => {
+                    on_confirm(item);
+                  }}
+                >
+                  {#if item.kind === "note"}
+                    <div class="Omnibar__item-row">
+                      <FileIcon />
+                      <div class="Omnibar__item-content">
+                        <span class="Omnibar__item-title"
+                          >{item.note.title}</span
+                        >
+                        <span class="Omnibar__item-path">{item.note.path}</span>
+                        {#if item.snippet && item.match_kind !== "file"}
+                          <span class="Omnibar__item-snippet"
+                            >{item.snippet}</span
+                          >
+                        {/if}
+                      </div>
+                      {#if match_badge_label(item)}
+                        <span class="Omnibar__badge"
+                          >{match_badge_label(item)}</span
+                        >
+                      {/if}
+                    </div>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/each}
+        {:else}
+          {#if show_recent_header && recent_notes.length > 0}
+            <div class="Omnibar__header" role="presentation">
+              <ClockIcon />
+              <span>Recent</span>
+            </div>
+          {/if}
+
+          {#each display_items as item, index (get_item_id(item))}
             <button
               id={get_item_id(item)}
               role="option"
@@ -848,282 +1477,126 @@
                 on_confirm(item);
               }}
             >
-              <div class="Omnibar__item-row">
-                <FileIcon />
-                <div class="Omnibar__item-content">
-                  <span class="Omnibar__item-title">{item.note.title}</span>
-                  <span class="Omnibar__item-path">{item.note.path}</span>
-                  {#if item.snippet}
-                    <span class="Omnibar__item-snippet"
-                      ><TagExcerpt text={item.snippet} {tags} /></span
-                    >
-                  {/if}
-                </div>
-                {#if match_badge_label(item)}
-                  <span class="Omnibar__badge">{match_badge_label(item)}</span>
-                {/if}
-              </div>
-            </button>
-          {/each}
-        </div>
-        {#if tagged_note_items.length === 0 && !is_searching}
-          <div class="Omnibar__empty" aria-hidden="true">
-            {#if failed}
-              Couldn't search tagged notes. Try again.
-            {:else if active_query.text}
-              No tagged notes match "{active_query.text}"
-            {:else if tag_match === "all" && tags.length > 1}
-              <p>No notes have all of these tags</p>
-              <p class="text-xs">Remove a tag with ⌫ or match any tag</p>
-            {:else if tags.length === 1}
-              No notes with #{tags[0]}
-            {:else}
-              No notes with these tags
-            {/if}
-          </div>
-        {/if}
-      {:else if is_all_vaults && has_query}
-        {#if vault_groups.length > 0}
-          {#each vault_groups as group, group_idx}
-            <div role="group" aria-label={group.vault_name}>
-              <div
-                class="Omnibar__vault-facet"
-                title={`${group.vault_note_count ?? "Unknown"} notes · ${group.vault_last_opened_at ? `Opened ${format_relative_time(group.vault_last_opened_at)}` : "Not opened yet"}`}
-                class:Omnibar__vault-facet--bordered={group_idx > 0}
-                class:Omnibar__vault-facet--unavailable={!group.vault_is_available}
-              >
-                <div class="Omnibar__vault-facet-header">
-                  <LibraryIcon />
-                  <span class="Omnibar__vault-facet-name"
-                    >{group.vault_name}</span
-                  >
-                  {#if !group.vault_is_available}
-                    <span class="Omnibar__vault-facet-unavailable"
-                      >Unavailable</span
-                    >
-                  {/if}
-                  <span class="Omnibar__vault-facet-count"
-                    >{group.items.length}</span
-                  >
-                </div>
-              </div>
-              {#each group.items as item (get_item_id(item))}
-                {@const vis_index = visible_items.indexOf(item)}
-                <button
-                  id={get_item_id(item)}
-                  role="option"
-                  tabindex="-1"
-                  aria-selected={vis_index === selected_index}
-                  class="Omnibar__item"
-                  class:Omnibar__item--selected={vis_index === selected_index}
-                  onmouseenter={() => {
-                    if (!mouse_moved) return;
-                    on_selected_index_change(vis_index);
-                  }}
-                  onclick={() => {
-                    on_confirm(item);
-                  }}
-                >
-                  {#if item.kind === "cross_vault_note"}
-                    <div class="Omnibar__item-row">
-                      <FileIcon />
-                      <div class="Omnibar__item-content">
-                        <span class="Omnibar__item-title"
-                          >{item.note.title}</span
-                        >
-                        <span class="Omnibar__item-path">{item.note.path}</span>
-                        {#if item.snippet && item.match_kind !== "file"}
-                          <span class="Omnibar__item-snippet"
-                            >{item.snippet}</span
-                          >
-                        {/if}
-                      </div>
-                      <div class="Omnibar__item-meta">
-                        {#if match_badge_label(item)}
-                          <span class="Omnibar__badge"
-                            >{match_badge_label(item)}</span
-                          >
-                        {/if}
-                      </div>
-                    </div>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/each}
-        {:else if !is_searching}
-          <div class="Omnibar__empty" aria-hidden="true">
-            No results across vaults
-          </div>
-        {/if}
-      {:else if query_sections.length > 0}
-        {#each query_sections as section, section_index}
-          <div role="group" aria-label={section.label}>
-            <div
-              class="Omnibar__header"
-              role="presentation"
-              class:Omnibar__header--bordered={section_index > 0}
-            >
-              <FileIcon />
-              <span>{section.label}</span>
-            </div>
-
-            {#each section.items as item (get_item_id(item))}
-              {@const section_item_index = visible_items.indexOf(item)}
-              <button
-                id={get_item_id(item)}
-                role="option"
-                tabindex="-1"
-                aria-selected={section_item_index === selected_index}
-                class="Omnibar__item"
-                class:Omnibar__item--selected={section_item_index ===
-                  selected_index}
-                class:Omnibar__item--file={item.match_kind === "file"}
-                onmouseenter={() => {
-                  if (!mouse_moved) return;
-                  on_selected_index_change(section_item_index);
-                }}
-                onclick={() => {
-                  on_confirm(item);
-                }}
-              >
-                {#if item.kind === "note"}
-                  <div class="Omnibar__item-row">
-                    <FileIcon />
-                    <div class="Omnibar__item-content">
-                      <span class="Omnibar__item-title">{item.note.title}</span>
-                      <span class="Omnibar__item-path">{item.note.path}</span>
-                      {#if item.snippet && item.match_kind !== "file"}
-                        <span class="Omnibar__item-snippet">{item.snippet}</span
-                        >
-                      {/if}
-                    </div>
-                    {#if match_badge_label(item)}
-                      <span class="Omnibar__badge"
-                        >{match_badge_label(item)}</span
-                      >
+              {#if item.kind === "note"}
+                <div class="Omnibar__item-row">
+                  <FileIcon />
+                  <div class="Omnibar__item-content">
+                    <span class="Omnibar__item-title">{item.note.title}</span>
+                    <span class="Omnibar__item-path">{item.note.path}</span>
+                    {#if item.snippet}
+                      <span class="Omnibar__item-snippet">{item.snippet}</span>
                     {/if}
                   </div>
-                {/if}
-              </button>
-            {/each}
-          </div>
-        {/each}
-      {:else}
-        {#if show_recent_header && recent_notes.length > 0}
-          <div class="Omnibar__header" role="presentation">
-            <ClockIcon />
-            <span>Recent</span>
-          </div>
-        {/if}
-
-        {#each display_items as item, index (get_item_id(item))}
-          <button
-            id={get_item_id(item)}
-            role="option"
-            tabindex="-1"
-            aria-selected={index === selected_index}
-            class="Omnibar__item"
-            class:Omnibar__item--selected={index === selected_index}
-            onmouseenter={() => {
-              if (!mouse_moved) return;
-              on_selected_index_change(index);
-            }}
-            onclick={() => {
-              on_confirm(item);
-            }}
-          >
-            {#if item.kind === "note"}
-              <div class="Omnibar__item-row">
-                <FileIcon />
-                <div class="Omnibar__item-content">
-                  <span class="Omnibar__item-title">{item.note.title}</span>
-                  <span class="Omnibar__item-path">{item.note.path}</span>
-                  {#if item.snippet}
-                    <span class="Omnibar__item-snippet">{item.snippet}</span>
+                  {#if match_badge_label(item)}
+                    <span class="Omnibar__badge">{match_badge_label(item)}</span
+                    >
                   {/if}
                 </div>
-                {#if match_badge_label(item)}
-                  <span class="Omnibar__badge">{match_badge_label(item)}</span>
-                {/if}
-              </div>
-            {:else if item.kind === "recent_note"}
-              <div class="Omnibar__item-row">
-                <FileIcon />
-                <div class="Omnibar__item-content">
-                  <span class="Omnibar__item-title" title={item.note.path}
-                    >{item.note.name}</span
+              {:else if item.kind === "recent_note"}
+                <div class="Omnibar__item-row">
+                  <FileIcon />
+                  <div class="Omnibar__item-content">
+                    <span class="Omnibar__item-title" title={item.note.path}
+                      >{item.note.name}</span
+                    >
+                    {#if item.note.path !== `${item.note.name}.md` && item.note.path !== item.note.name}
+                      <span class="Omnibar__item-path">{item.note.path}</span>
+                    {/if}
+                  </div>
+                </div>
+              {:else if item.kind === "command"}
+                {@const IconComponent = COMMAND_ICONS[item.command.icon]}
+                {@const command_key = action_id_to_key.get(
+                  COMMAND_TO_ACTION_ID[item.command.id],
+                )}
+                <div class="Omnibar__item-row">
+                  <span class="Omnibar__item-icon"><IconComponent /></span>
+                  <span class="Omnibar__item-title">{item.command.label}</span>
+                  {#if command_key}
+                    <span class="Omnibar__item-shortcut">
+                      <HotkeyKey hotkey={command_key} />
+                    </span>
+                  {/if}
+                </div>
+                <div class="Omnibar__item-desc">{item.command.description}</div>
+              {:else if item.kind === "setting"}
+                <div class="Omnibar__item-row">
+                  <SettingsIcon />
+                  <span class="Omnibar__item-title">{item.setting.label}</span>
+                  <span class="Omnibar__badge">{item.setting.category}</span>
+                  <span class="Omnibar__badge"
+                    >{format_setting_value(
+                      item.setting.key,
+                      editor_settings,
+                    )}</span
                   >
-                  {#if item.note.path !== `${item.note.name}.md` && item.note.path !== item.note.name}
-                    <span class="Omnibar__item-path">{item.note.path}</span>
-                  {/if}
                 </div>
-              </div>
-            {:else if item.kind === "command"}
-              {@const IconComponent = COMMAND_ICONS[item.command.icon]}
-              {@const command_key = action_id_to_key.get(
-                COMMAND_TO_ACTION_ID[item.command.id],
-              )}
-              <div class="Omnibar__item-row">
-                <span class="Omnibar__item-icon"><IconComponent /></span>
-                <span class="Omnibar__item-title">{item.command.label}</span>
-                {#if command_key}
-                  <span class="Omnibar__item-shortcut">
-                    <HotkeyKey hotkey={command_key} />
-                  </span>
-                {/if}
-              </div>
-              <div class="Omnibar__item-desc">{item.command.description}</div>
-            {:else if item.kind === "setting"}
-              <div class="Omnibar__item-row">
-                <SettingsIcon />
-                <span class="Omnibar__item-title">{item.setting.label}</span>
-                <span class="Omnibar__badge">{item.setting.category}</span>
-                <span class="Omnibar__badge"
-                  >{format_setting_value(
-                    item.setting.key,
-                    editor_settings,
-                  )}</span
-                >
-              </div>
-              <div class="Omnibar__item-desc">{item.setting.description}</div>
-            {:else if item.kind === "planned_note"}
-              <div class="Omnibar__item-row">
-                <LinkIcon />
-                <div class="Omnibar__item-content">
-                  <span class="Omnibar__item-title">{item.target_path}</span>
-                  <span class="Omnibar__item-path">{item.ref_count} refs</span>
+                <div class="Omnibar__item-desc">{item.setting.description}</div>
+              {:else if item.kind === "planned_note"}
+                <div class="Omnibar__item-row">
+                  <LinkIcon />
+                  <div class="Omnibar__item-content">
+                    <span class="Omnibar__item-title">{item.target_path}</span>
+                    <span class="Omnibar__item-path">{item.ref_count} refs</span
+                    >
+                  </div>
+                  <span class="Omnibar__badge">Planned</span>
                 </div>
-                <span class="Omnibar__badge">Planned</span>
-              </div>
-            {/if}
-          </button>
-        {/each}
+              {/if}
+            </button>
+          {/each}
 
-        {#if display_items.length === 0 && !(is_all_vaults && !has_query)}
+          {#if display_items.length === 0 && !(is_all_vaults && !has_query)}
+            <div class="Omnibar__empty" aria-hidden="true">
+              {#if has_query}
+                No results found
+              {:else}
+                No recent notes
+              {/if}
+            </div>
+          {/if}
+        {/if}
+
+        {#if is_all_vaults && !has_query && !is_searching}
           <div class="Omnibar__empty" aria-hidden="true">
-            {#if has_query}
-              No results found
-            {:else}
-              No recent notes
-            {/if}
+            Type to search across all vaults
           </div>
         {/if}
-      {/if}
-
-      {#if is_all_vaults && !has_query && !is_searching}
-        <div class="Omnibar__empty" aria-hidden="true">
-          Type to search across all vaults
-        </div>
-      {/if}
-    </div>
+      </div>
+    {/if}
 
     <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
       {status_text}
     </div>
     <div class="Omnibar__footer">
-      <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
-      {#if is_tag_suggestions}
+      {#if !is_find_mode || focused_control !== "other"}
+        <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
+      {/if}
+      {#if is_find_mode}
+        <!-- The keys depend on where you are. Esc from any other control
+             brings you back to the pattern. -->
+        {#if focused_control === "replace"}
+          <span class="Omnibar__hint"><kbd>↵</kbd> Replace</span>
+          <span class="Omnibar__hint"
+            ><kbd>{REPLACE_FILE_KEYS}</kbd> Replace in file</span
+          >
+          <span class="Omnibar__hint"
+            ><kbd>{REPLACE_ALL_KEYS}</kbd> Replace all</span
+          >
+          <span class="Omnibar__hint"><kbd>Esc</kbd> Back</span>
+          {#if !git_enabled}
+            <span class="Omnibar__warning"
+              >Not a git vault: this cannot be undone</span
+            >
+          {/if}
+        {:else if focused_control === "main"}
+          <span class="Omnibar__hint"><kbd>↵</kbd> Open</span>
+          <span class="Omnibar__hint"><kbd>⇥</kbd> Replace</span>
+          <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
+        {:else}
+          <span class="Omnibar__hint"><kbd>Esc</kbd> Back</span>
+        {/if}
+      {:else if is_tag_suggestions}
         <span class="Omnibar__hint"><kbd>↵</kbd> Add tag</span>
         <span class="Omnibar__hint"><kbd>Esc</kbd> Cancel</span>
       {:else if is_tag_mode}
@@ -1147,7 +1620,7 @@
           {is_all_vaults ? "This vault" : "All vaults"}
         </button>
       {/if}
-      {#if !is_command_mode && !is_tag_suggestions}
+      {#if !is_command_mode && !is_tag_suggestions && !(is_find_mode && focused_control === "replace")}
         <button
           type="button"
           class="Omnibar__scope-hint Omnibar__tags-button"
@@ -1163,7 +1636,7 @@
             >{/if}</button
         >
       {/if}
-      {#if !is_command_mode && !is_tag_suggestions && !is_tag_mode}
+      {#if !is_find_mode && !is_command_mode && !is_tag_suggestions && !is_tag_mode}
         <button
           type="button"
           class="Omnibar__commands"
@@ -1245,6 +1718,28 @@
     flex-shrink: 0;
     font-size: var(--text-xs);
     color: var(--muted-foreground);
+  }
+
+  /* The replace row lines up under the find row: same padding, same icon
+     column. The two rows read as one block. */
+  .Omnibar__search--with-replace {
+    padding-bottom: var(--space-2);
+  }
+
+  .Omnibar__replace {
+    padding-top: 0;
+  }
+
+  .Omnibar__find-options {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-0-5);
+    height: var(--omnibar-line);
+  }
+
+  .Omnibar__warning {
+    color: var(--destructive);
   }
 
   .Omnibar__tags-button {

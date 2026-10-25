@@ -16,7 +16,6 @@ pub enum SearchScope {
     All,
     Path,
     Title,
-    Content,
 }
 
 #[derive(Debug, Serialize)]

@@ -1,17 +1,23 @@
 import type { FindSpec } from "$lib/shared/types/search";
+import type { TagMatch } from "$lib/features/tags";
 
-// Shapes shared with the Rust vault find (features/search/vault_find.rs).
-// Field names match the serde structs.
+// Shapes shared with the Rust vault find (features/search/vault_find.rs and
+// VaultFindStartRequest in service.rs). Field names match the serde structs.
+// VaultFindSelection, last in the file, is the one UI-only shape.
 
 export type VaultFindRequest = FindSpec & {
   // Comma separated globs. "" means every file.
   include: string;
   exclude: string;
+  // The omnibar's tag chips: only files of notes with all (or any) of these
+  // tags. [] means every file.
+  tags: string[];
+  tag_match: TagMatch;
 };
 
 export type VaultFindMatch = {
   // Ordinal in the file's match list as Rust found it. Replace sends these
-  // back, so it stays fixed when other matches are dismissed.
+  // back, and the selection keys on them.
   index: number;
   // 1-based line. column and length are UTF-16 units in that line, the
   // same units the editor uses.
@@ -88,4 +94,13 @@ export type VaultReplaceResponse = {
     remaining: VaultFindFile | null;
   }[];
   skipped: { path: string; reason: VaultReplaceSkipReason }[];
+};
+
+// The match Text mode has selected. A match ordinal, not a row number, so
+// it stays on the same match while results stream in. Only valid while
+// request_key is the key of the results on screen.
+export type VaultFindSelection = {
+  request_key: string;
+  path: string;
+  index: number;
 };

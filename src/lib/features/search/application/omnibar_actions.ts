@@ -7,7 +7,10 @@ import type {
 } from "$lib/shared/types/search";
 import type { CommandId } from "$lib/features/search/types/command_palette";
 import { COMMANDS_REGISTRY } from "$lib/features/search/domain/search_commands";
-import { parse_search_query } from "$lib/features/search/domain/search_query_parser";
+import {
+  parse_search_query,
+  set_search_query_target,
+} from "$lib/features/search/domain/search_query_parser";
 import { tag_key, type TagMatch, type TaggedNote } from "$lib/features/tags";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
 import { create_logger } from "$lib/shared/utils/logger";
@@ -30,7 +33,7 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   open_hotkeys: ACTION_IDS.settings_open,
   toggle_sidebar: ACTION_IDS.ui_toggle_sidebar,
   find_in_note: ACTION_IDS.find_in_file_open,
-  find_in_vault: ACTION_IDS.vault_find_open,
+  find_in_vault: ACTION_IDS.omnibar_open_find,
   open_help: ACTION_IDS.help_open,
   next_tab: ACTION_IDS.tab_next,
   previous_tab: ACTION_IDS.tab_prev,
@@ -116,18 +119,76 @@ function open_omnibar(input: ActionRegistrationInput) {
   input.stores.search.clear_omnibar();
 }
 
+// UIStore.vault_find is left alone: the pattern, options and selection last
+// for the session.
 function close_omnibar(input: ActionRegistrationInput) {
   set_omnibar_state(input, {
     open: false,
+    mode: "notes",
     query: "",
     selected_index: 0,
     is_searching: false,
     scope: "current_vault",
     tags: [],
     tag_match: "all",
+    return_to_find: false,
   });
   input.stores.search.clear_omnibar();
   input.services.search.reset_search_notes_operation();
+}
+
+// Text mode keeps its pattern in UIStore.vault_find and the find reactor runs
+// the search, so the notes query and its results go. Text mode walks one
+// vault, like the chips.
+function enter_find_mode(input: ActionRegistrationInput) {
+  set_omnibar_state(input, {
+    mode: "find",
+    query: "",
+    selected_index: 0,
+    is_searching: false,
+    scope: "current_vault",
+    return_to_find: false,
+  });
+  input.stores.search.clear_omnibar();
+  input.services.search.reset_search_notes_operation();
+}
+
+// Notes to Text. A plain notes search brings its text along, without the
+// `@file` style prefix. A `>` or `#...` query means something else, so the
+// last pattern comes back instead.
+function switch_notes_to_find(input: ActionRegistrationInput) {
+  const parsed = parse_search_query(input.stores.ui.omnibar.query);
+  if (parsed.domain === "notes" && parsed.text) {
+    input.stores.ui.vault_find.query = parsed.text;
+  }
+  enter_find_mode(input);
+}
+
+// Text to Notes. The pattern becomes the notes query, after `@file ` for the
+// Files button. The chips stay. The caller runs the notes search.
+function leave_find_mode(
+  input: ActionRegistrationInput,
+  target: "all" | "files",
+) {
+  const pattern = input.stores.ui.vault_find.query;
+  set_omnibar_state(input, {
+    mode: "notes",
+    query: target === "files" ? `@file ${pattern}` : pattern,
+    selected_index: 0,
+    return_to_find: false,
+  });
+}
+
+// Cmd+T in Text mode opened the tag picker. Once the query is no longer a
+// `#...` token (Esc, Backspace over the `#`, Cmd+T again), go back to Text.
+function is_done_picking_tag_for_find(
+  input: ActionRegistrationInput,
+  next_query: string,
+): boolean {
+  return (
+    input.stores.ui.omnibar.return_to_find &&
+    parse_search_query(next_query).domain !== "tags"
+  );
 }
 
 function clear_cross_vault_open_confirm(input: ActionRegistrationInput) {
@@ -172,11 +233,14 @@ function mark_vault_unavailable(
 //   chips, notes query          notes with the chip tags, narrowed by the text
 //   otherwise                   notes, commands, planned notes, as before
 //
-// Every caller goes through here. An answer that comes back after the query,
-// the chips, the match mode or the scope changed is dropped.
+// Every caller goes through here. An answer that comes back after the mode,
+// the query, the chips, the match mode or the scope changed is dropped. Text
+// mode searches through the vault find reactor instead, so chip and match
+// changes there only feed that.
 async function run_omnibar_search(input: ActionRegistrationInput) {
   const { stores, services } = input;
   const omnibar = stores.ui.omnibar;
+  if (omnibar.mode === "find") return;
   if (!omnibar.query.trim() && omnibar.tags.length === 0) {
     set_omnibar_searching(input, false);
     stores.search.clear_omnibar();
@@ -210,8 +274,8 @@ async function run_omnibar_search(input: ActionRegistrationInput) {
 }
 
 function omnibar_search_key(input: ActionRegistrationInput): string {
-  const { query, tags, tag_match, scope } = input.stores.ui.omnibar;
-  return JSON.stringify([query, tags, tag_match, scope]);
+  const { mode, query, tags, tag_match, scope } = input.stores.ui.omnibar;
+  return JSON.stringify([mode, query, tags, tag_match, scope]);
 }
 
 async function fetch_omnibar_items(
@@ -236,8 +300,9 @@ async function fetch_omnibar_items(
   }
 
   if (tags.length > 0 && parsed.domain === "notes") {
-    // @Incomplete: tag mode ignores the title:/path:/@content prefixes. Only
-    // parsed.text goes to the index, so the text matches every field.
+    // @Incomplete: tag mode ignores the title:/path: prefixes. Only
+    // parsed.text goes to the index, so the text matches every field. The
+    // Files button is the one exception, below.
     const result = await services.tags.search_tagged_notes({
       tags,
       match: tag_match,
@@ -251,9 +316,17 @@ async function fetch_omnibar_items(
         failed: result.status === "failed",
       };
     }
+    // Files means names, titles and paths, with chips too. File hits come
+    // first in the page, so when a content hit made it in, every file hit
+    // did: dropping content hits leaves a list that is not truncated.
+    const notes =
+      parsed.target === "files"
+        ? result.page.notes.filter((entry) => entry.match_detail !== "content")
+        : result.page.notes;
     return {
-      items: result.page.notes.map(tagged_note_item),
-      truncated: result.page.truncated,
+      items: notes.map(tagged_note_item),
+      truncated:
+        result.page.truncated && notes.length === result.page.notes.length,
       failed: false,
     };
   }
@@ -290,18 +363,23 @@ function has_tag(tags: string[], tag: string): boolean {
 
 // Chips replace the `#...` token: the query keeps the text typed before it.
 // Tags live in each vault's index, so a chip scopes the search to this vault.
+// A picker opened from Text mode goes back to Text with the new chip.
 async function add_tag_chip(
   input: ActionRegistrationInput,
   tag: string,
   before_tag: string,
 ) {
-  const { tags } = input.stores.ui.omnibar;
+  const { tags, return_to_find } = input.stores.ui.omnibar;
   set_omnibar_state(input, {
     tags: has_tag(tags, tag) ? tags : [...tags, tag],
     query: before_tag ? `${before_tag} ` : "",
     scope: "current_vault",
     selected_index: 0,
   });
+  if (return_to_find) {
+    enter_find_mode(input);
+    return;
+  }
   await run_omnibar_search(input);
 }
 
@@ -464,15 +542,66 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
     },
   });
 
+  // Cmd+O while open: this vault, and back to All from Text mode.
   registry.register({
     id: ACTION_IDS.omnibar_open,
     label: "Open Omnibar",
     execute: async () => {
-      if (stores.ui.omnibar.open) {
+      const { open, mode } = stores.ui.omnibar;
+      if (open && mode === "find") {
+        leave_find_mode(input, "all");
+        await run_omnibar_search(input);
+        return;
+      }
+      if (open) {
         await registry.execute(ACTION_IDS.omnibar_set_scope, "current_vault");
         return;
       }
       open_omnibar(input);
+    },
+  });
+
+  // Find in Vault. Closed: open in Text mode on the last pattern. Notes: switch
+  // to Text. Text: ask the omnibar to focus and select the pattern again.
+  registry.register({
+    id: ACTION_IDS.omnibar_open_find,
+    label: "Find in Vault",
+    when: () => stores.vault.vault !== null,
+    execute: () => {
+      const { open, mode } = stores.ui.omnibar;
+      if (open && mode === "find") {
+        stores.ui.vault_find.focus_nonce += 1;
+        return;
+      }
+      if (open) {
+        switch_notes_to_find(input);
+        return;
+      }
+      set_omnibar_state(input, { open: true });
+      enter_find_mode(input);
+    },
+  });
+
+  // The All | Files | Text strip.
+  registry.register({
+    id: ACTION_IDS.omnibar_set_target,
+    label: "Set Omnibar Search Target",
+    execute: async (target: unknown) => {
+      if (target === "text") {
+        await registry.execute(ACTION_IDS.omnibar_open_find);
+        return;
+      }
+      if (target !== "all" && target !== "files") return;
+      const { mode, query } = stores.ui.omnibar;
+      if (mode === "find") {
+        leave_find_mode(input, target);
+      } else {
+        set_omnibar_state(input, {
+          query: set_search_query_target(query, target),
+          selected_index: 0,
+        });
+      }
+      await run_omnibar_search(input);
     },
   });
 
@@ -508,6 +637,12 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
     label: "Set Omnibar Query",
     execute: async (query: unknown) => {
       const next_query = String(query);
+      // Text mode: the input is the raw pattern, nothing is parsed. The find
+      // reactor searches.
+      if (stores.ui.omnibar.mode === "find") {
+        stores.ui.vault_find.query = next_query;
+        return;
+      }
       const previous_query = stores.ui.omnibar.query;
       const completed = tag_completed_by_space(
         input,
@@ -516,6 +651,10 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       );
       if (completed) {
         await add_tag_chip(input, completed.tag, completed.before_tag);
+        return;
+      }
+      if (is_done_picking_tag_for_find(input, next_query)) {
+        enter_find_mode(input);
         return;
       }
       set_omnibar_state(input, {
@@ -539,9 +678,16 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
     label: "Set Omnibar Scope",
     execute: async (scope: unknown) => {
       const new_scope = scope as OmnibarScope;
+      // Text mode walks one vault, so all vaults goes back to Notes.
+      if (new_scope === "all_vaults" && stores.ui.omnibar.mode === "find") {
+        leave_find_mode(input, "all");
+      }
       set_omnibar_state(input, {
         scope: new_scope,
         selected_index: 0,
+        // Picking a scope ends the detour through the tag picker. Going back
+        // to Text later would force this vault and undo the pick.
+        return_to_find: false,
         // Tags live in one vault's index, so all vaults drops the chips.
         ...(new_scope === "all_vaults" ? { tags: [] } : {}),
       });
@@ -565,14 +711,28 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       if (tags.length > 0) {
         set_omnibar_state(input, {
           open: true,
+          mode: "notes",
           query: "",
           selected_index: 0,
           is_searching: false,
           scope: "current_vault",
           tags,
           tag_match: "all",
+          return_to_find: false,
         });
         stores.search.clear_omnibar();
+        await run_omnibar_search(input);
+        return;
+      }
+
+      // Text mode: pick a tag in Notes mode, then come back to Text.
+      if (stores.ui.omnibar.open && stores.ui.omnibar.mode === "find") {
+        set_omnibar_state(input, {
+          mode: "notes",
+          query: "#",
+          selected_index: 0,
+          return_to_find: true,
+        });
         await run_omnibar_search(input);
         return;
       }
@@ -596,6 +756,10 @@ export function register_omnibar_actions(input: ActionRegistrationInput) {
       let next_query = query.trim() ? `${query.trimEnd()} #` : "#";
       if (parsed.domain === "tags") next_query = parsed.before_tag ?? "";
       if (parsed.domain === "commands") next_query = "#";
+      if (is_done_picking_tag_for_find(input, next_query)) {
+        enter_find_mode(input);
+        return;
+      }
       set_omnibar_state(input, {
         query: next_query,
         selected_index: 0,

@@ -123,6 +123,8 @@ export const ACTION_IDS = {
   omnibar_open_tags: "omnibar.open_tags",
   omnibar_remove_tag: "omnibar.remove_tag",
   omnibar_set_tag_match: "omnibar.set_tag_match",
+  omnibar_open_find: "omnibar.open_find",
+  omnibar_set_target: "omnibar.set_target",
 
   find_in_file_toggle: "find_in_file.toggle",
   find_in_file_open: "find_in_file.open",
@@ -136,18 +138,12 @@ export const ACTION_IDS = {
   find_in_file_replace: "find_in_file.replace",
   find_in_file_replace_all: "find_in_file.replace_all",
 
-  vault_find_open: "vault_find.open",
-  vault_find_refresh: "vault_find.refresh",
-  vault_find_cancel: "vault_find.cancel",
-  vault_find_clear: "vault_find.clear",
   vault_find_open_match: "vault_find.open_match",
-  vault_find_dismiss: "vault_find.dismiss",
   vault_find_replace_match: "vault_find.replace_match",
   vault_find_replace_file: "vault_find.replace_file",
   vault_find_request_replace_all: "vault_find.request_replace_all",
   vault_find_confirm_replace_all: "vault_find.confirm_replace_all",
   vault_find_cancel_replace_all: "vault_find.cancel_replace_all",
-  vault_find_focus_editor: "vault_find.focus_editor",
 
   tab_close: "tab.close",
   tab_close_other: "tab.close_other",

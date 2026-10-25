@@ -16,18 +16,16 @@ describe("trim_context_before", () => {
     });
   });
 
-  it("keeps the last three words with a leading ellipsis", () => {
-    expect(trim_context_before("a delta beta reading tags draft ")).toEqual({
-      text: "…reading tags draft",
-      gap: SPACE,
-    });
+  it("keeps the last six words with a leading ellipsis", () => {
+    expect(
+      trim_context_before("a delta beta reading tags draft for you "),
+    ).toEqual({ text: "…beta reading tags draft for you", gap: SPACE });
   });
 
   it("drops the partial word Rust cut at the start", () => {
-    expect(trim_context_before("…lta beta reading tags ")).toEqual({
-      text: "…beta reading tags",
-      gap: SPACE,
-    });
+    expect(
+      trim_context_before("…lta beta reading tags draft for you "),
+    ).toEqual({ text: "…beta reading tags draft for you", gap: SPACE });
   });
 
   it("returns the whole gap before the match, whatever it is made of", () => {

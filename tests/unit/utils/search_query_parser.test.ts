@@ -13,14 +13,6 @@ describe("parse_search_query", () => {
     expect(result.target).toBe("path");
   });
 
-  it("parses content scope without space", () => {
-    const result = parse_search_query("content:foo");
-    expect(result.scope).toBe("content");
-    expect(result.text).toBe("foo");
-    expect(result.domain).toBe("notes");
-    expect(result.target).toBe("content");
-  });
-
   it("defaults to all scope and notes domain", () => {
     const result = parse_search_query("hello world");
     expect(result.scope).toBe("all");
@@ -123,22 +115,24 @@ describe("parse_search_query", () => {
     expect(result.target).toBe("files");
   });
 
-  it("parses @content as a content-target query", () => {
-    const result = parse_search_query("@content roadmap");
-    expect(result.scope).toBe("content");
-    expect(result.text).toBe("roadmap");
-    expect(result.target).toBe("content");
+  it("searches @content and content: as plain text, since Text mode replaced them", () => {
+    for (const raw of ["@content roadmap", "content:roadmap"]) {
+      const result = parse_search_query(raw);
+      expect(result.scope).toBe("all");
+      expect(result.text).toBe(raw);
+      expect(result.target).toBe("all");
+    }
   });
 
   it("sets the query target without losing the query text", () => {
     expect(set_search_query_target("meeting notes", "files")).toBe(
       "@file meeting notes",
     );
-    expect(set_search_query_target("@content meeting notes", "all")).toBe(
+    expect(set_search_query_target("@file meeting notes", "all")).toBe(
       "meeting notes",
     );
-    expect(set_search_query_target("path: planning/q1", "content")).toBe(
-      "@content planning/q1",
+    expect(set_search_query_target("path: planning/q1", "files")).toBe(
+      "@file planning/q1",
     );
   });
 });

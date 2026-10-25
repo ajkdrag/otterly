@@ -59,10 +59,15 @@ export type SearchSettingDefinition = {
   keywords: string[];
 };
 
-export type SearchScope = "all" | "path" | "title" | "content";
+export type SearchScope = "all" | "path" | "title";
 export type SearchDomain = "notes" | "commands" | "planned" | "tags";
 export type OmnibarScope = "current_vault" | "all_vaults";
-export type OmnibarQueryTarget = "all" | "files" | "path" | "title" | "content";
+// Notes parses the text (`>`, `#`, `@file`). Find is Text mode: the text is a
+// raw pattern for the vault find engine.
+export type OmnibarMode = "notes" | "find";
+// The filter strip. All and Files are Notes mode, Text is find mode.
+export type OmnibarTarget = "all" | "files" | "text";
+export type OmnibarQueryTarget = "all" | "files" | "path" | "title";
 export type NoteMatchKind = "file" | "content";
 export type NoteMatchDetail = "filename" | "title" | "path" | "content";
 
@@ -106,7 +111,7 @@ export type PlannedWikiSuggestion = {
 
 export type WikiSuggestion = ExistingWikiSuggestion | PlannedWikiSuggestion;
 
-// What find looks for. The editor's find bar and the vault find panel share it.
+// What find looks for. The editor's find bar and the omnibar's Text mode share it.
 export type FindSpec = {
   text: string;
   regex: boolean;

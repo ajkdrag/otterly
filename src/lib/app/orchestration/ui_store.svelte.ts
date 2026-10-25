@@ -22,17 +22,18 @@ import type {
   MoveItem,
 } from "$lib/shared/types/filetree";
 import type { PastedImagePayload } from "$lib/shared/types/editor";
-import type { OmnibarScope } from "$lib/shared/types/search";
+import type { OmnibarMode, OmnibarScope } from "$lib/shared/types/search";
 import type {
   HotkeyConfig,
   HotkeyOverride,
   HotkeyRecorderState,
 } from "$lib/features/hotkey";
 import type { TagMatch } from "$lib/features/tags";
+import type { VaultFindSelection } from "$lib/features/search";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 type AsyncStatus = "idle" | "loading" | "error";
-type SidebarView = "explorer" | "dashboard" | "starred" | "tags" | "search";
+type SidebarView = "explorer" | "dashboard" | "starred" | "tags";
 type ContextRailTab = "links";
 
 const INITIAL_DELETE_NOTE_DIALOG = { open: false, note: null } as const;
@@ -83,6 +84,8 @@ const INITIAL_FILETREE_MOVE_CONFLICT_DIALOG = {
 
 const INITIAL_OMNIBAR = {
   open: false,
+  mode: "notes",
+  // The notes query. Text mode keeps its pattern in vault_find.query.
   query: "",
   selected_index: 0,
   is_searching: false,
@@ -90,6 +93,9 @@ const INITIAL_OMNIBAR = {
   // Tag filter chips. Replaced, never mutated, so resets can share this array.
   tags: [] as string[],
   tag_match: "all" as TagMatch,
+  // Cmd+T in Text mode opens the tag picker in Notes mode. This sends it back
+  // to Text once the `#...` token is done.
+  return_to_find: false,
 } as const;
 
 const INITIAL_FIND_IN_FILE = {
@@ -103,23 +109,24 @@ const INITIAL_FIND_IN_FILE = {
   whole_word: false,
 };
 
+// Text mode inputs. They last for the session, so reopening Text mode runs
+// the same search again with the match you opened still selected.
 const INITIAL_VAULT_FIND = {
   query: "",
   regex: false,
   case_sensitive: false,
   whole_word: false,
   replacement: "",
-  replace_open: false,
   include: "",
   exclude: "",
-  filters_open: false,
-  // Bumped to ask the panel to focus and select its find input.
+  // Bumped to ask the omnibar to focus and select the pattern.
   focus_nonce: 0,
+  selected_match: null as VaultFindSelection | null,
 };
 
 const INITIAL_VAULT_REPLACE_DIALOG = {
   open: false,
-  // What the dialog asks about, fixed when it opened. Typing in the panel
+  // What the dialog asks about, fixed when it opened. Typing in the omnibar
   // afterwards does not change what Replace All writes.
   query: "",
   replacement: "",
@@ -329,12 +336,14 @@ export class UIStore {
 
   omnibar = $state<{
     open: boolean;
+    mode: OmnibarMode;
     query: string;
     selected_index: number;
     is_searching: boolean;
     scope: OmnibarScope;
     tags: string[];
     tag_match: TagMatch;
+    return_to_find: boolean;
   }>({ ...INITIAL_OMNIBAR });
 
   find_in_file = $state<{

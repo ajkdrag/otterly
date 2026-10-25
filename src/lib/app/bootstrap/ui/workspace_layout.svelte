@@ -8,7 +8,7 @@
   import { VaultDashboardPanel } from "$lib/features/vault";
   import { NoteEditor, NoteDetailsDialog } from "$lib/features/note";
   import { TabBar } from "$lib/features/tab";
-  import { FindInFileBar, VaultFindPanel } from "$lib/features/search";
+  import { FindInFileBar } from "$lib/features/search";
   import { EditorStatusBar } from "$lib/features/editor";
   import { ContextRail } from "$lib/features/links";
   import { TagsPanel } from "$lib/features/tags";
@@ -357,8 +357,6 @@
     if (view === "starred") return starred_header_actions;
     if (view === "dashboard") return dashboard_header_actions;
     if (view === "tags") return tags_header_actions;
-    // The find panel has its own refresh, collapse and clear buttons.
-    if (view === "search") return [];
     return explorer_header_actions;
   });
 </script>
@@ -387,13 +385,6 @@
             ACTION_IDS.ui_set_sidebar_view,
             "explorer",
           );
-        }}
-        on_open_search={() => {
-          if (stores.ui.sidebar_open && stores.ui.sidebar_view === "search") {
-            void action_registry.execute(ACTION_IDS.ui_toggle_sidebar);
-            return;
-          }
-          void action_registry.execute(ACTION_IDS.vault_find_open);
         }}
         on_open_starred={() => {
           if (stores.ui.sidebar_open && stores.ui.sidebar_view === "starred") {
@@ -452,8 +443,6 @@
                       <span class="SidebarHeader__title">Dashboard</span>
                     {:else if stores.ui.sidebar_view === "tags"}
                       <span class="SidebarHeader__title">Tags</span>
-                    {:else if stores.ui.sidebar_view === "search"}
-                      <span class="SidebarHeader__title">Search</span>
                     {:else}
                       <button
                         type="button"
@@ -600,14 +589,6 @@
                               },
                             )}
                         />
-                      </Sidebar.GroupContent>
-                    </Sidebar.Group>
-                  {/if}
-
-                  {#if stores.ui.sidebar_view === "search"}
-                    <Sidebar.Group class="h-full p-0">
-                      <Sidebar.GroupContent class="h-full">
-                        <VaultFindPanel />
                       </Sidebar.GroupContent>
                     </Sidebar.Group>
                   {/if}

@@ -15,6 +15,7 @@ const PALETTE_ACTIONS_WHILE_OMNIBAR_OPEN = new Set<string>([
   ACTION_IDS.omnibar_open,
   ACTION_IDS.omnibar_open_all_vaults,
   ACTION_IDS.omnibar_open_tags,
+  ACTION_IDS.omnibar_open_find,
 ]);
 
 export function use_keyboard_shortcuts(input: {

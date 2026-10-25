@@ -1,7 +1,7 @@
 // Vault find: walk a vault, match a query line by line, and replace matches in
 // one file's text. No tauri in here, so the tests drive it with a temp dir.
 //
-//   let find = CompiledFind::from_request(&request)?;
+//   let find = CompiledFind::from_request(&request, None)?;
 //   find_in_vault(&vault_root, &find, &cancel, |event| channel.send(event));
 //
 //   let query = FindQuery::compile(&spec)?;
@@ -25,6 +25,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
+// @Speed: 10,000 matches with full previews is about 3 MB of JSON per search.
+// If one-letter patterns feel slow in the app, cap the previews or the matches
+// harder for short patterns. Measure first.
 pub const MAX_MATCHES: usize = 10_000;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(50);
 const MAX_FILE_BYTES: u64 = 20 * 1024 * 1024;
@@ -191,14 +194,24 @@ impl FindQuery {
 //   "./daily", "/daily"             are relative to the vault root
 //   a pattern naming a folder matches everything under it
 // Matching is case insensitive. An empty include means every file.
+//
+// `only` is the exact list of files to read, vault relative and normalized
+// like the walker's paths. The caller fills it from tag chips. An empty set
+// finds nothing, None means every file.
 pub struct PathFilter {
+    only: Option<HashSet<String>>,
     include: Option<GlobSet>,
     exclude: Option<GlobSet>,
 }
 
 impl PathFilter {
-    pub fn compile(include: &str, exclude: &str) -> Result<PathFilter, FindError> {
+    pub fn compile(
+        include: &str,
+        exclude: &str,
+        only: Option<HashSet<String>>,
+    ) -> Result<PathFilter, FindError> {
         Ok(PathFilter {
+            only,
             include: compile_glob_list(include)?,
             exclude: compile_glob_list(exclude)?,
         })
@@ -211,9 +224,13 @@ impl PathFilter {
     }
 
     fn includes_file(&self, rel_path: &str) -> bool {
-        self.include
+        self.only
             .as_ref()
-            .is_none_or(|set| set.is_match(rel_path))
+            .is_none_or(|only| only.contains(rel_path))
+            && self
+                .include
+                .as_ref()
+                .is_none_or(|set| set.is_match(rel_path))
             && !self.excludes(rel_path)
     }
 }
@@ -281,10 +298,13 @@ pub struct CompiledFind {
 }
 
 impl CompiledFind {
-    pub fn from_request(request: &VaultFindRequest) -> Result<CompiledFind, FindError> {
+    pub fn from_request(
+        request: &VaultFindRequest,
+        only: Option<HashSet<String>>,
+    ) -> Result<CompiledFind, FindError> {
         Ok(CompiledFind {
             query: FindQuery::compile(&request.spec)?,
-            paths: PathFilter::compile(&request.include, &request.exclude)?,
+            paths: PathFilter::compile(&request.include, &request.exclude, only)?,
         })
     }
 }

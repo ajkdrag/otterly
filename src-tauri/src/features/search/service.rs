@@ -9,7 +9,7 @@ use crate::shared::storage;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender};
@@ -911,6 +911,17 @@ fn replace_vault_find_cancel_token(state: &VaultFindState) -> Result<Arc<AtomicB
     Ok(next_cancel)
 }
 
+// What the omnibar sends: the engine's request plus its tag chips. Tags live
+// in the index, so they are turned into a file list here and the engine only
+// ever sees paths.
+#[derive(Debug, Deserialize)]
+pub struct VaultFindStartRequest {
+    #[serde(flatten)]
+    pub find: vault_find::VaultFindRequest,
+    pub tags: Vec<String>,
+    pub tag_match: search_db::TagMatch,
+}
+
 // Validates on the calling thread, so a bad regex or glob comes back as
 // Err("invalid_query:...") / Err("invalid_glob:..."). Results stream through
 // on_event; the call itself returns right away.
@@ -919,10 +930,21 @@ pub fn vault_find_start(
     app: AppHandle,
     state: tauri::State<'_, VaultFindState>,
     vault_id: String,
-    request: vault_find::VaultFindRequest,
+    request: VaultFindStartRequest,
     on_event: Channel<vault_find::VaultFindEvent>,
 ) -> Result<(), String> {
-    let find = vault_find::CompiledFind::from_request(&request).map_err(|e| e.to_string())?;
+    // The index and the walker both normalize with storage::normalize_relative_path,
+    // so these paths match the walker's.
+    let only = if request.tags.is_empty() {
+        None
+    } else {
+        let paths = with_read_conn(&app, &vault_id, |conn| {
+            search_db::list_tagged_paths(conn, &request.tags, request.tag_match)
+        })?;
+        Some(paths.into_iter().collect::<HashSet<String>>())
+    };
+    let find =
+        vault_find::CompiledFind::from_request(&request.find, only).map_err(|e| e.to_string())?;
     let vault_root = storage::vault_path(&app, &vault_id)?;
     let cancel = replace_vault_find_cancel_token(&state)?;
     std::thread::spawn(move || {

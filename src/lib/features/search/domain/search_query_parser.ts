@@ -11,9 +11,7 @@ const scope_tokens: Array<{
 }> = [
   { token: "@file", scope: "all", target: "files" },
   { token: "@path", scope: "path", target: "path" },
-  { token: "@content", scope: "content", target: "content" },
   { token: "path:", scope: "path", target: "path" },
-  { token: "content:", scope: "content", target: "content" },
   { token: "title:", scope: "title", target: "title" },
 ];
 
@@ -131,8 +129,6 @@ export function set_search_query_target(
         return "@file ";
       case "path":
         return "@path ";
-      case "content":
-        return "@content ";
       case "title":
         return "title: ";
       default:
@@ -145,8 +141,6 @@ export function set_search_query_target(
       return `@file ${text}`;
     case "path":
       return `@path ${text}`;
-    case "content":
-      return `@content ${text}`;
     case "title":
       return `title: ${text}`;
     default:
