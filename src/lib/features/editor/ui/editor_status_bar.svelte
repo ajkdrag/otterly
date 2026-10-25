@@ -10,9 +10,11 @@
   } from "$lib/shared/types/editor";
 
   // The status bar of the vault window and of a document window. It shows
-  // what every editor has. Each window adds its own items at the right end
-  // through children: vault, index and git state in the vault window, the
-  // file path in a document window. Those items use the StatusBar__ classes.
+  // what every editor has. Each window adds its own items through children,
+  // in the right section before the Rich/Source toggle: vault, index and git
+  // state in the vault window, the file path in a document window. The
+  // toggle stays last so it does not slide left when a transient item like
+  // "Indexing" shows up. Those items use the StatusBar__ classes.
   interface Props {
     cursor_info: CursorInfo | null;
     has_open_file: boolean;
@@ -86,7 +88,9 @@
     {/if}
   </div>
   <div class="StatusBar__section">
+    {@render children()}
     {#if has_open_file && view_mode !== "text"}
+      <span class="StatusBar__separator" aria-hidden="true"></span>
       <button
         type="button"
         class="StatusBar__button"
@@ -97,9 +101,7 @@
         <Code />
         <span>{view_mode === "source" ? "Source" : "Rich"}</span>
       </button>
-      <span class="StatusBar__separator" aria-hidden="true"></span>
     {/if}
-    {@render children()}
   </div>
 </div>
 
@@ -119,10 +121,17 @@
     color: var(--muted-foreground);
   }
 
+  /* min-width 0 lets the right section shrink, so a long file path gets its
+     ellipsis. The left section keeps its size so the counts never wrap. */
   .StatusBar__section {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .StatusBar__section:first-child {
+    flex-shrink: 0;
   }
 
   .StatusBar__item--unsaved {

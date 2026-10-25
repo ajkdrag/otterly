@@ -209,8 +209,8 @@
     font-size: var(--text-sm);
   }
 
-  /* The path sits where the vault window shows the vault name, with the
-     same width cap. */
+  /* The path sits where the vault window shows the vault name, just before
+     the Rich/Source toggle, with the same width cap. */
   .DocumentWindow__path {
     max-width: 14rem;
     overflow: hidden;
