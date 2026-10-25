@@ -60,6 +60,9 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-0-5);
+    /* In a flex row narrower than 16rem the chip shrinks and the label
+       truncates, instead of the chip spilling out of the row. */
+    min-width: 0;
     max-width: 16rem;
     padding-inline: var(--space-1-5);
     border-radius: var(--editor-tag-radius);
