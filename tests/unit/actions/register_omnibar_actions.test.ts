@@ -788,7 +788,10 @@ describe("omnibar Text mode", () => {
     await registry.execute(ACTION_IDS.omnibar_set_target, "text");
     expect(stores.ui.omnibar.mode).toBe("find");
     await registry.execute(ACTION_IDS.omnibar_open);
-    expect(stores.ui.omnibar).toMatchObject({ mode: "notes", query: "kickoff" });
+    expect(stores.ui.omnibar).toMatchObject({
+      mode: "notes",
+      query: "kickoff",
+    });
   });
 
   it("keeps the chips across both switches", async () => {

@@ -97,7 +97,11 @@ describe("vault find reactor", () => {
     await vi.advanceTimersByTimeAsync(200);
 
     expect(service.search).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "foo", tags: ["a", "b"], tag_match: "any" }),
+      expect.objectContaining({
+        text: "foo",
+        tags: ["a", "b"],
+        tag_match: "any",
+      }),
     );
   });
 
