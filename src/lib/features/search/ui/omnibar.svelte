@@ -1590,11 +1590,13 @@
       {status_text}
     </div>
     <div class="Omnibar__footer">
+      {#if !is_find_mode || focused_control !== "other"}
+        <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
+      {/if}
       {#if is_find_mode}
         <!-- The keys depend on where you are. Esc from any other control
              brings you back to the pattern. -->
         {#if focused_control === "replace"}
-          <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
           <span class="Omnibar__hint"><kbd>↵</kbd> Replace</span>
           <span class="Omnibar__hint"><kbd>⇧⌘↵</kbd> Replace in file</span>
           <span class="Omnibar__hint"><kbd>⌘↵</kbd> Replace all</span>
@@ -1605,28 +1607,24 @@
             >
           {/if}
         {:else if focused_control === "main"}
-          <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
           <span class="Omnibar__hint"><kbd>↵</kbd> Open</span>
           <span class="Omnibar__hint"><kbd>⇥</kbd> Replace</span>
           <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
         {:else}
           <span class="Omnibar__hint"><kbd>Esc</kbd> Back</span>
         {/if}
+      {:else if is_tag_suggestions}
+        <span class="Omnibar__hint"><kbd>↵</kbd> Add tag</span>
+        <span class="Omnibar__hint"><kbd>Esc</kbd> Cancel</span>
+      {:else if is_tag_mode}
+        <span class="Omnibar__hint"><kbd>↵</kbd> Open</span>
+        <span class="Omnibar__hint"><kbd>⌫</kbd> Remove tag</span>
+        <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
       {:else}
-        <span class="Omnibar__hint"><kbd>↑ ↓</kbd> Navigate</span>
-        {#if is_tag_suggestions}
-          <span class="Omnibar__hint"><kbd>↵</kbd> Add tag</span>
-          <span class="Omnibar__hint"><kbd>Esc</kbd> Cancel</span>
-        {:else if is_tag_mode}
-          <span class="Omnibar__hint"><kbd>↵</kbd> Open</span>
-          <span class="Omnibar__hint"><kbd>⌫</kbd> Remove tag</span>
-          <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
-        {:else}
-          <span class="Omnibar__hint"
-            ><kbd>↵</kbd> {is_all_vaults ? "Open vault" : "Choose"}</span
-          >
-          <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
-        {/if}
+        <span class="Omnibar__hint"
+          ><kbd>↵</kbd> {is_all_vaults ? "Open vault" : "Choose"}</span
+        >
+        <span class="Omnibar__hint"><kbd>Esc</kbd> Close</span>
       {/if}
       {#if show_scope_toggle && scope_shortcut}
         <button

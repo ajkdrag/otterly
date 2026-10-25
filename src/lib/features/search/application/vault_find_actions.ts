@@ -172,11 +172,11 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     const skipped_count = unsaved_count + result.response.skipped.length;
     if (skipped_count === 0) {
       toast.success(summary);
-      return written.length > 0;
+    } else {
+      toast.warning(summary, {
+        description: `${plural(skipped_count, "file", "files")} skipped: unsaved, open in a document window, or changed on disk`,
+      });
     }
-    toast.warning(summary, {
-      description: `${plural(skipped_count, "file", "files")} skipped: unsaved, open in a document window, or changed on disk`,
-    });
     return written.length > 0;
   }
 
