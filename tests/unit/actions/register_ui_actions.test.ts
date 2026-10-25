@@ -11,7 +11,6 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
-import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 
 vi.mock("svelte-sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -23,7 +22,6 @@ function register_with_shell(shell: object) {
     services: { shell },
     default_mount_config: {
       reset_app_state: true,
-      bootstrap_default_vault_path: null,
     },
   } as never);
   return registry;
@@ -70,7 +68,6 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
-      profile: new ProfileStore(),
     };
 
     register_ui_actions({
@@ -82,7 +79,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -108,7 +104,6 @@ describe("register_ui_actions", () => {
       search: new SearchStore(),
       tab: new TabStore(),
       git: new GitStore(),
-      profile: new ProfileStore(),
     };
 
     register_ui_actions({
@@ -125,7 +120,6 @@ describe("register_ui_actions", () => {
       } as never,
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     });
 
@@ -146,7 +140,6 @@ describe("ui.set_sidebar_view", () => {
       services: {},
       default_mount_config: {
         reset_app_state: true,
-        bootstrap_default_vault_path: null,
       },
     } as never);
 

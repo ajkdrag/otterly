@@ -91,7 +91,7 @@ fn scan_folder_entries_filters_and_sorts() {
     std::fs::write(root.join("a.md"), "a").expect("file should be created");
     std::fs::write(root.join("readme.txt"), "shown").expect("file should be created");
     std::fs::write(root.join(".DS_Store"), "noise").expect("file should be created");
-    std::fs::write(root.join("4242.1791147521383.0.tmp"), "save").expect("file should be created");
+    std::fs::write(root.join("1791147521383.0.tmp"), "save").expect("file should be created");
 
     let entries = scan_folder_entries(&root).expect("scan should succeed");
     let dirs_first = entries

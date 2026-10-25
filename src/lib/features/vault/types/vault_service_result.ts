@@ -35,6 +35,10 @@ export type VaultOpenResult =
       status: "stale";
     }
   | {
+      // Another window has the vault and is in front now.
+      status: "in_other_window";
+    }
+  | {
       status: "failed";
       error: string;
     };

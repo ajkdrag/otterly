@@ -15,10 +15,7 @@ const TEST_VAULT_2_PATH = as_vault_path("another-vault");
 const TEST_VAULT_2_ID = as_vault_id("test_vault_002");
 const TEST_VAULT_2_NAME = "Another Vault";
 
-const LAST_VAULT_KEY = "otterly_test_last_vault_id";
-
 export function create_test_vault_adapter(): VaultPort {
-  let last_vault_id: VaultId | null = null;
   const vault_a: Vault = {
     id: TEST_VAULT_ID,
     path: TEST_VAULT_PATH,
@@ -101,26 +98,23 @@ export function create_test_vault_adapter(): VaultPort {
       if (index >= 0) {
         vaults.splice(index, 1);
       }
-      if (last_vault_id === vault_id) {
-        last_vault_id = null;
-      }
       return Promise.resolve();
     },
 
-    remember_last_vault(vault_id: VaultId): Promise<void> {
-      last_vault_id = vault_id;
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(LAST_VAULT_KEY, vault_id);
-      }
+    remember_last_vault(_vault_id: VaultId): Promise<void> {
       return Promise.resolve();
     },
 
-    get_last_vault_id(): Promise<VaultId | null> {
-      if (typeof localStorage !== "undefined") {
-        const stored = localStorage.getItem(LAST_VAULT_KEY);
-        return Promise.resolve(stored ? as_vault_id(stored) : null);
-      }
-      return Promise.resolve(last_vault_id);
+    get_window_vault_id(): Promise<VaultId | null> {
+      return Promise.resolve(null);
+    },
+
+    open_new_vault_window(_vault_id: VaultId | null): Promise<void> {
+      return Promise.resolve();
+    },
+
+    focus_window_with_vault(_vault_id: VaultId): Promise<boolean> {
+      return Promise.resolve(false);
     },
   };
 }

@@ -6,8 +6,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 // The vimrc has one fixed path, next to settings.json. Neither command takes
-// a path from the webview. app/mod.rs gives each profile its own identifier,
-// and app_config_dir follows it, so each profile has its own vimrc.
+// a path from the webview.
 
 const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quote are comments.
 " Save with :w, then come back to the main window. It reloads on focus.

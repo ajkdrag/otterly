@@ -1,7 +1,6 @@
 pub mod document;
 pub mod git;
 pub mod notes;
-pub mod profile;
 pub mod search;
 pub mod settings;
 pub mod shell;

@@ -5,7 +5,7 @@ use crate::features::search::db::{
     list_tagged_paths, list_tags, open_search_db, rebuild_index, remove_note,
     remove_notes_by_prefix, rename_folder_paths, rename_note_path, search, search_tagged_notes,
     set_note_tags, set_outlinks, suggest_files, suggest_planned, suggest_tags, sync_index,
-    upsert_note, wiki_link_targets, IndexResult, TagNotePage, TagNoteQuery,
+    upsert_note, wiki_link_targets, TagNotePage, TagNoteQuery,
 };
 use crate::features::search::model::{IndexNoteMeta, SearchScope};
 use crate::features::search::tag_parser::{NoteTag, TAG_PARSER_VERSION};
@@ -15,19 +15,9 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use tempfile::TempDir;
-
-type IndexFn = fn(
-    &Connection,
-    &Path,
-    &AtomicBool,
-    &dyn Fn(usize, usize),
-    &mut dyn FnMut(),
-) -> Result<IndexResult, String>;
 
 fn write_md(dir: &Path, rel: &str, content: &str) -> PathBuf {
     let p = dir.join(rel);
@@ -890,68 +880,6 @@ fn suggest_tags_ranks_by_match_kind_then_count() {
     let exclude = Vec::new();
     let top_two = suggest_tags(&conn, "", &exclude, 2).expect("suggestions should load");
     assert_eq!(top_two.len(), 2);
-}
-
-// Two profiles on one vault are two connections on one search.db. The other
-// one keeps rewriting the outlinks of the same notes the index run is writing.
-fn index_while_another_connection_writes_the_same_outlinks(index: IndexFn) {
-    let tmp = TempDir::new().expect("temp dir should be created");
-    let root = tmp.path();
-    let source_paths: Vec<String> = (0..100).map(|i| format!("n{i:03}.md")).collect();
-    for source in &source_paths {
-        write_md(root, source, "[a](./target-a.md) [b](./target-b.md)");
-    }
-    let index_conn = open_search_db(root).expect("db should open");
-    let other_conn = open_search_db(root).expect("second connection should open");
-    // Fail at once while the index run holds the lock, so this connection
-    // takes the lock the moment it is free.
-    other_conn
-        .busy_timeout(Duration::ZERO)
-        .expect("busy timeout should be set");
-
-    let stop = Arc::new(AtomicBool::new(false));
-    let other_stop = Arc::clone(&stop);
-    let other_sources = source_paths.clone();
-    let other_writer = thread::spawn(move || {
-        let targets = vec!["target-a.md".to_string(), "target-b.md".to_string()];
-        while !other_stop.load(Ordering::Relaxed) {
-            let written = in_write_transaction(&other_conn, || {
-                for source in &other_sources {
-                    set_outlinks(&other_conn, source, &targets)?;
-                }
-                Ok(())
-            });
-            if written.is_ok() {
-                // Leave gaps in the lock, or the index run's busy handler,
-                // which only polls now and then, could starve.
-                thread::sleep(Duration::from_millis(2));
-            }
-        }
-    });
-
-    let cancel = AtomicBool::new(false);
-    let result = index(&index_conn, root, &cancel, &|_, _| {}, &mut || {});
-    stop.store(true, Ordering::Relaxed);
-    other_writer
-        .join()
-        .expect("other connection thread should not panic");
-
-    result.expect("index run should succeed");
-    for source in &source_paths {
-        let orphans = get_orphan_outlinks(&index_conn, source).expect("outlinks should load");
-        let targets: Vec<&str> = orphans.iter().map(|o| o.target_path.as_str()).collect();
-        assert_eq!(targets, ["target-a.md", "target-b.md"], "{source}");
-    }
-}
-
-#[test]
-fn sync_succeeds_while_another_connection_writes_the_same_outlinks() {
-    index_while_another_connection_writes_the_same_outlinks(sync_index);
-}
-
-#[test]
-fn rebuild_succeeds_while_another_connection_writes_the_same_outlinks() {
-    index_while_another_connection_writes_the_same_outlinks(rebuild_index);
 }
 
 #[test]

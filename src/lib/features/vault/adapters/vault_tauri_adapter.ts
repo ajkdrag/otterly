@@ -37,8 +37,18 @@ export function create_vault_tauri_adapter(): VaultPort {
         vault_id,
       });
     },
-    async get_last_vault_id() {
-      return await invoke_vault<VaultId | null>("get_last_vault_id");
+    async get_window_vault_id() {
+      return await invoke_vault<VaultId | null>("get_window_vault_id");
+    },
+    async open_new_vault_window(vault_id: VaultId | null) {
+      await invoke_vault<undefined>("open_new_vault_window", {
+        vaultId: vault_id,
+      });
+    },
+    async focus_window_with_vault(vault_id: VaultId) {
+      return await invoke_vault<boolean>("focus_window_with_vault", {
+        vaultId: vault_id,
+      });
     },
   };
 }

@@ -10,7 +10,6 @@ import type {
 } from "$lib/shared/types/ids";
 import type { WatcherPort } from "$lib/features/watcher";
 import type { VaultFsEvent } from "$lib/features/watcher";
-import type { ProfilePort } from "$lib/features/profile";
 import type { Vault } from "$lib/shared/types/vault";
 import type { NoteMeta } from "$lib/shared/types/note";
 import type {
@@ -62,8 +61,14 @@ export function create_mock_vault_port(): VaultPort & {
     remember_last_vault(_vault_id: VaultId) {
       return Promise.resolve();
     },
-    get_last_vault_id() {
+    get_window_vault_id() {
       return Promise.resolve(null);
+    },
+    open_new_vault_window(_vault_id: VaultId | null) {
+      return Promise.resolve();
+    },
+    focus_window_with_vault(_vault_id: VaultId) {
+      return Promise.resolve(false);
     },
   };
   return mock;
@@ -571,48 +576,6 @@ export function create_mock_watcher_port(): WatcherPort & {
       return Promise.resolve();
     },
     subscribe_fs_events(callback: (event: VaultFsEvent) => void) {
-      handler = callback;
-      return () => {
-        handler = null;
-      };
-    },
-  };
-  return mock;
-}
-
-export function create_mock_profile_port(): ProfilePort & {
-  _current_id: string;
-  _profile_ids: string[];
-  _calls: { open_profile: string[] };
-  _request_dialog: () => void;
-} {
-  let dialog_requested = false;
-  let handler: (() => void) | null = null;
-  const mock = {
-    _current_id: "default",
-    _profile_ids: ["default"],
-    _calls: { open_profile: [] as string[] },
-    // Like the Dock's "New Profile…": leave the request, then send the event.
-    _request_dialog() {
-      dialog_requested = true;
-      handler?.();
-    },
-    get_current_profile() {
-      return Promise.resolve(mock._current_id);
-    },
-    list_profiles() {
-      return Promise.resolve(mock._profile_ids);
-    },
-    open_profile(profile_id: string) {
-      mock._calls.open_profile.push(profile_id);
-      return Promise.resolve();
-    },
-    take_dialog_request() {
-      const requested = dialog_requested;
-      dialog_requested = false;
-      return Promise.resolve(requested);
-    },
-    subscribe_dialog_requests(callback: () => void) {
       handler = callback;
       return () => {
         handler = null;

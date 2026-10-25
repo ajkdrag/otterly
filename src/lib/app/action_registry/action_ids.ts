@@ -1,5 +1,6 @@
 export const ACTION_IDS = {
   app_mounted: "app.mounted",
+  app_reload_app_settings: "app.reload_app_settings",
   app_check_for_updates: "app.check_for_updates",
   app_check_for_updates_in_background: "app.check_for_updates_in_background",
   app_restart_to_update: "app.restart_to_update",
@@ -54,6 +55,7 @@ export const ACTION_IDS = {
   vault_confirm_discard_change: "vault.confirm_discard_change",
   vault_cancel_discard_change: "vault.cancel_discard_change",
   vault_select_pinned_slot: "vault.select_pinned_slot",
+  vault_open_new_window: "vault.open_new_window",
   vault_remove_from_registry: "vault.remove_from_registry",
   vault_toggle_pin: "vault.toggle_pin",
   vault_sync_index: "vault.sync_index",
@@ -215,11 +217,6 @@ export const ACTION_IDS = {
   document_confirm_close: "document.confirm_close",
   document_cancel_close: "document.cancel_close",
 
-  profile_open_dialog: "profile.open_dialog",
-  profile_close_dialog: "profile.close_dialog",
-  profile_update_new_name: "profile.update_new_name",
-  profile_open: "profile.open",
-  profile_check_dialog_request: "profile.check_dialog_request",
   vim_load_vimrc: "vim.load_vimrc",
   vim_open_vimrc: "vim.open_vimrc",
 } as const;

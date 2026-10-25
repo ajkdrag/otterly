@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { register_app_actions } from "$lib/app/orchestration/app_actions";
@@ -10,7 +10,6 @@ import { OpStore } from "$lib/app/orchestration/op_store.svelte";
 import { SearchStore } from "$lib/features/search/state/search_store.svelte";
 import { TabStore } from "$lib/features/tab/state/tab_store.svelte";
 import { GitStore } from "$lib/features/git/state/git_store.svelte";
-import { ProfileStore } from "$lib/features/profile/state/profile_store.svelte";
 import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import { as_markdown_text, as_note_path } from "$lib/shared/types/ids";
@@ -38,10 +37,7 @@ vi.mock("@tauri-apps/api/window", () => ({
   }),
 }));
 
-function update_prompt_options(): {
-  description: string;
-  cancel: { onClick: () => void };
-} {
+function update_prompt_options(): { cancel: { onClick: () => void } } {
   const call = vi
     .mocked(toast.info)
     .mock.calls.find(([message]) => String(message).endsWith("is ready"));
@@ -101,9 +97,7 @@ function create_harness(options: HarnessOptions = {}) {
     search: new SearchStore(),
     tab: new TabStore(),
     git: new GitStore(),
-    profile: new ProfileStore(),
   };
-  stores.profile.set_current_id("default");
 
   const services = {
     vault: {
@@ -112,9 +106,13 @@ function create_harness(options: HarnessOptions = {}) {
         has_vault: false,
         editor_settings: null,
       }),
+      reload_vault_list: vi.fn().mockResolvedValue(undefined),
     },
     settings: {
       load_recent_command_ids: vi.fn().mockResolvedValue(["settings.open"]),
+      load_global_editor_settings: vi
+        .fn()
+        .mockResolvedValue({ ...DEFAULT_EDITOR_SETTINGS }),
     },
     hotkey: {
       load_hotkey_overrides: vi.fn().mockResolvedValue([]),
@@ -122,6 +120,10 @@ function create_harness(options: HarnessOptions = {}) {
     },
     theme: {
       load_themes: vi.fn().mockResolvedValue({
+        user_themes: [],
+        active_theme_id: "theme-light",
+      }),
+      load_stored_themes: vi.fn().mockResolvedValue({
         user_themes: [],
         active_theme_id: "theme-light",
       }),
@@ -152,10 +154,6 @@ function create_harness(options: HarnessOptions = {}) {
       download_update: vi.fn().mockResolvedValue({ status: "up_to_date" }),
       install_and_relaunch: vi.fn().mockResolvedValue(true),
     },
-    profile: {
-      load_current_profile: vi.fn().mockResolvedValue(undefined),
-      load_profiles: vi.fn().mockResolvedValue(undefined),
-    },
     tab: {
       mark_conflict: vi.fn(),
       sync_dirty_state: vi.fn(),
@@ -169,9 +167,6 @@ function create_harness(options: HarnessOptions = {}) {
   const execute_folder_refresh_tree = vi.fn().mockResolvedValue(undefined);
   const execute_git_check_repo = vi.fn().mockResolvedValue(undefined);
   const execute_open_vault_dashboard = vi.fn().mockResolvedValue(undefined);
-  const execute_profile_check_dialog_request = vi
-    .fn()
-    .mockResolvedValue(undefined);
 
   register_app_actions({
     registry,
@@ -179,7 +174,6 @@ function create_harness(options: HarnessOptions = {}) {
     services: services as never,
     default_mount_config: {
       reset_app_state: options.reset_app_state ?? false,
-      bootstrap_default_vault_path: null,
     },
   });
 
@@ -201,12 +195,6 @@ function create_harness(options: HarnessOptions = {}) {
     execute: execute_open_vault_dashboard,
   });
 
-  registry.register({
-    id: ACTION_IDS.profile_check_dialog_request,
-    label: "Check Profiles Dialog Request",
-    execute: execute_profile_check_dialog_request,
-  });
-
   return {
     registry,
     stores,
@@ -214,7 +202,6 @@ function create_harness(options: HarnessOptions = {}) {
     execute_folder_refresh_tree,
     execute_git_check_repo,
     execute_open_vault_dashboard,
-    execute_profile_check_dialog_request,
   };
 }
 
@@ -226,8 +213,49 @@ describe("register_app_actions", () => {
     delete test_window.__TAURI_INTERNALS__;
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  it("reloads app-wide settings and keeps the vault's own editor settings", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.ui.set_editor_settings({
+      ...DEFAULT_EDITOR_SETTINGS,
+      max_open_tabs: 9,
+      editor_zoom: 1,
+    });
+    services.settings.load_recent_command_ids.mockResolvedValue(["git.commit"]);
+    services.theme.load_stored_themes.mockResolvedValue({
+      user_themes: [],
+      active_theme_id: "theme-dark",
+    });
+    services.settings.load_global_editor_settings.mockResolvedValue({
+      ...DEFAULT_EDITOR_SETTINGS,
+      max_open_tabs: 3,
+      editor_zoom: 1.5,
+    });
+
+    await registry.execute(ACTION_IDS.app_reload_app_settings);
+
+    expect(stores.ui.active_theme_id).toBe("theme-dark");
+    expect(stores.ui.recent_command_ids).toEqual(["git.commit"]);
+    expect(stores.ui.editor_settings.editor_zoom).toBe(1.5);
+    expect(stores.ui.editor_settings.max_open_tabs).toBe(9);
+    expect(services.vault.reload_vault_list).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload app-wide settings under an open settings dialog", async () => {
+    const { registry, stores, services } = create_harness();
+    stores.ui.settings_dialog.open = true;
+    services.theme.load_stored_themes.mockResolvedValue({
+      user_themes: [],
+      active_theme_id: "theme-dark",
+    });
+    services.settings.load_global_editor_settings.mockResolvedValue({
+      ...DEFAULT_EDITOR_SETTINGS,
+      editor_zoom: 1.5,
+    });
+
+    await registry.execute(ACTION_IDS.app_reload_app_settings);
+
+    expect(stores.ui.active_theme_id).not.toBe("theme-dark");
+    expect(stores.ui.editor_settings.editor_zoom).toBe(1);
   });
 
   it("initializes app state and loads vault UI when vault exists", async () => {
@@ -326,20 +354,6 @@ describe("register_app_actions", () => {
     expect(execute_open_vault_dashboard).not.toHaveBeenCalled();
   });
 
-  it("checks for a Dock profiles request even when the vault fails to load", async () => {
-    const { registry, services, execute_profile_check_dialog_request } =
-      create_harness();
-    services.vault.initialize.mockResolvedValue({
-      status: "error",
-      error: "startup failed",
-    });
-
-    await registry.execute(ACTION_IDS.app_mounted);
-
-    expect(services.profile.load_current_profile).toHaveBeenCalledTimes(1);
-    expect(execute_profile_check_dialog_request).toHaveBeenCalledTimes(1);
-  });
-
   it("resets UI state on mount when reset_app_state is true", async () => {
     const { registry, stores } = create_harness({ reset_app_state: true });
     const reset_for_new_vault_spy = vi.spyOn(stores.ui, "reset_for_new_vault");
@@ -421,62 +435,6 @@ describe("register_app_actions", () => {
     );
   });
 
-  it("warns on Windows that installing closes every profile", async () => {
-    const { registry, stores, services } = create_harness();
-    get_test_window().__TAURI__ = {};
-    vi.stubGlobal("navigator", { platform: "Win32" });
-    services.updater.download_update.mockResolvedValue({
-      status: "ready",
-      version: "0.5.0",
-    });
-    services.profile.load_profiles.mockImplementation(() => {
-      stores.profile.set_profile_ids(["default", "work"]);
-      return Promise.resolve();
-    });
-
-    await registry.execute(ACTION_IDS.app_check_for_updates);
-
-    expect(update_prompt_options().description).toContain(
-      "including other profiles",
-    );
-  });
-
-  it("does not mention other profiles on Windows when there are none", async () => {
-    const { registry, stores, services } = create_harness();
-    get_test_window().__TAURI__ = {};
-    vi.stubGlobal("navigator", { platform: "Win32" });
-    services.updater.download_update.mockResolvedValue({
-      status: "ready",
-      version: "0.5.0",
-    });
-    services.profile.load_profiles.mockImplementation(() => {
-      stores.profile.set_profile_ids(["default"]);
-      return Promise.resolve();
-    });
-
-    await registry.execute(ACTION_IDS.app_check_for_updates);
-
-    expect(update_prompt_options().description).toBe(
-      "Restart to finish updating.",
-    );
-  });
-
-  it("does not warn about other profiles on macOS", async () => {
-    const { registry, services } = create_harness();
-    get_test_window().__TAURI__ = {};
-    vi.stubGlobal("navigator", { platform: "MacIntel" });
-    services.updater.download_update.mockResolvedValue({
-      status: "ready",
-      version: "0.5.0",
-    });
-
-    await registry.execute(ACTION_IDS.app_check_for_updates);
-
-    expect(update_prompt_options().description).toBe(
-      "Restart to finish updating.",
-    );
-  });
-
   it("explains that a portable build updates by downloading the zip", async () => {
     const { registry, services } = create_harness();
     get_test_window().__TAURI__ = {};
@@ -514,34 +472,6 @@ describe("register_app_actions", () => {
 
     expect(stores.ui.update_prompt_dismissed).toBe(true);
     expect(toast.info).toHaveBeenCalledTimes(1);
-    expect(services.updater.download_update).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips the background check in a non-default profile", async () => {
-    const { registry, stores, services } = create_harness();
-    stores.profile.set_current_id("work");
-
-    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
-
-    expect(services.updater.download_update).not.toHaveBeenCalled();
-  });
-
-  it("skips the background check until the profile is known", async () => {
-    const { registry, stores, services } = create_harness();
-    stores.profile.current_id = null;
-
-    await registry.execute(ACTION_IDS.app_check_for_updates_in_background);
-
-    expect(services.updater.download_update).not.toHaveBeenCalled();
-  });
-
-  it("still checks manually in a non-default profile", async () => {
-    const { registry, stores, services } = create_harness();
-    get_test_window().__TAURI__ = {};
-    stores.profile.set_current_id("work");
-
-    await registry.execute(ACTION_IDS.app_check_for_updates);
-
     expect(services.updater.download_update).toHaveBeenCalledTimes(1);
   });
 

@@ -21,7 +21,6 @@ import { LinkRepairService, LinksService } from "$lib/features/links";
 import { TagsService } from "$lib/features/tags";
 import { WatcherService } from "$lib/features/watcher";
 import { UpdaterService } from "$lib/features/updater";
-import { ProfileService } from "$lib/features/profile";
 import { VimService } from "$lib/features/vim";
 import { mount_reactors } from "$lib/reactors";
 
@@ -177,13 +176,6 @@ export function create_app_context(input: {
 
   const updater_service = new UpdaterService(input.ports.updater);
 
-  const profile_service = new ProfileService(
-    input.ports.profile,
-    stores.profile,
-    stores.op,
-    now_ms,
-  );
-
   const clipboard_service = new ClipboardService(
     input.ports.clipboard,
     stores.op,
@@ -248,7 +240,6 @@ export function create_app_context(input: {
     stores.editor,
     stores.op,
     stores.search,
-    stores.profile,
     now_ms,
   );
 
@@ -263,7 +254,6 @@ export function create_app_context(input: {
       search: stores.search,
       tab: stores.tab,
       git: stores.git,
-      profile: stores.profile,
     },
     services: {
       vault: vault_service,
@@ -284,7 +274,6 @@ export function create_app_context(input: {
       theme: theme_service,
       updater: updater_service,
       tags: tags_service,
-      profile: profile_service,
       vim: vim_service,
     },
     default_mount_config: input.default_mount_config,
@@ -302,7 +291,6 @@ export function create_app_context(input: {
     tab_store: stores.tab,
     git_store: stores.git,
     links_store: stores.links,
-    profile_store: stores.profile,
     editor_service,
     note_service,
     vault_service,
@@ -314,7 +302,6 @@ export function create_app_context(input: {
     tags_service,
     watcher_service,
     theme_service,
-    profile_service,
     vim_service,
     action_registry,
   });

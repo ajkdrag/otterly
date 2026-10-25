@@ -13,10 +13,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Instant, SystemTime};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 #[derive(Debug, Serialize)]
 pub struct NoteLinksSnapshot {
@@ -896,19 +896,39 @@ pub fn resolve_note_link(source_path: String, raw_target: String) -> Option<Stri
     link_parser::resolve_wiki_target(&source_path, &raw_target)
 }
 
-// Only the cancel token of the running vault find. Starting a new find
-// cancels the old one, so at most one walk runs at a time.
+// Only the cancel token of each window's running vault find, keyed by window
+// label. Starting a new find cancels that window's old one, so each window
+// runs at most one walk, and a find in one window leaves the others alone.
 #[derive(Default)]
 pub struct VaultFindState {
-    cancel: Mutex<Arc<AtomicBool>>,
+    cancel_by_window: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
-fn replace_vault_find_cancel_token(state: &VaultFindState) -> Result<Arc<AtomicBool>, String> {
+fn lock_vault_find_cancels(app: &AppHandle) -> MutexGuard<'_, HashMap<String, Arc<AtomicBool>>> {
+    // The map only holds flags, so a poisoned lock leaves nothing broken.
+    app.state::<VaultFindState>()
+        .inner()
+        .cancel_by_window
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+fn replace_vault_find_cancel_token(app: &AppHandle, window_label: &str) -> Arc<AtomicBool> {
     let next_cancel = Arc::new(AtomicBool::new(false));
-    let mut current = state.cancel.lock().map_err(|e| e.to_string())?;
-    current.store(true, Ordering::Relaxed);
-    *current = Arc::clone(&next_cancel);
-    Ok(next_cancel)
+    let previous =
+        lock_vault_find_cancels(app).insert(window_label.to_string(), Arc::clone(&next_cancel));
+    if let Some(previous) = previous {
+        previous.store(true, Ordering::Relaxed);
+    }
+    next_cancel
+}
+
+// Also runs when a window is destroyed, so its walk stops with it.
+pub fn cancel_window_vault_find(app: &AppHandle, window_label: &str) {
+    let cancel = lock_vault_find_cancels(app).remove(window_label);
+    if let Some(cancel) = cancel {
+        cancel.store(true, Ordering::Relaxed);
+    }
 }
 
 // What the omnibar sends: the engine's request plus its tag chips. Tags live
@@ -927,7 +947,7 @@ pub struct VaultFindStartRequest {
 #[tauri::command]
 pub fn vault_find_start(
     app: AppHandle,
-    state: tauri::State<'_, VaultFindState>,
+    window: WebviewWindow,
     vault_id: String,
     request: VaultFindStartRequest,
     on_event: Channel<vault_find::VaultFindEvent>,
@@ -945,7 +965,7 @@ pub fn vault_find_start(
     let find =
         vault_find::CompiledFind::from_request(&request.find, only).map_err(|e| e.to_string())?;
     let vault_root = storage::vault_path(&app, &vault_id)?;
-    let cancel = replace_vault_find_cancel_token(&state)?;
+    let cancel = replace_vault_find_cancel_token(&app, window.label());
     std::thread::spawn(move || {
         vault_find::find_in_vault(&vault_root, &find, &cancel, |event| {
             if let Err(e) = on_event.send(event) {
@@ -956,10 +976,12 @@ pub fn vault_find_start(
     Ok(())
 }
 
+// Cancels and keeps the entry: the next find in this window replaces it.
 #[tauri::command]
-pub fn vault_find_cancel(state: tauri::State<'_, VaultFindState>) -> Result<(), String> {
-    let current = state.cancel.lock().map_err(|e| e.to_string())?;
-    current.store(true, Ordering::Relaxed);
+pub fn vault_find_cancel(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    if let Some(cancel) = lock_vault_find_cancels(&app).get(window.label()) {
+        cancel.store(true, Ordering::Relaxed);
+    }
     Ok(())
 }
 

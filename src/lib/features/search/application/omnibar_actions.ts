@@ -49,7 +49,7 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   search_tags: ACTION_IDS.omnibar_open_tags,
   show_tags_pane: ACTION_IDS.tags_show_pane,
   check_for_updates: ACTION_IDS.app_check_for_updates,
-  open_profiles: ACTION_IDS.profile_open_dialog,
+  new_window: ACTION_IDS.vault_open_new_window,
 };
 
 const COMMAND_ACTION_ARGUMENTS: Partial<Record<CommandId, unknown[]>> = {

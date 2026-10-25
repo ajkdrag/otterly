@@ -2,7 +2,12 @@ import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
 import type { OpenNoteState } from "$lib/shared/types/editor";
 import { to_editor_buffer_view_state } from "$lib/shared/types/editor";
-import { DEFAULT_EDITOR_SETTINGS } from "$lib/shared/types/editor_settings";
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  GLOBAL_ONLY_SETTING_KEYS,
+  omit_global_only_keys,
+  type EditorSettings,
+} from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
 import { apply_opened_vault_session } from "$lib/features/vault";
 import { detect_platform } from "$lib/shared/utils/detect_platform";
@@ -15,25 +20,29 @@ const UPDATE_READY_TOAST_ID = "update-ready";
 const is_performance_logging_enabled =
   import.meta.env.DEV && import.meta.env.MODE !== "test";
 
+type AppServices = ActionRegistrationInput["services"];
+
 type VaultInitializeResult = Awaited<
-  ReturnType<ActionRegistrationInput["services"]["vault"]["initialize"]>
+  ReturnType<AppServices["vault"]["initialize"]>
 >;
+
+// The app-wide settings every window loads at mount and again on focus.
+type AppPreferences = {
+  recent_command_ids: Awaited<
+    ReturnType<AppServices["settings"]["load_recent_command_ids"]>
+  >;
+  hotkey_overrides: Awaited<
+    ReturnType<AppServices["hotkey"]["load_hotkey_overrides"]>
+  >;
+  themes: Awaited<ReturnType<AppServices["theme"]["load_stored_themes"]>>;
+};
 
 type AppBootstrapData = {
   vault_initialize_result: VaultInitializeResult;
-  recent_command_ids: Awaited<
-    ReturnType<
-      ActionRegistrationInput["services"]["settings"]["load_recent_command_ids"]
-    >
-  >;
-  hotkey_overrides: Awaited<
-    ReturnType<
-      ActionRegistrationInput["services"]["hotkey"]["load_hotkey_overrides"]
-    >
-  >;
-  theme_result: Awaited<
-    ReturnType<ActionRegistrationInput["services"]["theme"]["load_themes"]>
-  >;
+  preferences: AppPreferences;
+  theme_file: Awaited<
+    ReturnType<AppServices["theme"]["load_themes"]>
+  >["theme_file"];
 };
 
 function set_startup_loading(input: ActionRegistrationInput) {
@@ -75,28 +84,70 @@ async function load_bootstrap_data(
 
   return {
     vault_initialize_result,
-    recent_command_ids,
-    hotkey_overrides,
-    theme_result,
+    preferences: { recent_command_ids, hotkey_overrides, themes: theme_result },
+    theme_file: theme_result.theme_file,
   };
+}
+
+// The theme file is not part of this. Its own watcher reloads it in every
+// window, and it keeps the last valid file theme while the file is invalid.
+async function load_app_preferences(
+  input: ActionRegistrationInput,
+): Promise<AppPreferences> {
+  const { services } = input;
+  const [recent_command_ids, hotkey_overrides, themes] = await Promise.all([
+    services.settings.load_recent_command_ids(),
+    services.hotkey.load_hotkey_overrides(),
+    services.theme.load_stored_themes(),
+  ]);
+  return { recent_command_ids, hotkey_overrides, themes };
 }
 
 function apply_loaded_preferences(
   input: ActionRegistrationInput,
-  data: AppBootstrapData,
+  preferences: AppPreferences,
 ) {
   const { stores, services } = input;
-  stores.ui.set_user_themes(data.theme_result.user_themes);
-  stores.ui.set_active_theme_id(data.theme_result.active_theme_id);
-  stores.ui.set_theme_file(data.theme_result.theme_file);
-  stores.ui.set_recent_command_ids(data.recent_command_ids);
+  stores.ui.set_user_themes(preferences.themes.user_themes);
+  stores.ui.set_active_theme_id(preferences.themes.active_theme_id);
+  stores.ui.set_recent_command_ids(preferences.recent_command_ids);
 
-  stores.ui.hotkey_overrides = data.hotkey_overrides;
+  stores.ui.hotkey_overrides = preferences.hotkey_overrides;
   const hotkeys_config = services.hotkey.merge_config(
     DEFAULT_HOTKEYS,
-    data.hotkey_overrides,
+    preferences.hotkey_overrides,
   );
   stores.ui.set_hotkeys_config(hotkeys_config);
+}
+
+// Settings are app-wide and every window keeps its own copy, so a window
+// reads them again when it gains focus. You have to focus a window before you
+// can change anything in it, so its copy is fresh before it can write over
+// another window's change.
+async function execute_app_reload_app_settings(input: ActionRegistrationInput) {
+  const { stores, services } = input;
+  const [preferences, global_editor_settings] = await Promise.all([
+    load_app_preferences(input),
+    services.settings.load_global_editor_settings(),
+    services.vault.reload_vault_list().catch((error: unknown) => {
+      log.error("Reload vault list failed", { error: String(error) });
+    }),
+  ]);
+  // The settings dialog edits its own copy of these. Reloading under it
+  // would throw away unsaved edits.
+  if (stores.ui.settings_dialog.open) return;
+  apply_loaded_preferences(input, preferences);
+
+  // Editor settings are part app-wide, part per vault. Only the app-wide
+  // keys come from disk. Skipping an unchanged object keeps the editor
+  // reactors from running on every focus.
+  const current = stores.ui.editor_settings;
+  const has_changes = GLOBAL_ONLY_SETTING_KEYS.some(
+    (key) => current[key] !== global_editor_settings[key],
+  );
+  if (!has_changes) return;
+  const vault_only = omit_global_only_keys(current) as Partial<EditorSettings>;
+  stores.ui.set_editor_settings({ ...global_editor_settings, ...vault_only });
 }
 
 function reset_ui_state_for_mount(input: ActionRegistrationInput) {
@@ -126,14 +177,9 @@ async function execute_app_mounted(input: ActionRegistrationInput) {
   const started_at = is_performance_logging_enabled ? performance.now() : null;
   set_startup_loading(input);
 
-  await input.services.profile.load_current_profile();
-  // The Dock's "New Profile…" may have created this window, and its event
-  // went out before we listened. Checking first shows the dialog while the
-  // vault still loads.
-  await input.registry.execute(ACTION_IDS.profile_check_dialog_request);
-
   const bootstrap_data = await load_bootstrap_data(input);
-  apply_loaded_preferences(input, bootstrap_data);
+  apply_loaded_preferences(input, bootstrap_data.preferences);
+  input.stores.ui.set_theme_file(bootstrap_data.theme_file);
 
   if (bootstrap_data.vault_initialize_result.status === "error") {
     set_startup_error(input, bootstrap_data.vault_initialize_result.error);
@@ -184,47 +230,35 @@ async function execute_app_check_for_updates(input: ActionRegistrationInput) {
     toast.success("Otterly is up to date");
     return;
   }
-  await show_update_ready_prompt(input, result.version);
+  show_update_ready_prompt(input, result.version);
 }
 
 // "Later" stops these prompts for the session. The manual check still shows
-// the prompt. Only the default profile checks on its own, because two
-// processes installing one update into the same bundle is asking for trouble.
-// So when only another profile runs, nothing checks in the background. The
-// profile is null until it loads, which counts as not default.
+// the prompt.
+// @Speed: Every vault window runs this check, so N windows can download one
+// update N times (at most every 6 hours). One window could do it for all.
 async function execute_app_check_for_updates_in_background(
   input: ActionRegistrationInput,
 ) {
-  if (!input.stores.profile.is_default) return;
   if (input.stores.ui.update_prompt_dismissed) return;
   const result = await input.services.updater.download_update();
   if (result.status !== "ready" || input.stores.ui.update_prompt_dismissed) {
     return;
   }
-  await show_update_ready_prompt(input, result.version);
+  show_update_ready_prompt(input, result.version);
 }
 
-async function show_update_ready_prompt(
+function show_update_ready_prompt(
   input: ActionRegistrationInput,
   version: string,
 ) {
   const dismiss = () => {
     input.stores.ui.update_prompt_dismissed = true;
   };
-  // The Windows installer has to replace otterly.exe, so it force-closes every
-  // running profile without letting them save. macOS and Linux keep the others
-  // running on the old version. Say so only when there is another profile.
-  let closes_other_profiles = false;
-  if (globalThis.navigator?.platform?.startsWith("Win")) {
-    await input.services.profile.load_profiles();
-    closes_other_profiles = input.stores.profile.profile_ids.length > 1;
-  }
   // A fixed id replaces an open prompt instead of stacking another one.
   toast.info(`Otterly v${version} is ready`, {
     id: UPDATE_READY_TOAST_ID,
-    description: closes_other_profiles
-      ? "Restart to finish updating. Installing closes all open Otterly windows, including other profiles."
-      : "Restart to finish updating.",
+    description: "Restart to finish updating.",
     duration: Number.POSITIVE_INFINITY,
     action: {
       label: "Restart",
@@ -270,7 +304,7 @@ async function execute_app_confirm_quit(input: ActionRegistrationInput) {
       is_quitting: false,
     };
     log.error("Quit failed", { error: String(error) });
-    toast.error("Failed to quit Otterly");
+    toast.error("Failed to close the window");
   }
 }
 
@@ -281,6 +315,12 @@ export function register_app_actions(input: ActionRegistrationInput) {
     id: ACTION_IDS.app_mounted,
     label: "App Mounted",
     execute: async () => execute_app_mounted(input),
+  });
+
+  registry.register({
+    id: ACTION_IDS.app_reload_app_settings,
+    label: "Reload App Settings",
+    execute: async () => execute_app_reload_app_settings(input),
   });
 
   registry.register({

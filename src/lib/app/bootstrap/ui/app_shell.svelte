@@ -85,6 +85,10 @@
     void action_registry.execute(ACTION_IDS.vault_select, vault_id);
   }
 
+  function handle_open_vault_in_new_window(vault_id: VaultId) {
+    void action_registry.execute(ACTION_IDS.vault_open_new_window, vault_id);
+  }
+
   onMount(() => {
     void action_registry.execute(ACTION_IDS.app_mounted);
   });
@@ -100,6 +104,7 @@
       error={stores.ui.startup.error ?? stores.ui.change_vault.error}
       on_choose_vault_dir={handle_choose_vault_dir}
       on_select_vault={handle_select_vault}
+      on_open_vault_in_new_window={handle_open_vault_in_new_window}
       on_toggle_pin_vault={(vault_id) => {
         void action_registry.execute(ACTION_IDS.vault_toggle_pin, vault_id);
       }}
@@ -108,9 +113,6 @@
           ACTION_IDS.vault_remove_from_registry,
           vault_id,
         );
-      }}
-      on_open_profiles={() => {
-        void action_registry.execute(ACTION_IDS.profile_open_dialog);
       }}
       {hide_choose_vault_button}
     />

@@ -21,7 +21,6 @@ import { create_watcher_tauri_adapter } from "$lib/features/watcher";
 import { create_updater_tauri_adapter } from "$lib/features/updater";
 import { create_theme_file_tauri_adapter } from "$lib/features/theme";
 import { create_tags_tauri_adapter } from "$lib/features/tags";
-import { create_profile_tauri_adapter } from "$lib/features/profile";
 import {
   create_press_and_hold_tauri_adapter,
   create_vim_engine_adapter,
@@ -49,7 +48,6 @@ export function create_prod_ports(): Ports {
   const watcher = create_watcher_tauri_adapter();
   const updater = create_updater_tauri_adapter();
   const tags = create_tags_tauri_adapter();
-  const profile = create_profile_tauri_adapter();
   const vimrc = create_vimrc_tauri_adapter();
   const vim_engine = create_vim_engine_adapter();
 
@@ -76,7 +74,6 @@ export function create_prod_ports(): Ports {
     updater,
     theme_file: create_theme_file_tauri_adapter(),
     tags,
-    profile,
     vimrc,
     vim_engine,
     press_and_hold: create_press_and_hold_tauri_adapter(),

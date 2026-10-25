@@ -1,22 +1,17 @@
-use crate::features::profile::service::{session_file_name, ProfileState};
 use crate::shared::constants;
 use crate::shared::storage::vault_path;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, State};
+use tauri::AppHandle;
 
 const SESSIONS_DIR: &str = "sessions";
+const LATEST_SESSION_FILE: &str = "latest.json";
 
-// Several profiles can open one vault, so each keeps its own tabs file in it.
-fn latest_session_path(
-    app: &AppHandle,
-    vault_id: &str,
-    profile_id: &str,
-) -> Result<PathBuf, String> {
+fn latest_session_path(app: &AppHandle, vault_id: &str) -> Result<PathBuf, String> {
     let vault_root = vault_path(app, vault_id)?;
     let sessions_dir = vault_root.join(constants::APP_DIR).join(SESSIONS_DIR);
     std::fs::create_dir_all(&sessions_dir).map_err(|e| e.to_string())?;
-    Ok(sessions_dir.join(session_file_name(profile_id)))
+    Ok(sessions_dir.join(LATEST_SESSION_FILE))
 }
 
 fn read_session_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
@@ -47,10 +42,9 @@ pub(crate) fn parse_vault_session(bytes: &[u8]) -> Result<Value, String> {
 pub async fn load_latest_vault_session(
     vault_id: String,
     app: AppHandle,
-    profile: State<'_, ProfileState>,
 ) -> Result<Option<Value>, String> {
     log::debug!("Loading latest vault session vault_id={}", vault_id);
-    let path = latest_session_path(&app, &vault_id, &profile.id)?;
+    let path = latest_session_path(&app, &vault_id)?;
     let Some(bytes) = read_session_file(&path)? else {
         return Ok(None);
     };
@@ -73,13 +67,12 @@ pub async fn save_latest_vault_session(
     vault_id: String,
     session: Value,
     app: AppHandle,
-    profile: State<'_, ProfileState>,
 ) -> Result<(), String> {
     log::debug!("Saving latest vault session vault_id={}", vault_id);
     if !session.is_object() {
         return Err("Vault session root must be a JSON object".to_string());
     }
 
-    let path = latest_session_path(&app, &vault_id, &profile.id)?;
+    let path = latest_session_path(&app, &vault_id)?;
     write_session_file(&path, &session)
 }

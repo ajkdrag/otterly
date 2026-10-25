@@ -22,8 +22,8 @@ import { create_watcher_reactor } from "$lib/reactors/watcher.reactor.svelte";
 import { create_window_title_reactor } from "$lib/reactors/window_title.reactor.svelte";
 import { create_conflict_toast_reactor } from "$lib/reactors/conflict_toast.reactor.svelte";
 import { create_update_check_reactor } from "$lib/reactors/update_check.reactor.svelte";
-import { create_profile_dialog_request_reactor } from "$lib/reactors/profile_dialog_request.reactor.svelte";
 import { create_vim_mode_reactor } from "$lib/reactors/vim_mode.reactor.svelte";
+import { create_app_settings_reload_reactor } from "$lib/reactors/app_settings_reload.reactor.svelte";
 import { subscribe_to_window_focus } from "$lib/reactors/window_focus";
 import { ConflictToastManager } from "$lib/reactors/conflict_toast";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -51,7 +51,6 @@ import type { LinksStore } from "$lib/features/links";
 import type { TagsService } from "$lib/features/tags";
 import type { WatcherService } from "$lib/features/watcher";
 import type { ThemeService } from "$lib/features/theme";
-import type { ProfileService, ProfileStore } from "$lib/features/profile";
 import type { VimService } from "$lib/features/vim";
 import type { ActionRegistry } from "$lib/app/action_registry/action_registry";
 
@@ -67,7 +66,6 @@ export type ReactorContext = {
   tab_store: TabStore;
   git_store: GitStore;
   links_store: LinksStore;
-  profile_store: ProfileStore;
   editor_service: EditorService;
   note_service: NoteService;
   vault_service: VaultService;
@@ -79,7 +77,6 @@ export type ReactorContext = {
   tags_service: TagsService;
   watcher_service: WatcherService;
   theme_service: ThemeService;
-  profile_service: ProfileService;
   vim_service: VimService;
   action_registry: ActionRegistry;
 };
@@ -94,9 +91,9 @@ export function mount_reactors(context: ReactorContext): () => void {
       context.action_registry,
     ),
     create_update_check_reactor(context.action_registry),
-    create_profile_dialog_request_reactor(
-      context.profile_service,
+    create_app_settings_reload_reactor(
       context.action_registry,
+      subscribe_to_window_focus,
     ),
     create_editor_sync_reactor(
       context.editor_store,
@@ -209,7 +206,6 @@ export function mount_reactors(context: ReactorContext): () => void {
     create_window_title_reactor(
       context.vault_store,
       context.tab_store,
-      context.profile_store,
       (title) => void getCurrentWindow().setTitle(title),
     ),
     create_watcher_reactor(

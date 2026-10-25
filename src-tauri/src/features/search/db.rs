@@ -260,11 +260,9 @@ pub fn remove_note(conn: &Connection, path: &str) -> Result<(), String> {
     Ok(())
 }
 
-// Runs `write` as one transaction. Another profile can have this vault open,
-// and then it is a second writer on this file. Without the transaction its
-// statements can land between ours: after our DELETE and before our INSERT,
-// say, which leaves a note with two search rows, or makes our INSERT hit a
-// row it just wrote. An error from `write` rolls everything back.
+// Runs `write` as one transaction. An error from `write` rolls everything
+// back, so a failed batch leaves no half-written note and no transaction open
+// on this connection (the next BEGIN would fail on it).
 //
 // Do not call this where a transaction is already open. SQLite has no nested
 // BEGIN.
@@ -487,7 +485,7 @@ pub fn rebuild_index(
             break;
         }
         // Notes and their outlinks go in together, so an error undoes the
-        // whole batch and another profile never sees one without the other.
+        // whole batch.
         in_write_transaction(conn, || {
             let mut pending_links: Vec<(String, Vec<String>)> = Vec::new();
             for abs in batch {

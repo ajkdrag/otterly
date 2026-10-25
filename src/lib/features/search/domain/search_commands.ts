@@ -223,17 +223,10 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "refresh-cw",
   },
   {
-    id: "open_profiles",
-    label: "Profiles…",
-    description: "Open another profile in its own window, or create one",
-    keywords: [
-      "profile",
-      "profiles",
-      "instance",
-      "window",
-      "account",
-      "new window",
-    ],
+    id: "new_window",
+    label: "New Window",
+    description: "Open another Otterly window on the vault picker",
+    keywords: ["window", "new window", "instance"],
     icon: "folder-open",
   },
 ];

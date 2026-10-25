@@ -65,7 +65,7 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 
 | Feature     | Owns                                                                                                         |
 | ----------- | ------------------------------------------------------------------------------------------------------------ |
-| `vault`     | Vault registry, open/close lifecycle, settings, watcher setup                                                |
+| `vault`     | Vault registry, open/close lifecycle, vault windows, settings, watcher setup                                 |
 | `note`      | Note CRUD, save/rename/delete, image assets                                                                  |
 | `folder`    | Folder CRUD, file tree rendering, drag-and-drop moves                                                        |
 | `editor`    | CodeMirror session, buffer management, source sync                                                           |
@@ -82,7 +82,6 @@ Each feature is a vertical slice owning its own stores, services, actions, ports
 | `watcher`   | Filesystem watcher start/stop                                                                                |
 | `updater`   | Background update download, install and relaunch                                                             |
 | `document`  | One file opened outside any vault, in its own window                                                         |
-| `profile`   | Current profile, opening other profiles, profiles dialog                                                     |
 | `vim`       | Vim mode settings, vimrc loading and applying, status readout                                                |
 
 ### Folder structure (first 2 levels)
@@ -110,32 +109,62 @@ tests/
 
 ### Windows
 
-The main window is the vault app. A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window instead, labelled `document-<hash>`. `+page.svelte` picks the root by label: `app_root.svelte` for the vault app, `document_window_root.svelte` for a document. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
+One process runs every window, and the Dock shows one icon. A window is a vault window or a document window. `+page.svelte` picks the root by label: `app_root.svelte` for a vault window, `document_window_root.svelte` for a document window.
+
+#### Vault windows
+
+A vault window shows the vault picker or one vault. `main` is the window the app opens itself, and every New Window is `vault-<n>`, numbered by a counter. `tauri.conf.json` declares `main` with `create: false`, and `vault::service` builds each vault window from that entry under its own label. window-state saves size and position per label, so `main` keeps the geometry people already have.
+
+The backend keeps `VaultWindowState`, a map from window label to vault id, the same idea as the label-to-file map of document windows. A vault is open in at most one window:
+
+- `open_vault` and `open_vault_by_id` claim the vault for the calling window (`claim_vault`). The claim also frees the vault the window had before. When another window has it, Rust focuses that window and the open fails with `vault_open_in_other_window`. The frontend maps that to the `in_other_window` result: no error text, the switcher closes, and the window's stores stay as they were.
+- The vault actions call `focus_window_with_vault` before they ask about unsaved changes, so a vault that is already open never triggers that question in the wrong window. The claim is the real guard, because it is atomic. The check only skips the question.
+- A window that closes forgets its claim, stops its watcher and cancels its vault find (`WindowEvent::Destroyed`).
+- `remove_vault_from_registry` refuses while any window has the vault, because other windows resolve vault paths through the registry.
+
+Ways to open a window:
+
+- macOS: Dock right-click > New Window (`app/dock_menu.rs`), and File > New Window with Shift+Cmd+N (Cmd+N is Create Note). The File menu is macOS only, because `Builder::menu` would put a menu bar on every window on Windows and Linux.
+- The "New Window" command in the palette.
+- The window button on a row of the vault picker and the vault switcher, or Cmd/Ctrl+Enter on the highlighted row. This is the `vault.open_new_window` action with the vault id. The new window is claimed for that vault before it is built, and its first `initialize` asks `get_window_vault_id` and opens it. A webview reload takes the same path.
+- Windows and Linux: starting Otterly again. `tauri-plugin-single-instance` hands the launch to the running process, which opens a new window, or a document window when the launch has a file.
+
+A plain launch opens `main` on the picker. Extra windows are not restored on the next launch.
+
+What is per window and what is not:
+
+| Scope  | State                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Window | `VaultWindowState`, `WatcherState` (one watcher per window), `VaultFindState` (one cancel token per window), the tab session |
+| Vault  | `SearchDbState` (one index worker per vault id), notes, vault settings, git                                                  |
+| App    | `settings.json`, `vaults.json`, themes, hotkeys, the theme file, the vimrc                                                   |
+
+Events: `vault_fs_event` goes only to the window that owns the watcher (`emit_to`). The frontend listens with `getCurrentWebviewWindow().listen`, because a listener made with the global `listen()` also sees targeted events. `index_progress` and `theme_file_changed` go to every window. The index belongs to the vault, and All vaults search can sync a vault that another window shows. `VaultService` ignores progress of other vaults.
+
+Settings are app-wide, so each window keeps its own copy. `set_setting` takes `SettingsLock`, because it is async and two windows can write at once. A vault window reads the app-wide settings again when it gains focus (`app.reload_app_settings`, fed by the `app_settings_reload` reactor). You have to focus a window before you can change anything in it, so its copy is fresh before it can overwrite another window's change. A visible window that is not focused shows the old theme until you click it. The theme file reloads live in every window through its watcher, and the vimrc reloads on focus. The reload applies nothing while the settings dialog is open, because the dialog edits its own copy.
+
+Closing, quitting and updating:
+
+- Closing a vault window asks first when tabs are open ("Close window?"). The last window to close exits the app.
+- Cmd+Q ends the process right away (tao has no `applicationShouldTerminate:`), so no close prompts run. `session_persist` (1 s debounce) and autosave have already saved each window's work.
+- Restart to update relaunches the process, so every window goes. Each vault window runs its own background update check, so N windows can download one update N times.
+
+#### Document windows
+
+A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window, labelled `document-<hash>`. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
 
 It reuses the vault app's find in file, help dialog, and clipboard service, and registers the vault app's action ids where the meaning is the same. Hotkeys are the defaults filtered to the actions the window registers, so a shortcut for something missing here does nothing and does not show in Help. Reveal in the file manager is a document command (`reveal_document`) with no path argument, like read and write.
 
-The backend keeps a map from window label to file path. `read_document` and `write_document` take no path: they act on the calling window's file. So a document window cannot reach any other file on disk.
+The backend keeps a map from window label to file path. `read_document` and `write_document` take no path: they act on the calling window's file. So a document window cannot reach any other file on disk. Document windows are never in `VaultWindowState`, and a vault replace skips files that are open in one.
 
 How files arrive:
 
-- macOS: `RunEvent::Opened`, for a cold launch and for a running app. `tauri.conf.json` declares the main window with `create: false`, and `RunEvent::Ready` creates it only when no file opened.
-- Windows and Linux: the file is a command-line argument. `tauri-plugin-single-instance` forwards a second launch's arguments to the running process.
+- macOS: `RunEvent::Opened`, for a cold launch and for a running app. `RunEvent::Ready` builds `main` only when no file opened.
+- Windows and Linux: the file is a command-line argument. The single-instance plugin forwards a second launch's arguments to the running process.
 
 File associations live in `tauri.conf.json` (`bundle.fileAssociations`). Linux needs `src-tauri/linux/otterly.desktop`, because the default desktop entry passes no `%F`. macOS also merges `src-tauri/Info.plist`, which declares the Markdown type for older macOS versions.
 
-The Windows release also ships a portable zip: `otterly.exe` plus `src-tauri/windows/portable.txt`, built by `release.yml`. It is the same binary as the installed app. `is_portable_install` checks for `portable.txt` next to the exe, and `UpdaterService` then skips the update, because the updater would run the NSIS installer. Settings still live in the user profile.
-
-#### Profiles
-
-A profile is a separate Otterly process with one vault window. `--profile=<id>` or `OTTERLY_PROFILE` picks it at launch. Ids match `^[a-z0-9][a-z0-9-]{0,31}$`, and a bad one, or a bare `--profile <id>`, logs an error and starts `default`. Before the Tauri builder runs, `app/mod.rs` rewrites the config identifier to `com.otterly.app.profile-<id>`. Everything Tauri derives from the identifier is then per profile: settings, the vault list, window state, logs, the webview data dir on Windows and Linux, and the single-instance lock. `default` keeps `com.otterly.app`, so existing data stays where it is.
-
-Per profile: the things above, the webview storage on macOS 14+ (`data_store_identifier` on the main and document windows), the tab session of a vault (`.otterly/sessions/latest.json` for `default`, `latest-<id>.json` for the rest), and the recent notes of a vault (the `recent_notes` vault setting for `default`, `recent_notes-<id>` for the rest). Per vault, shared by every profile that opens it: the notes, vault settings, starred notes, `search.db` and git. Two profiles on one vault is the same as Otterly plus another editor on that folder.
-
-A profile loads a vault's lists once, so writing its whole in-memory list back would undo what another profile saved in between. That is why recent notes are per profile, and why starred notes are saved as a change over the list on disk (`apply_starred_paths_change`, fed by the starred reactor's last saved list). The reactor runs those saves one after another, and a save is skipped when the list on disk cannot be read, because merging over an unknown list would drop other profiles' stars. Editor settings are read again when the settings dialog opens, so they stay last-writer-wins.
-
-A profile exists when its config folder exists, so `list_profiles` reads folder names and there is no registry to keep in sync. Any launch with a valid id creates the folder, so a mistyped id adds a profile until someone deletes the folder. `open_profile` starts the executable again with `--profile=<id>`. If that profile already runs, the single-instance plugin hands the new process's arguments to it, and it focuses its window. Only the default profile checks for updates in the background (on macOS a plain launch while only another profile runs just activates that profile, so nothing checks then). On Windows, installing an update closes every running profile, because the installer has to replace `otterly.exe`, and the update prompt says so when other profiles exist. On macOS and Linux the other profiles keep running the old version until restarted.
-
-The "Profiles…" command opens the dialog. On macOS the Dock menu lists the profiles too. Tauri has no Dock menu API, so `profile/dock_menu.rs` adds `applicationDockMenu:` to tao's app delegate class at runtime. The AppKit callback has no user data pointer, so the menu keeps what it needs in one static (see Accepted deviations). The Windows jump list and Linux desktop actions are left out, because the lists are dynamic and not cheap to keep current.
+The Windows release also ships a portable zip: `otterly.exe` plus `src-tauri/windows/portable.txt`, built by `release.yml`. It is the same binary as the installed app. `is_portable_install` checks for `portable.txt` next to the exe, and `UpdaterService` then skips the update, because the updater would run the NSIS installer. Settings still live in the app data folder.
 
 ### Cross-runtime split
 
@@ -158,7 +187,7 @@ Chips go to Rust with the find request. Rust resolves them through the search db
 
 `packages/markdown_editor` is a plugin framework on CodeMirror 6. It owns the source model, rendering, and editing. It has no Svelte, Tauri, or app-store dependencies. The editor adapter (`codemirror_adapter.ts`) picks the plugins and passes host callbacks to the plugin that needs each one: link navigation to `links`, asset resolution to `images`, wiki suggestions to `wiki_links`, tag clicks and suggestions to `tags`, clipboard conversion to `clipboard`, and diagram rendering to `code_blocks`. New Markdown behavior belongs in a package plugin, not in the adapter. See [the package design](../packages/markdown_editor/DESIGN.md).
 
-Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The package reports `{ mode, showcmd, recording }`, which lands in `vim_status` of `EditorStore` and `DocumentStore`. `:w` and `:q` come back as save and close requests, and the composition roots route them to `note_request_save` and `tab_close`. The `vim_mode` reactor pushes the setting into the editor, reloads the vimrc and pulls text copied in another app into the Vim register on window focus, and on macOS turns the accent menu for held keys off through `VimService`. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys, and turns Ctrl-[ into Esc in the omnibar, dialogs and find bar. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, next to `settings.json`, so each profile has its own. It is a subset of maps, unmaps, `let mapleader` and `set` (see the package design). Lines that do not apply are listed in Settings under Vim. The engine has bugs the public API cannot reach, so `patches/` holds pnpm patches for it.
+Vim is an extension in the package (`plugins/vim`), not a construct plugin. The adapter holds it in a `vim_compartment`, so toggling `vim_mode_enabled` does not rebuild cached buffer states or drop their history. While it is on, code blocks and tables show their source under the caret, so one Vim instance edits the whole document. The package reports `{ mode, showcmd, recording }`, which lands in `vim_status` of `EditorStore` and `DocumentStore`. `:w` and `:q` come back as save and close requests, and the composition roots route them to `note_request_save` and `tab_close`. The `vim_mode` reactor pushes the setting into the editor, reloads the vimrc and pulls text copied in another app into the Vim register on window focus, and on macOS turns the accent menu for held keys off through `VimService`. `use_keyboard_shortcuts` lets Ctrl keys through to the Vim editor on macOS, where app hotkeys are Cmd keys, and turns Ctrl-[ into Esc in the omnibar, dialogs and find bar. On Windows and Linux the app hotkey on Ctrl wins. The vimrc is `<app_config_dir>/otterly/vimrc`, next to `settings.json`. It is a subset of maps, unmaps, `let mapleader` and `set` (see the package design). Lines that do not apply are listed in Settings under Vim. The engine has bugs the public API cannot reach, so `patches/` holds pnpm patches for it.
 
 `EditorService` still owns the mounted session and buffer lifecycle. Saving reads the canonical source through `EditorSession.get_markdown()`. It does not serialize the rendered document. Each cached buffer retains its own source history and saved baseline. See [the package README](../packages/markdown_editor/README.md) for the source and offset contracts.
 
@@ -197,7 +226,7 @@ Every feature follows this pattern. Cross-feature imports go through `index.ts` 
 
 ### Domain stores (`src/lib/features/*/state/*_store.svelte.ts`)
 
-Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`, `TagsStore`, `ProfileStore`. These are `$state` classes instantiated once in `create_app_stores()`.
+Each feature owns its domain state: `VaultStore`, `NotesStore`, `EditorStore`, `SearchStore`, `TabStore`, `GitStore`, `LinksStore`, `TagsStore`. These are `$state` classes instantiated once in `create_app_stores()`.
 
 - **Who writes**: Services (after IO completes) and actions (for immediate mutations).
 - **Who reads**: Components via `$derived`, reactors via `$effect`, services (to check current state before IO).
@@ -328,7 +357,7 @@ Services receive ports and stores via constructor injection. The composition roo
 - **SearchService and VaultFindService request revisions**: Store per-use-case revision counters to ignore stale async responses. `VaultFindService` also uses its counter to drop events of a cancelled streaming search. Cancellation bookkeeping only.
 - **VimService load state**: Holds `load_revision` (the latest vimrc load wins), the last applied file (a focus reload with no edit is skipped), and `force_requested` (a manual reload keeps its force when a focus load takes over).
 - **Keyboard shortcuts**: Action definitions include `shortcut` metadata for display. Actual binding is imperative in `src/lib/hooks/use_keyboard_shortcuts.svelte.ts` for fine-grained event control.
-- **Dock menu static** (`profile/dock_menu.rs`, macOS only): one `OnceLock` holds the `AppHandle` and the menu target, because the AppKit callback carries no context.
+- **Dock menu static** (`app/dock_menu.rs`, macOS only): one `OnceLock` holds the `AppHandle` and the menu target, because the AppKit callback carries no context.
 - **op_toast reactor**: Calls `svelte-sonner` toast functions directly. Toast notifications are fire-and-forget UI feedback with no store side effects.
 - **Rust theme feature imports from notes**: `features/theme/service.rs` uses `atomic_write` from `features/notes/service.rs`, and `theme_file_dir` copies the config folder lines from `settings_path`. The document feature already imports `atomic_write` the same way, so this bends backend invariant 3 for a second consumer. Moving `atomic_write` and a `config_dir` helper into `shared/` is a follow-up that touches notes, document, settings and theme at once.
 
@@ -383,9 +412,9 @@ Backend invariants:
 
 1. All native capabilities are exposed exclusively through `#[tauri::command]` functions
 2. Managed state structs live in the feature's `service.rs` — no global statics
-3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, `profile::service` for `ProfileState`, `session_file_name` and `with_profile_data_store`, and `document::service` for `DocumentState` in search and `open_document_window` in vim)
+3. Cross-feature shared code goes in `shared/`, not inside a feature module (existing exceptions: features import `notes::service` file helpers, and `document::service` for `DocumentState` in search and `open_document_window` in vim)
 4. `app/mod.rs` is the only place that registers plugins, state, and command handlers
-5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState`, which are explicit lifecycle-managed state, `ProfileState`, which is launch config plus one flag, and `VaultFindState`, which only holds the cancel token of the running vault search)
+5. Backend holds no domain state between calls (exceptions: `WatcherState`, `ThemeFileWatcherState` and `SearchDbState`, which are explicit lifecycle-managed state, `VaultWindowState`, which maps each vault window to its vault, and `VaultFindState`, which only holds the cancel token of the running vault search)
 
 ## Validation checklist
 

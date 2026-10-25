@@ -8,7 +8,13 @@ export interface VaultPort {
   list_vaults(): Promise<Vault[]>;
   remove_vault(vault_id: VaultId): Promise<void>;
   remember_last_vault(vault_id: VaultId): Promise<void>;
-  get_last_vault_id(): Promise<VaultId | null>;
+  // The vault this window shows, or the one New Window opened it for.
+  get_window_vault_id(): Promise<VaultId | null>;
+  // A new window on the picker (null) or on the vault. When another window
+  // has the vault, that window comes to the front instead.
+  open_new_vault_window(vault_id: VaultId | null): Promise<void>;
+  // True when another window has the vault and it came to the front.
+  focus_window_with_vault(vault_id: VaultId): Promise<boolean>;
 }
 
 export interface VaultSettingsPort {

@@ -8,7 +8,6 @@ import { TabStore } from "$lib/features/tab";
 import { GitStore } from "$lib/features/git";
 import { LinksStore } from "$lib/features/links";
 import { TagsStore } from "$lib/features/tags";
-import { ProfileStore } from "$lib/features/profile";
 import { VimStore } from "$lib/features/vim";
 
 export type AppStores = {
@@ -22,7 +21,6 @@ export type AppStores = {
   git: GitStore;
   links: LinksStore;
   tags: TagsStore;
-  profile: ProfileStore;
   vim: VimStore;
 };
 
@@ -38,7 +36,6 @@ export function create_app_stores(): AppStores {
     git: new GitStore(),
     links: new LinksStore(),
     tags: new TagsStore(),
-    profile: new ProfileStore(),
     vim: new VimStore(),
   };
 }

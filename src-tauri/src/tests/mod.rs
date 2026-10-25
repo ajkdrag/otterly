@@ -24,8 +24,6 @@ mod portable_install;
 
 #[path = "../../tests/theme_file_service.rs"]
 mod theme_file_service;
-#[path = "../../tests/profile_launch.rs"]
-mod profile_launch;
 #[path = "../../tests/vault_find.rs"]
 mod vault_find;
 #[path = "../../tests/vim_service.rs"]
