@@ -1313,20 +1313,21 @@ A `#tag` is plain text. The editor draws it as a chip, and the index counts it f
 - **Expected:** A chip is a tag the index counts, and the other way around, except for the divergences below. The rules:
   - **R1 Where.** Inline text of paragraphs, headings and table cells. Never inside code (fenced, indented, inline), HTML (blocks and tags), link text or destinations (`[..](..)`, `[..][..]`), images, wiki links, autolinks and bare URLs, escapes (`\#`) or entities (`&#35;`). A bare `[text]` shortcut reference counts as text. The editor cannot resolve link definitions, and without a definition comrak reads it as text too. Frontmatter `tags:` is read separately, by the index only.
   - **R2 Start.** A `#` starts a tag when the character before it is nothing (the start of the inline text), Unicode whitespace (`char::is_whitespace`, which includes NBSP and the ideographic space U+3000), or a run of `*`, `_`, `~` that itself starts the text or follows whitespace. So `**#bold**`, `~~#x~~` and an unclosed `**#x` all start a tag. `foo**#x**` does not. A BOM at the start of the note counts as the start of the text.
-  - **R3 Body.** The longest run of Unicode Alphabetic, numbers (Nd, Nl, No), combining marks (Mn, Mc, Me), `_`, `-` and `/`.
+  - **R3 Body.** The longest run of Unicode Alphabetic, numbers (Nd, Nl, No), combining marks (Mn, Mc, Me), emoji, `_`, `-` and `/`. Emoji are Extended_Pictographic and the skin tone modifiers. The variation selector U+FE0F and the keycap U+20E3 are marks already. A zero width joiner (U+200D) counts only when an Extended_Pictographic emoji follows it, so a family emoji stays whole and a dangling joiner is left out.
   - **R4 Trim.** Drop trailing `_` and `/`. A trailing `_` is often the closer of `_..._` emphasis. comrak resolves emphasis before we scan, and Lezer resolves it after our parser ran, so dropping it always is the only rule both sides can compute. `_see #todo_` is `todo`, and `#snake_case_` is `snake_case`.
-  - **R5 Valid.** At least one letter or number, no empty `/` segment, and not numbers only. `#123`, `#١٢٣` and `#²` are not tags. `#1st` and `#2024-q1` are.
+  - **R5 Valid.** At least one letter, number or Extended_Pictographic emoji, no empty `/` segment, and not numbers only. `#123`, `#١٢٣` and `#²` are not tags. `#1st`, `#2024-q1` and `#1🔥` are.
   - **R6 Identity.** The key is `lowercase(NFC(body))`. `#Work` and `#work` are one tag, and so are precomposed and decomposed `café`. Per note, the first spelling wins: frontmatter first, then body order.
 - **Edge cases/notes:**
   - Whitespace is the explicit Rust set. TypeScript must not use `\s`, which adds U+FEFF and misses U+0085.
-  - Punctuation ends the body: `#tag.`, `#tag?`, `#tag,` and `#tag's` are `tag`. `(#tag)` is not a tag. `#a#b` is only `a`. An emoji ends a tag (`#party🎉` is `party`), and `#🎉` is not a tag.
+  - Punctuation ends the body: `#tag.`, `#tag?`, `#tag,` and `#tag's` are `tag`. `(#tag)` is not a tag. `#a#b` is only `a`. Emoji are tag characters: `#🔥hot`, `#party🎉` and `#🎉` are tags, and `🔥#hot` is not (R2). A skin tone modifier alone is no tag.
+  - Extended_Pictographic also holds `©`, `®`, `™` and arrows like `↔`, so `#brand™` is the tag `brand™`. `→` is not in it and ends the tag.
   - A multi-line paragraph in a quote or a list counts on every line, including lazy continuation lines.
   - A bare URL ends at a Unicode space (NBSP, U+3000), so `http://e.com/　#メモ` has a tag. comrak only stops at ASCII whitespace, so the Rust parser cuts the URL there itself.
   - Known divergence: `~#x~` with a single tilde pair. Lezer reads it as subscript and never looks inside, so the editor draws plain text and the index counts `x`. `~~#x~~` agrees.
   - Known divergence: `[ #x]` with a matching link definition. The index reads a link and skips it. The editor does not resolve definitions and draws a chip.
   - Known divergence: a tag glued to an autolink, like `#éhttp://e.com/`, `#a_www.a.com/` or `#n@e.co`. comrak starts the autolink inside the word, so the index counts `é`, `a` and nothing. The editor already took the whole word and draws `#éhttp`, `#a_www` and `#n`. Nobody types these on purpose.
   - Known divergence: frontmatter `tags:` values are indexed, and never chips.
-  - @Robustness: Rust's `unicode_categories` and the WebView's ICU can disagree about letters and marks added in recent Unicode versions.
+  - @Robustness: Rust's `unicode_categories` and `icu_properties` and the WebView's ICU can disagree about letters, marks and emoji added in recent Unicode versions.
 
 ### TAG-002. Tags draw as chips without moving text
 

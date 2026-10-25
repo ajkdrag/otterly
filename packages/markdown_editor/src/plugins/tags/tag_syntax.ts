@@ -59,22 +59,29 @@ export function read_tag(
   return run ? valid_body(run[0]) : null;
 }
 
-// R3. Sticky, and with the `u` flag so emoji and astral letters count as one
-// char each. Matches Rust's is_tag_char: Alphabetic, numbers (Nd, Nl, No),
-// marks (Mn, Mc, Me), `_`, `-`, `/`.
+// R3. Matches Rust's tag_body_len: Alphabetic, numbers (Nd, Nl, No), marks (Mn,
+// Mc, Me), emoji (Extended_Pictographic and the skin tone modifiers), `_`, `-`
+// and `/`. U+FE0F and the keycap U+20E3 are marks. A zero width joiner counts
+// only when an emoji follows it, so a family emoji is one tag body and a
+// dangling joiner is not in the tag. The `u` flag makes emoji and astral
+// letters one char each. The pattern is a string so tag_completion builds its
+// own regexes from it.
 //
-// @Robustness: The WebView's ICU and Rust's unicode_categories can disagree
-// on marks added in recent Unicode versions. Not worth a table of our own.
-const tag_chars = /[\p{Alphabetic}\p{N}\p{M}_\-/]+/uy;
+// @Robustness: The WebView's ICU and Rust's unicode_categories and
+// icu_properties can disagree on marks and emoji added in recent Unicode
+// versions. Not worth a table of our own.
+export const tag_body_pattern = String.raw`(?:[\p{Alphabetic}\p{N}\p{M}\p{Extended_Pictographic}\p{Emoji_Modifier}_\-/]|\u200D(?=\p{Extended_Pictographic}))`;
+const tag_chars = new RegExp(`${tag_body_pattern}+`, "uy");
 
 // R4 and R5. Trailing `_` and `/` go. A trailing `_` is often the closer of
 // `_..._` emphasis, which comrak has resolved before Rust scans and Lezer
 // resolves after we run, so dropping it always is the only rule both sides
-// can compute. Then at least one letter or number, no empty `/` segment, and
-// not numbers only (`#123`, `#١٢٣`, `#²`).
+// can compute. Then at least one letter, number or emoji, no empty `/`
+// segment, and not numbers only (`#123`, `#١٢٣`, `#²`).
 function valid_body(body: string): string | null {
   const trimmed = body.replace(/[_/]+$/, "");
-  if (!/[\p{Alphabetic}\p{N}]/u.test(trimmed)) return null;
+  if (!/[\p{Alphabetic}\p{N}\p{Extended_Pictographic}]/u.test(trimmed))
+    return null;
   if (trimmed.split("/").includes("")) return null;
   if (/^\p{N}+$/u.test(trimmed)) return null;
   return trimmed;

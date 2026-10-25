@@ -19,6 +19,8 @@
 use crate::features::search::link_parser;
 use comrak::nodes::{AstNode, NodeValue, Sourcepos};
 use comrak::{parse_document, Arena, Options};
+use icu_properties::props::{EmojiModifier, ExtendedPictographic};
+use icu_properties::CodePointSetData;
 use std::collections::HashMap;
 use unicode_categories::UnicodeCategories;
 use unicode_normalization::UnicodeNormalization;
@@ -297,10 +299,7 @@ fn scan_inline_tags(scan: &[char]) -> Vec<(String, usize)> {
             continue;
         }
         let body_start = idx + 1;
-        let mut body_end = body_start;
-        while body_end < scan.len() && is_tag_char(scan[body_end]) {
-            body_end += 1;
-        }
+        let body_end = body_start + tag_body_len(&scan[body_start..]);
         let body: String = scan[body_start..body_end].iter().collect();
         if let Some(tag) = validate_tag_body(&body) {
             found.push((tag, idx));
@@ -330,22 +329,61 @@ fn starts_tag(scan: &[char], idx: usize) -> bool {
 // Devanagari virama in `क्या` and the Thai tone mark in `ไม่` are not
 // alphabetic, and without them the tag would stop after one letter.
 //
-// @Robustness: unicode_categories and the WebView's ICU can disagree on marks
-// added in recent Unicode versions, so a tag with one of those may end in a
-// different place in the editor. Not worth a table of our own.
+// Emoji count too: Extended_Pictographic, and the skin tone modifiers that
+// follow them. The variation selector U+FE0F and the keycap U+20E3 are marks
+// already. Extended_Pictographic also holds `©`, `®`, `™` and the `↔` arrows,
+// so `#brand™` is the tag `brand™`.
+//
+// @Robustness: unicode_categories, icu_properties and the WebView's ICU can
+// disagree on marks and emoji added in recent Unicode versions, so a tag with
+// one of those may end in a different place in the editor. Not worth a table
+// of our own.
 fn is_tag_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch.is_mark() || matches!(ch, '_' | '-' | '/')
+    ch.is_alphanumeric()
+        || ch.is_mark()
+        || is_emoji(ch)
+        || is_emoji_modifier(ch)
+        || matches!(ch, '_' | '-' | '/')
+}
+
+fn is_emoji(ch: char) -> bool {
+    CodePointSetData::new::<ExtendedPictographic>().contains(ch)
+}
+
+fn is_emoji_modifier(ch: char) -> bool {
+    CodePointSetData::new::<EmojiModifier>().contains(ch)
+}
+
+// How many chars at the start of `chars` are tag body (R3). A zero width
+// joiner is part of the body only when an emoji follows it, so `#👨\u{200d}👩`
+// stays whole and a dangling joiner does not end up in the tag.
+fn tag_body_len(chars: &[char]) -> usize {
+    let mut len = 0;
+    while let Some(&ch) = chars.get(len) {
+        let joins_emoji =
+            ch == '\u{200d}' && chars.get(len + 1).is_some_and(|&next| is_emoji(next));
+        if !is_tag_char(ch) && !joins_emoji {
+            break;
+        }
+        len += 1;
+    }
+    len
 }
 
 // R4 and R5. Trailing `_` and `/` go: `a/b/` is `a/b`. A trailing `_` is
 // often the closer of `_..._` emphasis. comrak resolves that before we scan
 // and the editor's Lezer parser after it reads the tag, so dropping it always
 // is the only rule both sides can compute. Then rejects `/a`, `a//b`, bodies
-// with no letter or number (`#_`, `#---`), and numbers only (`#123` is an
-// issue number or a year, and `#١٢٣` too). `#1st` and `#v2` are fine.
+// with no letter, number or emoji (`#_`, `#---`), and numbers only (`#123` is
+// an issue number or a year, and `#١٢٣` too). `#1st`, `#v2` and `#1🔥` are
+// fine.
 fn validate_tag_body(body: &str) -> Option<String> {
     let body = body.trim_end_matches(['_', '/']);
-    if !body.chars().all(is_tag_char) || !body.chars().any(char::is_alphanumeric) {
+    let chars: Vec<char> = body.chars().collect();
+    if tag_body_len(&chars) != chars.len() {
+        return None;
+    }
+    if !chars.iter().any(|&ch| ch.is_alphanumeric() || is_emoji(ch)) {
         return None;
     }
     if body.split('/').any(str::is_empty) {

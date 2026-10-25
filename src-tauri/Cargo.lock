@@ -2809,6 +2809,7 @@ dependencies = [
  "comrak",
  "filetime",
  "git2",
+ "icu_properties",
  "log",
  "mime_guess",
  "notify",

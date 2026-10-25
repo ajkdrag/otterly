@@ -260,9 +260,55 @@
       "index": ["日本語", "café", "क्या", "ไม่"]
     },
     {
-      "name": "emoji ends a tag",
-      "markdown": "#party🎉 #ok #🎉",
-      "index": ["party", "ok"]
+      "name": "emoji after the hash",
+      "markdown": "#🔥hot",
+      "index": ["🔥hot"]
+    },
+    {
+      "name": "emoji alone",
+      "markdown": "#🔥",
+      "index": ["🔥"]
+    },
+    {
+      "name": "emoji between letters",
+      "markdown": "#a🔥b",
+      "index": ["a🔥b"]
+    },
+    {
+      "name": "digit then emoji is not numbers only",
+      "markdown": "#1🔥",
+      "index": ["1🔥"]
+    },
+    {
+      "name": "emoji ends a tag and punctuation still does",
+      "markdown": "#party🎉 #ok #🎉, #done🎉.",
+      "index": ["party🎉", "ok", "🎉", "done🎉"]
+    },
+    {
+      "name": "emoji sequences stay whole",
+      "markdown": "#👨\u200d👩\u200d👧 #🧑🏽\u200d💻 #👍🏽 #❤\ufe0f #🏳\ufe0f\u200d🌈x",
+      "index": [
+        "👨\u200d👩\u200d👧",
+        "🧑🏽\u200d💻",
+        "👍🏽",
+        "❤\ufe0f",
+        "🏳\ufe0f\u200d🌈x"
+      ]
+    },
+    {
+      "name": "a joiner needs an emoji after it",
+      "markdown": "#🔥\u200d and #a\u200db",
+      "index": ["🔥", "a"]
+    },
+    {
+      "name": "a lone modifier is no tag and emoji before the hash is no start",
+      "markdown": "#🏽 and 🔥#hot",
+      "index": []
+    },
+    {
+      "name": "pictographic symbols are tag chars and plain arrows are not",
+      "markdown": "#brand™ #a→b",
+      "index": ["brand™", "a"]
     },
     {
       "name": "keycap emoji is only marks",

@@ -45,6 +45,9 @@ walkdir = "2.5.0"
 unicode_categories = "0.1.1"
 # Already in Cargo.lock (comrak's caseless pulls it in). Tag keys are NFC.
 unicode-normalization = "0.1.25"
+# Already built for tauri (url's idna uses it). We use it for the emoji tag
+# chars (Extended_Pictographic), which std and unicode_categories do not have.
+icu_properties = "2.1.2"
 
 [dev-dependencies]
 tempfile = "3"

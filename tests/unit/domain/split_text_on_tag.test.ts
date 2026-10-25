@@ -57,6 +57,19 @@ describe("split_text_on_tag", () => {
     ]);
   });
 
+  it("marks a tag that holds emoji whole and ignores a hash after one", () => {
+    expect(
+      split_text_on_tag(
+        "#\u{1F525}hot and \u{1F525}#hot and #\u{1F9D1}\u{1F3FD}",
+        ["\u{1F525}hot", "hot", "\u{1F9D1}\u{1F3FD}"],
+      ),
+    ).toEqual([
+      tag("#\u{1F525}hot"),
+      plain(" and \u{1F525}#hot and "),
+      tag("#\u{1F9D1}\u{1F3FD}"),
+    ]);
+  });
+
   it("returns the whole text when there is nothing to mark", () => {
     expect(split_text_on_tag("plain text", ["x"])).toEqual([
       plain("plain text"),

@@ -421,6 +421,16 @@ describe("tag completion", () => {
     expect(editor.source()).toBe("see #project‸ later");
   });
 
+  test("TAG-005 emoji are tag chars, before the caret and after it", async () => {
+    const query = vi.fn(() => Promise.resolve([{ tag: "🔥hot", count: 2 }]));
+    const editor = completing("see #🔥h‸ot later", query);
+    editor.type("o");
+    await menu_opens(editor);
+    expect(query).toHaveBeenLastCalledWith("🔥ho", expect.any(AbortSignal));
+    editor.press("Enter");
+    expect(editor.source()).toBe("see #🔥hot‸ later");
+  });
+
   test("TAG-006 completion still works in source mode", async () => {
     const query = vi.fn(() => Promise.resolve(suggestions));
     const editor = completing("see ‸", query);

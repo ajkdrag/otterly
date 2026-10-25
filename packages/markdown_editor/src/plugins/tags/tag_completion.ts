@@ -8,7 +8,7 @@ import { ViewPlugin, type EditorView } from "@codemirror/view";
 import { current_tree, has_ancestor, is_literal } from "../../core/context.js";
 import { menu_support } from "../menus/menu_support.js";
 import type { TagOptions } from "./index.js";
-import { inside_link, starts_tag } from "./tag_syntax.js";
+import { inside_link, starts_tag, tag_body_pattern } from "./tag_syntax.js";
 
 type QueryTags = NonNullable<TagOptions["query_tags"]>;
 
@@ -24,8 +24,8 @@ export function tag_completion(query_tags: QueryTags): Extension {
   ];
 }
 
-const tag_before_caret = /#([\p{Alphabetic}\p{N}\p{M}_\-/]*)$/u;
-const tag_chars_after_caret = /^[\p{Alphabetic}\p{N}\p{M}_\-/]*/u;
+const tag_before_caret = new RegExp(`#(${tag_body_pattern}*)$`, "u");
+const tag_chars_after_caret = new RegExp(`^${tag_body_pattern}*`, "u");
 
 // Lookups still running when the view goes away are aborted, so the host can
 // drop the work. Same pattern as wiki links.

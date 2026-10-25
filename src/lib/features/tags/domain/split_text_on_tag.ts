@@ -2,10 +2,15 @@ import { tag_key } from "$lib/features/tags/domain/tag_key";
 
 export type TextPart = { text: string; is_tag: boolean };
 
-// Same chars as rule R3 (docs/markdown_editor_behavior_spec.md, section 26).
-// We do not import the editor package here, so this is a copy.
-const TAG_BODY = /[\p{Alphabetic}\p{N}\p{M}_\-/]+/uy;
-const BEFORE_HASH = /[\p{Alphabetic}\p{N}\p{M}_\-/#]$/u;
+// Same chars as rule R3 (docs/markdown_editor_behavior_spec.md, section 26),
+// joiner rule included. We do not import the editor package here, so this is
+// a copy of its tag_body_pattern.
+const TAG_BODY_CHAR = String.raw`[\p{Alphabetic}\p{N}\p{M}\p{Extended_Pictographic}\p{Emoji_Modifier}_\-/]`;
+const TAG_BODY = new RegExp(
+  String.raw`(?:${TAG_BODY_CHAR}|\u200D(?=\p{Extended_Pictographic}))+`,
+  "uy",
+);
+const BEFORE_HASH = new RegExp(`(?:${TAG_BODY_CHAR}|#)$`, "u");
 
 // Splits a plain excerpt into text and `#tag` parts, for the tags in `tags`.
 // A tag matches by key and as a whole tag: `#ab` is not `#a`. Excerpts are
