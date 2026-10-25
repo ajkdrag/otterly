@@ -174,7 +174,9 @@
       <li>
         <code class="font-mono">:w</code> saves the note,
         <code class="font-mono">:q</code> closes its tab (it asks first when
-        there are unsaved changes), and <code class="font-mono">:wq</code> does both.
+        there are unsaved changes), and <code class="font-mono">:wq</code> does
+        both. On a new note, <code class="font-mono">:wq</code> opens the save dialog
+        and keeps the tab open.
       </li>
       <li>
         {#if is_mac}
