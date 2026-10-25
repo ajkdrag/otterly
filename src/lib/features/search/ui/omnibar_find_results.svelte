@@ -333,7 +333,11 @@
         aria-hidden="true"
       >
         {#if !has_pattern}
-          <p>Find text in every file</p>
+          {#if tag_list_label}
+            <p>Find text in notes tagged {tag_list_label}</p>
+          {:else}
+            <p>Find text in every file</p>
+          {/if}
           <p class="mt-1 text-xs">{empty_hint}</p>
         {:else if results.error}
           <p

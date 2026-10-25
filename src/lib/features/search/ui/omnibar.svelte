@@ -263,11 +263,18 @@
   const tagged_note_items = $derived(
     items.filter((item) => item.kind === "note"),
   );
-  const tag_mode_count = $derived(
-    truncated
-      ? `${String(tagged_note_items.length)}+`
-      : String(tagged_note_items.length),
-  );
+  // One sentence for the tag mode header, its empty state and the status:
+  //   3 notes tagged #work #bulk match "kick"
+  //   No notes tagged #work
+  const tagged_notes_sentence = $derived.by(() => {
+    const row_count = tagged_note_items.length;
+    const count =
+      row_count === 0 ? "No" : `${String(row_count)}${truncated ? "+" : ""}`;
+    const is_one = row_count === 1;
+    const sentence = `${count} ${is_one ? "note" : "notes"} tagged ${tag_list_label}`;
+    if (!active_query.text) return sentence;
+    return `${sentence} ${is_one ? "matches" : "match"} "${active_query.text}"`;
+  });
 
   // Text mode. The request the inputs ask for, and the one behind the rows on
   // screen. While a new search waits for its debounce they differ, and the
@@ -518,8 +525,7 @@
     if (is_tag_suggestions)
       return `${String(tag_items.length)} ${tag_items.length === 1 ? "tag" : "tags"}`;
     if (is_tag_mode && failed) return "Couldn't search tagged notes";
-    if (is_tag_mode)
-      return `${tag_mode_count} ${tagged_note_items.length === 1 ? "note" : "notes"} tagged ${tag_list_label}`;
+    if (is_tag_mode) return tagged_notes_sentence;
     if (visible_items.length > 0)
       return `${String(visible_items.length)} results`;
     if (is_all_vaults && !has_query) return "Type to search across all vaults";
@@ -1146,7 +1152,7 @@
         replacement={find_inputs.replacement}
         can_replace={!is_replacing && !find_rows_stale}
         {git_enabled}
-        tag_list_label={tags.length > 0 ? tag_list_label : ""}
+        {tag_list_label}
         include={find_inputs.include}
         {is_indexing}
         {on_open_match}
@@ -1219,16 +1225,17 @@
           {/if}
         {:else if is_tag_mode}
           <div role="group" aria-label={`Notes tagged ${tag_list_label}`}>
-            <div class="Omnibar__header" role="presentation">
-              <HashIcon />
-              <span class="min-w-0 truncate">Notes tagged {tag_list_label}</span
+            <!-- Without rows the empty state says the sentence instead. -->
+            {#if tagged_note_items.length > 0}
+              <div
+                class="Omnibar__header"
+                role="presentation"
+                title={tagged_notes_sentence}
               >
-              {#if tagged_note_items.length > 0}
-                <span class="ml-auto shrink-0 tabular-nums"
-                  >{tag_mode_count}</span
-                >
-              {/if}
-            </div>
+                <HashIcon />
+                <span class="min-w-0 truncate">{tagged_notes_sentence}</span>
+              </div>
+            {/if}
             {#each tagged_note_items as item, index (get_item_id(item))}
               <button
                 id={get_item_id(item)}
@@ -1268,12 +1275,13 @@
             <div class="Omnibar__empty" aria-hidden="true">
               {#if failed}
                 Couldn't search tagged notes. Try again.
-              {:else if active_query.text}
-                No tagged notes match "{active_query.text}"
-              {:else if tags.length === 1}
-                No notes with #{tags[0]}
               {:else}
-                No notes with these tags
+                <p>{tagged_notes_sentence}</p>
+                {#if tags.length > 1 && !active_query.text}
+                  <p class="text-xs">
+                    Each tag narrows the list. ⌫ removes the last one.
+                  </p>
+                {/if}
               {/if}
             </div>
           {/if}
