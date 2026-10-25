@@ -3,6 +3,7 @@ import { toast } from "svelte-sonner";
 import { ActionRegistry } from "$lib/app/action_registry/action_registry";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import { register_vault_find_actions } from "$lib/features/search/application/vault_find_actions";
+import { vault_find_request_key } from "$lib/features/search/domain/vault_find_request";
 import { UIStore } from "$lib/app/orchestration/ui_store.svelte";
 import { VaultStore } from "$lib/features/vault/state/vault_store.svelte";
 import { NotesStore } from "$lib/features/note/state/note_store.svelte";
@@ -48,6 +49,19 @@ function file(path: string, match_count = 1): VaultFindFile {
   };
 }
 
+function find_request(text: string) {
+  return {
+    text,
+    regex: false,
+    case_sensitive: false,
+    whole_word: false,
+    include: "",
+    exclude: "",
+    tags: [],
+    tag_match: "all" as const,
+  };
+}
+
 function create_harness(files: VaultFindFile[]) {
   const registry = new ActionRegistry();
   const stores = {
@@ -73,7 +87,7 @@ function create_harness(files: VaultFindFile[]) {
             replaced: request.files.map((target) => ({
               path: target.path,
               count: target.match_indexes.length,
-              remaining: null,
+              remaining: null as VaultFindFile | null,
             })),
             skipped: [],
           },
@@ -107,16 +121,7 @@ function create_harness(files: VaultFindFile[]) {
   stores.ui.vault_find.query = "foo";
   stores.ui.vault_find.replacement = "bar";
   const results = stores.search.vault_find;
-  results.start({
-    text: "foo",
-    regex: false,
-    case_sensitive: false,
-    whole_word: false,
-    include: "",
-    exclude: "",
-    tags: [],
-    tag_match: "all",
-  });
+  results.start(find_request("foo"));
   results.add_files(files, []);
   results.finish({
     match_count: files.length,
@@ -190,9 +195,15 @@ describe("register_vault_find_actions", () => {
     expect(toast.error).toHaveBeenCalled();
   });
 
-  it("replace all makes a checkpoint first and runs the search again", async () => {
+  it("replace all makes a checkpoint first and runs the search again with the chips", async () => {
     const { registry, stores, services } = create_harness([file("a.md")]);
     stores.git.set_enabled(true);
+    stores.ui.omnibar = {
+      ...stores.ui.omnibar,
+      open: true,
+      mode: "find",
+      tags: ["project"],
+    };
 
     await replace_all(registry);
 
@@ -201,7 +212,104 @@ describe("register_vault_find_actions", () => {
     );
     expect(services.vault_find.replace).toHaveBeenCalled();
     expect(services.vault_find.search).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "foo" }),
+      expect.objectContaining({ text: "foo", tags: ["project"] }),
+    );
+  });
+
+  it("replace all does not search again once Text mode is gone", async () => {
+    const { registry, services } = create_harness([file("a.md")]);
+
+    await replace_all(registry);
+
+    expect(services.vault_find.replace).toHaveBeenCalled();
+    expect(services.vault_find.search).not.toHaveBeenCalled();
+  });
+
+  it("replacing a match selects the next one, past the inserted text", async () => {
+    const { registry, stores, services } = create_harness([
+      file("a.md", 2),
+      file("b.md"),
+    ]);
+    // foo -> foobar on line 1 leaves a fresh foo at column 0 and the old
+    // line 2 match.
+    services.vault_find.replace.mockImplementationOnce(() => {
+      stores.search.vault_find.patch_file("a.md", file("a.md", 2));
+      return Promise.resolve({
+        status: "replaced" as const,
+        response: {
+          replaced: [{ path: "a.md", count: 1, remaining: file("a.md", 2) }],
+          skipped: [],
+        },
+      });
+    });
+    stores.ui.vault_find.replacement = "foobar";
+
+    await registry.execute(ACTION_IDS.vault_find_replace_match, {
+      path: "a.md",
+      match_index: 0,
+    });
+
+    expect(stores.ui.vault_find.selected_match).toMatchObject({
+      path: "a.md",
+      index: 1,
+    });
+  });
+
+  it("leaves the selection alone when nothing was written", async () => {
+    const { registry, stores, services } = create_harness([file("a.md", 2)]);
+    services.editor.is_dirty.mockReturnValue(true);
+    open_note(stores, "a.md");
+    const selection = { request_key: "k", path: "a.md", index: 0 };
+    stores.ui.vault_find.selected_match = selection;
+
+    await registry.execute(ACTION_IDS.vault_find_replace_match, {
+      path: "a.md",
+      match_index: 0,
+    });
+
+    expect(services.vault_find.replace).not.toHaveBeenCalled();
+    expect(stores.ui.vault_find.selected_match).toEqual(selection);
+  });
+
+  it("opening a match closes the omnibar and records the match as the selection", async () => {
+    const { registry, stores, services } = create_harness([file("a.md", 2)]);
+    stores.ui.omnibar = { ...stores.ui.omnibar, open: true, mode: "find" };
+    const close_omnibar = vi.fn(() => {
+      stores.ui.omnibar = { ...stores.ui.omnibar, open: false, mode: "notes" };
+    });
+    registry.register({
+      id: ACTION_IDS.omnibar_close,
+      label: "Close Omnibar",
+      execute: close_omnibar,
+    });
+    registry.register({
+      id: ACTION_IDS.note_open,
+      label: "Open Note",
+      execute: () => {
+        open_note(stores, "a.md");
+      },
+    });
+
+    await registry.execute(ACTION_IDS.vault_find_open_match, {
+      path: "a.md",
+      index: 1,
+      line: 2,
+      column: 0,
+      length: 3,
+      focus_editor: true,
+    });
+
+    expect(close_omnibar).toHaveBeenCalledOnce();
+    expect(stores.ui.vault_find.selected_match).toEqual({
+      request_key: vault_find_request_key(find_request("foo")),
+      path: "a.md",
+      index: 1,
+    });
+    expect(services.editor.select_line_range).toHaveBeenCalledWith(
+      2,
+      0,
+      3,
+      true,
     );
   });
 
@@ -310,16 +418,7 @@ describe("register_vault_find_actions", () => {
     await registry.execute(ACTION_IDS.vault_find_request_replace_all);
 
     stores.ui.vault_find.replacement = "other";
-    stores.search.vault_find.start({
-      text: "newer",
-      regex: false,
-      case_sensitive: false,
-      whole_word: false,
-      include: "",
-      exclude: "",
-      tags: [],
-      tag_match: "all",
-    });
+    stores.search.vault_find.start(find_request("newer"));
     stores.search.vault_find.add_files([file("b.md")], []);
     await registry.execute(ACTION_IDS.vault_find_confirm_replace_all);
 

@@ -1,7 +1,12 @@
 import { toast } from "svelte-sonner";
 import { ACTION_IDS } from "$lib/app/action_registry/action_ids";
 import type { ActionRegistrationInput } from "$lib/app/action_registry/action_registration_input";
-import { build_vault_find_request } from "$lib/features/search/domain/vault_find_request";
+import {
+  build_vault_find_request,
+  vault_find_request_key,
+} from "$lib/features/search/domain/vault_find_request";
+import { next_match_after_replace } from "$lib/features/search/domain/next_match_after_replace";
+import { build_replacement_preview } from "$lib/features/search/domain/replacement_preview";
 import type {
   VaultFindFile,
   VaultFindRequest,
@@ -16,6 +21,8 @@ import { plural } from "$lib/shared/utils/plural";
 
 type OpenMatchInput = {
   path: string;
+  // The match ordinal, recorded as the selection.
+  index: number;
   line: number;
   column: number;
   length: number;
@@ -25,7 +32,7 @@ type OpenMatchInput = {
 
 type ReplaceScope = "match" | "file" | "all";
 
-// Everything a replace writes, fixed when the user asked for it. The panel
+// Everything a replace writes, fixed when the user asked for it. The omnibar
 // keeps searching while a dialog is open, so a replace must not read the
 // results again later. Content hashes still catch files that changed on disk.
 type ReplacePlan = {
@@ -102,12 +109,18 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     return false;
   }
 
-  // Panel replace writes to disk, not into editor buffers. Files with unsaved
+  // Vault replace writes to disk, not into editor buffers. Files with unsaved
   // edits are skipped, so we never write over them or behind their buffer.
-  async function run_replace(plan: ReplacePlan, scope: ReplaceScope) {
+  // Returns true when it wrote something.
+  async function run_replace(
+    plan: ReplacePlan,
+    scope: ReplaceScope,
+  ): Promise<boolean> {
     const { request, replacement, targets } = plan;
-    if (targets.length === 0) return;
-    if (scope !== "match" && !(await create_undo_checkpoint(request))) return;
+    if (targets.length === 0) return false;
+    if (scope !== "match" && !(await create_undo_checkpoint(request))) {
+      return false;
+    }
 
     services.editor.flush();
     const unsaved = unsaved_paths();
@@ -118,7 +131,7 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     services.vault_find.cancel();
     if (files.length === 0) {
       toast.info("Nothing replaced: save your changes first");
-      return;
+      return false;
     }
 
     const result = await services.vault_find.replace({
@@ -129,10 +142,10 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
       replacement,
       files,
     });
-    if (result.status === "skipped") return;
+    if (result.status === "skipped") return false;
     if (result.status === "failed") {
       toast.error(`Replace failed: ${result.error}`);
-      return;
+      return false;
     }
 
     const written = result.response.replaced.filter((file) => file.count > 0);
@@ -145,20 +158,26 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     }
     // The service already swapped in what is left of each file. Replace All
     // runs the search again, so the list shows only what still matches. It
-    // uses the panel's inputs as they are now, not the replaced request.
+    // uses the inputs as they are now, not the replaced request, and only
+    // while Text mode is on screen: the find reactor clears the results once
+    // the omnibar closes or leaves Text mode.
+    const { open, mode } = stores.ui.omnibar;
     const current = current_request();
-    if (scope === "all" && current) void services.vault_find.search(current);
+    if (scope === "all" && open && mode === "find" && current) {
+      void services.vault_find.search(current);
+    }
 
     const match_count = written.reduce((total, file) => total + file.count, 0);
     const summary = `Replaced ${plural(match_count, "match", "matches")} in ${plural(written.length, "file", "files")}`;
     const skipped_count = unsaved_count + result.response.skipped.length;
     if (skipped_count === 0) {
       toast.success(summary);
-      return;
+      return written.length > 0;
     }
     toast.warning(summary, {
       description: `${plural(skipped_count, "file", "files")} skipped: unsaved, open in a document window, or changed on disk`,
     });
+    return written.length > 0;
   }
 
   // The same refresh LinkRepairService does after it rewrites notes.
@@ -229,11 +248,25 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     },
   });
 
+  // One-shot results: the omnibar closes, then the note opens. The match
+  // becomes the selection, so reopening Text mode lands on it and Down Enter
+  // opens the next one.
   registry.register({
     id: ACTION_IDS.vault_find_open_match,
     label: "Open Find in Vault Match",
     execute: async (raw: unknown) => {
       const match = raw as OpenMatchInput;
+      const request = results.request;
+      if (request) {
+        stores.ui.vault_find.selected_match = {
+          request_key: vault_find_request_key(request),
+          path: match.path,
+          index: match.index,
+        };
+      }
+      if (stores.ui.omnibar.open) {
+        await registry.execute(ACTION_IDS.omnibar_close);
+      }
       // Results go stale when a file is renamed or deleted. Cleanup makes the
       // open say "Note no longer exists" instead of failing without a word.
       await registry.execute(ACTION_IDS.note_open, {
@@ -264,6 +297,8 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
     },
   });
 
+  // Afterwards the selection moves past the inserted text, so Enter in the
+  // replace input walks through the matches one by one.
   registry.register({
     id: ACTION_IDS.vault_find_replace_match,
     label: "Replace Find in Vault Match",
@@ -273,9 +308,28 @@ export function register_vault_find_actions(input: ActionRegistrationInput) {
         match_index: number;
       };
       const file = find_file(path);
+      const match = file?.matches.find((entry) => entry.index === match_index);
       const plan =
         file && plan_from_results([replace_target(file, [match_index])]);
-      if (plan) await run_replace(plan, "match");
+      if (!match || !plan) return;
+      const inserted = build_replacement_preview(
+        match,
+        plan.replacement,
+        plan.request.regex,
+        results.group_names,
+      );
+      if (!(await run_replace(plan, "match"))) return;
+
+      const next = next_match_after_replace(results.files, {
+        path,
+        line: match.line,
+        column: match.column,
+        inserted_length: inserted.length,
+      });
+      stores.ui.vault_find.selected_match = next && {
+        request_key: vault_find_request_key(plan.request),
+        ...next,
+      };
     },
   });
 

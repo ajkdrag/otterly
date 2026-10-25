@@ -6,6 +6,7 @@ import type {
   VaultFindRequest,
   VaultFindStats,
 } from "$lib/features/search/types/vault_find";
+import { compare_paths } from "$lib/shared/utils/path";
 
 export type IndexProgress = {
   status: "idle" | "indexing" | "completed" | "failed";
@@ -15,13 +16,6 @@ export type IndexProgress = {
 };
 
 export type VaultFindStatus = "idle" | "searching" | "done" | "error";
-
-function compare_paths(left: string, right: string): number {
-  const left_lower = left.toLowerCase();
-  const right_lower = right.toLowerCase();
-  if (left_lower !== right_lower) return left_lower < right_lower ? -1 : 1;
-  return left < right ? -1 : left > right ? 1 : 0;
-}
 
 // Both lists are sorted by path. Batches arrive every 50 ms on big vaults, so
 // merge instead of sorting everything again.
@@ -46,8 +40,9 @@ function merge_by_path(
   return merged.concat(current.slice(left), incoming.slice(right));
 }
 
-// Results of the vault find panel. `request` is what produced `files`, so a
-// replace uses the same spec the match ordinals came from.
+// Results of the vault find in the omnibar's Text mode. `request` is what
+// produced `files`, so a replace uses the same spec the match ordinals came
+// from.
 export class VaultFindResults {
   // Thousands of matches: replace the array, no deep proxies.
   files = $state.raw<VaultFindFile[]>([]);
