@@ -1,5 +1,6 @@
 import type { SyntaxNodeRef } from "@lezer/common";
 import type { MarkdownConfig } from "@lezer/markdown";
+import type { LanguageDescription } from "@codemirror/language";
 import { Facet, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, type KeyBinding } from "@codemirror/view";
 import type { Block, BlockWidget } from "./block_field.js";
@@ -14,6 +15,8 @@ export type MarkdownPlugin = {
   name: string;
   requires?: readonly string[];
   syntax?: MarkdownConfig | readonly MarkdownConfig[];
+  // Grammars for fenced code. Source mode highlights fences with them.
+  code_languages?: readonly LanguageDescription[];
   constructs?: readonly Construct[];
   keys?: readonly KeyBinding[];
   theme?: ThemeSpec;

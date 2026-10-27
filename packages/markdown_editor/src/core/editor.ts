@@ -41,7 +41,7 @@ import {
   surface_highlights,
   take_focus_back,
 } from "./surface.js";
-import { markdown_syntax } from "./syntax.js";
+import { markdown_source_syntax, markdown_syntax } from "./syntax.js";
 
 export type MarkdownEditorConfig = {
   plugins: readonly MarkdownPlugin[];
@@ -61,10 +61,10 @@ export function create_markdown_state(
 ): EditorState {
   return create_source_state(source, [
     markdown_extensions(config.plugins),
-    editor_mode_extensions(
-      config.mode ?? "rich",
+    editor_mode_extensions(config.mode ?? "rich", [
+      markdown_source_syntax(config.plugins),
       config.source_extensions ?? [],
-    ),
+    ]),
     config.extensions ?? [],
   ]);
 }

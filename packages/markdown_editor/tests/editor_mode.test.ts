@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { EditorView } from "@codemirror/view";
+import {
+  LanguageDescription,
+  LanguageSupport,
+  StreamLanguage,
+  syntaxTree,
+} from "@codemirror/language";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
@@ -76,5 +82,44 @@ describe("plain text files", () => {
     expect(get_markdown_source(view.state)).toBe("a: 1\r\nb: 2\r\n");
     view.destroy();
     parent.remove();
+  });
+});
+
+describe("code in source mode", () => {
+  // The first character of "hello", inside the fence.
+  const code_node = (view: EditorView) =>
+    syntaxTree(view.state).resolveInner(10, 1).name;
+
+  test("MODE-005 fenced code is highlighted by language in source mode only", async () => {
+    const word_language = LanguageDescription.of({
+      name: "Words",
+      alias: ["words"],
+      load: () =>
+        Promise.resolve(
+          new LanguageSupport(
+            StreamLanguage.define({
+              token(stream) {
+                stream.eatWhile(/\S/);
+                return "keyword";
+              },
+            }),
+          ),
+        ),
+    });
+    const note = test_editor("```words\nhello\n```‸", [
+      commonmark(),
+      gfm(),
+      code_blocks({ languages: [word_language] }),
+    ]);
+    const { view } = note;
+    expect(code_node(view)).not.toBe("keyword");
+
+    set_editor_mode(view, "source");
+    await vi.waitFor(() => {
+      expect(code_node(view)).toBe("keyword");
+    });
+
+    set_editor_mode(view, "rich");
+    expect(code_node(view)).not.toBe("keyword");
   });
 });

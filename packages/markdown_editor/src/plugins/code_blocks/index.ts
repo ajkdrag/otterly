@@ -84,6 +84,7 @@ export function code_blocks(options: CodeBlockOptions = {}): MarkdownPlugin {
   return {
     name: "code_blocks",
     requires: ["commonmark"],
+    code_languages: options.languages ?? [],
     constructs: [fenced_code],
     keys: [{ key: "Mod-Alt-c", run: convert_to_code_block }],
     theme: code_block_theme,

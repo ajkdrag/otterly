@@ -477,7 +477,10 @@ export function create_codemirror_editor_port(
           ? create_markdown_state(input.initial_markdown, {
               plugins,
               extensions: [extensions, vim],
-              source_extensions: syntaxHighlighting(markdown_source_highlight),
+              source_extensions: [
+                syntaxHighlighting(markdown_source_highlight),
+                syntaxHighlighting(code_block_highlight),
+              ],
             })
           : create_text_state(input.initial_markdown, [
               extensions,

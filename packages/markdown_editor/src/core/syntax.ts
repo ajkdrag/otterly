@@ -4,10 +4,12 @@ import {
   forceParsing,
   syntaxTree,
   syntaxTreeAvailable,
+  type LanguageDescription,
 } from "@codemirror/language";
 import type { Tree } from "@lezer/common";
 import type { MarkdownConfig } from "@lezer/markdown";
 import {
+  Prec,
   StateField,
   type EditorState,
   type Extension,
@@ -28,7 +30,10 @@ const full_parse_budget_ms = 150;
 // can create a giant block in one step, so smaller edits keep the old answer.
 const policy_rescan_insert_length = 50_000;
 
-export function markdown_syntax(plugins: readonly MarkdownPlugin[]): Extension {
+function markdown_support(
+  plugins: readonly MarkdownPlugin[],
+  code_languages?: readonly LanguageDescription[],
+) {
   const extensions: MarkdownConfig[] = [];
   for (const plugin of plugins) {
     if (!plugin.syntax) continue;
@@ -36,17 +41,29 @@ export function markdown_syntax(plugins: readonly MarkdownPlugin[]): Extension {
       extensions.push(...(plugin.syntax as readonly MarkdownConfig[]));
     else extensions.push(plugin.syntax as MarkdownConfig);
   }
-  return [
-    markdown({
-      base: markdownLanguage,
-      addKeymap: false,
-      extensions,
-      completeHTMLTags: false,
-      pasteURLAsLink: false,
-    }),
-    full_parse_policy,
-    viewport_parsing,
-  ];
+  return markdown({
+    base: markdownLanguage,
+    addKeymap: false,
+    extensions,
+    ...(code_languages && { codeLanguages: code_languages }),
+    completeHTMLTags: false,
+    pasteURLAsLink: false,
+  });
+}
+
+export function markdown_syntax(plugins: readonly MarkdownPlugin[]): Extension {
+  return [markdown_support(plugins), full_parse_policy, viewport_parsing];
+}
+
+// Rich mode draws fenced code in its own editor, so parsing the code inside
+// the note would only cost time there. Source mode swaps this language in to
+// color the fences. It parses the same Markdown, plus the code languages.
+export function markdown_source_syntax(
+  plugins: readonly MarkdownPlugin[],
+): Extension {
+  const languages = plugins.flatMap((plugin) => plugin.code_languages ?? []);
+  if (!languages.length) return [];
+  return Prec.high(markdown_support(plugins, languages));
 }
 
 // Block widgets must not depend on parse progress, so the block field asks for

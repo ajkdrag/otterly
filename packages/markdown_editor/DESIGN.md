@@ -47,6 +47,7 @@ type MarkdownPlugin = {
   name: string;
   requires?: readonly string[];
   syntax?: MarkdownConfig | readonly MarkdownConfig[]; // Lezer extensions
+  code_languages?: readonly LanguageDescription[]; // grammars for fenced code
   constructs?: readonly Construct[];
   keys?: readonly KeyBinding[]; // plugin-wide shortcuts, like Mod-b
   theme?: ThemeSpec; // an EditorView.theme spec, so it beats CodeMirror's defaults
@@ -311,7 +312,7 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 
 ## Source mode
 
-`set_editor_mode(view, "source")` shows the plain Markdown. The mode is a state field, so the switch keeps the document, selection, and history. In source mode the block field and inline rendering draw nothing, and construct keys and block arrow keys step aside. Blocks are still tracked, so their view states survive the trip back. Pass `source_extensions` (for example a highlighter) to `create_markdown_state`. They sit in a compartment that only holds them in source mode.
+`set_editor_mode(view, "source")` shows the plain Markdown. The mode is a state field, so the switch keeps the document, selection, and history. In source mode the block field and inline rendering draw nothing, and construct keys and block arrow keys step aside. Blocks are still tracked, so their view states survive the trip back. Pass `source_extensions` (for example a highlighter) to `create_markdown_state`. They sit in a compartment that only holds them in source mode. The same compartment holds a Markdown language that nests the plugins' `code_languages` inside fences, so the code gets highlighted there. Rich mode keeps the plain Markdown parser, because fences are drawn by their own editor.
 
 `create_text_state(source, extensions)` builds a state for a file that is not Markdown. It has the same line ending handling and undo as a note, without the plugins.
 
