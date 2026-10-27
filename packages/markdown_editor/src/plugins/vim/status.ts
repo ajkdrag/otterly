@@ -37,6 +37,7 @@ export function status_plugin(
       const status = read_status(cm);
       if (reported && same_status(reported, status)) return;
       reported = status;
+      view.dom.dataset.vimMode = status.mode;
       on_status_change?.(status);
     };
     cm?.on("vim-mode-change", publish);

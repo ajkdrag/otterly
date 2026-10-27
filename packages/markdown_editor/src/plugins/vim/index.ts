@@ -7,6 +7,7 @@ import {
   type Text,
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { indentUnit } from "@codemirror/language";
 import {
   CodeMirror,
   Vim,
@@ -15,11 +16,17 @@ import {
   type ActionFn,
 } from "@replit/codemirror-vim";
 import {
+  block_at,
   get_blocks,
   is_block_rendered,
+  is_hidden_line,
   reveal_surfaces_at_caret,
 } from "../../core/block_field.js";
-import { line_container } from "../../core/context.js";
+import {
+  continuation_prefix,
+  is_literal_block,
+  line_container,
+} from "../../core/context.js";
 import { is_rich } from "../../core/editor_mode.js";
 import { run_construct_key } from "../../core/keys.js";
 import { source_redo, source_undo } from "../../core/source_state.js";
@@ -27,7 +34,9 @@ import {
   close_menu_before_leaving_insert,
   normal_mode_guards,
   vim_keys_in_surfaces,
+  vim_text_in_surfaces,
 } from "./input_guards.js";
+import { vim_surface_search } from "./search_highlights.js";
 import { map_prefix_wait } from "./map_prefix_wait.js";
 import { status_plugin, type VimMode, type VimStatus } from "./status.js";
 import { undo_steps } from "./undo_steps.js";
@@ -82,10 +91,14 @@ export function vim_keybindings(
     Prec.highest(vim()),
     // After vim(), so they only see keys and text Vim did not take.
     normal_mode_guards,
-    // One Vim instance edits the whole document. Code blocks and tables show
-    // their source under the caret instead of handing keys to a nested view.
-    reveal_surfaces_at_caret.of(true),
+    // One Vim instance edits the whole document. Tables show their source
+    // under the caret. A code block keeps its widget: its nested editor holds
+    // focus and the caret, and hands every key to this Vim.
+    reveal_surfaces_at_caret.of("table"),
     vim_keys_in_surfaces,
+    vim_text_in_surfaces,
+    vim_in_surfaces,
+    vim_surface_search,
     caret_stays_off_final_empty_line,
     // These plugins come after vim(), so getCM(view) exists when they are
     // built.
@@ -137,11 +150,16 @@ export async function sync_clipboard_from_host() {
 // an older register. The browser writes the clipboard after these handlers
 // return, hence the timeout. Focus covers a copy made somewhere else in the
 // app (the omnibar, the find bar, a dialog), which gives focus back to the
-// editor when it closes.
+// editor when it closes. Focus that moves inside the editor, such as into a
+// code block's own editor, is skipped.
 const sync_clipboard_on_outside_copy = EditorView.domEventHandlers({
   copy: sync_clipboard_soon,
   cut: sync_clipboard_soon,
-  focus: sync_clipboard_soon,
+  focus: (event, view) => {
+    const from = event.relatedTarget;
+    if (from instanceof Node && view.dom.contains(from)) return false;
+    return sync_clipboard_soon();
+  },
 });
 
 function sync_clipboard_soon() {
@@ -339,6 +357,21 @@ function newline_and_continue_markers(cm: CodeMirror) {
   if (is_rich(state)) {
     const line = state.doc.lineAt(state.selection.main.head);
     const container = line_container(state, line);
+    // A code line keeps its container prefix and copies its indentation,
+    // like Vim's autoindent. Enter there would continue a list item.
+    if (is_literal_block(state, line.to)) {
+      const indent =
+        /^[ \t]*/.exec(state.sliceDoc(container.content_from, line.to))?.[0] ??
+        "";
+      const insert = "\n" + continuation_prefix(container) + indent;
+      view.dispatch({
+        changes: { from: line.to, insert },
+        selection: { anchor: line.to + insert.length },
+        userEvent: "input",
+        scrollIntoView: true,
+      });
+      return;
+    }
     if (
       container.layers.length > 0 &&
       !container.blank &&
@@ -446,25 +479,116 @@ const caret_stays_off_final_empty_line = EditorState.transactionFilter.of(
   },
 );
 
+// The engine clears its input state before it runs a motion, so remember
+// whether an operator waited when the key came in.
+type EngineEditor = Parameters<typeof Vim.handleKey>[0];
+const operator_waits = new WeakSet<EngineEditor>();
+const handle_key = Vim.handleKey.bind(Vim);
+Vim.handleKey = (cm, key, origin) => {
+  if (cm.state.vim?.inputState.operator) operator_waits.add(cm);
+  else operator_waits.delete(cm);
+  return handle_key(cm, key, origin);
+};
+
 // j and k ask findPosV where the screen takes the caret, and the engine
 // follows an answer past the target line (that is meant for folded text).
 // CodeMirror's vertical motion steps over a widget, so a rendered code block
 // or table would be skipped whole and the caret could never enter it. When the
-// answer jumps over a rendered block, answer with the target line instead.
-// The caret then lands on the block's nearest line, which shows its source.
-// The wrapper calls the original with the right this.
+// answer jumps over a rendered block, or the caret starts inside one, count
+// lines ourselves. A table's nearest line shows its source. A code block's
+// fence lines have no caret stop (is_hidden_line), so the caret lands on its
+// first or last body line and the code editor takes focus. The count does not
+// skip fences while an operator waits, so dj above a block deletes the fence
+// like Vim does. The wrapper calls the original with the right this.
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const find_pos_v = CodeMirror.prototype.findPosV;
 CodeMirror.prototype.findPosV = function (start, amount, unit, goal_column) {
   const found = find_pos_v.call(this, start, amount, unit, goal_column);
   if (unit !== "line") return found;
+  const { state } = this.cm6;
   const start_offset = this.indexFromPos(start);
   const found_offset = this.indexFromPos(found);
-  if (!jumps_over_rendered_block(this.cm6.state, start_offset, found_offset))
+  const inside = in_rendered_surface(state, start_offset);
+  if (!inside && !jumps_over_rendered_block(state, start_offset, found_offset))
     return found;
-  const target = new CodeMirror.Pos(start.line + Math.round(amount), start.ch);
+  // Count lines, stepping over lines a rendered block hides (code fences),
+  // except while an operator waits: dj works on source lines, like Vim.
+  const skip = !operator_waits.has(this);
+  const direction = Math.sign(amount);
+  let remaining = Math.abs(Math.round(amount));
+  let line = start.line;
+  const first = this.firstLine();
+  const last = this.lastLine();
+  while (remaining > 0) {
+    const next = line + direction;
+    if (next < first || next > last) break;
+    line = next;
+    if (!skip || !is_hidden_line(state, line + 1)) remaining--;
+  }
+  // Ran off the end on a hidden line: stay where we were.
+  if (skip && is_hidden_line(state, line + 1)) line = start.line;
+  const target = new CodeMirror.Pos(line, start.ch);
   return this.posFromIndex(this.indexFromPos(target));
 };
+
+// >> and << on code lines indent after the container prefix ("> " in a
+// quote), like the code editor does. The engine indents at the line start.
+for (const [name, more] of [
+  ["indentMore", true],
+  ["indentLess", false],
+] as const) {
+  const original = CodeMirror.prototype[name];
+  CodeMirror.prototype[name] = function (this: CodeMirror) {
+    if (!indent_surface_lines(this.cm6, more)) original.call(this);
+  };
+}
+
+function indent_surface_lines(view: EditorView, more: boolean): boolean {
+  const { state } = view;
+  const unit = state.facet(indentUnit);
+  const changes = [];
+  const { from, to } = state.selection.main;
+  const end = state.doc.lineAt(to);
+  const last = to > from && to === end.from ? end.number - 1 : end.number;
+  for (let n = state.doc.lineAt(from).number; n <= last; n++) {
+    const line = state.doc.line(n);
+    if (!in_rendered_surface(state, line.from) || is_hidden_line(state, n))
+      return false;
+    const start = line_container(state, line).content_from;
+    if (more) {
+      if (line.to > start) changes.push({ from: start, insert: unit });
+      continue;
+    }
+    const space = /^[ \t]*/.exec(state.sliceDoc(start, line.to))?.[0] ?? "";
+    const width = Math.min(space.length, unit.length);
+    if (width) changes.push({ from: start, to: start + width });
+  }
+  view.dispatch({
+    changes,
+    userEvent: more ? "input.indent" : "delete.dedent",
+  });
+  return true;
+}
+
+function in_rendered_surface(state: EditorState, position: number): boolean {
+  const block = block_at(state, position);
+  return (
+    !!block &&
+    block.construct.reveal === "surface" &&
+    is_block_rendered(state, block)
+  );
+}
+
+// While the caret is inside a rendered surface, its nested editor shows it.
+// Hide the engine's block cursor, which would draw at the widget's edge, and
+// let the nested editor draw a block cursor outside insert mode.
+const vim_in_surfaces = [
+  EditorView.editorAttributes.of((view) =>
+    in_rendered_surface(view.state, view.state.selection.main.head)
+      ? { class: "md-vim-in-surface" }
+      : {},
+  ),
+];
 
 function jumps_over_rendered_block(
   state: EditorState,
@@ -496,6 +620,20 @@ const vim_theme = EditorView.theme({
     background: "none",
     outline: "1px solid var(--primary, #ff9696)",
   },
+  "&.md-vim-in-surface > .cm-scroller > .cm-vimCursorLayer": {
+    display: "none",
+  },
+  // The engine hides every other cursor layer outside insert mode. A nested
+  // editor's caret is the Vim cursor there, drawn as a block.
+  ".cm-vimMode .md-code-source .cm-cursorLayer:not(.cm-vimCursorLayer)": {
+    display: "block",
+  },
+  ".cm-vimMode .md-code-source .cm-cursor": {
+    borderLeft: "none",
+    width: "1ch",
+    background: "color-mix(in oklab, var(--primary, #ff9696) 40%, transparent)",
+  },
+  "&[data-vim-mode^=visual] .md-code-source .cm-cursor": { display: "none" },
   // The / and : prompt.
   ".cm-vim-panel": {
     background: "var(--muted, #f5f5f5)",

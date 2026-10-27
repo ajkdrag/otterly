@@ -167,20 +167,6 @@ describe("fenced code", () => {
     ).toBe(true);
   });
 
-  test("CODE-017 a fence being typed keeps its card, with the fence text shown under the caret", () => {
-    const view = editor("‸");
-    view.type("```py");
-    const lines = [...view.view.dom.querySelectorAll(".md-code-card .cm-line")];
-    expect(code_editors(view)).toHaveLength(0);
-    expect(lines.map((line) => line.textContent)).toEqual(["```py"]);
-    expect(lines[0]?.classList.contains("md-code-card-line")).toBe(true);
-    expect(view.saved()).toBe("```py");
-
-    view.press("Enter");
-    expect(view.view.dom.querySelector(".md-code-card")).toBeNull();
-    expect(code_editors(view)).toHaveLength(1);
-  });
-
   test("SRC-006 Undo after typing in a code body restores exact source", () => {
     const source = "```js\nlet a\n```";
     const view = editor(source);

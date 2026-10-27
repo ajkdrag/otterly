@@ -15,8 +15,8 @@ import {
 } from "@codemirror/commands";
 import { Prec, type Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, keymap } from "@codemirror/view";
-import { CodeMirror, getCM } from "@replit/codemirror-vim";
-import { surface_keydown } from "../../core/surface.js";
+import { CodeMirror, Vim, getCM } from "@replit/codemirror-vim";
+import { surface_keydown, surface_text_input } from "../../core/surface.js";
 
 // Keys and text that reach the editor around Vim. vim_keybindings puts
 // close_menu_before_leaving_insert before Prec.highest(vim()) and
@@ -143,6 +143,17 @@ export const normal_mode_guards: Extension = Prec.highest([
 // it into the same source. In the other modes a key Vim turns down is
 // swallowed, like normal_mode_guards does, except the platform's command key
 // (Cmd on macOS, Ctrl elsewhere): copy, paste and app hotkeys.
+export const vim_text_in_surfaces: Extension = surface_text_input.of(
+  (view, text) => {
+    const cm = getCM(view);
+    const vim = cm?.state.vim;
+    if (!cm || !vim || vim.insertMode) return false;
+    // f, t and r take one character, which a dead key sends as text.
+    if (vim.expectLiteralNext) Vim.handleKey(cm, text, "user");
+    return true;
+  },
+);
+
 export const vim_keys_in_surfaces: Extension = surface_keydown.of(
   (view, event) => {
     const cm = getCM(view);

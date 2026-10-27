@@ -195,9 +195,10 @@ const surface_selection_sync = EditorView.updateListener.of((update) => {
     )
   )
     return;
-  const head = update.state.selection.main.head;
+  const { anchor, head } = update.state.selection.main;
   for (const controller of mounted_controllers(update.view)) {
-    if (controller.owns?.(head)) controller.sync_selection?.();
+    if (controller.owns?.(head) || controller.owns?.(anchor))
+      controller.sync_selection?.();
   }
   const from_history = update.transactions.some(
     (transaction) =>
@@ -239,18 +240,22 @@ function move_caret_into_surface(view: EditorView) {
   });
 }
 
-// Under reveal_surfaces_at_caret the outer view owns every key, so focus must
-// not stay in a nested editor, which has no Vim. A click inside a rendered code
-// block or table still focuses the nested editor. The reveal freeze holds the
-// block rendered until about 100 ms after the button comes up. Then the block
-// turns into source, whether the click left a caret or a range (double click,
-// drag), because a selection inside a block reveals it. The nested view is
-// destroyed together with its focus. This finds the moments to check: the
+// For a construct named in reveal_surfaces_at_caret the outer view owns every
+// key, so focus must not stay in its nested editor, which has no Vim. A click
+// inside a rendered table still focuses the nested editor. The reveal freeze
+// holds the block rendered until about 100 ms after the button comes up. Then
+// the block turns into source, whether the click left a caret or a range
+// (double click, drag), because a selection inside a block reveals it. The
+// nested view is destroyed together with its focus. This finds the moments to check: the
 // freeze just ended, or a nested editor published a selection or edit while no
 // click was in progress.
 function nested_editor_may_hold_focus(update: ViewUpdate): boolean {
   const { startState, state } = update;
-  if (!state.facet(reveal_surfaces_at_caret)) return false;
+  if (!state.facet(reveal_surfaces_at_caret).length) return false;
+  // A rendered surface at the caret keeps its nested editor and its focus.
+  const block = block_at(state, state.selection.main.head);
+  if (block?.construct.reveal === "surface" && is_block_rendered(state, block))
+    return false;
   const frozen = state.field(reveal_freeze, false)?.frozen === true;
   const click_ended =
     startState.field(reveal_freeze, false)?.frozen === true && !frozen;

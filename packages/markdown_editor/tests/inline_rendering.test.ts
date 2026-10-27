@@ -1,11 +1,9 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { reveal_surfaces_at_caret } from "../src/core/block_field";
 import { editor_theme_spec } from "../src/core/editor_theme";
 import type { MarkdownPlugin } from "../src/core/plugin";
 import { callouts } from "../src/plugins/callouts/index";
-import { code_blocks } from "../src/plugins/code_blocks/index";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { frontmatter } from "../src/plugins/frontmatter/index";
 import { gfm } from "../src/plugins/gfm/index";
@@ -30,7 +28,6 @@ type OpenOptions = {
     signal: AbortSignal,
   ) => string | Promise<string>;
   read_only?: boolean;
-  reveal_surfaces?: boolean;
 };
 
 function open(marked_source: string, options: OpenOptions = {}) {
@@ -42,10 +39,6 @@ function open(marked_source: string, options: OpenOptions = {}) {
     name: "read_only",
     extensions: EditorState.readOnly.of(options.read_only ?? false),
   };
-  const reveal_surfaces: MarkdownPlugin = {
-    name: "reveal_surfaces",
-    extensions: reveal_surfaces_at_caret.of(options.reveal_surfaces ?? false),
-  };
   return test_editor(marked_source, [
     commonmark(),
     gfm(),
@@ -54,9 +47,7 @@ function open(marked_source: string, options: OpenOptions = {}) {
     wiki_links(),
     frontmatter(),
     callouts(),
-    code_blocks(),
     read_only,
-    reveal_surfaces,
   ]);
 }
 
@@ -1152,7 +1143,7 @@ describe("line boxes", () => {
     const found = new Set<string>();
     const specs = [
       editor_theme_spec,
-      ...[commonmark(), gfm(), callouts(), frontmatter(), code_blocks()].map(
+      ...[commonmark(), gfm(), callouts(), frontmatter()].map(
         (plugin) => plugin.theme ?? {},
       ),
     ];
@@ -1189,11 +1180,6 @@ describe("line boxes", () => {
       "",
       "After table.",
       "",
-      "```ts",
-      "let a;",
-      "const b = 1;",
-      "```",
-      "",
       "> quoted",
       "> > deep",
       "lazy",
@@ -1219,30 +1205,27 @@ describe("line boxes", () => {
       "## ",
     ].join("\n");
     const classes = vertical_classes();
+    const editor = open(`${source}‸`);
+    const { doc } = editor.view.state;
     let checked = 0;
-    // Vim reveals surfaces at the caret, so code blocks draw as card lines.
-    for (const reveal_surfaces of [false, true]) {
-      const editor = open(`${source}‸`, { reveal_surfaces });
-      const { doc } = editor.view.state;
-      for (let number = 1; number <= doc.lines; number++) {
-        move_caret_to(editor, doc.line(number).from);
-        for (const line of editor.view.contentDOM.querySelectorAll<HTMLElement>(
-          ".cm-line",
-        )) {
-          if (!sampleable(line)) continue;
-          checked++;
-          const context = `"${line.textContent ?? ""}" with the caret on line ${String(number)}, surfaces revealed: ${String(reveal_surfaces)}`;
-          expect(
-            [...line.classList].filter((name) => classes.has(name)),
-            context,
-          ).toEqual([]);
-          expect(line.getAttribute("style") ?? "", context).not.toMatch(
-            /padding|line-height|height|margin/,
-          );
-        }
+    for (let number = 1; number <= doc.lines; number++) {
+      move_caret_to(editor, doc.line(number).from);
+      for (const line of editor.view.contentDOM.querySelectorAll<HTMLElement>(
+        ".cm-line",
+      )) {
+        if (!sampleable(line)) continue;
+        checked++;
+        const context = `"${line.textContent ?? ""}" with the caret on line ${String(number)}`;
+        expect(
+          [...line.classList].filter((name) => classes.has(name)),
+          context,
+        ).toEqual([]);
+        expect(line.getAttribute("style") ?? "", context).not.toMatch(
+          /padding|line-height|height|margin/,
+        );
       }
-      expect(editor.saved()).toBe(source);
     }
     expect(checked).toBeGreaterThan(0);
+    expect(editor.saved()).toBe(source);
   });
 });

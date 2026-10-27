@@ -43,14 +43,35 @@ export type Block = {
 // Transactions dispatched by an editing surface carry this annotation.
 export const surface_input = Annotation.define<boolean>();
 
-// When true, surface blocks (code, tables) show their source while an empty
+// Names of surface constructs (tables) that show their source while an empty
 // caret touches them, the same as "caret" blocks, and also while a selection
-// lies inside them. The caret never enters a nested editor. Vim turns this
-// on, so one Vim instance edits the whole document instead of losing its
-// keys to a nested view, and visual mode inside a block keeps the source.
-export const reveal_surfaces_at_caret = Facet.define<boolean, boolean>({
-  combine: (values) => values.some(Boolean),
-});
+// lies inside them. The caret never enters their nested editor. Vim turns this
+// on for tables, so one Vim instance edits them instead of losing its keys to
+// a nested view.
+export const reveal_surfaces_at_caret = Facet.define<string, readonly string[]>(
+  {
+    combine: (values) => [...new Set(values)],
+  },
+);
+
+export function reveals_at_caret(state: EditorState, block: Block): boolean {
+  return state.facet(reveal_surfaces_at_caret).includes(block.construct.name);
+}
+
+// A line of a rendered surface block that the surface does not edit, such as
+// a code fence. The caret has no stop there.
+export function is_hidden_line(
+  state: EditorState,
+  line_number: number,
+): boolean {
+  const line = state.doc.line(line_number);
+  const block = block_at(state, line.from);
+  if (!block || block.construct.reveal !== "surface") return false;
+  if (!is_block_rendered(state, block)) return false;
+  const range = block.construct.editable?.(block, state);
+  if (!range) return false;
+  return line.to < range.from || line.from > range.to;
+}
 
 // Keep a block as source until the caret leaves it.
 export const edit_block_source = StateEffect.define<number>();
@@ -586,14 +607,13 @@ function same_positions(
 // A "caret" block shows its source while an empty caret touches it, like an
 // inline construct. A surface block does the same under
 // reveal_surfaces_at_caret, and also while a selection lies inside it, so
-// Vim's visual mode in a code block does not swap the widget back in and move
-// the text. A selection that reaches past the block keeps the widget, which
+// Vim's visual mode in a table does not swap the widget back in and move the
+// text. A selection that reaches past the block keeps the widget, which
 // draws as selected. The mouse freeze holds the layout, so it skips the
 // selection check.
 function shows_source(state: EditorState, block: Block): boolean {
   const { reveal } = block.construct;
-  if (reveal === "surface" && !state.facet(reveal_surfaces_at_caret))
-    return false;
+  if (reveal === "surface" && !reveals_at_caret(state, block)) return false;
   if (touches(state, block.from, block.to)) return true;
   if (reveal === "caret" || state.field(reveal_freeze, false)?.frozen)
     return false;

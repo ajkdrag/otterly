@@ -112,6 +112,12 @@ type BlockConstruct = {
   // name, nodes, literal, keys, insert as above
   reveal: "caret" | "surface";
   complete?: (block: Block, state: EditorState) => boolean;
+  // Surfaces: the outer range the surface edits. A line of a rendered block
+  // outside it has no caret stop.
+  editable?: (
+    block: Block,
+    state: EditorState,
+  ) => { from: number; to: number } | null;
   widget: (block: Block, state: EditorState) => BlockWidget;
 };
 ```
@@ -242,7 +248,8 @@ inner:  a = 1\nb = 2          the "> " prefixes stay outside the window
 - A code body window strips container prefixes and adds them back on new lines. A body line that looks like a closing fence grows the fence.
 - A table cell window unescapes pipes, escapes typed pipes, and keeps padding outside the window.
 - `surface_highlights` lets a plugin publish outer ranges, such as find matches, that every surface draws inside its own text.
-- `surface_keydown` handlers see keys typed in a surface before the surface does. A handler that takes a key wants the keyboard in the outer editor, so the reveal freeze ends and focus goes back there. Vim uses it.
+- `surface_keydown` handlers see keys typed in a surface before the surface does. A handler that takes a key wants the outer editor to run it, so the reveal freeze ends, and the keyboard returns to the outer editor only when the outer selection left the surface. Vim uses it.
+- `surface_text_input` handlers see text that reaches a surface without a key (an IME commit, the accent menu). A handler that returns true drops the text. Vim drops it outside insert mode.
 
 The core owns focus and scroll:
 
@@ -253,15 +260,15 @@ Inactive table cells are static rendered HTML. Only the active cell has a nested
 
 ## Reveal
 
-| Kind            | Rule                                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| inline          | An empty caret is in `[node.from, node.to]`, inclusive.                                                                                          |
-| line prefix     | An empty caret is in `[line start, content start)`.                                                                                              |
-| block `caret`   | An empty caret touches the block.                                                                                                                |
-| block `surface` | Only while constructing or after `edit_block_source`.                                                                                            |
-| block `surface` | With `reveal_surfaces_at_caret`: like a `caret` block, and also while a selection lies inside it. Code is drawn as a code card by `code_blocks`. |
+| Kind            | Rule                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| inline          | An empty caret is in `[node.from, node.to]`, inclusive.                                                                |
+| line prefix     | An empty caret is in `[line start, content start)`.                                                                    |
+| block `caret`   | An empty caret touches the block.                                                                                      |
+| block `surface` | Only while constructing or after `edit_block_source`.                                                                  |
+| block `surface` | With `reveal_surfaces_at_caret` naming the construct: like a `caret` block, and also while a selection lies inside it. |
 
-Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret`: it keeps the source, so Vim's visual mode in a code block does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer. A key taken by a `surface_keydown` handler ends that early (`end_reveal_freeze`).
+Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret` that names its construct: it keeps the source, so Vim's visual mode in a table does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer. A key taken by a `surface_keydown` handler ends that early (`end_reveal_freeze`).
 
 Images draw their widget after the source and keep it visible while the source is revealed, so the caret entering an image does not make the layout jump.
 
@@ -289,21 +296,20 @@ The core runs every construct's `decorate`, `decorate_layer`, `widget`, `render_
 - Class names are `md-<construct>` and `md-<construct>-<part>`. Treat them as public: removing one is a breaking change.
 - Each plugin ships its theme beside its code. The core compiles it with `EditorView.theme`, so it wins over CodeMirror's own defaults, such as the autocomplete menu. Hosts override it with ordinary CSS or their own `EditorView.theme` added after the plugins.
 - Line rules use `line_selector`, and vertical space goes on wrappers (see "Line boxes").
-- A code block shown as source draws a code card. Its public classes are `md-code-card` (the wrapper), `md-code-card-line`, `md-code-fence-line`, `md-code-fence` (fence text under the caret) and `md-code-fence-label` (the language label that stands in for the opening fence). Card lines read `--editor-code-font-size` and `--editor-code-line-height`, so the host can make them match its code editors.
 
 ## Host boundary
 
 Plugins take host callbacks as options. Async callbacks get an `AbortSignal` that aborts when the result is no longer wanted.
 
-| Plugin            | Host callbacks                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| `links`           | `open_link`, `copy_link`, `edit_key`                                                  |
-| `images`          | `resolve_image(source, signal)`                                                       |
-| `wiki_links`      | `query_wiki_links(query, signal)`                                                     |
-| `tags`            | `open_tag`, `query_tags(partial, signal)`                                             |
-| `clipboard`       | `html_to_markdown`, `on_image_paste`                                                  |
-| `code_blocks`     | `languages`, `code_highlight`, `copy_code`, `render_diagram`, `on_view_states_change` |
-| `vim` (extension) | `on_status_change`, `on_write`, `on_quit`, `clipboard`                                |
+| Plugin            | Host callbacks                                                      |
+| ----------------- | ------------------------------------------------------------------- |
+| `links`           | `open_link`, `copy_link`, `edit_key`                                |
+| `images`          | `resolve_image(source, signal)`                                     |
+| `wiki_links`      | `query_wiki_links(query, signal)`                                   |
+| `tags`            | `open_tag`, `query_tags(partial, signal)`                           |
+| `clipboard`       | `html_to_markdown`, `on_image_paste`                                |
+| `code_blocks`     | `languages`, `copy_code`, `render_diagram`, `on_view_states_change` |
+| `vim` (extension) | `on_status_change`, `on_write`, `on_quit`, `clipboard`              |
 
 ## Source and history
 
@@ -369,8 +375,12 @@ The engine runs a full built-in match before it looks at a longer map, so `nnore
 
 ### Rich Markdown
 
-- It turns on `reveal_surfaces_at_caret`. Code blocks and tables show their source while the caret, or a whole selection, is in them, so one Vim instance edits the whole document and no key lands in a nested editor. Code blocks keep their card look: the same frame, background and monospace text, a highlighted body, and fence text only on the caret's line (`code_blocks` draws this with its `code_card` construct, see Theming). Tables show plain source. `j`, `k` and the up and down arrows step onto the block's nearest line. CodeMirror's vertical motion skips widgets, so the plugin wraps the engine's `findPosV` (what `j` and `k` ask) to answer with the target line when the screen step would jump over a rendered block. The arrow keys do the same in `enter_adjacent_block`. Left and right already land on the block's edge. A click inside a rendered surface still focuses its nested editor. The block keeps its widget until the reveal freeze ends, about 100 ms after the button comes up. Then the block turns into source, for a caret and for a range selection (double click, drag) alike, and the nested view is destroyed with its focus. The core hands focus back to the outer view and keeps the outer selection.
-- A key typed in a code body or table cell editor still goes to Vim. Focus sits there after a click into a rendered block until the reveal freeze ends, and keys typed then used to land in the cell as text while the status said NORMAL. Every `NestedEditor` asks the `surface_keydown` handlers (`core/surface.ts`) first. `vim_keys_in_surfaces` runs the key through the engine's own keydown handler. In insert mode a text key Vim turns down stays with the cell, which writes the same source. In the other modes a key Vim turns down is swallowed, except Cmd (Ctrl off macOS). A key taken there ends the freeze (`end_reveal_freeze`), so the block shows its source, and focus goes back to the note.
+- It turns on `reveal_surfaces_at_caret` for tables only. A table shows its source while the caret, or a whole selection, is in it, so no key lands in a nested editor. A click inside a rendered table still focuses its cell editor. The table keeps its widget until the reveal freeze ends, about 100 ms after the button comes up. Then it turns into source, for a caret and for a range selection alike, and the nested view is destroyed with its focus. The core hands focus back to the outer view and keeps the outer selection.
+- A code block keeps its widget. The caret and focus live in its code editor, and every key there goes to the one outer Vim. Every `NestedEditor` asks the `surface_keydown` handlers (`core/surface.ts`) first, and `vim_keys_in_surfaces` runs the key through the engine's own keydown handler. In insert mode a text key Vim turns down stays with the code editor, which writes the same source (Tab and Shift-Tab, Enter, Backspace and Mod-Enter run the code editor's own bindings that way). In the other modes a key Vim turns down is swallowed, except Cmd (Ctrl off macOS). After the key one microtask checks who owns the outer selection. If it is still inside the block, focus stays and the code editor shows the selection. Otherwise focus goes back to the outer editor. Text without a key goes through `surface_text_input`, which `vim_text_in_surfaces` uses to drop it in normal mode.
+- Fence lines have no caret stop (`editable` and `is_hidden_line`). `j` and `k` ask the engine's `findPosV`, and CodeMirror's vertical motion skips widgets, so the plugin wraps it. When the caret starts in a rendered block, or the step jumps over one, it counts lines itself and skips fence lines, so `3j` counts visible lines and the caret lands on the first or last body line. While an operator waits it does not skip, so `dj` above a block deletes the fence like Vim does. The engine clears its input state before it runs a motion, so a `Vim.handleKey` wrapper records whether an operator waited. The arrow keys do the same in `enter_adjacent_block`.
+- The engine's block cursor would draw at the widget's edge, so the editor gets the class `md-vim-in-surface` while the caret is in a rendered block and the plugin hides the engine cursor. The code editor draws a block cursor instead, and none in visual mode (`data-vim-mode` on the editor root). `V` over a block from outside selects it whole, and a visual range from inside the block to below it shows its inside part in the code editor.
+- `>>` and `<<` on code lines add or remove one indent unit after the container prefix (`> ` in a quote), like the code editor does, because the engine indents at the line start. `o` and `O` on a code line copy the container prefix and the indentation, where Enter would continue a list item. `=` does nothing there. The outer editor and the code editors both use the default two-space indent unit, and the engine skips the vimrc `tabstop`, `shiftwidth` and `expandtab`.
+- A `/` search draws its matches in code blocks too. `search_highlights.ts` keeps the engine's active query from its `setSearchQuery` effect (flagged `forVim`, cleared by `:noh`) and publishes the matches through `surface_highlights`, with the same classes find uses. The match under the caret is the selected one.
 - The theme uses host variables (`--primary`, `--muted`, `--font-mono`) for the block cursor and the `/` prompt. The editor root gets `md-vim`. The host reads it to keep Ctrl keys for Vim on macOS (`use_keyboard_shortcuts`). On Windows and Linux the app's Ctrl hotkeys win over Vim's Ctrl keys. The engine leaves Ctrl-v alone in insert mode and lets Ctrl-c copy a selection, so paste and copy should still work there. I read that in its source and have not tried it on Windows or Linux.
 
 ### Engine patches

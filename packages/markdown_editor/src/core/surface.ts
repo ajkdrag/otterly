@@ -29,7 +29,7 @@ import {
   controller_for_block,
   get_blocks,
   is_block_rendered,
-  reveal_surfaces_at_caret,
+  reveals_at_caret,
   surface_input,
   type Block,
 } from "./block_field.js";
@@ -65,11 +65,18 @@ export type NestedEditorOptions = {
 const sync_inner = Annotation.define<boolean>();
 
 // Keys typed in a surface go to these first. A host that owns every key in
-// the outer editor, like Vim, returns true for a key it took. The keyboard
-// then goes back to the outer editor: the reveal freeze ends, so the block at
-// the caret shows its source, and the outer editor gets focus.
+// the outer editor, like Vim, returns true for a key it took. The reveal
+// freeze ends, so a block that shows its source at the caret swaps in. The
+// keyboard goes back to the outer editor only when the outer selection left
+// this surface.
 export const surface_keydown =
   Facet.define<(outer: EditorView, event: KeyboardEvent) => boolean>();
+
+// Text that reaches a surface without a key (an IME commit, the accent menu)
+// goes to these first. Return true to drop it. Vim drops it outside insert
+// mode.
+export const surface_text_input =
+  Facet.define<(outer: EditorView, text: string) => boolean>();
 
 // Outer ranges that surfaces should highlight inside their own text, such as
 // find matches. Each surface draws the ranges inside its window.
@@ -112,6 +119,13 @@ export class NestedEditor {
           EditorView.domEventHandlers({
             keydown: (event) => this.outer_takes_key(event),
           }),
+        ),
+        Prec.highest(
+          EditorView.inputHandler.of((_view, _from, _to, text) =>
+            this.outer.state
+              .facet(surface_text_input)
+              .some((run) => run(this.outer, text)),
+          ),
         ),
         // The outer drawSelection theme hides native carets in nested
         // contenteditable nodes too. This editor needs its own cursor layer.
@@ -202,18 +216,20 @@ export class NestedEditor {
     });
   }
 
-  // Show the outer selection inside this surface without moving focus.
+  // Show the outer selection inside this surface without moving focus. A range
+  // that reaches past the window shows its inside part.
   sync_selection_from_outer() {
     const window = this.options.read_window();
     const selection = this.outer.state.selection.main;
     if (
       !window ||
-      !window.contains(selection.from) ||
-      !window.contains(selection.to)
+      !(window.contains(selection.anchor) || window.contains(selection.head))
     )
       return;
+    const start = window.to_outer(0);
+    const end = window.to_outer(window.text.length);
     const projected = map_range(selection, (position) =>
-      window.to_inner(position),
+      window.to_inner(Math.min(Math.max(position, start), end)),
     );
     if (this.inner.state.selection.main.eq(projected.main, true)) return;
     this.syncing = true;
@@ -244,7 +260,11 @@ export class NestedEditor {
     if (selection) {
       this.syncing = true;
       try {
-        this.inner.dispatch({ selection, annotations: sync_inner.of(true) });
+        this.inner.dispatch({
+          selection,
+          effects: scroll_to_caret(selection),
+          annotations: sync_inner.of(true),
+        });
       } finally {
         this.syncing = false;
       }
@@ -262,6 +282,7 @@ export class NestedEditor {
     const { focus = true, publish = true } = options;
     this.inner.dispatch({
       selection,
+      effects: scroll_to_caret(selection),
       ...(publish ? {} : { annotations: sync_inner.of(true) }),
     });
     if (focus) this.inner.focus();
@@ -336,13 +357,27 @@ export class NestedEditor {
       .facet(surface_keydown)
       .some((run) => run(outer, event));
     if (taken) {
-      // Once this key is done: showing the source destroys this view.
+      // Once this key is done: showing the source destroys this view, and a
+      // caret that left this surface goes back to the outer editor.
       queueMicrotask(() => {
         end_reveal_freeze(outer);
+        if (this.owns_outer_selection()) {
+          this.sync_selection_from_outer();
+          this.inner.dispatch({
+            effects: scroll_to_caret(this.inner.state.selection),
+            annotations: sync_inner.of(true),
+          });
+        } else take_focus_back(outer);
       });
-      take_focus_back(outer);
     }
     return taken;
+  }
+
+  private owns_outer_selection(): boolean {
+    if (!this.inner.dom.isConnected) return false;
+    const window = this.options.read_window();
+    const { from, to } = this.outer.state.selection.main;
+    return !!window && window.contains(from) && window.contains(to);
   }
 
   private run_history(command: typeof source_undo): boolean {
@@ -377,6 +412,10 @@ function editable_extension(read_only: boolean): Extension {
     EditorView.editable.of(!read_only),
     EditorState.readOnly.of(read_only),
   ];
+}
+
+function scroll_to_caret(selection: EditorSelection) {
+  return EditorView.scrollIntoView(selection.main.head, { y: "nearest" });
 }
 
 function map_range(
@@ -440,9 +479,6 @@ export function enter_adjacent_block(
   vertical: boolean,
 ): boolean {
   const { state } = view;
-  const reveals_source = state.facet(reveal_surfaces_at_caret);
-  // Left and right already step onto the block's edge, which shows its source.
-  if (reveals_source && !vertical) return false;
   const selection = state.selection.main;
   if (!selection.empty || state.selection.ranges.length !== 1) return false;
   const line = state.doc.lineAt(selection.head);
@@ -460,7 +496,10 @@ export function enter_adjacent_block(
     direction > 0 ? candidate.from === target.from : candidate.to === target.to,
   );
   if (!block || !is_block_rendered(state, block)) return false;
-  if (reveals_source) {
+  if (reveals_at_caret(state, block)) {
+    // Left and right already step onto the block's edge, which shows its
+    // source.
+    if (!vertical) return false;
     // The outer view owns every key, so no nested editor takes the caret. The
     // browser's own up and down step over the widget, so go to the nearest
     // line ourselves. It shows the block's source.

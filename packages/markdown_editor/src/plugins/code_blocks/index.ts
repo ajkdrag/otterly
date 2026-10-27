@@ -24,7 +24,6 @@ import {
   selected_blocks,
   type TextBlock,
 } from "../commonmark/block_commands.js";
-import { code_card } from "./code_card.js";
 import { read_code_block } from "./fence_source.js";
 import { code_block_theme } from "./theme.js";
 import {
@@ -53,6 +52,10 @@ export function code_blocks(options: CodeBlockOptions = {}): MarkdownPlugin {
     complete: (block, state) => {
       const source = read_code_block(state, block.from, block.to);
       return !!source && !source.needs_opening_newline;
+    },
+    editable: (block, state) => {
+      const source = read_code_block(state, block.from, block.to);
+      return source && { from: source.content_from, to: source.content_to };
     },
     widget: (block, state) =>
       new CodeBlockWidget(
@@ -86,18 +89,10 @@ export function code_blocks(options: CodeBlockOptions = {}): MarkdownPlugin {
     name: "code_blocks",
     requires: ["commonmark"],
     code_languages: options.languages ?? [],
-    constructs: [
-      fenced_code,
-      code_card(options.languages ?? [], options.code_highlight ?? null),
-    ],
+    constructs: [fenced_code],
     keys: [{ key: "Mod-Alt-c", run: convert_to_code_block }],
     theme: code_block_theme,
     extensions: [
-      // The card marks use the highlight style's classes. A nested editor
-      // mounts its CSS only once one exists, so mount it here too.
-      options.code_highlight?.module
-        ? EditorView.styleModule.of(options.code_highlight.module)
-        : [],
       diagram_revision,
       EditorView.updateListener.of((update) => {
         if (!options.on_view_states_change) return;

@@ -1,34 +1,6 @@
-import { line_selector } from "../../core/editor_theme.js";
 import type { ThemeSpec } from "../../core/plugin.js";
 
 export const code_block_theme: ThemeSpec = {
-  // A code block shown as source keeps the card of its widget. Vertical space
-  // sits on the wrapper, never on a line (Line boxes in DESIGN.md).
-  ".md-code-card": {
-    margin:
-      "calc(var(--editor-spacing, 1rem) * 0.75) 0 calc(var(--editor-spacing, 1rem) * 1.25)",
-    marginLeft: "calc(var(--md-code-card-indent, 0) * 1.5rem)",
-    padding: "0.75rem 0",
-    border: "1px solid var(--editor-code-border, var(--border, #ddd))",
-    borderRadius: "var(--editor-code-radius, 0.5rem)",
-    background: "var(--editor-code-bg, var(--muted, #f4f4f4))",
-    color: "var(--editor-code-block-text, var(--foreground, #222))",
-  },
-  [line_selector(".md-code-card-line")]: {
-    fontFamily: "var(--font-mono, monospace)",
-    fontSize: "var(--editor-code-font-size, 0.875em)",
-    lineHeight: "var(--editor-code-line-height, 1.5)",
-    paddingLeft: "0.75rem",
-    paddingRight: "0.75rem",
-  },
-  // The card is already indented by its margin, so a list line drops its own.
-  [line_selector(".md-code-card-line.md-list-line")]: {
-    paddingLeft: "0.75rem",
-  },
-  ".md-code-fence, .md-code-fence-label": {
-    color: "var(--muted-foreground, #666)",
-  },
-  ".md-code-fence-label": { fontSize: "0.75rem", userSelect: "none" },
   ".md-code-language-button": {
     maxWidth: "16rem",
     overflow: "hidden",

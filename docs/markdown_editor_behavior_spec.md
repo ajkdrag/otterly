@@ -741,11 +741,15 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** The fence, language and body are deleted and exactly one blank separator is left between the neighbours. Inside a quote the separator keeps the `>` marker. A list marker on the opening line stays as an empty item. The caret lands where the block was.
 - **Edge cases/notes:** The button is hidden in read-only notes and still renders without `copy_code`. There is no confirm step because Undo restores the exact source. Unclosed fences and blocks at the start or end of the note leave no stray blank lines.
 
-### CODE-017. Code shown as source keeps its card
+### CODE-017. (retired) Code shown as source keeps its card
 
-- **Setup/action:** Put the caret in a code block with Vim on, or type a fence that has no body line yet.
-- **Expected:** The frame, background, monospace text and body highlighting stay. Fence text shows only on the line the caret is on. The other fence is a small language label, and the closing fence is an empty row. The line count and the saved text do not change, and the widget comes back when the caret leaves.
-- **Edge cases/notes:** The widget's 320px cap and a resized height still change the height on entry, and a mermaid preview hides. Tables show plain source.
+- Code blocks no longer turn into source under Vim. See CODE-018.
+
+### CODE-018. Vim edits code in its widget
+
+- **Setup/action:** Turn Vim on. Press `j` from the line above a code block, then use normal mode, insert mode, visual mode, Tab, `>>`, `o` and Esc in the body. Press `j` on the last body line and `k` on the first.
+- **Expected:** The widget and its toolbar (copy, remove) stay drawn, and the caret and focus sit in the code editor. Every key runs in the one Vim, so the saved text is exact. Esc leaves insert mode and stays in the block. `j` and `k` at the edges leave it, and `3j` counts visible lines. A `/` search draws its matches in the block, with the match under the caret marked.
+- **Edge cases/notes:** Tables still show their source under the caret. `dj` across a fence acts on source lines, like Vim. A mouse drag in the code becomes Vim's visual mode.
 
 ## 13. Mermaid and diagrams
 

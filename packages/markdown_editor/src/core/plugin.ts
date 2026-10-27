@@ -64,6 +64,12 @@ export type BlockConstruct = ConstructBase & {
   // Return false while the node is not a usable block yet, for example a
   // fence whose opening line has no newline after it.
   complete?: (block: Block, state: EditorState) => boolean;
+  // Surfaces: the outer range the surface edits (a code body without its
+  // fences). Lines of a rendered block outside it have no caret stop.
+  editable?: (
+    block: Block,
+    state: EditorState,
+  ) => { from: number; to: number } | null;
   widget: (block: Block, state: EditorState) => BlockWidget;
 };
 

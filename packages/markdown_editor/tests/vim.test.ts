@@ -11,13 +11,6 @@ import {
 import { completionStatus } from "@codemirror/autocomplete";
 import { Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import {
-  HighlightStyle,
-  LanguageDescription,
-  LanguageSupport,
-  StreamLanguage,
-} from "@codemirror/language";
-import { tags as highlight_tags } from "@lezer/highlight";
 import { CodeMirror, Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
@@ -182,12 +175,41 @@ function table_widget(view: EditorView) {
   return view.dom.querySelector("[data-md-block]");
 }
 
-function code_card(view: EditorView) {
-  return view.dom.querySelector(".md-code-card");
+function code_widget(view: EditorView) {
+  return view.dom.querySelector(".md-code-block");
 }
 
-function card_lines(view: EditorView) {
-  return [...view.dom.querySelectorAll(".md-code-card .cm-line")];
+function code_editor(view: EditorView) {
+  const element = view.dom.querySelector<HTMLElement>(
+    ".md-code-source .cm-editor",
+  );
+  return element ? EditorView.findFromDOM(element) : null;
+}
+
+function focus_is_in_code_editor() {
+  return !!document.activeElement?.closest(".md-code-source");
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// Keys on whatever has focus, like the browser. Text no handler prevents is
+// typed into the focused editor. Microtasks run after each key, where a nested
+// editor hands the keyboard back or keeps it.
+async function press_in_focus(view: EditorView, ...keys: string[]) {
+  for (const key of keys) {
+    const active = document.activeElement;
+    const target = active?.closest(".cm-editor") ? active : view.contentDOM;
+    const editor = target.closest<HTMLElement>(".cm-editor");
+    const focused = editor ? EditorView.findFromDOM(editor) : null;
+    const prevented = keydown(view, key, target).defaultPrevented;
+    if (!prevented && key.length === 1 && focused)
+      focused.dispatch(
+        focused.state.update(focused.state.replaceSelection(key), {
+          userEvent: "input.type",
+        }),
+      );
+    await flush();
+  }
 }
 
 function panel_text(view: EditorView) {
@@ -233,16 +255,17 @@ describe("vim mode", () => {
 
   // jsdom's findPosV overshoots to the end of the note. The browser's lands
   // past the block when it steps over a widget. Either way the caret must land
-  // on the nearest line of the block.
+  // on the nearest line of the block. A table shows its source there. A code
+  // block keeps its widget and the code editor takes focus.
   test.each([
     {
       name: "code block",
       source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
       blank_above: 2,
-      first_line: 3,
-      last_line: 5,
+      first_line: 4,
+      last_line: 4,
       blank_below: 6,
-      card: true,
+      is_source: false,
     },
     {
       name: "table",
@@ -251,23 +274,32 @@ describe("vim mode", () => {
       first_line: 3,
       last_line: 5,
       blank_below: 6,
-      card: false,
+      is_source: true,
     },
   ])(
     "VIM-017 j and k step into a rendered $name on its nearest line",
-    ({ source, blank_above, first_line, last_line, blank_below, card }) => {
+    async ({
+      source,
+      blank_above,
+      first_line,
+      last_line,
+      blank_below,
+      is_source,
+    }) => {
       const view = vim_editor(source);
+      view.focus();
       const line_start = (number: number) => view.state.doc.line(number).from;
       expect(table_widget(view)).not.toBeNull();
 
-      press(view, String(blank_above), "G", "j");
+      await press_in_focus(view, String(blank_above), "G", "j");
       expect(view.state.selection.main.head).toBe(line_start(first_line));
-      expect(table_widget(view)).toBeNull();
-      expect(code_card(view) !== null).toBe(card);
+      expect(table_widget(view) === null).toBe(is_source);
+      expect(focus_is_in_code_editor()).toBe(!is_source);
 
-      press(view, "G", String(blank_below), "G", "k");
+      await press_in_focus(view, "G", String(blank_below), "G", "k");
       expect(view.state.selection.main.head).toBe(line_start(last_line));
-      expect(table_widget(view)).toBeNull();
+      expect(table_widget(view) === null).toBe(is_source);
+      expect(focus_is_in_code_editor()).toBe(!is_source);
     },
   );
 
@@ -356,50 +388,48 @@ describe("vim mode", () => {
     expect(doc(view)).toBe("before\n\nafter");
   });
 
-  test.each([
-    {
-      name: "code block",
-      source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
-      keys: ["4", "G", "v", "l"],
-      card: true,
-    },
-    {
-      name: "table",
-      source: `before\n\n${table}\n\nafter`,
-      keys: ["5", "G", "V"],
-      card: false,
-    },
-  ])(
-    "VIM-019 a visual selection inside a $name keeps its source, until it grows past the block",
-    ({ source, keys, card }) => {
-      const view = vim_editor(source);
-      press(view, ...keys);
-      expect(view.state.selection.main.empty).toBe(false);
-      expect(table_widget(view)).toBeNull();
-      expect(code_card(view) !== null).toBe(card);
-
-      press(view, "<Esc>");
-      expect(table_widget(view)).toBeNull();
-
-      press(view, "v", "G");
-      expect(table_widget(view)).not.toBeNull();
-    },
-  );
-
-  test("VIM-010 undo inside a revealed code block restores the source, and the block renders once the caret leaves", () => {
-    const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
-    const view = vim_editor(source);
-    press(view, "4", "G", "A");
-    type(view, " // note");
-    press(view, "<Esc>");
-    expect(view.state.doc.line(4).text).toBe("const a = 1; // note");
+  test("VIM-019 a visual selection inside a table keeps its source, until it grows past the block", () => {
+    const view = vim_editor(`before\n\n${table}\n\nafter`);
+    press(view, "5", "G", "V");
+    expect(view.state.selection.main.empty).toBe(false);
     expect(table_widget(view)).toBeNull();
 
-    press(view, "u");
+    press(view, "<Esc>");
+    expect(table_widget(view)).toBeNull();
+
+    press(view, "v", "G");
+    expect(table_widget(view)).not.toBeNull();
+  });
+
+  test("VIM-019 a visual selection inside a code block shows in its code editor, even when it grows past the block", async () => {
+    const view = vim_editor("before\n\n```ts\nconst a = 1;\n```\n\nafter");
+    view.focus();
+    await press_in_focus(view, "4", "G", "v", "l");
+    expect(view.state.selection.main.empty).toBe(false);
+    expect(code_widget(view)).not.toBeNull();
+    const inner = code_editor(view)?.state.selection.main;
+    expect([inner?.from, inner?.to]).toEqual([0, 2]);
+    expect(focus_is_in_code_editor()).toBe(true);
+
+    await press_in_focus(view, "<Esc>", "v", "G");
+    expect(code_widget(view)).not.toBeNull();
+    expect(view.hasFocus).toBe(true);
+    expect(code_editor(view)?.state.selection.main.to).toBe(12);
+  });
+
+  test("VIM-010 undo inside a code block restores the source, and the widget stays", async () => {
+    const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
+    const view = vim_editor(source);
+    view.focus();
+    await press_in_focus(view, "4", "G", "A", ..." // note".split(""), "<Esc>");
+    expect(view.state.doc.line(4).text).toBe("const a = 1; // note");
+    expect(code_widget(view)).not.toBeNull();
+
+    await press_in_focus(view, "u");
     expect(doc(view)).toBe(source);
 
-    press(view, "G");
-    expect(table_widget(view)).not.toBeNull();
+    await press_in_focus(view, "G");
+    expect(code_widget(view)).not.toBeNull();
   });
 
   test("VIM-013 a click into a rendered table gives focus back to the editor when it turns into source", async () => {
@@ -440,16 +470,18 @@ describe("vim mode", () => {
       source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
       editor_selector: ".md-code-source .cm-editor",
       mouse_target: ".md-code-source .cm-content",
+      is_source: false,
     },
     {
       name: "table cell",
       source: `before\n\n${table.replace("| 1 |", "| alpha |")}\n\nafter`,
       editor_selector: ".md-table-cell-active .cm-editor",
       mouse_target: "[data-row='1'][data-col='0']",
+      is_source: true,
     },
   ])(
-    "VIM-015 a mouse range selection in a $name gives focus back to the editor and shows the block as source",
-    async ({ source, editor_selector, mouse_target }) => {
+    "VIM-015 a mouse range selection in a $name gives the outer editor the range, and a table shows as source",
+    async ({ source, editor_selector, mouse_target, is_source }) => {
       const view = vim_editor(source);
       view.focus();
       view.dom.querySelector<HTMLElement>(mouse_target)?.dispatchEvent(
@@ -468,16 +500,19 @@ describe("vim mode", () => {
         new MouseEvent("mouseup", { bubbles: true, button: 0 }),
       );
 
+      // The reveal freeze ends about 100 ms after the button comes up.
       await vi.waitFor(
         () => {
-          expect(view.hasFocus).toBe(true);
+          expect(view.hasFocus).toBe(is_source);
         },
         { timeout: 3000 },
       );
-      expect(table_widget(view)).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(table_widget(view) === null).toBe(is_source);
+      expect(focus_is_in_code_editor()).toBe(!is_source);
       expect(view.state.selection.main.empty).toBe(false);
 
-      press(view, "y");
+      await press_in_focus(view, "y");
       expect(doc(view)).toBe(source);
     },
   );
@@ -667,101 +702,147 @@ describe("tags", () => {
   });
 });
 
-describe("code card", () => {
-  const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
-  const typescript = StreamLanguage.define({
-    token(stream) {
-      if (stream.match(/^const\b/)) return "keyword";
-      stream.next();
-      return null;
-    },
-  });
-  const highlight = HighlightStyle.define([
-    { tag: highlight_tags.keyword, class: "kw" },
-  ]);
+describe("keys in a code block", () => {
+  const source = "before\n\n```ts\nconst a = 1;\nlet b;\n```\n\nafter";
+  const line_start = (view: EditorView, number: number) =>
+    view.state.doc.line(number).from;
 
-  function card_editor(text: string) {
-    return vim_editor(text, {
-      plugins: [
-        commonmark(),
-        gfm(),
-        code_blocks({
-          languages: [
-            LanguageDescription.of({
-              name: "ts",
-              support: new LanguageSupport(typescript),
-            }),
-          ],
-          code_highlight: highlight,
-        }),
-      ],
-    });
+  async function search(view: EditorView, text: string) {
+    await press_in_focus(view, "/");
+    const input = view.dom.querySelector<HTMLInputElement>(
+      ".cm-vim-panel input",
+    );
+    if (!input) throw new Error("no search prompt");
+    input.value = text;
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  test("VIM-037 the caret in a code body shows its lines as a card, not as a widget", () => {
-    const view = card_editor(source);
-    expect(table_widget(view)).not.toBeNull();
+  async function focused_editor(text: string, ...keys: string[]) {
+    const view = vim_editor(text);
+    view.focus();
+    await press_in_focus(view, ...keys);
+    return view;
+  }
 
-    press(view, "4", "G");
-    expect(table_widget(view)).toBeNull();
-    const lines = card_lines(view);
-    expect(lines.map((line) => line.textContent)).toEqual([
-      "ts",
-      "const a = 1;",
-      "",
-    ]);
-    expect(
-      lines.every((line) => line.classList.contains("md-code-card-line")),
-    ).toBe(true);
-    expect(lines[0]?.querySelector(".md-code-fence-label")).not.toBeNull();
+  test("VIM-042 j and k enter and leave the body, and the widget stays", async () => {
+    const view = await focused_editor(source, "2", "G", "j");
+    expect(view.state.selection.main.head).toBe(line_start(view, 4));
+    expect(code_widget(view)).not.toBeNull();
+    expect(focus_is_in_code_editor()).toBe(true);
+
+    await press_in_focus(view, "j");
+    expect(code_editor(view)?.state.selection.main.head).toBe(13);
+    await press_in_focus(view, "j");
+    expect(view.state.selection.main.head).toBe(line_start(view, 7));
+    expect(view.hasFocus).toBe(true);
+
+    await press_in_focus(view, "k", "k", "k");
+    expect(view.state.selection.main.head).toBe(line_start(view, 2));
+    expect(view.hasFocus).toBe(true);
   });
 
-  test("VIM-038 only the fence under the caret shows its text, and the card renders again on leaving", () => {
-    const view = card_editor(source);
-    const fences = () => card_lines(view).map((line) => line.textContent);
+  test("VIM-042 a count steps over the fences, and dj above the block takes the fence", async () => {
+    const counted = await focused_editor(source, "1", "G", "3", "j");
+    expect(counted.state.selection.main.head).toBe(line_start(counted, 5));
 
-    press(view, "3", "G");
-    expect(fences()).toEqual(["```ts", "const a = 1;", ""]);
-    press(view, "5", "G");
-    expect(fences()).toEqual(["ts", "const a = 1;", "```"]);
-    expect(view.state.doc.lines).toBe(7);
-
-    press(view, "6", "G");
-    expect(code_card(view)).toBeNull();
-    expect(table_widget(view)).not.toBeNull();
+    const operated = await focused_editor(source, "2", "G", "d", "j");
+    expect(doc(operated)).toBe("before\nconst a = 1;\nlet b;\n```\n\nafter");
   });
 
-  test("VIM-039 editing inside the card keeps the saved text exact", () => {
-    const view = card_editor(source);
-    press(view, "4", "G", "A");
-    type(view, " // x");
-    expect(doc(view)).toBe(source.replace("1;", "1; // x"));
-    press(view, "<Esc>", "d", "d");
-    expect(doc(view)).toBe("before\n\n```ts\n```\n\nafter");
+  test("VIM-043 normal keys run in Vim, insert types, and Esc and u stay in the block", async () => {
+    const statuses: VimStatus[] = [];
+    const view = vim_editor(source, { statuses });
+    view.focus();
+    await press_in_focus(view, "2", "G", "j", "x");
+    expect(view.state.doc.line(4).text).toBe("onst a = 1;");
+
+    await press_in_focus(view, "i", "Z", "<Esc>");
+    expect(view.state.doc.line(4).text).toBe("Zonst a = 1;");
+    expect(statuses.at(-1)?.mode).toBe("normal");
+    expect(focus_is_in_code_editor()).toBe(true);
+
+    await press_in_focus(view, "u", "u");
+    expect(doc(view)).toBe(source);
+    expect(code_widget(view)).not.toBeNull();
   });
 
-  test("VIM-040 the body is highlighted from the code language", () => {
-    const view = card_editor(source);
-    press(view, "4", "G");
-    expect(card_lines(view)[1]?.querySelector(".kw")?.textContent).toBe(
-      "const",
+  test.each([
+    {
+      name: "a list item",
+      keys: ["2", "G", "j"],
+      source: "- item\n\n  ```\n  a\n  ```\n\nafter",
+      expected: "- item\n\n  ```\n  c\n  a\n  b\n  ```\n\nafter",
+    },
+    {
+      name: "a quote",
+      keys: ["j"],
+      source: "> ```\n> a\n> ```\n\nafter",
+      expected: "> ```\n> c\n> a\n> b\n> ```\n\nafter",
+    },
+  ])("VIM-043 o and O in a code block in $name keep its prefix", async (c) => {
+    const view = await focused_editor(c.source, ...c.keys);
+    await press_in_focus(view, "o", "b", "<Esc>", "k", "O", "c", "<Esc>");
+    expect(doc(view)).toBe(c.expected);
+  });
+
+  test("VIM-044 Tab and Shift-Tab in insert mode indent, and >> indents after the quote prefix", async () => {
+    const view = await focused_editor(source, "2", "G", "j", "i", "<Tab>");
+    expect(view.state.doc.line(4).text).toBe("  const a = 1;");
+    await press_in_focus(view, "<S-Tab>");
+    expect(view.state.doc.line(4).text).toBe("const a = 1;");
+
+    const quoted = await focused_editor("> ```\n> a\n> ```\n\nafter", "j");
+    await press_in_focus(quoted, ">", ">");
+    expect(quoted.state.doc.line(2).text).toBe(">   a");
+  });
+
+  test("VIM-045 text that arrives without a key is dropped in normal mode", async () => {
+    const view = await focused_editor(source, "2", "G", "j");
+    const inner = code_editor(view);
+    if (!inner) throw new Error("no code editor");
+    text_input(inner, "é");
+    expect(doc(view)).toBe(source);
+  });
+
+  test("VIM-046 the : prompt and a / search work from inside, and focus comes back", async () => {
+    const view = await focused_editor(source, "2", "G", "j", ":");
+    const input = view.dom.querySelector<HTMLInputElement>(
+      ".cm-vim-panel input",
     );
+    expect(document.activeElement).toBe(input);
+    await press_in_focus(view, "<Esc>");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(focus_is_in_code_editor()).toBe(true);
+
+    await press_in_focus(view, "g", "g");
+    await search(view, "let");
+    expect(view.state.selection.main.head).toBe(line_start(view, 5));
+    expect(focus_is_in_code_editor()).toBe(true);
   });
 
-  test("VIM-041 a card in a quote sits inside the quote, and one in a list carries its indent", () => {
-    const quoted = card_editor("> ```ts\n> const a = 1;\n> ```\n\nafter");
-    press(quoted, "2", "G");
-    expect(code_card(quoted)?.closest(".md-quote")).not.toBeNull();
+  test("VIM-047 a / search draws its matches in the code editor until :noh", async () => {
+    const view = await focused_editor(`let x
 
-    const listed = card_editor(
-      "- item\n\n  ```ts\n  const a = 1;\n  ```\n\nafter",
-    );
-    press(listed, "4", "G");
+${source}`);
+    await search(view, "let");
+    const marks = () => code_editor(view)?.dom.querySelectorAll(".find-match");
+    expect(marks()).toHaveLength(1);
     expect(
-      (code_card(listed) as HTMLElement | null)?.style.getPropertyValue(
-        "--md-code-card-indent",
-      ),
-    ).toBe("1");
+      code_editor(view)?.dom.querySelector(".find-match--selected")
+        ?.textContent,
+    ).toBe("let");
+
+    ex_command(view, "noh");
+    await flush();
+    expect(marks()).toHaveLength(0);
   });
 });
 
@@ -1136,30 +1217,13 @@ describe("keys in a table cell", () => {
     expect(view.hasFocus).toBe(false);
   }
 
-  // Keys on whatever has focus. Text no handler prevents is typed into the
-  // focused editor, like the browser would.
-  function type_in_focus(view: EditorView, ...keys: string[]) {
-    for (const key of keys) {
-      const target = document.activeElement ?? view.contentDOM;
-      const editor = target.closest<HTMLElement>(".cm-editor");
-      const focused = editor ? EditorView.findFromDOM(editor) : null;
-      if (keydown(view, key, target).defaultPrevented) continue;
-      if (key.length !== 1 || !focused) continue;
-      focused.dispatch(
-        focused.state.update(focused.state.replaceSelection(key), {
-          userEvent: "input.type",
-        }),
-      );
-    }
-  }
-
   const source = `before\n\n${table}\n\nafter`;
 
   test("VIM-034 normal mode keys typed in a cell run in Vim and type nothing", async () => {
     const statuses: VimStatus[] = [];
     const view = vim_editor(source, { statuses });
     click_cell(view);
-    type_in_focus(view, "g", "g", "x");
+    await press_in_focus(view, "g", "g", "x");
     expect(doc(view)).toBe(source.slice(1));
     expect(statuses.at(-1)?.mode).toBe("normal");
     await vi.waitFor(() => {
@@ -1173,7 +1237,7 @@ describe("keys in a table cell", () => {
     press(view, "i");
     click_cell(view);
     const caret = view.state.selection.main.head;
-    type_in_focus(view, "Z", "<Esc>");
+    await press_in_focus(view, "Z", "<Esc>");
     expect(doc(view)).toBe(source.slice(0, caret) + "Z" + source.slice(caret));
     expect(statuses.at(-1)?.mode).toBe("normal");
     await vi.waitFor(() => {
