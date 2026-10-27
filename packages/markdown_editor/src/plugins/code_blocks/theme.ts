@@ -116,10 +116,12 @@ export const code_block_theme: ThemeSpec = {
     marginLeft: "auto",
     fontSize: "0.6875rem",
   },
-  ".md-code-copy": { marginLeft: "auto" },
+  ".md-code-copy, .md-code-remove": { marginLeft: "auto" },
   ".md-code-toolbar [role=status]:empty": { display: "none" },
-  ".md-code-toolbar [role=status]:not(:empty) + .md-code-copy": {
-    marginLeft: "0",
+  ".md-code-copy + .md-code-remove, .md-code-toolbar [role=status]:not(:empty) + .md-code-copy, .md-code-toolbar [role=status]:not(:empty) + .md-code-remove":
+    { marginLeft: "0" },
+  ".md-code-remove:hover:enabled": {
+    color: "var(--destructive, #b91c1c)",
   },
   ".md-code-diagram-controls": {
     justifyContent: "flex-end",

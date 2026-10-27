@@ -735,6 +735,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** Up/Down changes height by 16 pixels per key; pointer resizing commits once on release. The document caret does not move.
 - **Edge cases/notes:** Cancel restores the prior size; teardown removes document listeners. Height remains bounded and measured widget geometry follows the new size.
 
+### CODE-016. Remove deletes the whole block
+
+- **Setup/action:** Click Remove in the code block toolbar, next to Copy.
+- **Expected:** The fence, language and body are deleted and exactly one blank separator is left between the neighbours. Inside a quote the separator keeps the `>` marker. A list marker on the opening line stays as an empty item. The caret lands where the block was.
+- **Edge cases/notes:** The button is hidden in read-only notes and still renders without `copy_code`. There is no confirm step because Undo restores the exact source. Unclosed fences and blocks at the start or end of the note leave no stray blank lines.
+
 ## 13. Mermaid and diagrams
 
 ### DIAG-001. Render a sanitized diagram through the host
@@ -1089,7 +1095,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Attempt typing, paste, formatting, task toggles, list keys, table actions, image resizing, language changes, and Undo/Redo.
 - **Expected:** No source mutation or host clipboard-image insertion occurs.
-- **Edge cases/notes:** Changing read-only state while a widget is mounted updates its controls and embedded editor. Navigation/copy may remain available.
+- **Edge cases/notes:** Changing read-only state while a widget is mounted updates its controls and embedded editor, including the code block Remove button. Navigation/copy may remain available.
 
 ### ACCESS-002. Keyboard controls are reachable
 
