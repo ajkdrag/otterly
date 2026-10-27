@@ -43,7 +43,7 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  apply_vimrc("");
+  apply_vimrc("set clipboard=");
 });
 
 async function open_editor(

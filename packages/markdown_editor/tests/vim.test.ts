@@ -1059,6 +1059,19 @@ describe("clipboard", () => {
     return Vim.getRegisterController().unnamedRegister;
   }
 
+  test("VIM-048 a vimrc load starts with clipboard=unnamed, and set clipboard= turns it off", () => {
+    const host = host_clipboard();
+    const view = vim_editor("one\ntwo", { keybindings: { clipboard: host } });
+    apply_vimrc("");
+    press(view, "y", "y");
+    expect(host.write_text).toHaveBeenLastCalledWith("one\n");
+
+    host.write_text.mockClear();
+    apply_vimrc("set clipboard=");
+    press(view, "j", "y", "y");
+    expect(host.write_text).not.toHaveBeenCalled();
+  });
+
   test('VIM-029 "+ and "* use the host clipboard, set clipboard=unnamed writes it for every yank', async () => {
     const host = host_clipboard();
     const view = vim_editor("one\ntwo", { keybindings: { clipboard: host } });

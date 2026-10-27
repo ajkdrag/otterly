@@ -20,11 +20,14 @@ const STARTER_VIMRC: &str = r#"" Otterly vimrc. Lines starting with a double quo
 " Vimscript (if, function, autocmd) and terminal settings (syntax, number)
 " are skipped. Settings, under Vim, lists every line that does not apply.
 "
+" Every yank and put uses the system clipboard by default. Turn that off
+" with the "set clipboard=" example below.
+"
 " Examples (remove the leading quote to turn one on):
 " imap jk <Esc>
 " nnoremap j gj
 " nnoremap k gk
-" set clipboard=unnamed
+" set clipboard=
 " let mapleader = " "
 " nnoremap <leader>w :w<CR>
 "#;

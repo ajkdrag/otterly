@@ -112,6 +112,7 @@ const original_options = new Map<string, unknown>();
 // Applies a whole vimrc to the global engine and returns every line that did
 // not apply. Each call starts clean: it drops the maps and restores the
 // options of the previous call, so deleting a line and reloading removes it.
+// clipboard starts as "unnamed" instead of the engine's empty default.
 export function apply_vimrc(text: string): VimrcProblem[] {
   const { commands, problems } = parse_vimrc(text);
   // Newest first. langmap and lmap are one option under two names, and the
@@ -120,6 +121,9 @@ export function apply_vimrc(text: string): VimrcProblem[] {
   for (const [name, value] of [...original_options].reverse())
     Vim.setOption(name, value);
   original_options.clear();
+  // Otterly default: every yank and put goes through the system clipboard.
+  // A vimrc line like "set clipboard=" turns it off.
+  Vim.setOption("clipboard", "unnamed");
   Vim.mapclear();
 
   // Maps are resolved here first, so unmap only ever removes a map from this

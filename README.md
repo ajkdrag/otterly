@@ -91,7 +91,7 @@ It follows real Vim. The few places where it does not are listed in the package 
 
 - `u` undoes one typed command or one insert session, like Vim. A macro, a map and `.` are one step each.
 - `:w` saves, `:q` closes the tab (it asks first when there are unsaved changes), and `:wq` does both. On a new note, `:wq` opens the save dialog and keeps the tab open.
-- `"+y` and `"+p` use the system clipboard. `set clipboard=unnamed` in your vimrc uses it for every yank and put.
+- Every yank and put uses the system clipboard (`clipboard=unnamed`). Put `set clipboard=` in your vimrc to keep them inside Vim.
 - `o` and `O` continue a list, task or quote, like Enter does in insert mode.
 - Search ignores case unless the pattern has a capital letter.
 
