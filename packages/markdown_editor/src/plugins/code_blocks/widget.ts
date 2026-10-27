@@ -7,6 +7,7 @@ import {
 } from "@codemirror/state";
 import { indentWithTab } from "@codemirror/commands";
 import {
+  HighlightStyle,
   LanguageDescription,
   defaultHighlightStyle,
   syntaxHighlighting,
@@ -51,6 +52,9 @@ export type CodeBlockOptions = {
   languages?: readonly LanguageDescription[];
   // Extensions for every code editor, such as a highlight style.
   code_extensions?: Extension;
+  // Highlights a code body that shows as source lines in a card, which is
+  // what Vim's caret inside a block does.
+  code_highlight?: HighlightStyle;
   copy_code?: (text: string) => void | Promise<void>;
   diagram_languages?: readonly string[];
   // Return a sanitized element. The host owns the diagram engine and its IO.

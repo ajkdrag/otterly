@@ -167,6 +167,7 @@ export function create_codemirror_editor_port(
         callouts(),
         code_blocks({
           languages: code_languages,
+          code_highlight: code_block_highlight,
           copy_code: copy_text_and_sync_vim,
           code_extensions: [
             code_block_theme,

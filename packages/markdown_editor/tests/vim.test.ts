@@ -11,6 +11,13 @@ import {
 import { completionStatus } from "@codemirror/autocomplete";
 import { Compartment, EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import {
+  HighlightStyle,
+  LanguageDescription,
+  LanguageSupport,
+  StreamLanguage,
+} from "@codemirror/language";
+import { tags as highlight_tags } from "@lezer/highlight";
 import { CodeMirror, Vim, getCM } from "@replit/codemirror-vim";
 import { block_field } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
@@ -175,6 +182,14 @@ function table_widget(view: EditorView) {
   return view.dom.querySelector("[data-md-block]");
 }
 
+function code_card(view: EditorView) {
+  return view.dom.querySelector(".md-code-card");
+}
+
+function card_lines(view: EditorView) {
+  return [...view.dom.querySelectorAll(".md-code-card .cm-line")];
+}
+
 function panel_text(view: EditorView) {
   return view.dom.querySelector(".cm-vim-panel")?.textContent ?? "";
 }
@@ -227,6 +242,7 @@ describe("vim mode", () => {
       first_line: 3,
       last_line: 5,
       blank_below: 6,
+      card: true,
     },
     {
       name: "table",
@@ -235,10 +251,11 @@ describe("vim mode", () => {
       first_line: 3,
       last_line: 5,
       blank_below: 6,
+      card: false,
     },
   ])(
     "VIM-017 j and k step into a rendered $name on its nearest line",
-    ({ source, blank_above, first_line, last_line, blank_below }) => {
+    ({ source, blank_above, first_line, last_line, blank_below, card }) => {
       const view = vim_editor(source);
       const line_start = (number: number) => view.state.doc.line(number).from;
       expect(table_widget(view)).not.toBeNull();
@@ -246,6 +263,7 @@ describe("vim mode", () => {
       press(view, String(blank_above), "G", "j");
       expect(view.state.selection.main.head).toBe(line_start(first_line));
       expect(table_widget(view)).toBeNull();
+      expect(code_card(view) !== null).toBe(card);
 
       press(view, "G", String(blank_below), "G", "k");
       expect(view.state.selection.main.head).toBe(line_start(last_line));
@@ -343,19 +361,22 @@ describe("vim mode", () => {
       name: "code block",
       source: "before\n\n```ts\nconst a = 1;\n```\n\nafter",
       keys: ["4", "G", "v", "l"],
+      card: true,
     },
     {
       name: "table",
       source: `before\n\n${table}\n\nafter`,
       keys: ["5", "G", "V"],
+      card: false,
     },
   ])(
     "VIM-019 a visual selection inside a $name keeps its source, until it grows past the block",
-    ({ source, keys }) => {
+    ({ source, keys, card }) => {
       const view = vim_editor(source);
       press(view, ...keys);
       expect(view.state.selection.main.empty).toBe(false);
       expect(table_widget(view)).toBeNull();
+      expect(code_card(view) !== null).toBe(card);
 
       press(view, "<Esc>");
       expect(table_widget(view)).toBeNull();
@@ -643,6 +664,104 @@ describe("tags", () => {
 
     press(view, "<Esc>");
     expect(statuses.at(-1)?.mode).toBe("normal");
+  });
+});
+
+describe("code card", () => {
+  const source = "before\n\n```ts\nconst a = 1;\n```\n\nafter";
+  const typescript = StreamLanguage.define({
+    token(stream) {
+      if (stream.match(/^const\b/)) return "keyword";
+      stream.next();
+      return null;
+    },
+  });
+  const highlight = HighlightStyle.define([
+    { tag: highlight_tags.keyword, class: "kw" },
+  ]);
+
+  function card_editor(text: string) {
+    return vim_editor(text, {
+      plugins: [
+        commonmark(),
+        gfm(),
+        code_blocks({
+          languages: [
+            LanguageDescription.of({
+              name: "ts",
+              support: new LanguageSupport(typescript),
+            }),
+          ],
+          code_highlight: highlight,
+        }),
+      ],
+    });
+  }
+
+  test("VIM-037 the caret in a code body shows its lines as a card, not as a widget", () => {
+    const view = card_editor(source);
+    expect(table_widget(view)).not.toBeNull();
+
+    press(view, "4", "G");
+    expect(table_widget(view)).toBeNull();
+    const lines = card_lines(view);
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "ts",
+      "const a = 1;",
+      "",
+    ]);
+    expect(
+      lines.every((line) => line.classList.contains("md-code-card-line")),
+    ).toBe(true);
+    expect(lines[0]?.querySelector(".md-code-fence-label")).not.toBeNull();
+  });
+
+  test("VIM-038 only the fence under the caret shows its text, and the card renders again on leaving", () => {
+    const view = card_editor(source);
+    const fences = () => card_lines(view).map((line) => line.textContent);
+
+    press(view, "3", "G");
+    expect(fences()).toEqual(["```ts", "const a = 1;", ""]);
+    press(view, "5", "G");
+    expect(fences()).toEqual(["ts", "const a = 1;", "```"]);
+    expect(view.state.doc.lines).toBe(7);
+
+    press(view, "6", "G");
+    expect(code_card(view)).toBeNull();
+    expect(table_widget(view)).not.toBeNull();
+  });
+
+  test("VIM-039 editing inside the card keeps the saved text exact", () => {
+    const view = card_editor(source);
+    press(view, "4", "G", "A");
+    type(view, " // x");
+    expect(doc(view)).toBe(source.replace("1;", "1; // x"));
+    press(view, "<Esc>", "d", "d");
+    expect(doc(view)).toBe("before\n\n```ts\n```\n\nafter");
+  });
+
+  test("VIM-040 the body is highlighted from the code language", () => {
+    const view = card_editor(source);
+    press(view, "4", "G");
+    expect(card_lines(view)[1]?.querySelector(".kw")?.textContent).toBe(
+      "const",
+    );
+  });
+
+  test("VIM-041 a card in a quote sits inside the quote, and one in a list carries its indent", () => {
+    const quoted = card_editor("> ```ts\n> const a = 1;\n> ```\n\nafter");
+    press(quoted, "2", "G");
+    expect(code_card(quoted)?.closest(".md-quote")).not.toBeNull();
+
+    const listed = card_editor(
+      "- item\n\n  ```ts\n  const a = 1;\n  ```\n\nafter",
+    );
+    press(listed, "4", "G");
+    expect(
+      (code_card(listed) as HTMLElement | null)?.style.getPropertyValue(
+        "--md-code-card-indent",
+      ),
+    ).toBe("1");
   });
 });
 

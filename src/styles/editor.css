@@ -17,6 +17,8 @@
   --editor-blockquote-text: var(--muted-foreground);
   --editor-code-border: var(--border);
   --editor-code-block-max-height: 24rem;
+  --editor-code-font-size: calc(0.8125rem * var(--editor-zoom));
+  --editor-code-line-height: 1.5;
 
   /* Body text — warm gray, softer than foreground for comfortable reading */
   --editor-text: oklch(0.46 0.01 55);

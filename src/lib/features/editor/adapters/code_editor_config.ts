@@ -45,14 +45,17 @@ export const code_block_theme = CodeMirrorView.theme({
     backgroundColor: "var(--editor-code-bg)",
     color: "var(--editor-code-block-text)",
     fontFamily: "var(--font-mono)",
-    fontSize: "calc(0.8125rem * var(--editor-zoom))",
+    fontSize: "var(--editor-code-font-size)",
   },
   ".cm-content": {
     padding: "0.75rem 0",
     caretColor: "var(--caret-color, var(--foreground))",
   },
   ".cm-line": { padding: "0 0.75rem" },
-  ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.5" },
+  ".cm-scroller": {
+    fontFamily: "var(--font-mono)",
+    lineHeight: "var(--editor-code-line-height)",
+  },
   ".cm-cursor": { borderLeftColor: "var(--caret-color, var(--foreground))" },
   ".cm-activeLine": { backgroundColor: "transparent" },
   ".cm-selectionBackground": {

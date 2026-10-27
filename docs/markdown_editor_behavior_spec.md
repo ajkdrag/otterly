@@ -741,6 +741,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** The fence, language and body are deleted and exactly one blank separator is left between the neighbours. Inside a quote the separator keeps the `>` marker. A list marker on the opening line stays as an empty item. The caret lands where the block was.
 - **Edge cases/notes:** The button is hidden in read-only notes and still renders without `copy_code`. There is no confirm step because Undo restores the exact source. Unclosed fences and blocks at the start or end of the note leave no stray blank lines.
 
+### CODE-017. Code shown as source keeps its card
+
+- **Setup/action:** Put the caret in a code block with Vim on, or type a fence that has no body line yet.
+- **Expected:** The frame, background, monospace text and body highlighting stay. Fence text shows only on the line the caret is on. The other fence is a small language label, and the closing fence is an empty row. The line count and the saved text do not change, and the widget comes back when the caret leaves.
+- **Edge cases/notes:** The widget's 320px cap and a resized height still change the height on entry, and a mermaid preview hides. Tables show plain source.
+
 ## 13. Mermaid and diagrams
 
 ### DIAG-001. Render a sanitized diagram through the host
