@@ -23,6 +23,7 @@ import {
 import {
   NestedEditor,
   caret_x,
+  focus_selection,
   leave_block,
   vertical_cursor,
 } from "../../core/surface.js";
@@ -31,6 +32,7 @@ import {
   change_code_to_paragraph,
   code_window,
   read_code_block,
+  remove_code_block,
   type CodeBlockSource,
 } from "./fence_source.js";
 import {
@@ -154,6 +156,7 @@ class CodeBlockController implements BlockController {
   private readonly preview = document.createElement("div");
   private readonly diagram_content = document.createElement("div");
   private readonly status = document.createElement("span");
+  private readonly remove_button: HTMLButtonElement;
   private readonly source_toggle = document.createElement("button");
   private readonly diagram_controls = document.createElement("div");
   private readonly language_picker: ReturnType<
@@ -186,6 +189,9 @@ class CodeBlockController implements BlockController {
         this.change_language(language);
       },
     );
+    this.remove_button = create_button("Remove code block", () => {
+      this.remove_block();
+    });
     this.zoom_out = create_button("Zoom diagram out", () => {
       this.change_zoom(-1);
     });
@@ -299,9 +305,12 @@ class CodeBlockController implements BlockController {
         void this.copy_source();
       });
       copy.className = "md-code-copy";
-      copy.replaceChildren(clipboard_icon());
+      copy.replaceChildren(lucide_icon(clipboard_paths));
       toolbar.append(copy);
     }
+    this.remove_button.className = "md-code-remove";
+    this.remove_button.replaceChildren(lucide_icon(x_paths));
+    toolbar.append(this.remove_button);
 
     this.source_host.className = "md-code-source";
     this.preview.className = "md-code-diagram";
@@ -391,8 +400,10 @@ class CodeBlockController implements BlockController {
     const previous_language = previous
       ? language_of(previous.block.source)
       : null;
-    if (!previous || previous.read_only !== widget.read_only)
+    if (!previous || previous.read_only !== widget.read_only) {
       this.editor.set_read_only(widget.read_only);
+      this.remove_button.hidden = widget.read_only;
+    }
     if (previous_language !== language) void this.load_language(language);
     if (
       previous_language !== language ||
@@ -628,6 +639,18 @@ class CodeBlockController implements BlockController {
     return true;
   }
 
+  private remove_block(): void {
+    const current = this.current();
+    if (this.widget.read_only || !current) return;
+    const removed = remove_code_block(this.view.state, current.source);
+    this.view.dispatch({
+      changes: removed.changes,
+      selection: { anchor: removed.cursor },
+      userEvent: "input.code.remove",
+    });
+    if (!focus_selection(this.view)) this.view.focus();
+  }
+
   // Backspace at the start of a one-line body turns it into a paragraph.
   // Multi-line bodies and selections keep their code block.
   private convert_single_line_to_paragraph(): boolean {
@@ -688,8 +711,14 @@ function create_button(label: string, action: () => void): HTMLButtonElement {
   return button;
 }
 
-// Lucide "clipboard". The button keeps its aria-label, so the icon is decorative.
-function clipboard_icon(): SVGSVGElement {
+const clipboard_paths = [
+  "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
+  "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
+];
+const x_paths = ["M18 6 6 18", "m6 6 12 12"];
+
+// Lucide icons. The button keeps its aria-label, so the icon is decorative.
+function lucide_icon(paths: readonly string[]): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", "14");
@@ -700,10 +729,7 @@ function clipboard_icon(): SVGSVGElement {
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
-  for (const path_data of [
-    "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
-    "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
-  ]) {
+  for (const path_data of paths) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", path_data);
     svg.append(path);

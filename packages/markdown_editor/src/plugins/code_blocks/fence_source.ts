@@ -283,6 +283,85 @@ export function change_code_to_paragraph(
   };
 }
 
+// The remove button: delete the whole block and leave exactly one separator
+// between its neighbours. A list marker on the opening line stays as an empty item.
+export function remove_code_block(
+  state: EditorState,
+  block: CodeBlockSource,
+): { changes: ChangeSet; cursor: number } {
+  const { doc } = state;
+  const prefix = block.continuation_prefix;
+  const opening_prefix = state.sliceDoc(block.from, block.opening_from);
+  const first = doc.lineAt(block.from);
+  const last = doc.lineAt(block.to);
+  const line_text = (number: number): string => {
+    const text = doc.line(number).text;
+    return text.slice(code_container_prefix_length(text, prefix));
+  };
+  const blank = (number: number): boolean => line_text(number).trim() === "";
+  const has_prev = first.number > 1;
+  // A final "\n" leaves an empty last line that is not a real neighbour.
+  const has_next =
+    last.number < doc.lines &&
+    !(last.number + 1 === doc.lines && doc.line(doc.lines).length === 0);
+  const prev_blank = has_prev && blank(first.number - 1);
+  const next_blank = has_next && blank(last.number + 1);
+
+  if (opening_prefix !== prefix) {
+    let to = block.to;
+    if (next_blank && last.number + 2 <= doc.lines) {
+      const after = doc.line(last.number + 2);
+      if (after.text.startsWith(prefix) && line_text(after.number).trim())
+        to = doc.line(last.number + 1).to;
+    }
+    return {
+      changes: state.changes({
+        from: block.from,
+        to,
+        insert: opening_prefix,
+      }),
+      cursor: block.from + opening_prefix.length,
+    };
+  }
+  if (!has_prev && !has_next)
+    return {
+      changes: state.changes({ from: block.from, to: block.to }),
+      cursor: block.from,
+    };
+  if (!has_next) {
+    const previous = doc.line(first.number - 1);
+    const from = !prev_blank
+      ? previous.to
+      : previous.number > 1
+        ? doc.line(previous.number - 1).to
+        : previous.from;
+    return {
+      changes: state.changes({ from, to: block.to }),
+      cursor: from,
+    };
+  }
+  if (has_prev && !prev_blank && !next_blank) {
+    const separator = prefix.trimEnd();
+    return {
+      changes: state.changes({
+        from: block.from,
+        to: block.to,
+        insert: separator,
+      }),
+      cursor: block.from + separator.length,
+    };
+  }
+  const through =
+    next_blank && (!has_prev || prev_blank) ? last.number + 1 : last.number;
+  const to = Math.min(doc.line(through).to + 1, doc.length);
+  const changes = state.changes({ from: block.from, to });
+  const landing = changes.apply(doc).lineAt(block.from).text;
+  return {
+    changes,
+    cursor: block.from + code_container_prefix_length(landing, prefix),
+  };
+}
+
 function code_container_prefix_length(text: string, prefix: string): number {
   let position = 0;
   for (const expected of prefix) {

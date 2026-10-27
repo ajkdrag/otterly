@@ -52,7 +52,7 @@ Positions in the public API are UTF-16 offsets in the LF-normalized display docu
 | ------------------ | ----------------------------------------------------------------------------------- |
 | `commonmark()`     | Paragraphs, headings, emphasis, inline code, lists, quotes, rules, escapes, `<br>`. |
 | `gfm()`            | Tables, task lists, strikethrough. Requires `commonmark`.                           |
-| `code_blocks(...)` | Fenced code editing, language picker, copy, resize, diagram previews.               |
+| `code_blocks(...)` | Fenced code editing, language picker, copy, remove, resize, diagram previews.       |
 | `frontmatter()`    | YAML frontmatter as literal source.                                                 |
 | `links(...)`       | Clickable links, autolinks, bare URLs, wiki links, and the link editor.             |
 | `images(...)`      | Images resolved through the host, with resize.                                      |

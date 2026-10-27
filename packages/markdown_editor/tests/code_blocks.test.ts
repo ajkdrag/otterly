@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, test } from "vitest";
+import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
   LanguageDescription,
@@ -135,6 +136,35 @@ describe("fenced code", () => {
     code?.dispatch({ selection: { anchor: 1 } });
     view.press("Enter").type("```");
     expect(view.saved()).toBe("````\nx\n```\n````");
+  });
+
+  test("CODE-016 Remove deletes the block between paragraphs and Undo restores the source", () => {
+    const source = "a\n\n```js\nx\n```\n\nb";
+    const view = editor(source);
+    view.view.dom.querySelector<HTMLButtonElement>(".md-code-remove")?.click();
+    expect(view.source()).toBe("a\n\n‸b");
+    source_undo(view.view);
+    expect(view.saved()).toBe(source);
+  });
+
+  test("CODE-016 Remove keeps one separator inside quotes and list items", () => {
+    const quote = editor("> a\n> ```\n> x\n> ```\n> b");
+    quote.view.dom.querySelector<HTMLButtonElement>(".md-code-remove")?.click();
+    expect(quote.saved()).toBe("> a\n>\n> b");
+    const list = editor("- a\n- ```\n  x\n  ```\n- b");
+    list.view.dom.querySelector<HTMLButtonElement>(".md-code-remove")?.click();
+    expect(list.saved()).toBe("- a\n- \n- b");
+  });
+
+  test("CODE-016 a read-only editor hides the Remove button", () => {
+    const view = test_editor("```\nx\n```", [
+      commonmark(),
+      { name: "read_only", extensions: EditorState.readOnly.of(true) },
+      code_blocks(),
+    ]);
+    expect(
+      view.view.dom.querySelector<HTMLButtonElement>(".md-code-remove")?.hidden,
+    ).toBe(true);
   });
 
   test("SRC-006 Undo after typing in a code body restores exact source", () => {
