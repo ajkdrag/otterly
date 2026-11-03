@@ -137,13 +137,21 @@ export function link_tooltip(options: LinkTooltipOptions): Extension {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         if (target.closest(".cm-link-tooltip")) return;
+        if (target.closest(".cm-editor") !== this.view.dom) return;
         if (this.pending_hide !== undefined) {
           cancelAnimationFrame(this.pending_hide);
           this.pending_hide = undefined;
         }
-        const info = focused_link(this.view, target);
-        if (info) this.view.dispatch({ effects: show_link_preview.of(info) });
-        else this.view.dispatch({ effects: hide_link_preview.of(false) });
+        // focusin can fire while CodeMirror writes the DOM selection inside an
+        // update, and dispatching then throws.
+        queueMicrotask(() => {
+          if (!this.view.dom.isConnected) return;
+          if (document.activeElement !== target) return;
+          const info = focused_link(this.view, target);
+          if (info) this.view.dispatch({ effects: show_link_preview.of(info) });
+          else if (this.view.state.field(focused_preview, false))
+            this.view.dispatch({ effects: hide_link_preview.of(false) });
+        });
       };
 
       on_focusout = () => {

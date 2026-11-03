@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, test } from "vitest";
 import { EditorState } from "@codemirror/state";
+import { EditorView, ViewPlugin } from "@codemirror/view";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
 import { frontmatter } from "../src/plugins/frontmatter/index";
@@ -244,5 +245,90 @@ describe("link editor", () => {
     view.press("Mod-k");
     expect(edit_tooltip(view)).toBeNull();
     expect(view.saved()).toBe("[label](https://example.test)");
+  });
+});
+
+describe("link preview on focus", () => {
+  const preview_tooltip = (view: TestEditor) =>
+    view.view.dom.querySelector(".cm-link-tooltip--preview");
+
+  function rendered_link(view: TestEditor) {
+    const link = view.view.dom.querySelector<HTMLElement>(
+      "[data-md-link-target]",
+    );
+    if (!link) throw new Error("Expected a rendered link");
+    return link;
+  }
+
+  const focusin = () => new FocusEvent("focusin", { bubbles: true });
+
+  test("LINK-011 focus landing on a link while CodeMirror updates the selection shows the preview without an error", async () => {
+    const errors: string[] = [];
+    const record_error = (event: ErrorEvent) => {
+      event.preventDefault();
+      errors.push(event.message);
+    };
+    window.addEventListener("error", record_error);
+    try {
+      let armed = false;
+      const focus_link_mid_update = {
+        name: "focus_link_mid_update",
+        extensions: ViewPlugin.define(() => ({
+          update(update) {
+            if (!armed || !update.selectionSet) return;
+            const link = update.view.dom.querySelector<HTMLElement>(
+              "[data-md-link-target]",
+            );
+            link?.focus();
+            link?.dispatchEvent(focusin());
+          },
+        })),
+      };
+      const view = editor("top‸\n\n[Label](note.md)", [focus_link_mid_update]);
+      armed = true;
+      view.view.dispatch({ selection: { anchor: 1 } });
+      await Promise.resolve();
+
+      expect(errors).toEqual([]);
+      expect(preview_tooltip(view)).not.toBeNull();
+    } finally {
+      window.removeEventListener("error", record_error);
+    }
+  });
+
+  test("LINK-011 focus inside a code block dispatches nothing on the outer editor", async () => {
+    let updates = 0;
+    const count_updates = {
+      name: "count_updates",
+      extensions: EditorView.updateListener.of(() => {
+        updates++;
+      }),
+    };
+    const view = editor("top‸\n\n```js\nlet a\n```", [count_updates]);
+    const code_content = view.view.dom.querySelector<HTMLElement>(
+      ".md-code-source .cm-content",
+    );
+    if (!code_content) throw new Error("Expected a code block editor");
+    updates = 0;
+
+    code_content.dispatchEvent(focusin());
+    await Promise.resolve();
+
+    expect(updates).toBe(0);
+  });
+
+  test("LINK-011 a focusin that is stale when the microtask runs shows no preview", async () => {
+    const view = editor("top‸\n\n[Label](note.md)");
+    const link = rendered_link(view);
+
+    link.dispatchEvent(focusin());
+    await Promise.resolve();
+    expect(preview_tooltip(view)).toBeNull();
+
+    link.focus();
+    link.dispatchEvent(focusin());
+    link.remove();
+    await Promise.resolve();
+    expect(preview_tooltip(view)).toBeNull();
   });
 });
