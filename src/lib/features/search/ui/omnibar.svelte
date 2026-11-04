@@ -18,6 +18,9 @@
   import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
   import CodeIcon from "@lucide/svelte/icons/code";
   import HashIcon from "@lucide/svelte/icons/hash";
+  import ListIcon from "@lucide/svelte/icons/list";
+  import ListOrderedIcon from "@lucide/svelte/icons/list-ordered";
+  import ListChecksIcon from "@lucide/svelte/icons/list-checks";
   import TagIcon from "@lucide/svelte/icons/tag";
   import TextSearchIcon from "@lucide/svelte/icons/text-search";
   import CaseSensitiveIcon from "@lucide/svelte/icons/case-sensitive";
@@ -73,6 +76,10 @@
     link: LinkIcon,
     "refresh-cw": RefreshCwIcon,
     code: CodeIcon,
+    list: ListIcon,
+    "list-ordered": ListOrderedIcon,
+    "list-checks": ListChecksIcon,
+    hash: HashIcon,
     tag: TagIcon,
     "text-search": TextSearchIcon,
   };
@@ -591,6 +598,7 @@
       case "show_vault_dashboard_on_open":
       case "vim_mode_enabled":
       case "vim_repeat_held_keys":
+      case "line_numbers_enabled":
         return settings[key] ? "On" : "Off";
       case "autosave_delay_ms":
         return `${settings.autosave_delay_ms} ms`;

@@ -122,6 +122,47 @@ describe("CodeMirror editor port", () => {
     expect(session.tag_at_cursor()).toBeNull();
   });
 
+  it.each([
+    ["bullet_list", "- alpha"],
+    ["ordered_list", "1. alpha"],
+    ["task_list", "- [ ] alpha"],
+    ["code_block", "```\nalpha\n```"],
+  ] as const)(
+    "formats the selection as %s while the palette holds focus",
+    async (format, expected) => {
+      const { session, view } = await open_editor("alpha");
+      session.set_selection(0, 5);
+      view.contentDOM.blur();
+      expect(view.hasFocus).toBe(false);
+
+      expect(session.format_selection(format)).toBe(true);
+      expect(session.get_markdown()).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["bullet_list", "- **alpha**"],
+    ["code_block", "```\n**alpha**\n```"],
+  ] as const)(
+    "formats the selection as %s in source mode and keeps the Markdown",
+    async (format, expected) => {
+      const { session } = await open_editor("**alpha**");
+      session.toggle_source_mode();
+      session.set_selection(0, 9);
+
+      expect(session.format_selection(format)).toBe(true);
+      expect(session.get_markdown()).toBe(expected);
+    },
+  );
+
+  it("leaves a text file alone when asked to format the selection", async () => {
+    const { session } = await open_editor("alpha", undefined, "config.yaml");
+    session.set_selection(0, 5);
+
+    expect(session.format_selection("bullet_list")).toBe(false);
+    expect(session.get_markdown()).toBe("alpha");
+  });
+
   it("draws tag chips that are not clickable when the host has no tag click handler", async () => {
     const plain = await open_editor("top\n\nsee #idea");
     expect(plain.view.dom.querySelector(".md-tag")?.textContent).toBe("#idea");
@@ -947,6 +988,18 @@ describe("CodeMirror editor port", () => {
     expect(events.on_view_mode_change).toHaveBeenLastCalledWith("text");
     view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 1" } });
     expect(session.get_markdown()).toBe(`${source}x: 1`);
+  });
+
+  it("has a line number gutter in source mode and text files, never in rich mode", async () => {
+    const note = await open_editor("# Title\n\ntext");
+    expect(note.view.dom.querySelector(".cm-gutters")).toBeNull();
+    note.session.toggle_source_mode();
+    expect(note.view.dom.querySelector(".cm-lineNumbers")).not.toBeNull();
+    note.session.toggle_source_mode();
+    expect(note.view.dom.querySelector(".cm-gutters")).toBeNull();
+
+    const text_file = await open_editor("a: 1\n", undefined, "config.yaml");
+    expect(text_file.view.dom.querySelector(".cm-lineNumbers")).not.toBeNull();
   });
 
   it("replaces find matches in one undo step and keeps line endings", async () => {

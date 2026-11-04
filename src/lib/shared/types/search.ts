@@ -6,6 +6,11 @@ export type SearchCommandDefinition = {
     | "create_new_note"
     | "save_note"
     | "toggle_source_mode"
+    | "toggle_bullet_list"
+    | "toggle_ordered_list"
+    | "toggle_task_list"
+    | "convert_to_code_block"
+    | "toggle_line_numbers"
     | "clean_up_legacy_markdown"
     | "change_vault"
     | "open_settings"
@@ -47,6 +52,10 @@ export type SearchCommandDefinition = {
     | "link"
     | "refresh-cw"
     | "code"
+    | "list"
+    | "list-ordered"
+    | "list-checks"
+    | "hash"
     | "tag"
     | "text-search";
 };

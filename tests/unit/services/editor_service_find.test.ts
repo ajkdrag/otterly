@@ -47,6 +47,7 @@ function create_session_with_find(initial_markdown: string): EditorSession {
     is_dirty: vi.fn(() => false),
     focus: vi.fn(),
     toggle_source_mode: vi.fn(),
+    format_selection: vi.fn(),
     set_vim_enabled: vi.fn(),
     open_buffer: vi.fn(),
     rename_buffer: vi.fn(),

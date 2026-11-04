@@ -8,6 +8,7 @@ import type {
   VimStatus,
 } from "$lib/shared/types/editor";
 import type { FindSpec } from "$lib/shared/types/search";
+import type { SelectionFormat } from "$lib/features/editor/domain/selection_format";
 
 export type BufferConfig = {
   note_path: string;
@@ -37,6 +38,10 @@ export type EditorSession = {
   // Switches a Markdown note between its rich and source views. Does nothing
   // for other files.
   toggle_source_mode: () => void;
+  // Rewrites the selected lines of a Markdown note. Returns false when
+  // nothing changed, and always for other files. Works without focus, because
+  // the palette holds focus when this runs.
+  format_selection: (format: SelectionFormat) => boolean;
   // Turns Vim keys on or off for every buffer, keeping each one's history.
   set_vim_enabled: (enabled: boolean) => void;
   set_wiki_suggestions?: (

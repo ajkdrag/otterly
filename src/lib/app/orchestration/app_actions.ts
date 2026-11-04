@@ -9,6 +9,7 @@ import {
   type EditorSettings,
 } from "$lib/shared/types/editor_settings";
 import { DEFAULT_HOTKEYS } from "$lib/features/hotkey";
+import { is_selection_format } from "$lib/features/editor";
 import { apply_opened_vault_session } from "$lib/features/vault";
 import { detect_platform } from "$lib/shared/utils/detect_platform";
 import { toast } from "svelte-sonner";
@@ -353,6 +354,19 @@ export function register_app_actions(input: ActionRegistrationInput) {
     label: "Toggle Source Mode",
     execute: () => {
       services.editor.toggle_source_mode();
+    },
+  });
+
+  // The palette rows only make sense for a Markdown note. The adapter
+  // returns false for a text file, and "text" is the view mode of those.
+  registry.register({
+    id: ACTION_IDS.editor_format_selection,
+    label: "Format Selection",
+    when: () =>
+      stores.editor.open_note !== null && stores.editor.view_mode !== "text",
+    execute: (format: unknown) => {
+      if (!is_selection_format(format)) return;
+      services.editor.format_selection(format);
     },
   });
 

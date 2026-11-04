@@ -29,6 +29,7 @@ function setup(
     open_buffer: vi.fn(),
     update_find_state: vi.fn(),
     toggle_source_mode: vi.fn(),
+    format_selection: vi.fn(),
     set_vim_enabled: vi.fn(),
   } as unknown as EditorSession;
   const session_configs: EditorSessionConfig[] = [];

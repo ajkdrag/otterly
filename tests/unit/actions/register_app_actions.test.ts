@@ -137,6 +137,7 @@ function create_harness(options: HarnessOptions = {}) {
       restore_view_state: vi.fn(),
       set_code_block_view_states: vi.fn(),
       restore_cursor: vi.fn(),
+      format_selection: vi.fn(),
     },
     note: {
       create_new_note: vi.fn(),
@@ -377,6 +378,39 @@ describe("register_app_actions", () => {
     await registry.execute(ACTION_IDS.app_editor_unmount);
 
     expect(services.editor.unmount).toHaveBeenCalledTimes(1);
+  });
+
+  describe("format selection", () => {
+    it("is available for a Markdown note in rich or source view only", async () => {
+      const { registry, stores, services } = create_harness();
+      const is_available = () =>
+        registry
+          .get_available()
+          .some((action) => action.id === ACTION_IDS.editor_format_selection);
+      expect(is_available()).toBe(false);
+
+      stores.editor.set_open_note(create_app_note());
+      expect(is_available()).toBe(true);
+      stores.editor.set_view_mode("source");
+      expect(is_available()).toBe(true);
+
+      stores.editor.set_open_note(create_app_note("config.yaml"));
+      stores.editor.set_view_mode("text");
+      expect(is_available()).toBe(false);
+
+      await registry.execute(ACTION_IDS.editor_format_selection, "task_list");
+      expect(services.editor.format_selection).not.toHaveBeenCalled();
+    });
+
+    it("ignores a format it does not know", async () => {
+      const { registry, stores, services } = create_harness();
+      stores.editor.set_open_note(create_app_note());
+
+      await registry.execute(ACTION_IDS.editor_format_selection, "quote");
+      await registry.execute(ACTION_IDS.editor_format_selection);
+
+      expect(services.editor.format_selection).not.toHaveBeenCalled();
+    });
   });
 
   it("restores the active tab view state when the editor mounts", async () => {

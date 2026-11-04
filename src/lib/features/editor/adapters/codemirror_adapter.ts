@@ -19,6 +19,7 @@ import {
   clipboard,
   code_blocks,
   commonmark,
+  convert_to_code_block,
   create_markdown_state,
   create_text_state,
   find,
@@ -31,6 +32,7 @@ import {
   gfm,
   images,
   insert_markdown_source,
+  line_numbers,
   links,
   read_code_block_view_states,
   refresh_code_diagrams,
@@ -41,6 +43,7 @@ import {
   slash_menu,
   tag_at,
   tags,
+  toggle_list,
   update_find_query,
   close_vim_prompt,
   sync_clipboard_from_host,
@@ -64,6 +67,7 @@ import { count_words } from "$lib/shared/utils/count_words";
 import { is_markdown_path } from "$lib/shared/utils/path";
 import { create_logger } from "$lib/shared/utils/logger";
 import { is_external_url, parse_internal_href } from "../domain/link_target";
+import type { SelectionFormat } from "../domain/selection_format";
 import {
   code_languages,
   code_block_theme,
@@ -98,6 +102,9 @@ type BufferEntry = {
 const log = create_logger("codemirror_adapter");
 // Holds the grammar of a text file. It loads after the buffer opens.
 const text_language = new Compartment();
+// Find's highlight style for text files, which have no plugin list. Compiled
+// once because style-mod never removes rules, so a theme per buffer leaks.
+const text_file_find_theme = EditorView.theme(find().theme ?? {});
 // CodeMirror re-reads line height and character width only when it thinks
 // they could have changed, such as on a theme change. Zoom and width are CSS
 // variables it cannot see, so we swap between two empty themes to say so.
@@ -111,6 +118,17 @@ const metrics_themes = [
 // Holds the Vim extension while Vim mode is on. A compartment, so the toggle
 // keeps every cached buffer state and its undo history.
 const vim_compartment = new Compartment();
+// The package commands behind the palette rows. The key bindings in the
+// package run the same functions.
+const SELECTION_COMMANDS: Record<
+  SelectionFormat,
+  (view: EditorView) => boolean
+> = {
+  bullet_list: toggle_list("bullet"),
+  ordered_list: toggle_list("ordered"),
+  task_list: toggle_list("task"),
+  code_block: convert_to_code_block,
+};
 const synchronous_word_count_limit = 50_000;
 const default_code_view: CodeBlockViewState = {
   source_height: null,
@@ -389,6 +407,10 @@ export function create_codemirror_editor_port(
           publish_view_mode();
           focus_editor();
         },
+        format_selection(format) {
+          if (!current.is_markdown) return false;
+          return SELECTION_COMMANDS[format](view);
+        },
         set_vim_enabled(enabled) {
           vim_enabled = enabled;
           sync_vim_compartment();
@@ -478,6 +500,9 @@ export function create_codemirror_editor_port(
               plugins,
               extensions: [extensions, vim],
               source_extensions: [
+                // Rich mode renders blocks as widgets, so only source mode
+                // gets line numbers.
+                line_numbers(),
                 syntaxHighlighting(markdown_source_highlight),
                 syntaxHighlighting(code_block_highlight),
               ],
@@ -488,8 +513,9 @@ export function create_codemirror_editor_port(
               // highlight style, or the bar would count matches it cannot show
               // or replace.
               find_plugin.extensions ?? [],
-              find_plugin.theme ? EditorView.theme(find_plugin.theme) : [],
+              text_file_find_theme,
               vim,
+              line_numbers(),
               text_language.of([]),
               syntaxHighlighting(code_block_highlight),
             ]);

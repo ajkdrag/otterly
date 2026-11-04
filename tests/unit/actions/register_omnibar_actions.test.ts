@@ -192,6 +192,32 @@ describe("register_omnibar_actions", () => {
     expect(open_settings).toHaveBeenCalledWith("theme");
   });
 
+  it.each([
+    ["toggle_bullet_list", "bullet_list"],
+    ["toggle_ordered_list", "ordered_list"],
+    ["toggle_task_list", "task_list"],
+    ["convert_to_code_block", "code_block"],
+  ] as const)(
+    "runs the %s row as the format action with %s",
+    async (command_id, format) => {
+      const { registry } = create_omnibar_actions_harness();
+      const format_selection = vi.fn();
+      registry.register({
+        id: ACTION_IDS.editor_format_selection,
+        label: "Format Selection",
+        execute: format_selection,
+      });
+
+      await registry.execute(
+        ACTION_IDS.omnibar_confirm_item,
+        command_item(command_id),
+      );
+
+      expect(format_selection).toHaveBeenCalledOnce();
+      expect(format_selection).toHaveBeenCalledWith(format);
+    },
+  );
+
   it("opens note after selecting cross-vault hit", async () => {
     const { registry, stores, execute_vault_select, execute_note_open } =
       create_omnibar_actions_harness();

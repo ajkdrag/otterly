@@ -3,6 +3,7 @@ import type {
   EditorPort,
   EditorSession,
 } from "$lib/features/editor/ports";
+import type { SelectionFormat } from "$lib/features/editor/domain/selection_format";
 import type {
   CodeBlockViewStates,
   EditorBufferViewState,
@@ -223,6 +224,10 @@ export class EditorService {
 
   toggle_source_mode() {
     this.session?.toggle_source_mode();
+  }
+
+  format_selection(format: SelectionFormat): boolean {
+    return this.session?.format_selection(format) ?? false;
   }
 
   tag_at_cursor(): string | null {

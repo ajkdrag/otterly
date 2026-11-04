@@ -11,6 +11,7 @@ import {
   parse_search_query,
   set_search_query_target,
 } from "$lib/features/search/domain/search_query_parser";
+import type { SelectionFormat } from "$lib/features/editor";
 import { tag_key, type TaggedNote } from "$lib/features/tags";
 import { is_unavailable_vault_error } from "$lib/features/vault";
 import { as_note_path, type VaultId } from "$lib/shared/types/ids";
@@ -24,6 +25,11 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
   create_new_note: ACTION_IDS.note_create,
   save_note: ACTION_IDS.note_request_save,
   toggle_source_mode: ACTION_IDS.editor_toggle_source_mode,
+  toggle_bullet_list: ACTION_IDS.editor_format_selection,
+  toggle_ordered_list: ACTION_IDS.editor_format_selection,
+  toggle_task_list: ACTION_IDS.editor_format_selection,
+  convert_to_code_block: ACTION_IDS.editor_format_selection,
+  toggle_line_numbers: ACTION_IDS.editor_toggle_line_numbers,
   clean_up_legacy_markdown: ACTION_IDS.note_cleanup_markdown_request,
   change_vault: ACTION_IDS.vault_request_change,
   open_settings: ACTION_IDS.settings_open,
@@ -56,6 +62,10 @@ export const COMMAND_TO_ACTION_ID: Record<CommandId, string> = {
 const COMMAND_ACTION_ARGUMENTS: Partial<Record<CommandId, unknown[]>> = {
   open_theme_settings: ["theme"],
   open_hotkeys: ["hotkeys"],
+  toggle_bullet_list: ["bullet_list"] satisfies [SelectionFormat],
+  toggle_ordered_list: ["ordered_list"] satisfies [SelectionFormat],
+  toggle_task_list: ["task_list"] satisfies [SelectionFormat],
+  convert_to_code_block: ["code_block"] satisfies [SelectionFormat],
 };
 
 // Rows in tag suggestions and in tag mode. The header shows "50+" past this.

@@ -23,6 +23,43 @@ export const COMMANDS_REGISTRY: CommandDefinition[] = [
     icon: "code",
   },
   {
+    id: "toggle_bullet_list",
+    label: "Toggle bullet list",
+    description: "Turn the selected lines into a bullet list, or back to text",
+    keywords: ["bullet", "unordered", "list", "format", "selection"],
+    icon: "list",
+  },
+  {
+    id: "toggle_ordered_list",
+    label: "Toggle numbered list",
+    description:
+      "Turn the selected lines into a numbered list, or back to text",
+    keywords: ["numbered", "ordered", "list", "format", "selection"],
+    icon: "list-ordered",
+  },
+  {
+    id: "toggle_task_list",
+    label: "Toggle task list",
+    description:
+      "Turn the selected lines into a checkbox list, or back to text",
+    keywords: ["checkbox", "todo", "task", "list", "format", "selection"],
+    icon: "list-checks",
+  },
+  {
+    id: "convert_to_code_block",
+    label: "Convert to code block",
+    description: "Wrap the selected text in a code fence",
+    keywords: ["fence", "code", "block", "format", "selection"],
+    icon: "code",
+  },
+  {
+    id: "toggle_line_numbers",
+    label: "Toggle line numbers",
+    description: "Show or hide line numbers in source mode and text files",
+    keywords: ["line", "lines", "numbers", "gutter", "source"],
+    icon: "hash",
+  },
+  {
     id: "clean_up_legacy_markdown",
     label: "Clean up legacy Markdown…",
     description: "Preview spacing cleanup for notes in this vault",
