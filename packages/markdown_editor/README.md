@@ -90,6 +90,11 @@ A plugin is a plain object. This one renders `==highlight==`, given a Lezer exte
 ```ts
 import { delimited_mark, type MarkdownPlugin } from "@otterly/markdown-editor";
 
+// Module scope: the core compiles each theme object once.
+const highlight_theme = {
+  ".md-highlight": { backgroundColor: "var(--editor-mark-bg, #fff3a3)" },
+};
+
 export function highlight(): MarkdownPlugin {
   return {
     name: "highlight",
@@ -103,9 +108,7 @@ export function highlight(): MarkdownPlugin {
         tag: () => "mark",
       }),
     ],
-    theme: {
-      ".md-highlight": { backgroundColor: "var(--editor-mark-bg, #fff3a3)" },
-    },
+    theme: highlight_theme,
   };
 }
 ```

@@ -1,6 +1,6 @@
 import { Facet } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
-import type { MarkdownPlugin } from "../../core/plugin.js";
+import type { MarkdownPlugin, ThemeSpec } from "../../core/plugin.js";
 import { link_from_node, type ImageResizeRange } from "../links/link_source.js";
 import {
   destroy_markdown_image,
@@ -91,46 +91,48 @@ export function images(options: ImageRenderingOptions): MarkdownPlugin {
       },
     ],
     extensions: image_renderer.of(renderer),
-    theme: {
-      ".md-image": {
-        display: "inline-block",
-        position: "relative",
-        maxWidth: "100%",
-        verticalAlign: "middle",
-        lineHeight: "0",
-        color: "var(--muted-foreground, #737373)",
-      },
-      ".md-image img": {
-        display: "block",
-        maxWidth: "100%",
-        maxHeight: "32rem",
-        height: "auto",
-        objectFit: "contain",
-        borderRadius: "0.375rem",
-      },
-      ".md-image-resize": {
-        position: "absolute",
-        bottom: "-0.25rem",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "10rem",
-        height: "0.75rem",
-        borderRadius: "999px",
-        background: "var(--border, #888)",
-        opacity: "0",
-        cursor: "ns-resize",
-        touchAction: "none",
-        userSelect: "none",
-      },
-      ".md-image:hover .md-image-resize, .md-image-resize:focus-visible": {
-        opacity: "1",
-      },
-      ".md-image-resize:focus-visible": {
-        outline: "2px solid var(--ring, #777)",
-      },
-    },
+    theme: images_theme,
   };
 }
+
+const images_theme: ThemeSpec = {
+  ".md-image": {
+    display: "inline-block",
+    position: "relative",
+    maxWidth: "100%",
+    verticalAlign: "middle",
+    lineHeight: "0",
+    color: "var(--muted-foreground, #737373)",
+  },
+  ".md-image img": {
+    display: "block",
+    maxWidth: "100%",
+    maxHeight: "32rem",
+    height: "auto",
+    objectFit: "contain",
+    borderRadius: "0.375rem",
+  },
+  ".md-image-resize": {
+    position: "absolute",
+    bottom: "-0.25rem",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "10rem",
+    height: "0.75rem",
+    borderRadius: "999px",
+    background: "var(--border, #888)",
+    opacity: "0",
+    cursor: "ns-resize",
+    touchAction: "none",
+    userSelect: "none",
+  },
+  ".md-image:hover .md-image-resize, .md-image-resize:focus-visible": {
+    opacity: "1",
+  },
+  ".md-image-resize:focus-visible": {
+    outline: "2px solid var(--ring, #777)",
+  },
+};
 
 export class ImageWidget extends WidgetType {
   constructor(

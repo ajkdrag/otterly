@@ -137,7 +137,6 @@ render.widget(at, widget);
 render.line(line_from, "md-heading md-heading-2");
 render.lines(from, to, "md-code-line");
 render.wrap(node, "md-quote"); // an element around the node's whole lines
-render.gap(node, { before: "1rem" }); // space above a top-level block
 ```
 
 The core owns the reveal rule, atomic ranges, the drag freeze, and forced reveal for find matches. A construct asks the core instead of checking the selection itself.
@@ -148,8 +147,14 @@ The core owns the reveal rule, atomic ranges, the drag freeze, and forced reveal
 
 CodeMirror estimates the height of every line it has not drawn from one sample: the first drawn line that holds nothing but short plain text (at most 20 characters, no elements inside). If that sample has a padded or taller box, the estimate changes as the viewport moves. The viewport then never settles, and clicks land on a half-drawn view. So the rendering keeps this rule:
 
-- A line box never carries vertical space. Container boxes and spacing go on wrappers. `render.wrap(node, class)` puts an element (a CodeMirror block wrapper) around a node's whole lines. Deeper nodes nest inside shallower ones, and calls for the same node share one element, which is how a callout adds its classes to its quote. `render.gap(node, space)` is the space above a top-level block. It sits outside the block's own wrapper, and the larger of the block's `before` and the previous block's `after` wins.
+- A line box never carries vertical space. Container boxes go on wrappers. `render.wrap(node, class)` puts an element (a CodeMirror block wrapper) around a node's whole lines. Deeper nodes nest inside shallower ones, and calls for the same node share one element, which is how a callout adds its classes to its quote.
 - A line that needs a different box anyway, like a heading or a blank row, never shows plain text alone. Markers and blank-row whitespace are hidden ranges, and the core wraps the text of any other styled line in a plain `md-line-text` mark. Either way the line holds an element, and CodeMirror does not sample it.
+
+Text blocks get no spacing of their own. Paragraphs, headings and list items with no blank row between them touch, so a user who writes tight source sees tight text. Each blank source row adds one `--editor-paragraph-spacing` gap.
+
+Boxed blocks (code card, table, quote, callout, frontmatter, indented code) are the exception. A border or tint that touches the text next to it looks broken, so each box keeps a small margin above and below, `--editor-block-margin-y` (default 0.5rem), whatever the source says. A blank row adds its gap on top. Two boxes with no row between them sit two margins apart. Inside the box, a card (code block, quote, callout) gets an even inset of `--editor-block-padding-y` above and below its content.
+
+CodeMirror measures a block's border box, so the margin can't be a CSS margin: it would escape the height map. Widgets put it as transparent padding on `.md-block-body` around the card. The quote wrapper puts it in transparent top and bottom borders, clips its tint to the padding box, and draws its bar as an inset shadow, so the bar and tint stay the height of the box. A nested quote has no margin of its own. Frontmatter and indented code get a wrapper with the same transparent borders around their tinted lines.
 
 Theme rules select this editor's lines with `line_selector(".md-class")`, which matches lines directly in `.cm-content` and inside wrappers, but not lines of nested editors. The `SPACE-009` test reads every theme and fails if a line CodeMirror could sample carries a class with vertical styling.
 
@@ -178,6 +183,8 @@ Enter at "> - ‸"           list_item.Enter   lift one level
 Enter at "> ‸"             blockquote.Enter  leave one quote level
 Shift-Enter in any prose   paragraph         hard break plus the container prefix
 ```
+
+Typed and pasted text has one structural rule. On an empty line right under a quote or list item paragraph or a table, the first text would join that block lazily, so `lazy_line_boundary` (a transaction filter in the commonmark plugin) puts a blank line above it in the same transaction (NAV-011). Vim turns it off with `lazy_line_boundary_off`.
 
 ## Layers
 
@@ -225,7 +232,7 @@ Editing helpers built on layers:
 The block field is a `StateField` provided through `EditorView.decorations`:
 
 - It scans block-level nodes of the complete tree. Inline nodes are never visited.
-- A block's range is `line_at(node.from).from` to `line_at(node.to).to`. A widget inside a quote sits inside the quote's wrapper, so the quote stays one continuous shape around it. The widget indents itself for list levels with `wrap_in_layers(block, content)`. Widgets put their vertical spacing on the `.md-block-body` element inside the layers. When the main selection covers the whole block, the core adds `md-block-selected` to the widget root and paints one overlay. Native selection inside widget markup never paints.
+- A block's range is `line_at(node.from).from` to `line_at(node.to).to`. A widget inside a quote sits inside the quote's wrapper, so the quote stays one continuous shape around it. The widget indents itself for list levels with `wrap_in_layers(block, content)`. Widgets keep no vertical space outside their card (see "Line boxes"). When the main selection covers the whole block, the core adds `md-block-selected` to the widget root and paints one overlay over the card: the `.md-block-body` minus its margin padding, so the margin and the list indent stay clear. Native selection inside widget markup never paints.
 - A focused prose caret never rests on a rendered surface block. The core hands it to the surface, at its own position or the nearer edge, so it never draws as a bar the height of the widget.
 - `BlockWidget.eq` compares the widget class, the source slice, the view state, and read-only state. It never compares object identity, so a reparse keeps the DOM and its focus.
 - Equal widgets are reused after text above them moves. A controller looks up its current block with `block_for_dom` and never trusts stored positions.
@@ -247,16 +254,19 @@ inner:  a = 1\nb = 2          the "> " prefixes stay outside the window
 - Outer changes refresh the inner text. An annotation stops the echo.
 - A code body window strips container prefixes and adds them back on new lines. A body line that looks like a closing fence grows the fence.
 - A table cell window unescapes pipes, escapes typed pipes, and keeps padding outside the window.
-- `surface_highlights` lets a plugin publish outer ranges, such as find matches, that every surface draws inside its own text.
+- `surface_highlights` lets a plugin publish outer ranges, such as find matches, that every surface draws inside its own text. The core compares the returned arrays by identity, so return the same array while nothing changed. A new empty array on every edit redraws every code block and table cell per keystroke.
 - `surface_keydown` handlers see keys typed in a surface before the surface does. A handler that takes a key wants the outer editor to run it, so the reveal freeze ends, and the keyboard returns to the outer editor only when the outer selection left the surface. Vim uses it.
 - `surface_text_input` handlers see text that reaches a surface without a key (an IME commit, the accent menu). A handler that returns true drops the text. Vim drops it outside insert mode.
 
 The core owns focus and scroll:
 
 - `focus_selection(view)` focuses the surface that owns the outer selection, keeping a selected range and its direction. Focus never scrolls the page. The core scrolls only to mount an offscreen block.
-- Arrow keys on the line next to a block call the surface's `enter`. Arrows at a surface edge call `leave_block`, which moves to a neighboring surface or the adjacent source row. Arrows never create source.
+- Undo and Redo typed in a surface focus the surface that owns the caret afterwards, or the outer view when none does. The history may have removed the block, and the focused view with it.
+- Arrow keys on the line next to a block call the surface's `enter`. Arrows at a surface edge call `leave_block`, which moves to a neighboring surface or the adjacent source row. At a document edge the surface keeps the caret and its focus. Arrows never create source, with one exception: Right or Down at the end of a code block or table that ends the note starts a row after it. For a table, only blank lines after it still count as the end of the note.
 
 Inactive table cells are static rendered HTML. Only the active cell has a nested view.
+
+Row and column actions are a right-click menu on a cell. Shift-F10 or the menu key opens it under the active cell. The clicked cell becomes active first, and the entries act on it. The menu is `position: fixed` at the pointer but lives inside the widget root, so focus in it still counts as focus in the table and the cell keeps its editor. Nothing is drawn under the table, so the table is exactly its own box. Read-only tables keep the browser's menu.
 
 ## Reveal
 
@@ -279,11 +289,13 @@ Lezer parses whole documents quickly:
 | Document                 | Full parse | One-character edit |
 | ------------------------ | ---------- | ------------------ |
 | 19 KB note               | 2 ms       | 0.2 ms             |
-| 1.4 MB normal paragraphs | 89 ms      | 1.3 ms             |
+| 958 KB normal paragraphs | 110-150 ms | 1.3 ms             |
+| 1.4 MB normal paragraphs | 155-175 ms | 1.3 ms             |
 | 1.4 MB single paragraph  | 1.5 s      | 1.5 s              |
 
 - Up to 1 MB, with no block over 200 KB, the block field asks for the complete tree.
 - Above that, the viewport parses first and the rest continues in idle slices. Blocks past the parsed frontier keep their previous widgets until the parser gets there.
+- The 1,000,000-character limit and the 150 ms parse budget leave almost no headroom near the top. 958 KB takes about 110 ms warm and about 150 ms on a cold first parse, so opening a note near 1 MB can already miss the budget. That is acceptable: the block field falls back to the partial tree, a table or other block shows up late, and no work is lost.
 - One giant paragraph is a known limit (PERF-006). Lezer cannot stop inside a block.
 
 ## Failure isolation
@@ -294,7 +306,7 @@ The core runs every construct's `decorate`, `decorate_layer`, `widget`, `render_
 
 - Colors and spacing come from the host's CSS variables (`--foreground`, `--border`, `--editor-*`), with standalone fallbacks.
 - Class names are `md-<construct>` and `md-<construct>-<part>`. Treat them as public: removing one is a breaking change.
-- Each plugin ships its theme beside its code. The core compiles it with `EditorView.theme`, so it wins over CodeMirror's own defaults, such as the autocomplete menu. Hosts override it with ordinary CSS or their own `EditorView.theme` added after the plugins.
+- Each plugin ships its theme beside its code. The core compiles it with `EditorView.theme`, so it wins over CodeMirror's own defaults, such as the autocomplete menu. The core compiles each spec object once, so keep the spec in a module-level const. A spec built inside the plugin function adds a new set of CSS rules for every editor state. Hosts override it with ordinary CSS or their own `EditorView.theme` added after the plugins.
 - Line rules use `line_selector`, and vertical space goes on wrappers (see "Line boxes").
 
 ## Host boundary
@@ -322,6 +334,12 @@ Plugins take host callbacks as options. Async callbacks get an `AbortSignal` tha
 `set_editor_mode(view, "source")` shows the plain Markdown. The mode is a state field, so the switch keeps the document, selection, and history. In source mode the block field and inline rendering draw nothing, and construct keys and block arrow keys step aside. Blocks are still tracked, so their view states survive the trip back. Pass `source_extensions` (for example a highlighter) to `create_markdown_state`. They sit in a compartment that only holds them in source mode. The same compartment holds a Markdown language that nests the plugins' `code_languages` inside fences, so the code gets highlighted there. Rich mode keeps the plain Markdown parser, because fences are drawn by their own editor.
 
 `create_text_state(source, extensions)` builds a state for a file that is not Markdown. It has the same line ending handling and undo as a note, without the plugins.
+
+### Line numbers
+
+`line_numbers()` is a gutter for source mode and text files. Pass it in `source_extensions` or in the text state's extensions, never in `extensions`: rich mode draws code blocks and tables as one widget each, so rows and numbers would not line up. Nested editors in widgets get no gutter because they only exist in rich mode.
+
+The gutter is always installed in those modes, and the host shows it by setting `--editor-gutter-display` to `flex` on `:root`. The default hides it. The gutter sits left of the centered text column instead of the pane edge (auto left margin on the gutter, auto right margin on the content), and a hidden gutter has zero width, so the text stays centered. Its font size repeats the source mode size in `source_theme`. Change both together.
 
 ## Vim
 

@@ -1,6 +1,10 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, test } from "vitest";
+import { set_editor_mode } from "../src/core/editor_mode";
+import { insert_markdown_source } from "../src/core/source_state";
+import { callouts } from "../src/plugins/callouts/index";
 import { commonmark } from "../src/plugins/commonmark/index";
+import { gfm } from "../src/plugins/gfm/index";
 import { destroy_test_editors, test_editor } from "../src/testing/test_editor";
 
 afterEach(destroy_test_editors);
@@ -190,5 +194,58 @@ describe("quotes", () => {
 
   test("Tab on quoted prose does not indent before the quote marker", () => {
     expect(editor("> a‸").press("Tab").source()).not.toMatch(/^\s+>/);
+  });
+});
+
+describe("first text on an empty line after a block", () => {
+  const rich = (source: string) =>
+    test_editor(source, [commonmark(), gfm(), callouts()]);
+
+  test("NAV-011 typing on the empty line after a quote, list item or table opens a blank row first", () => {
+    for (const source of [
+      "> only a quote\n‸",
+      "> [!note] Title\n> body\n‸",
+      "- item\n‸",
+      "- [ ] task\n‸",
+      "> > nested\n‸",
+      "- item\n  > quoted\n‸",
+      "| a | b |\n| - | - |\n| 1 | 2 |\n‸",
+      "> quote\n‸\nnext",
+    ])
+      expect(rich(source).type("xy").source()).toBe(
+        source.replace("‸", "\nxy‸"),
+      );
+  });
+
+  test("NAV-011 one undo removes the blank row and the first character", () => {
+    const view = rich("> q\n‸").type("x");
+    expect(view.source()).toBe("> q\n\nx‸");
+    expect(view.press("Mod-z").saved()).toBe("> q\n");
+  });
+
+  test("NAV-011 only prose that would join the block gets the blank row", () => {
+    for (const [source, typed, expected] of [
+      ["> q\n‸", "x", "> q\n\nx‸"],
+      ["Hello\n‸", "x", "Hello\nx‸"],
+      ["> q\n> ‸", "x", "> q\n> x‸"],
+      ["- item\n  ‸", "x", "- item\n  x‸"],
+      ["> q\n‸", "> x", "> q\n> x‸"],
+      ["> q\n‸", "- x", "> q\n- x‸"],
+      ["> q\n‸", "# x", "> q\n# x‸"],
+      ["> q\n‸", "1. x", "> q\n1. x‸"],
+    ])
+      expect(rich(source).type(typed).source()).toBe(expected);
+    const source_mode = rich("> q\n‸");
+    set_editor_mode(source_mode.view, "source");
+    expect(source_mode.type("x").source()).toBe("> q\nx‸");
+  });
+
+  test("NAV-011 a paste opens the blank row and keeps its own line endings", () => {
+    const view = rich("> q\r\n‸");
+    insert_markdown_source(view.view, "a\r\nb");
+    expect(view.saved()).toBe("> q\r\n\r\na\r\nb");
+    const list = rich("> q\n‸");
+    insert_markdown_source(list.view, "- a");
+    expect(list.saved()).toBe("> q\n- a");
   });
 });

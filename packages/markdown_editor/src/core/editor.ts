@@ -29,6 +29,7 @@ import {
   build_registry,
   construct_registry,
   type MarkdownPlugin,
+  type ThemeSpec,
 } from "./plugin.js";
 import { reveal_freeze, reveal_freeze_extension } from "./reveal.js";
 import {
@@ -128,11 +129,26 @@ export function markdown_extensions(
       // EditorView.theme, not baseTheme: plugin styles must win over
       // CodeMirror's own defaults, such as the autocomplete menu's. A host
       // theme added after the plugins still wins over both.
-      plugin.theme ? EditorView.theme(plugin.theme) : [],
+      plugin.theme ? compile_plugin_theme(plugin.theme) : [],
       plugin.extensions ?? [],
     ]),
     keymap.of([...history_keys, ...defaultKeymap]),
   ];
+}
+
+// Compile each theme spec once. EditorView.theme gives every call a new class
+// name and a new set of CSS rules, and style-mod never removes rules, so
+// compiling per state leaks rules for every note opened. A plugin that builds
+// its spec per call still leaks; keep specs at module scope.
+const compiled_plugin_themes = new WeakMap<ThemeSpec, Extension>();
+
+function compile_plugin_theme(spec: ThemeSpec): Extension {
+  let theme = compiled_plugin_themes.get(spec);
+  if (!theme) {
+    theme = EditorView.theme(spec);
+    compiled_plugin_themes.set(spec, theme);
+  }
+  return theme;
 }
 
 const history_keys: KeyBinding[] = [

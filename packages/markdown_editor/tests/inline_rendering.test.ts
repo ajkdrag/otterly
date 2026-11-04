@@ -4,6 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { editor_theme_spec } from "../src/core/editor_theme";
 import type { MarkdownPlugin } from "../src/core/plugin";
 import { callouts } from "../src/plugins/callouts/index";
+import { code_blocks } from "../src/plugins/code_blocks/index";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { frontmatter } from "../src/plugins/frontmatter/index";
 import { gfm } from "../src/plugins/gfm/index";
@@ -476,14 +477,11 @@ describe("headings and line prefixes", () => {
     }
   });
 
-  test("SPACE-002 prose right after a quote gets the paragraph gap even without a blank line", () => {
+  test("SPACE-002 prose right after a quote with no blank row is outside the quote box", () => {
     // Backspace lifting the last quoted line leaves this shape.
     const editor = open("‸> quoted\n>\nlifted");
-    const wrappers = wrappers_of(line_with(editor, "lifted"));
-    expect(
-      wrappers.map((wrapper) => wrapper.classList.contains("md-gap")),
-    ).toEqual([true]);
-    expect(wrappers[0]?.getAttribute("style")).toContain("--md-gap-after");
+    expect(wrappers_of(line_with(editor, "quoted"))).toHaveLength(1);
+    expect(wrappers_of(line_with(editor, "lifted"))).toEqual([]);
   });
 
   test("QUOTE-008 each nested quote level is its own wrapper around one continuous quote", () => {
@@ -501,39 +499,18 @@ describe("headings and line prefixes", () => {
     expect(quotes("back")[1]).toBe(quotes("inner")[1]);
   });
 
-  test("SPACE-010 every list item but the first gets a wrapper the theme can space", () => {
-    const editor = open("‸- one\n  - nested\n- two\n- three");
-    const spaced = (text: string) =>
-      wrappers_of(line_with(editor, text)).filter((wrapper) =>
-        wrapper.classList.contains("md-list-item-spaced"),
-      );
-    expect(spaced("one")).toHaveLength(0);
-    expect(spaced("nested")).toHaveLength(0);
-    expect(spaced("two")).toHaveLength(1);
-    expect(spaced("three")).toHaveLength(1);
-  });
-
-  test("SPACE-003 heading spacing sits on a wrapper around the heading, not on the blank rows around it", () => {
+  test("SPACE-003 headings and list items get no space of their own, only blank rows separate them", () => {
     const editor = open(
-      "‸# Title\n\nOpening paragraph.\n\n## Section\n\nFollowing paragraph.",
+      "‸# Title\nOpening paragraph.\n\n## Section\n- one\n  - nested\n- two",
     );
     const lines = [
       ...editor.view.contentDOM.querySelectorAll<HTMLElement>(".cm-line"),
     ];
-    const gap = (line: HTMLElement | undefined) =>
-      line ? (wrappers_of(line)[0]?.getAttribute("style") ?? "") : "";
-    expect(gap(lines[0])).toContain("--md-gap-before: 0px");
-    expect(gap(lines[4])).toContain("--md-gap-before");
-    expect(gap(lines[4])).toContain("--md-gap-after");
-    for (const line of lines)
-      expect(line.getAttribute("style") ?? "").not.toContain("--md-gap");
-    for (const blank of [lines[1], lines[3], lines[5]]) {
-      expect(blank?.classList).toContain("md-blank-line");
-      expect(gap(blank)).toBe("");
-    }
+    for (const line of lines) expect(wrappers_of(line)).toEqual([]);
+    expect(lines[2]?.classList).toContain("md-blank-line");
   });
 
-  test("SPACE-004 nested headings stay in their list and quote and skip top-level spacing", () => {
+  test("SPACE-004 nested headings stay in their list and quote", () => {
     const editor = open(
       "‸- parent\n  - ## Nested heading\n\n> ### Quoted heading\n\n# Top-level heading",
     );
@@ -542,16 +519,13 @@ describe("headings and line prefixes", () => {
     const top = line_with(editor, "Top-level heading");
     expect(nested.classList).toContain("md-heading-2");
     expect(nested.classList).toContain("md-list-line");
-    expect(nested.classList).not.toContain("md-prose-heading");
     expect(quoted.classList).toContain("md-heading-3");
     expect(
       wrappers_of(quoted).some((wrapper) =>
         wrapper.classList.contains("md-quote"),
       ),
     ).toBe(true);
-    expect(quoted.classList).not.toContain("md-prose-heading");
     expect(top.classList).toContain("md-heading-1");
-    expect(top.classList).toContain("md-prose-heading");
   });
 
   test("NAV-001 quote and list prefixes show when the caret is inside them, not at the text start", () => {
@@ -1172,7 +1146,12 @@ describe("line boxes", () => {
 
   test("SPACE-009 a line CodeMirror can sample for line metrics keeps the default box", () => {
     const source = [
+      "---",
+      "title: x",
+      "---",
       "Short line.",
+      "",
+      "    indented",
       "",
       "| a | b |",
       "| - | - |",
@@ -1227,5 +1206,143 @@ describe("line boxes", () => {
     }
     expect(checked).toBeGreaterThan(0);
     expect(editor.saved()).toBe(source);
+  });
+
+  test("SPACE-011 blocks with no blank row between them get no space, and blank rows stay rows", () => {
+    // One editor per case: jsdom keeps the first viewport CodeMirror draws.
+    const cases = [
+      "Paragraph before:\n```python\ntight\n```\nParagraph after the fence.",
+      "Paragraph before:\n\n```python\nloose\n```\n\nParagraph after.",
+      "Two paragraphs\nwith a soft break:\n\nNext paragraph.",
+      "```js\none\n```\n```js\ntwo\n```",
+      "| a | b |\n| - | - |\n| 1 | 2 |\n\n> quote line\n```sh\nafter a quote\n```",
+      "- list item\n```sh\nafter a list item\n```",
+      "## Heading\n```sh\nafter a heading\n```\nParagraph\n\n\nTwo blank rows above.",
+    ];
+    // Classes that a theme rule on a line gives vertical space. Rules for
+    // blank rows are the spacing itself, so they are left out.
+    const spaced = new Set<string>();
+    for (const spec of [
+      editor_theme_spec,
+      ...[commonmark(), gfm(), code_blocks(), callouts()].map(
+        (plugin) => plugin.theme ?? {},
+      ),
+    ])
+      for (const [selector, style] of Object.entries(spec)) {
+        if (
+          !Object.keys(style as object).some((name) =>
+            /^(padding|paddingTop|paddingBottom|margin|marginTop|marginBottom|minHeight|height)$/.test(
+              name,
+            ),
+          )
+        )
+          continue;
+        for (const [, classes = ""] of selector.matchAll(
+          /\.cm-line((?:\.[\w-]+)+)/g,
+        ))
+          if (!classes.includes(".md-blank-line"))
+            for (const name of classes.split(".")) if (name) spaced.add(name);
+      }
+    for (const source of cases) {
+      const editor = test_editor(`‸${source}`, [
+        commonmark(),
+        gfm(),
+        code_blocks(),
+        callouts(),
+      ]);
+      const content = editor.view.contentDOM;
+      // Only blank rows and box margins add space. No other line has any.
+      for (const line of content.querySelectorAll<HTMLElement>(
+        ".cm-line:not(.md-blank-line)",
+      )) {
+        expect(
+          [...line.classList].filter((name) => spaced.has(name)),
+          source,
+        ).toEqual([]);
+        expect(line.getAttribute("style") ?? "", source).not.toMatch(
+          /padding|margin|height/,
+        );
+      }
+      // The only wrapper left draws the quote box itself.
+      for (const wrapper of content.querySelectorAll(".md-wrap"))
+        expect([...wrapper.classList].sort(), source).toEqual([
+          "md-quote",
+          "md-wrap",
+        ]);
+      const blank_rows = source.split("\n").filter((line) => line === "");
+      expect(
+        content.querySelectorAll(".cm-line.md-blank-line"),
+        source,
+      ).toHaveLength(blank_rows.length);
+      expect(editor.saved()).toBe(source);
+    }
+  });
+
+  test("SPACE-011 boxed blocks keep a themeable margin as space inside their measured box", () => {
+    const rules = new Map<string, Record<string, string>>();
+    for (const spec of [
+      editor_theme_spec,
+      ...[commonmark(), gfm(), code_blocks(), callouts(), frontmatter()].map(
+        (plugin) => plugin.theme ?? {},
+      ),
+    ])
+      for (const [selector, style] of Object.entries(spec))
+        rules.set(selector, style as Record<string, string>);
+    const margin = "var(--editor-block-margin-y, 0.5rem)";
+
+    // Widget cards: transparent padding on the body around the card.
+    const body_space: Record<string, string> = {};
+    for (const [selector, style] of rules) {
+      if (!selector.includes("md-block-body")) continue;
+      for (const [name, value] of Object.entries(style))
+        if (/^(padding|paddingTop|paddingBottom)$/.test(name))
+          body_space[`${selector} ${name}`] = value;
+    }
+    expect(body_space).toEqual({
+      ".md-code-block .md-block-body padding": `${margin} 0`,
+      ".md-table-widget .md-block-body padding": `${margin} 0`,
+    });
+
+    // Quote and callout box: transparent borders, the tint stops inside them.
+    expect(rules.get(".md-wrap.md-quote")).toMatchObject({
+      borderTop: `${margin} solid transparent`,
+      borderBottom: `${margin} solid transparent`,
+      backgroundClip: "padding-box",
+    });
+    // Frontmatter and indented code are tinted boxes the same way.
+    for (const selector of [
+      ".md-wrap.md-frontmatter-block",
+      ".md-wrap.md-indented-code",
+    ])
+      expect(rules.get(selector), selector).toMatchObject({
+        borderTop: `${margin} solid transparent`,
+        borderBottom: `${margin} solid transparent`,
+        backgroundClip: "padding-box",
+      });
+    const editor = open(
+      "---\ntitle: x\n---\n# Title\nBody\n\n    code\n## Heading‸",
+    );
+    const box_of = (text: string) =>
+      [
+        ...(line_with(editor, text).closest(".md-wrap")?.classList ?? []),
+      ].sort();
+    expect(box_of("title: x")).toEqual(["md-frontmatter-block", "md-wrap"]);
+    expect(box_of("code")).toEqual(["md-indented-code", "md-wrap"]);
+    expect(box_of("Title")).toEqual([]);
+    expect(box_of("Heading")).toEqual([]);
+
+    expect(rules.get(".md-wrap.md-quote .md-wrap.md-quote")).toMatchObject({
+      borderTopWidth: "0",
+      borderBottomWidth: "0",
+    });
+
+    // CodeMirror measures border boxes, so a vertical CSS margin on a block
+    // wrapper or widget would escape its height map.
+    for (const [selector, style] of rules) {
+      if (!/md-wrap|md-block-body|md-code-block|md-table-widget/.test(selector))
+        continue;
+      for (const name of Object.keys(style))
+        expect(name, selector).not.toMatch(/^(margin|marginTop|marginBottom)$/);
+    }
   });
 });

@@ -36,11 +36,6 @@ export const editor_theme_spec: ThemeSpec = {
     caretColor: "var(--caret-color, var(--foreground, #242424))",
   },
   [line_selector()]: { padding: "0" },
-  // Space above a top-level block (render.gap). It lives on a wrapper so the
-  // line box keeps the default height.
-  "& > .cm-scroller > .cm-content > .md-gap": {
-    paddingTop: "max(var(--md-gap-before, 0px), var(--md-gap-after, 0px))",
-  },
   ".cm-cursor": {
     borderLeftColor: "var(--caret-color, var(--foreground, #242424))",
   },
@@ -68,11 +63,12 @@ export const editor_theme_spec: ThemeSpec = {
         backgroundColor: "transparent !important",
       },
     },
-  // Empty source lines are caret stops. Their line box must fit the font even
-  // when block spacing would make it smaller. It is the one line box that
-  // differs from the default. That is safe only because a blank row never
-  // shows text (its whitespace is hidden), so CodeMirror never samples it for
-  // line metrics.
+  // Blank source rows are the only space between blocks: each one is
+  // --editor-paragraph-spacing tall. They are also caret stops, so the line
+  // box must fit the font even when that spacing is smaller. It is the one
+  // line box that differs from the default. That is safe only because a
+  // blank row never shows text (its whitespace is hidden), so CodeMirror
+  // never samples it for line metrics.
   [line_selector(".md-blank-line")]: {
     // Hidden container prefixes leave no text strut. Reserve the same height.
     boxSizing: "content-box",

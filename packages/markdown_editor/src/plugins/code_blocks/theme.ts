@@ -63,13 +63,16 @@ export const code_block_theme: ThemeSpec = {
     padding: "0.75rem",
     color: "var(--muted-foreground, #666)",
   },
-  // CodeMirror measures the widget's border box, excluding margins. Keep
-  // vertical spacing inside that box, and inside any quote layers around it.
-  ".md-code-block > .md-block-body, .md-code-block .md-block-layer .md-block-body":
-    {
-      padding:
-        "calc(var(--editor-spacing, 1rem) * 0.75) 0 calc(var(--editor-spacing, 1rem) * 1.25)",
-    },
+  // The card keeps a small margin so it never touches a neighbour, even with
+  // no blank row. CodeMirror measures the widget's border box, so the margin
+  // is transparent padding on the body around the card, not a CSS margin.
+  ".md-code-block .md-block-body": {
+    padding: "var(--editor-block-margin-y, 0.5rem) 0",
+  },
+  // A list marker sits at the top of its layer. Line it up with the card.
+  ".md-code-block .md-block-layer-marker": {
+    top: "var(--editor-block-margin-y, 0.5rem)",
+  },
   ".md-code-panel": {
     border: "1px solid var(--editor-code-border, var(--border, #ddd))",
     borderRadius: "var(--editor-code-radius, 0.5rem)",
@@ -133,7 +136,6 @@ export const code_block_theme: ThemeSpec = {
     fontVariantNumeric: "tabular-nums",
   },
   ".md-code-source": {
-    minHeight: "48px",
     maxHeight: "4096px",
     overflow: "hidden",
   },
@@ -141,7 +143,8 @@ export const code_block_theme: ThemeSpec = {
     overflow: "auto",
     minHeight: "48px",
     maxHeight: "4096px",
-    padding: "0.75rem",
+    padding: "var(--editor-block-padding-y, 0.75rem)",
+    paddingBottom: "0",
   },
   ".md-code-diagram-content": {
     width: "100%",
@@ -152,7 +155,12 @@ export const code_block_theme: ThemeSpec = {
     userSelect: "none",
     alignItems: "center",
     justifyContent: "center",
-    height: "0.875rem",
+    // The handle row is the bottom inset of the box above it, so the card
+    // stays even above and below the code. The boxes have no bottom inset of
+    // their own: an overlay there would cover the scrollbar and, once the box
+    // scrolls, the last visible line. The 0.5rem floor keeps the handle
+    // grabbable when a host sets a thinner inset. The card is uneven then.
+    height: "max(var(--editor-block-padding-y, 0.75rem), 0.5rem)",
     cursor: "ns-resize",
     touchAction: "none",
   },

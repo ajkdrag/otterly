@@ -114,17 +114,19 @@ export class CodeBlockWidget extends BlockWidget {
     return normalize_view_state(this.block.view_state ?? default_view_state);
   }
 
-  // Mirrors apply_view_state at a 16px root: a 40px toolbar, a 14px resize
-  // handle, and about 32px of spacing. CodeMirror measures the real box once
-  // the widget mounts.
+  // Mirrors apply_view_state at a 16px root: the 8px block margin above and
+  // below the card, and a 40px toolbar above the source. Each resize handle
+  // is the 12px bottom inset of its box. CodeMirror measures the real box
+  // once the widget mounts.
   protected estimate_height(): number {
     const ui = this.ui;
-    const lines = this.block.source.split("\n").length - 1;
+    // Source lines minus the two fences.
+    const lines = Math.max(1, this.block.source.split("\n").length - 2);
     const source_height = ui.source_height ?? default_source_height(lines);
     const diagram = is_diagram(this.options, language_of(this.block.source));
-    let height = 40 + 32;
-    if (!diagram || !ui.source_hidden) height += source_height + 14;
-    if (diagram) height += 40 + (ui.diagram_height ?? 72) + 14;
+    let height = 2 * 8 + 40;
+    if (!diagram || !ui.source_hidden) height += source_height;
+    if (diagram) height += 40 + (ui.diagram_height ?? 72) + 12;
     return height;
   }
 
@@ -363,7 +365,7 @@ class CodeBlockController implements BlockController {
         code_editor_theme,
       ],
       keys: [
-        { key: "Mod-Enter", run: () => this.insert_paragraph_after() },
+        { key: "Mod-Enter", run: () => this.insert_paragraph_after(true) },
         {
           key: "Backspace",
           run: () => this.convert_single_line_to_paragraph(),
@@ -373,6 +375,31 @@ class CodeBlockController implements BlockController {
       on_edge: (direction, vertical) => {
         const current = this.current();
         if (!current) return false;
+        // Right or Down at the end of a block that ends the note has no row
+        // to move to, so it starts one (Slack does the same). Left and Up stay
+        // source-neutral at the document edge, and only Mod-Enter closes an
+        // unfinished fence. Blank lines after the block still count as the
+        // end, since most saved notes end with a line break. The first of
+        // them is then the new row.
+        const rest = this.view.state.sliceDoc(current.block.to);
+        if (
+          direction > 0 &&
+          current.source.closing_from !== null &&
+          !/\S/.test(rest)
+        ) {
+          const { state } = this.editor.inner;
+          if (state.selection.main.head === state.doc.length)
+            return rest === ""
+              ? this.insert_paragraph_after(false)
+              : this.use_row_after(current);
+          // Down earlier on the last line only moves the caret to the line
+          // end, like any editor, so a new row takes a second Down. With a
+          // row after the block, Down just moves there.
+          if (rest === "") {
+            this.editor.place_caret(EditorSelection.single(state.doc.length));
+            return true;
+          }
+        }
         return leave_block(
           this.view,
           current.block,
@@ -494,8 +521,14 @@ class CodeBlockController implements BlockController {
     const hidden = diagram && ui.source_hidden;
     this.source_host.hidden = hidden;
     this.source_resize.hidden = hidden;
-    const lines = this.source.content.lines;
-    this.source_host.style.height = `${String(ui.source_height ?? default_source_height(lines))}px`;
+    // Without a saved height the box fits the code, up to the theme's cap.
+    const auto_height = ui.source_height === null;
+    this.source_host.style.height = auto_height
+      ? ""
+      : `${String(ui.source_height)}px`;
+    this.source_host.style.maxHeight = auto_height
+      ? "var(--editor-code-block-max-height, 24rem)"
+      : "";
     this.preview.style.height =
       ui.diagram_height === null ? "" : `${String(ui.diagram_height)}px`;
     this.apply_diagram_zoom();
@@ -511,17 +544,11 @@ class CodeBlockController implements BlockController {
       this.source_toggle.textContent,
     );
     this.source_toggle.setAttribute("aria-pressed", String(hidden));
-    this.source_resize.setAttribute(
-      "aria-valuenow",
-      String(Number.parseFloat(this.source_host.style.height)),
-    );
-    this.diagram_resize.setAttribute(
-      "aria-valuenow",
-      String(
-        ui.diagram_height ??
-          Math.max(min_height, this.preview.getBoundingClientRect().height),
-      ),
-    );
+    // An auto-height box gets its value from the handle's focus and gesture
+    // listeners. Reading the box here would force layout during a CodeMirror
+    // update, so a focused handle keeps its last measured value.
+    set_value_now(this.source_resize, ui.source_height);
+    set_value_now(this.diagram_resize, ui.diagram_height);
     this.editor.inner.requestMeasure();
   }
 
@@ -569,15 +596,35 @@ class CodeBlockController implements BlockController {
     handle.setAttribute("aria-valuemax", String(max_height));
     const element = () =>
       target === "source_height" ? this.source_host : this.preview;
+    // Round up like content_fit_height, so a box that fits its code exactly
+    // compares equal to the fit.
+    const box_height = () =>
+      this.widget.ui[target] ??
+      Math.ceil(element().getBoundingClientRect().height);
+    // The real ceiling is the content fit, or the box when it is already
+    // taller. Both need layout, so we set them on focus and gestures only.
+    const set_range = (height: number, fit: number) => {
+      handle.setAttribute("aria-valuenow", String(height));
+      handle.setAttribute("aria-valuemax", String(Math.max(fit, height)));
+    };
+    handle.addEventListener("focus", () => {
+      set_range(box_height(), this.content_fit_height(target));
+    });
     handle.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
       event.preventDefault();
       event.stopPropagation();
-      const base =
-        this.widget.ui[target] ?? element().getBoundingClientRect().height;
-      this.patch_view_state({
-        [target]: clamp_height(base + (event.key === "ArrowUp" ? -16 : 16)),
-      });
+      const base = box_height();
+      const fit = this.content_fit_height(target);
+      const next =
+        event.key === "ArrowUp"
+          ? clamp_height(base - 16, base)
+          : clamp_height(Math.min(Math.max(fit, base), base + 16), base);
+      set_range(next, fit);
+      // At the limit nothing changes. Skipping the patch also keeps an unset
+      // default height from turning into a stored one.
+      if (next === base) return;
+      this.patch_view_state({ [target]: next });
     });
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
@@ -585,19 +632,30 @@ class CodeBlockController implements BlockController {
       handle.focus({ preventScroll: true });
       this.cleanup_resize?.();
       const resized = element();
-      const start = resized.getBoundingClientRect().height;
+      const start = Math.ceil(resized.getBoundingClientRect().height);
+      // A box already taller than its content can shrink but not grow, and
+      // never jumps when grabbed.
+      const ceiling = Math.max(this.content_fit_height(target), start);
+      set_range(start, ceiling);
       const y = event.clientY;
       let height = start;
       const move = (next: PointerEvent) => {
         if (next.pointerId !== event.pointerId) return;
-        height = clamp_height(start + next.clientY - y);
+        height = clamp_height(
+          Math.min(ceiling, start + next.clientY - y),
+          start,
+        );
         resized.style.height = `${String(height)}px`;
+        // An auto-height source box is capped. A drag may go past the cap.
+        resized.style.maxHeight = "";
         this.editor.inner.requestMeasure();
       };
       const finish = (next: PointerEvent) => {
         if (next.pointerId !== event.pointerId) return;
         this.cleanup_resize?.();
-        this.patch_view_state({ [target]: height });
+        // A click that never moved the handle keeps the saved height as is.
+        if (height === start) this.apply_view_state();
+        else this.patch_view_state({ [target]: height });
       };
       const cancel = () => {
         this.cleanup_resize?.();
@@ -616,9 +674,37 @@ class CodeBlockController implements BlockController {
     return handle;
   }
 
+  // Height at which the whole content shows without a vertical scrollbar.
+  // Read it on a user gesture only, never during a CodeMirror update, because
+  // it forces layout. It assumes border-box sizing (the host loads Tailwind
+  // preflight) so it matches the style.height we write. We use contentHeight
+  // and not scrollHeight because .cm-content has min-height:100%, so
+  // scrollHeight just equals the box once the box is taller than the code.
+  private content_fit_height(target: "source_height" | "diagram_height") {
+    if (target === "source_height") {
+      const { contentHeight, scrollDOM } = this.editor.inner;
+      // The horizontal scrollbar takes room from the same box.
+      const scrollbar = scrollDOM.offsetHeight - scrollDOM.clientHeight;
+      return Math.ceil(contentHeight + scrollbar);
+    }
+    // Without an explicit height the preview sizes itself to the diagram.
+    // While it has no overflow the browser clamps its scroll offset to 0, and
+    // putting the height back does not undo that, so we restore it ourselves.
+    const { preview } = this;
+    const { scrollTop, scrollLeft } = preview;
+    const saved = preview.style.height;
+    preview.style.height = "";
+    const fit = preview.getBoundingClientRect().height;
+    preview.style.height = saved;
+    preview.scrollTop = scrollTop;
+    preview.scrollLeft = scrollLeft;
+    return Math.ceil(fit);
+  }
+
   // Mod-Enter: close an unfinished fence if needed, then start a paragraph
-  // after the block with the block's container prefix.
-  private insert_paragraph_after(): boolean {
+  // after the block with the block's container prefix. Mod-Enter leaves a
+  // blank row first (blank_row); the arrow escape adds just the one row.
+  private insert_paragraph_after(blank_row: boolean): boolean {
     const current = this.current();
     if (this.widget.read_only || !current) return false;
     const { source } = current;
@@ -629,10 +715,32 @@ class CodeBlockController implements BlockController {
         insert += "\n";
       insert += prefix + source.fence;
     }
-    insert += "\n" + prefix + "\n" + prefix;
+    insert += "\n" + prefix + (blank_row ? "\n" + prefix : "");
     this.view.dispatch({
       changes: { from: source.to, insert },
       selection: { anchor: source.to + insert.length },
+      userEvent: "input.code.boundary",
+    });
+    this.view.focus();
+    return true;
+  }
+
+  // The arrow escape when blank lines follow the last block: the first one
+  // becomes the row, with the block's container prefix as its only text. A
+  // read-only note keeps its text, and the caret moves to the row as it is.
+  private use_row_after({ source }: CurrentCodeBlock): boolean {
+    const { state } = this.view;
+    const row_to =
+      source.to + state.sliceDoc(source.to).split("\n", 2).join("\n").length;
+    const row = this.widget.read_only
+      ? state.sliceDoc(source.to, row_to)
+      : "\n" + source.continuation_prefix;
+    this.view.dispatch({
+      changes:
+        state.sliceDoc(source.to, row_to) === row
+          ? []
+          : { from: source.to, to: row_to, insert: row },
+      selection: { anchor: source.to + row.length },
       userEvent: "input.code.boundary",
     });
     this.view.focus();
@@ -737,26 +845,39 @@ function lucide_icon(paths: readonly string[]): SVGSVGElement {
   return svg;
 }
 
-// About 22px per line plus padding, between 64px and 320px.
+// Only for estimate_height: about 20px per line plus the 12px top inset and
+// the 12px handle row, up to the 24rem cap. The real box fits the code.
 function default_source_height(lines: number): number {
-  return Math.min(320, Math.max(64, lines * 22 + 16));
+  return Math.min(384, lines * 20 + 24);
 }
 
-function clamp_height(height: number): number {
+function set_value_now(handle: HTMLElement, height: number | null): void {
+  if (height !== null) handle.setAttribute("aria-valuenow", String(height));
+  else if (handle !== document.activeElement)
+    handle.removeAttribute("aria-valuenow");
+}
+
+// A box that already fits under min_height (a one or two line block with no
+// saved height) keeps its own height as the floor, so a gesture never grows it.
+function clamp_height(height: number, current: number): number {
+  const floor = Math.min(min_height, current);
   return Math.min(
     max_height,
-    Math.max(min_height, Number.isFinite(height) ? height : min_height),
+    Math.max(floor, Number.isFinite(height) ? height : floor),
   );
 }
 
 const code_editor_theme = EditorView.theme({
-  "&": { height: "100%" },
+  // An auto-height source box has no height, only a max-height. Inherit the
+  // cap so the scroller shrinks to it and scrolls instead of being clipped.
+  "&": { height: "100%", maxHeight: "inherit" },
   ".cm-scroller": {
     overflow: "auto",
     fontFamily: "var(--font-mono, monospace)",
   },
+  // No bottom inset here: the resize handle below the box is that inset.
   ".cm-content": {
-    padding: "0.5rem 0",
+    padding: "var(--editor-block-padding-y, 0.75rem) 0 0",
     maxWidth: "none",
     margin: "0",
     fontSize: "inherit",

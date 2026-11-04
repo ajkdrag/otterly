@@ -17,7 +17,6 @@ import {
   type WidgetType,
 } from "@codemirror/view";
 import { is_rich } from "./editor_mode.js";
-import { block_at, is_block_rendered } from "./block_field.js";
 import {
   is_literal,
   line_container,
@@ -72,10 +71,6 @@ export type Render = {
     class_name: string,
     styles?: Record<string, string>,
   ): void;
-  // Space above a top-level block, outside its own wrapper. `before` is what
-  // the block wants, `after` what the block above wants; the larger one
-  // wins. A block drawn as a widget keeps its own spacing instead.
-  gap(node: SyntaxNode, space: { before?: string; after?: string }): void;
   // Per-render scratch space, so a construct can compute something once per
   // node instead of once per line.
   memo<T>(key: string, compute: () => T): T;
@@ -200,8 +195,6 @@ function inline_css(styles: Map<string, string>): string {
   return [...styles].map(([name, value]) => `${name}: ${value}`).join("; ");
 }
 
-const gap_rank = 100;
-
 class RenderCollector {
   readonly decorations: Range<Decoration>[] = [];
   readonly outer: Range<Decoration>[] = [];
@@ -274,15 +267,6 @@ class RenderCollector {
         for (let parent = node.parent; parent?.parent; parent = parent.parent)
           depth++;
         this.wrapper(node, Math.max(1, 99 - depth), class_name, styles ?? {});
-      },
-      gap: (node, space) => {
-        const block = block_at(state, node.from);
-        if (block?.node_from === node.from && is_block_rendered(state, block))
-          return;
-        this.wrapper(node, gap_rank, "md-gap", {
-          ...(space.before ? { "--md-gap-before": space.before } : {}),
-          ...(space.after ? { "--md-gap-after": space.after } : {}),
-        });
       },
       memo: <T>(key: string, compute: () => T): T => {
         if (!this.memos.has(key)) this.memos.set(key, compute());

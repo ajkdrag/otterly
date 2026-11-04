@@ -1,6 +1,6 @@
 import type { Input } from "@lezer/common";
 import type { BlockContext, MarkdownConfig } from "@lezer/markdown";
-import type { MarkdownPlugin } from "../../core/plugin.js";
+import type { MarkdownPlugin, ThemeSpec } from "../../core/plugin.js";
 
 // YAML frontmatter: a "---" line at the very top, up to a closing "---" or
 // "..." line. It stays literal source. An unclosed opening line is ordinary
@@ -17,18 +17,29 @@ export function frontmatter(): MarkdownPlugin {
         nodes: ["Frontmatter"],
         literal: true,
         decorate(node, render) {
+          render.wrap(node.node, "md-frontmatter-block");
           render.lines(node.from, node.to, "md-frontmatter");
         },
       },
     ],
-    theme: {
-      ".md-frontmatter": {
-        fontFamily: "var(--font-mono, monospace)",
-        backgroundColor: "var(--muted, #f2f2f2)",
-      },
-    },
+    theme: frontmatter_theme,
   };
 }
+
+// The tinted block is a box like a quote: it keeps --editor-block-margin-y
+// above and below, so the heading after it never touches the tint. The
+// margin is a transparent border with the tint clipped inside it, because
+// CodeMirror measures the wrapper's border box (see the quote rule in the
+// commonmark theme).
+const frontmatter_theme: ThemeSpec = {
+  ".md-frontmatter": { fontFamily: "var(--font-mono, monospace)" },
+  ".md-wrap.md-frontmatter-block": {
+    borderTop: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    borderBottom: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    backgroundClip: "padding-box",
+    backgroundColor: "var(--muted, #f2f2f2)",
+  },
+};
 
 const opening = /^﻿?---[ \t]*$/;
 const closing = /^(?:---|\.\.\.)[ \t]*$/;

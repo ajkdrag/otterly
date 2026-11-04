@@ -19,7 +19,8 @@ import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
 import type { MarkdownPlugin } from "./plugin.js";
 
 // Measured with @lezer/markdown 1.7 (GFM): a 1.4 MB note of normal paragraphs
-// parses in about 90 ms, and a one-character edit reparses in about 1 ms. One
+// parses in about 155 to 175 ms, and a one-character edit reparses in about
+// 1 ms. DESIGN.md has the table. One
 // giant paragraph is superlinear (1.4 MB takes 1.5 s) and Lezer cannot stop
 // inside a block, so the time budget does not help there. These limits keep
 // the synchronous path well under a frame budget on open.

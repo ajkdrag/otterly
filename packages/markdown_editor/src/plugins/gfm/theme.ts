@@ -7,11 +7,16 @@ export const gfm_theme: ThemeSpec = {
     "--md-table-cell-padding-x":
       "calc(var(--editor-spacing, 1.5rem) * var(--editor-table-cell-padding, 0.65) * 1.3)",
   },
-  // The toolbar band is always part of the measured box, so activating a
-  // cell does not move the prose below the table. It sits inside any quote
-  // layers around the table.
-  ".md-table-widget .md-block-body": { padding: "0.5em 0 2.5rem" },
-  ".md-table-frame": { position: "relative" },
+  // The table keeps a small margin so it never touches a neighbour. It is
+  // transparent padding, not a CSS margin: CodeMirror measures the widget's
+  // border box, and a margin would escape it.
+  ".md-table-widget .md-block-body": {
+    padding: "var(--editor-block-margin-y, 0.5rem) 0",
+  },
+  // A list marker sits at the top of its layer. Line it up with the table.
+  ".md-table-widget .md-block-layer-marker": {
+    top: "var(--editor-block-margin-y, 0.5rem)",
+  },
   ".md-table-host": { overflowX: "auto" },
   ".md-table-widget table": {
     borderCollapse: "collapse",
@@ -84,50 +89,44 @@ export const gfm_theme: ThemeSpec = {
     backgroundColor: "var(--editor-code-inline-bg, var(--muted, #f2f2f2))",
     color: "var(--editor-code-inline-text, var(--foreground, inherit))",
   },
-  ".md-table-actions": {
-    position: "absolute",
-    right: "0",
-    top: "calc(100% + 0.35rem)",
+  // The right-click menu. It is fixed at the pointer, so it takes no space
+  // in the note.
+  ".md-table-menu": {
+    position: "fixed",
+    zIndex: "50",
     display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: "0.35rem",
+    flexDirection: "column",
+    minWidth: "10rem",
+    padding: "0.25rem",
     boxSizing: "border-box",
-    width: "100%",
-    fontFamily: "var(--font-sans, inherit)",
-    fontSize: "0.75rem",
-    lineHeight: "1.25",
-  },
-  ".md-table-action": {
-    appearance: "none",
     border: "1px solid var(--border, #ddd)",
-    borderRadius: "var(--radius-sm, 0.25rem)",
-    padding: "0.3rem 0.55rem",
-    minHeight: "1.9rem",
-    boxSizing: "border-box",
+    borderRadius: "var(--radius-md, 0.375rem)",
     backgroundColor: "var(--popover, var(--background, #fff))",
     color: "var(--popover-foreground, var(--foreground, #242424))",
-    boxShadow: "var(--shadow-sm, 0 1px 2px #0002)",
-    font: "inherit",
+    boxShadow: "var(--shadow-md, 0 4px 12px #0002)",
+    fontFamily: "var(--font-sans, inherit)",
+    fontSize: "0.8125rem",
     lineHeight: "1.25",
+  },
+  ".md-table-menu-item": {
+    appearance: "none",
+    border: "0",
+    borderRadius: "var(--radius-sm, 0.25rem)",
+    padding: "0.375rem 0.5rem",
+    backgroundColor: "transparent",
+    color: "inherit",
+    font: "inherit",
+    textAlign: "left",
     whiteSpace: "nowrap",
-    cursor: "pointer",
-    transition: "background-color 120ms ease, border-color 120ms ease",
+    cursor: "default",
   },
-  ".md-table-action:hover:not(:disabled)": {
-    backgroundColor: "var(--accent, var(--muted, #f2f2f2))",
-    borderColor: "var(--border-strong, var(--border, #bbb))",
-  },
-  ".md-table-action:focus-visible": {
-    outline: "2px solid var(--ring, var(--primary, #2563eb))",
-    outlineOffset: "2px",
-  },
-  ".md-table-action:disabled": {
-    opacity: "0.5",
-    cursor: "not-allowed",
-    boxShadow: "none",
-  },
+  ".md-table-menu-item:hover:not(:disabled), .md-table-menu-item:focus-visible":
+    {
+      backgroundColor: "var(--accent, var(--muted, #f2f2f2))",
+      color: "var(--accent-foreground, inherit)",
+      outline: "none",
+    },
+  ".md-table-menu-item:disabled": { opacity: "0.5" },
   ".md-task-checkbox": {
     cursor: "pointer",
     appearance: "none",

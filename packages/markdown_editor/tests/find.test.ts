@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { gfm } from "../src/plugins/gfm/index";
 import { code_blocks } from "../src/plugins/code_blocks/index";
@@ -18,6 +18,7 @@ import {
   type FindSpec,
 } from "../src/plugins/find";
 import { focus_selection } from "../src/core/surface";
+import { mounted_controllers } from "../src/core/block_field";
 import { create_markdown_state } from "../src/core/editor";
 import { source_undo } from "../src/core/source_state";
 import {
@@ -108,6 +109,19 @@ describe("find", () => {
     });
     expect(matches(view)).toEqual([{ from: 7, to: 11 }]);
     expect(view.view.dom.querySelectorAll(".find-match")).toHaveLength(1);
+  });
+
+  test("FIND-002 typing with no matches leaves code and table highlights alone", () => {
+    const view = editor("```\ncode\n```\n\n| a |\n| - |\n| b |\n\n‸");
+    const controllers = mounted_controllers(view.view);
+    expect(controllers).toHaveLength(2);
+    const refreshes = controllers.map((controller) =>
+      vi.spyOn(controller, "refresh_highlights"),
+    );
+    view.type("abc");
+    search(view, "zzz");
+    view.type("def");
+    for (const refresh of refreshes) expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   test("FIND-002 deleting the selected match leaves the last remaining match selected", () => {

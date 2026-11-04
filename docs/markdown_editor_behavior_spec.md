@@ -99,7 +99,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Perform text edits, formatting, container edits, widget edits, and a mixed-ending newline deletion.
 - **Expected:** Undo restores original source and intended selection; Redo restores the edit. History does not regenerate Markdown through serialization.
-- **Edge cases/notes:** Repeat full history cycles and backwards selections. Widget focus and visual caret affinity belong to the history checks.
+- **Edge cases/notes:** Repeat full history cycles and backwards selections. Widget focus and visual caret affinity belong to the history checks. Undo from inside a code block or table that removes the block (a slash-menu code block undone back to `/code`) gives focus to the note, so Redo and typing work without a click.
 
 ### SRC-007. Group typing without merging separate actions
 
@@ -229,7 +229,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Press arrows at the first/last code character and at document edges.
 - **Expected:** Arrows move through existing content or remain at the boundary. They never manufacture paragraphs, prefixes, or another code block.
-- **Edge cases/notes:** Explicit Enter/Cmd-Enter can edit source. Test unfinished and quoted fences as well as closed plain fences.
+- **Edge cases/notes:** Explicit Enter/Cmd-Enter can edit source. Test unfinished and quoted fences as well as closed plain fences. Right or Down with the caret at the end of the last line of a code block or table that ends the note is the one exception (CODE-019, TABLE-020).
 
 ### NAV-008. Selection direction remains intact
 
@@ -249,6 +249,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Expected:** Keyboard focus belongs to the restored editing surface. The first character lands at the restored caret and Undo removes it.
 - **Edge cases/notes:** Restore both current and legacy cursor formats. Cursor restoration must not steal focus from an external input already in use.
 
+### NAV-011. First text on an empty line after a quote, list item or table opens a blank row first
+
+- **Setup/action:** Open "> only a quote" with a final line break, click the empty last line under the quote box, and type "x". Repeat after a callout, a list item or task, a nested quote, a quote inside a list item, and a table. Paste multi-line text there too.
+- **Expected:** "> only a quote\n\nx" with the caret after "x". CommonMark reads a non-blank line right under a quote or list item paragraph as a lazy continuation of that paragraph, and GFM reads it as another table row. The caret on that empty line is drawn outside the block, so without the blank row the text would jump into it. One Undo removes the blank row and the text together. Further typing is plain typing.
+- **Edge cases/notes:** Only an empty or whitespace-only line counts. Text that starts with `>`, `#`, `-`, `*`, `+`, `` ` ``, `~`, `|` or a digit goes in as typed, since it may start a quote, heading, list, fence or table. A plain paragraph keeps its soft break ("Hello\nx"). A line with its own prefix ("> ", or list indentation) is already inside the block and is unchanged. Source mode, Vim (its `.` would replay the blank row) and IME composition are unchanged. When a paragraph follows the empty line, the typed text becomes the first line of that paragraph. A pasted text keeps its own line endings and the blank row uses the note's.
+
 ## 4. Paragraphs, headings, and visible spacing
 
 ### SPACE-001. Insert and delete a blank row above code
@@ -261,12 +267,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Add several blank rows between paragraphs, headings, lists, and widgets.
 - **Expected:** Each additional row contributes visible space and a reachable caret position. Layout never collapses deliberate source rows into a fixed decorative gap.
-- **Edge cases/notes:** Ordinary block margins may exist, but they must not conceal insertion/deletion of real blank source rows.
+- **Edge cases/notes:** Each blank row adds one paragraph spacing (SPACE-011), so adding or deleting one always shows. Prose right after a quote with no blank row sits one block margin below the quote box, not touching it.
 
-### SPACE-003. Heading spacing is applied once
+### SPACE-003. Headings add no space of their own
 
 - **Setup/action:** Place headings beside paragraphs with and without a separating blank row.
-- **Expected:** Heading scale, line height, and margins follow the app theme without double-counting a shared boundary.
+- **Expected:** Heading scale and line height follow the app theme. The space above and below a heading is exactly its blank source rows, so a heading with no blank row touches its neighbours.
 - **Edge cases/notes:** Real blank rows still fit a caret. Do not obtain visual parity by deleting or hiding user source.
 
 ### SPACE-004. Nested headings remain in their container
@@ -277,9 +283,9 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### SPACE-005. Paragraph spacing remains configurable
 
-- **Setup/action:** Change the app's paragraph spacing and inspect prose around code, tables, quotes, and lists.
-- **Expected:** Prose follows the setting; code body lines and cell text keep their own appropriate line layout.
-- **Edge cases/notes:** Blank-line height and caret containment still apply at small settings.
+- **Setup/action:** Change the app's paragraph spacing and inspect blank rows between prose, code, tables, quotes, and lists.
+- **Expected:** Paragraph spacing is the height of each blank row between blocks (`--editor-paragraph-spacing`, default 1.5rem). Every blank row follows the setting; code body lines and cell text keep their own line layout. A blank row beside a boxed block adds to the box's margin (SPACE-011).
+- **Edge cases/notes:** A blank row never gets shorter than 1.25em, so it always fits a caret, and values below that do nothing. Blank rows inside quotes and list items keep text metrics.
 
 ### SPACE-006. List body columns do not jump while typing
 
@@ -304,6 +310,22 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Setup/action:** Open a long note scrolled far down, with short paragraphs right after tables and quotes, lazy quote and list lines, whitespace-only lines, and a setext heading. Restore the caret inside a table, then hover and click a paragraph right away.
 - **Expected:** The view stops moving after the first layout. A click puts the caret under the pointer without scrolling or selecting a range, and nothing throws.
 - **Edge cases/notes:** CodeMirror estimates undrawn lines from a short plain-text line, so such a line must keep the default box: vertical space lives on block wrappers, and styled lines never show plain text alone (see "Line boxes" in the package DESIGN.md).
+
+### SPACE-010. Retired: list item spacing
+
+- List items no longer have a spacing setting of their own. Only the blank rows of a loose list separate items (SPACE-011).
+
+### SPACE-011. Tight prose stays tight, boxes never touch
+
+- **Setup/action:** Open a note with a paragraph, code, table, quote, list item, or heading directly followed by another block with no blank row, the same pairs with one blank row, two fences with no row between them, and two blank rows in a row.
+- **Expected:** Paragraphs, headings and list items with no blank row between them touch. Boxed blocks (code card, table, quote, callout, frontmatter, indented code) keep a small margin above and below, `--editor-block-margin-y` (default 0.5rem), so a box never touches its neighbour. Two fences with no row between them show two cards one margin apart each, 1rem in all, and a quote followed by a code card gets the quote's bottom margin plus the card's top margin. Each blank row adds exactly one paragraph spacing (SPACE-005) on top of any margin.
+- **Edge cases/notes:** Text right after a table with no blank row is a table row in GFM, so it renders inside the table. Table actions live in a right-click menu, so nothing is drawn or reserved under the table. A blank row inside a quote or callout is one text line tall, not one paragraph spacing, because it keeps text line metrics for the caret (see the empty quoted line fix in the validation log). A note with no blank rows renders dense, which is intended.
+
+### SPACE-012. Code card insets and margins are even and themeable
+
+- **Setup/action:** Open a code block with no saved height, then one with a saved height, and change `--editor-block-padding-y` and `--editor-block-margin-y`.
+- **Expected:** The card has the same inset above the first code line and below the last one, from `--editor-block-padding-y` (default 0.75rem). Quotes and callouts use the same inset. The margin outside the card, quote, table, frontmatter or indented code is the same above and below, from `--editor-block-margin-y` (default 0.5rem). It is transparent: the card border, quote bar and tints stay the height of the box, and a selected card's tint covers the card, not the margin or the list indent. The resize handle row is the bottom inset, outside the scrolling box, so it never covers code or a scrollbar. The handle row is never shorter than 0.5rem, so the app's inset setting starts at 0.5rem. Without a saved height the source box fits the code, up to `--editor-code-block-max-height`, and scrolls past that.
+- **Edge cases/notes:** A saved height is kept as is (CODE-015). A diagram preview uses the same inset.
 
 ## 5. Character-by-character Markdown construction
 
@@ -533,15 +555,16 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### FMT-007. Block shortcuts preserve the selected block's context
 
-- **Setup/action:** Use existing heading, bullet, ordered-list, and code-conversion shortcuts.
-- **Expected:** Transform the intended blocks only, preserve surrounding quote prefixes, and retain selection direction.
-- **Edge cases/notes:** Documented shortcuts include Cmd-Alt-1/2/3, Cmd-Alt-7/8, and Cmd-Alt-C. Shortcuts skip the first paragraph of a list item. That is a carried-over product choice, not a syntax rule. A caret inside inline code still converts its paragraph.
+- **Setup/action:** Use the heading, bullet, ordered-list, task-list, and code-conversion commands.
+- **Expected:** Transform the intended lines or blocks only, preserve surrounding quote prefixes, and retain selection direction. One undo reverts the whole command.
+- **Edge cases/notes:** Documented shortcuts include Cmd-Alt-1/2/3, Cmd-Alt-7/8, and Cmd-Alt-C. Task list has no default key. Heading and code shortcuts skip the first paragraph of a list item. That is a carried-over product choice, not a syntax rule. A caret inside inline code still converts its paragraph.
+- **Lists:** Every line the selection touches becomes its own item. A selection that ends at column 0 of a line does not take that line. One decision covers the whole selection: when every item line already has the target kind, the markers come off; otherwise every line becomes the target kind, replacing other list markers (bullet to task keeps the bullet character). Blank lines stay and get no marker, so they make a loose list, and ordered numbering continues across them. Ordered numbers count per parent and restart after a heading or where the line enters or leaves a quote, since a list inside a quote is a different list. The bullet character and delimiter restart there too. Headings, Setext underlines, thematic breaks and callout title lines get no marker. An item's indented continuation lines and children move with it when the marker width changes. A continuation line selected without its item gets a marker at its content column and becomes an item nested in that item. A lazy quoted line gets its quote marker back. Removing an item adds a blank line above or below when the text would otherwise join a neighboring item (an ordered item that does not start at 1 cannot interrupt a paragraph). That includes a selected item above whose text stays in another container: removing "b" and "c" from `- a\n  - b\n- c` gives `- a\n\n  b\n\nc`, so "c" does not end up inside "a". Toggling again gives `- a\n\n  - b\n\n- c`. The blank lines stay, so this round trip makes the list loose once and then stays stable. New items continue the list directly above: its numbering, bullet character and delimiter. Empty items ("- ") lose or change their marker like the others. A caret on an empty line gets a marker, with a blank line before it when it sits directly under a paragraph. An unselected line directly under a new item stays a lazy continuation of it. A selection touching code, a table, HTML (comments included) or frontmatter is a no-op.
 
 ### FMT-008. Convert visible prose to code without losing text
 
-- **Setup/action:** Convert a paragraph containing inline code, links, escaped punctuation, or multiple soft lines into a code block.
-- **Expected:** Code contains the intended displayed text and a safe fence. Outside source stays exact and the code editor receives focus.
-- **Edge cases/notes:** Backticks may require a longer fence. Multi-selection conversion affects only selected eligible blocks.
+- **Setup/action:** Convert paragraphs and headings containing inline code, links, escaped punctuation, or multiple soft lines into a code block.
+- **Expected:** Each selection range becomes one fence from its first paragraph or heading to its last, blank lines included. Paragraphs and headings contribute their displayed text. Other lines in between, such as list items, are copied as source. Outside source stays exact and the code editor receives focus.
+- **Edge cases/notes:** Backticks may require a longer fence. The container prefix goes on every fence line. A line that leaves that prefix ends the fence, and the next block starts a new one. A block with another prefix that no first-prefix block follows also gets its own fence. Ranges that share a block make one fence. A callout title paragraph is left as it is. In source mode the fence gets the Markdown source, not the displayed text. A selection touching a fence, table or HTML block (comments included) is a no-op.
 
 ## 10. Links and wiki links
 
@@ -673,7 +696,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** At the first character of quoted code, press Left/Up; at the last character, press Right/Down.
 - **Expected:** Move to an existing adjacent caret stop or stay at the document edge. No apparent extra block or hidden prefix insertion occurs.
-- **Edge cases/notes:** Retain the reported Python quoted-fence fixture with multiple body rows and a closing fence.
+- **Edge cases/notes:** Retain the reported Python quoted-fence fixture with multiple body rows and a closing fence. The one exception is Right or Down at the end of a closed block that ends the note (CODE-019).
 
 ### CODE-006. Enter code only from an adjacent source row
 
@@ -732,8 +755,8 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 ### CODE-015. Pointer and keyboard resizing are predictable
 
 - **Setup/action:** Focus a code resize handle; use arrows or drag/release/cancel it.
-- **Expected:** Up/Down changes height by 16 pixels per key; pointer resizing commits once on release. The document caret does not move.
-- **Edge cases/notes:** Cancel restores the prior size; teardown removes document listeners. Height remains bounded and measured widget geometry follows the new size.
+- **Expected:** Up/Down changes height by 16 pixels per key; pointer resizing commits once on release. The document caret does not move. Neither drag nor ArrowDown can make a panel taller than its content; a panel already taller than its content can only shrink.
+- **Edge cases/notes:** Cancel restores the prior size; teardown removes document listeners. Height remains bounded and measured widget geometry follows the new size. The content limit is read when the drag or key press starts, so it follows the current editor font size and diagram zoom. A panel never jumps when grabbed, and a click that does not move the handle stores no height. A saved height is restored as is, even when it is taller than the content. The handle reports the same limit to assistive tech: `aria-valuemax` is the content height (or the box, when it is taller), and a focused handle always has an `aria-valuenow`, also after a click that stores nothing. Both are measured on focus, on grab and on each key press. Grabbing a scrolled diagram keeps its scroll position.
 
 ### CODE-016. Remove deletes the whole block
 
@@ -750,6 +773,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Setup/action:** Turn Vim on. Press `j` from the line above a code block, then use normal mode, insert mode, visual mode, Tab, `>>`, `o` and Esc in the body. Press `j` on the last body line and `k` on the first.
 - **Expected:** The widget and its toolbar (copy, remove) stay drawn, and the caret and focus sit in the code editor. Every key runs in the one Vim, so the saved text is exact. Esc leaves insert mode and stays in the block. `j` and `k` at the edges leave it, and `3j` counts visible lines. A `/` search draws its matches in the block, with the match under the caret marked.
 - **Edge cases/notes:** Tables still show their source under the caret. `dj` across a fence acts on source lines, like Vim. A mouse drag in the code becomes Vim's visual mode.
+
+### CODE-019. Right or Down at the end of the last block starts a row
+
+- **Setup/action:** Put the caret at the end of the last line of a closed code block that is the last thing in the note, then press Right or Down.
+- **Expected:** One new row follows the closing fence, with the block's container prefix, and the caret is on it. No blank row is added (Cmd-Enter, CODE-008, adds one). One Undo restores the note.
+- **Edge cases/notes:** Only the end of the last line counts. When nothing follows the block, Down from anywhere else on the last line moves the caret to the line end and edits nothing, so a row takes a second Down. Blank lines after the block still make it the last block: from the end, the first blank line becomes the row (it gets the container prefix) and no line is added. Left and Up stay source-neutral at the document edge. When a line with text follows the block, Right and Down move there without editing. An unfinished fence is only closed by Cmd-Enter. Read-only notes do not change. Tables do the same (TABLE-020).
 
 ## 13. Mermaid and diagrams
 
@@ -805,7 +834,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### TABLE-003. Source editing can leave and return
 
-- **Setup/action:** Choose "Edit Markdown" in an active table's toolbar, edit the delimiter or header, then move out of the table.
+- **Setup/action:** Right-click a table cell and choose "Edit Markdown", edit the delimiter or header, then move out of the table.
 - **Expected:** The table shows its source while the caret stays inside it and renders again on leaving. Selection and focus stay at the intended location.
 - **Edge cases/notes:** A rendered table never reveals source because the caret lands on a hidden row. Source mode belongs to that table only.
 
@@ -879,7 +908,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Arrow from wrapped prose or a blank row into a table and out again.
 - **Expected:** Traverse prose visual rows and every blank source row in order. Header/body transitions synchronize the source selection before subsequent keys.
-- **Edge cases/notes:** At document edges, arrows remain source-neutral. Adjacent code can receive focus; hidden delimiter syntax is not an intermediate editing target.
+- **Edge cases/notes:** At document edges, arrows, Shift-Tab and Escape keep the cell and its focus. The one exception is Right or Down past a table that ends the note (TABLE-020). Adjacent code can receive focus; hidden delimiter syntax is not an intermediate editing target.
 
 ### TABLE-016. Focusing visible cells does not jump the page
 
@@ -889,9 +918,9 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 ### TABLE-017. Structural actions affect only their table
 
-- **Setup/action:** Add/delete body rows and add/delete columns through controls.
-- **Expected:** Preserve unrelated table cells/source, maintain valid delimiters, and focus a surviving or newly created cell.
-- **Edge cases/notes:** Header deletion and deleting the last column are disabled as appropriate. Toolbar visibility does not move following prose.
+- **Setup/action:** Right-click a table cell, or press Shift-F10 or the menu key in the active cell, and use the menu: Insert row below, Delete row, Insert column left, Insert column right, Delete column, Edit Markdown.
+- **Expected:** The clicked cell becomes the active cell first, and each entry acts on its row or column. Insert row below on the header adds the first body row. Preserve unrelated table cells/source, maintain valid delimiters, keep a quoted or listed table's prefix (a new row in a list item takes the item's continuation indent, never its marker), and focus a surviving or newly created cell. One Undo reverts an entry.
+- **Edge cases/notes:** Delete row is disabled on the header and Delete column on a one-column table. The menu sits at the pointer, or under the active cell when opened from the keyboard, inside the window, and takes no space in the note. Focus starts on the first enabled entry. Escape or Tab closes it and returns to the cell. A click outside, focus moving outside the menu and the cell, scrolling, leaving the window, or picking an entry also closes it. Arrow keys move between enabled entries. A read-only note and right-clicks outside tables keep the browser's menu. The table has no toolbar and reserves no band under itself.
 
 ### TABLE-018. Large-table find and focus retain the row window
 
@@ -904,6 +933,12 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 - **Setup/action:** Put pipes/delimiters inside frontmatter, fenced code, and other literal contexts; open the note read-only.
 - **Expected:** Literal contexts never become editable table widgets. A read-only real table remains a static accessible grid.
 - **Edge cases/notes:** Links may still navigate safely; structural controls and source mutation remain disabled.
+
+### TABLE-020. Right or Down past the last table starts a row
+
+- **Setup/action:** Put the caret in the last row of a table that is the last thing in the note, or that only blank lines follow (a saved note usually ends with a line break). Press Right at the end of the last cell, or Down on the last visual line of any cell in that row.
+- **Expected:** A blank row and one new row follow the table, with the table's container prefix, and the caret is on the new row. GFM reads a non-blank line right under a table as another table row, so the blank row is needed. Blank lines already after the table serve as these two rows, and only what is missing is added. One Undo restores the note.
+- **Edge cases/notes:** When a row follows the table, Right and Down move there without editing. Tab and Enter still add table rows (TABLE-012, TABLE-013). Escape keeps the cell. Read-only tables have no active cell and do not change.
 
 ## 15. Images
 
@@ -1307,6 +1342,12 @@ These scenarios apply to the editor package as a framework.
 
 - **Setup/action:** Click an image, PDF, or any file over 20 MB or not valid UTF-8 in the tree.
 - **Expected:** It opens in the system's default app. No tab opens, and no error shows.
+
+### LINE-001. Line numbers in source mode and text files
+
+- **Setup/action:** Turn on Line Numbers in Settings, or press Cmd/Ctrl+Shift+Y. Open a note in source mode, then a `.py` file. Switch the note back to rich mode.
+- **Expected:** Source mode and text files show one number per source line, beside the left edge of the centered text column. A wrapped line has one number at its top. Rich mode shows no numbers, including beside code blocks and tables. Zoom changes the numbers with the text. Turning the setting off puts the text back in the center.
+- **Edge cases/notes:** The setting is global and applies to document windows too. Unverified in a real window: gutter alignment, zoom, wide panes, and the first paint of a document window with the setting on.
 
 ## 25. Files opened outside a vault
 

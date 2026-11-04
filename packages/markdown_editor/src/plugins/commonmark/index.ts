@@ -13,7 +13,7 @@ import {
   list_spacing,
   paragraph,
 } from "./prose.js";
-import { blockquote, indent_text } from "./quotes.js";
+import { blockquote, indent_text, lazy_line_boundary } from "./quotes.js";
 import { commonmark_theme } from "./theme.js";
 
 // Paragraphs, headings, emphasis, inline code, lists, quotes, rules, escapes,
@@ -44,7 +44,9 @@ export function commonmark(): MarkdownPlugin {
       { key: "Tab", run: indent_text(true), shift: indent_text(false) },
     ],
     theme: commonmark_theme,
-    extensions: typing_format_extension,
+    // CodeMirror runs transaction filters last to first, so the boundary goes
+    // in before the typing formats wrap the typed text in markers.
+    extensions: [typing_format_extension, lazy_line_boundary],
   };
 }
 

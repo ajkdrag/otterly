@@ -1,6 +1,6 @@
 import { WidgetType } from "@codemirror/view";
 import { line_container } from "../../core/context.js";
-import type { MarkdownPlugin } from "../../core/plugin.js";
+import type { MarkdownPlugin, ThemeSpec } from "../../core/plugin.js";
 
 // Colored callouts in the Obsidian and GitHub style:
 //
@@ -62,38 +62,41 @@ export function callouts(): MarkdownPlugin {
         ],
       },
     ],
-    theme: {
-      ".md-callout-note, .md-callout-info": {
-        "--md-callout-color": "var(--editor-callout-note, #2563eb)",
-      },
-      ".md-callout-tip": {
-        "--md-callout-color": "var(--editor-callout-tip, #16a34a)",
-      },
-      ".md-callout-warning": {
-        "--md-callout-color": "var(--editor-callout-warning, #d97706)",
-      },
-      ".md-callout-danger": {
-        "--md-callout-color": "var(--editor-callout-danger, #dc2626)",
-      },
-      ".md-callout-quote": {
-        "--md-callout-color": "var(--muted-foreground, #737373)",
-      },
-      ".md-wrap.md-quote.md-callout": {
-        borderLeftColor: "var(--md-callout-color)",
-        backgroundColor:
-          "color-mix(in srgb, var(--md-callout-color) 8%, transparent)",
-        color: "var(--editor-text, var(--foreground, inherit))",
-        fontStyle: "normal",
-      },
-      ".md-callout-title": { fontWeight: "600" },
-      ".md-callout-label": {
-        color: "var(--md-callout-color)",
-        fontWeight: "600",
-        textTransform: "capitalize",
-      },
-    },
+    theme: callouts_theme,
   };
 }
+
+const callouts_theme: ThemeSpec = {
+  ".md-callout-note, .md-callout-info": {
+    "--md-callout-color": "var(--editor-callout-note, #2563eb)",
+  },
+  ".md-callout-tip": {
+    "--md-callout-color": "var(--editor-callout-tip, #16a34a)",
+  },
+  ".md-callout-warning": {
+    "--md-callout-color": "var(--editor-callout-warning, #d97706)",
+  },
+  ".md-callout-danger": {
+    "--md-callout-color": "var(--editor-callout-danger, #dc2626)",
+  },
+  ".md-callout-quote": {
+    "--md-callout-color": "var(--muted-foreground, #737373)",
+  },
+  ".md-wrap.md-quote.md-callout": {
+    // The quote's bar is an inset shadow (commonmark theme).
+    boxShadow: "inset 2px 0 0 var(--md-callout-color)",
+    backgroundColor:
+      "color-mix(in srgb, var(--md-callout-color) 8%, transparent)",
+    color: "var(--editor-text, var(--foreground, inherit))",
+    fontStyle: "normal",
+  },
+  ".md-callout-title": { fontWeight: "600" },
+  ".md-callout-label": {
+    color: "var(--md-callout-color)",
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+};
 
 // Types map onto a few colors, the way GitHub and Obsidian group them.
 function callout_color(type: string): string {

@@ -1,6 +1,8 @@
 import type { SyntaxNode } from "@lezer/common";
 import {
   EditorSelection,
+  EditorState,
+  Facet,
   countColumn,
   type ChangeSpec,
   type StateCommand,
@@ -10,15 +12,16 @@ import {
   column_at,
   continuation_prefix,
   continues_paragraph,
+  current_tree,
   is_literal,
   line_container,
   type Layer,
   type LineContainer,
 } from "../../core/context.js";
+import { is_rich } from "../../core/editor_mode.js";
 import type { KeyContext } from "../../core/keys.js";
 import type { ContainerSpec, LineConstruct } from "../../core/plugin.js";
 import type { Render } from "../../core/inline_rendering.js";
-import { paragraph_gap, set_gap_after } from "./prose.js";
 
 // "> " with up to three spaces before it and one optional space after.
 // @Incomplete: a tab after ">" counts as the optional space. CommonMark treats
@@ -52,7 +55,6 @@ export const blockquote: LineConstruct = {
   container: quote_container,
   decorate(node, render) {
     render.wrap(node.node, "md-quote");
-    set_gap_after(render, node.node, paragraph_gap);
   },
   decorate_layer: decorate_quote_layer,
   keys: {
@@ -152,6 +154,86 @@ function lift_quote_line(
     scrollIntoView: true,
   });
   return true;
+}
+
+// CommonMark reads a non-blank line right under a quote or list item
+// paragraph as a lazy continuation of that paragraph, and GFM reads it as
+// another row of a table above. On an empty line the caret is drawn below
+// that block, so the first text typed or pasted there would jump into it. A
+// blank line goes in above first, the same boundary Enter on an empty quote
+// line leaves, in the same undo step.
+//
+// Text that starts like a block marker goes in as typed, since the user may
+// be starting a quote, heading, list, fence or table there. That is wider
+// than what CommonMark lets interrupt a paragraph: a lone "-" or "1" does
+// not, but it is usually the start of a list item.
+//
+// @Incomplete: IME composition is left alone. Changing lines around an open
+// composition breaks it in the browser.
+const starts_block_marker = /^\s*[>#\-*+`~|0-9]/;
+
+// Vim turns the boundary off. Its . replays every change of an insert as
+// typed text, so it would put the blank line in again at the next caret.
+export const lazy_line_boundary_off = Facet.define<boolean, boolean>({
+  combine: (values) => values.includes(true),
+});
+
+export const lazy_line_boundary = EditorState.transactionFilter.of(
+  (transaction) => {
+    const state = transaction.startState;
+    if (
+      !(
+        transaction.isUserEvent("input.type") ||
+        transaction.isUserEvent("input.paste")
+      ) ||
+      transaction.isUserEvent("input.type.compose") ||
+      state.selection.ranges.length !== 1 ||
+      !is_rich(state) ||
+      state.facet(lazy_line_boundary_off)
+    )
+      return transaction;
+    const inserts: { from: number; to: number; text: string }[] = [];
+    transaction.changes.iterChanges((from, to, _from_b, _to_b, inserted) => {
+      inserts.push({ from, to, text: inserted.toString() });
+    });
+    const [insert] = inserts;
+    if (inserts.length !== 1 || !insert || insert.from !== insert.to)
+      return transaction;
+    const line = state.doc.lineAt(insert.from);
+    if (
+      /\S/.test(line.text) ||
+      !/\S/.test(insert.text) ||
+      starts_block_marker.test(insert.text) ||
+      !joins_block_above(transaction.state, line.number)
+    )
+      return transaction;
+    // The text went in at or after line.from, so the end of the line above
+    // has the same position in the new document.
+    return [
+      transaction,
+      { changes: { from: line.from - 1, insert: "\n" }, sequential: true },
+    ];
+  },
+);
+
+// The line's text belongs to a block that starts above it: a lazy line of a
+// quote or list item paragraph, or a row of a table. A plain paragraph line
+// has no missing prefix, so a soft break there stays as it is.
+function joins_block_above(state: EditorState, line_number: number): boolean {
+  const line = state.doc.line(line_number);
+  if (continues_paragraph(state, line)) return line_container(state, line).lazy;
+  for (
+    let node: SyntaxNode | null = current_tree(state, line.to).resolveInner(
+      line.to,
+      -1,
+    );
+    node;
+    node = node.parent
+  ) {
+    // GFM's table node. Without the gfm plugin there is none.
+    if (node.name === "Table") return node.from < line.from;
+  }
+  return false;
 }
 
 // Mod-Enter inside a quote starts a separate paragraph after the outermost

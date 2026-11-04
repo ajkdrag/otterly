@@ -12,7 +12,7 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import type { MarkdownPlugin } from "../core/plugin.js";
+import type { MarkdownPlugin, ThemeSpec } from "../core/plugin.js";
 import { reveal_ranges } from "../core/reveal.js";
 import { surface_highlights, type SurfaceHighlight } from "../core/surface.js";
 
@@ -58,17 +58,19 @@ export function find(): MarkdownPlugin {
       reveal_ranges.of(selected_match_ranges),
       surface_highlights.of(match_highlights),
     ],
-    theme: {
-      ".find-match": {
-        backgroundColor: "var(--editor-find-match-bg, #ffe06666)",
-      },
-      ".find-match--selected": {
-        backgroundColor: "var(--editor-find-match-selected-bg, #ffad4266)",
-        outline: "1px solid var(--ring, #c78323)",
-      },
-    },
+    theme: find_theme,
   };
 }
+
+const find_theme: ThemeSpec = {
+  ".find-match": {
+    backgroundColor: "var(--editor-find-match-bg, #ffe06666)",
+  },
+  ".find-match--selected": {
+    backgroundColor: "var(--editor-find-match-selected-bg, #ffad4266)",
+    outline: "1px solid var(--ring, #c78323)",
+  },
+};
 
 // JS \b only knows ASCII letters, so "café" or "привет" as a whole word would
 // never match here, while Rust's \b is Unicode and finds them. This builds the
@@ -369,11 +371,17 @@ const find_state = StateField.define<FindState>({
     // Deleting the selected match keeps a valid selection on what is left.
     // With nothing left it stays 0, not -1, so that undoing a replace brings
     // the first match back as the selected one.
-    return {
-      spec,
-      selected_index: Math.max(0, Math.min(selected_index, matches.length - 1)),
-      matches,
-    };
+    selected_index = Math.max(0, Math.min(selected_index, matches.length - 1));
+    // An edit with no matches before or after (the closed find bar) keeps the
+    // same state. A new state would redraw every code block and table.
+    if (
+      matches.length === 0 &&
+      value.matches.length === 0 &&
+      same_spec(spec, value.spec) &&
+      selected_index === value.selected_index
+    )
+      return value;
+    return { spec, selected_index, matches };
   },
 });
 

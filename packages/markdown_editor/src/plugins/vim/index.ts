@@ -30,6 +30,7 @@ import {
 import { is_rich } from "../../core/editor_mode.js";
 import { run_construct_key } from "../../core/keys.js";
 import { source_redo, source_undo } from "../../core/source_state.js";
+import { lazy_line_boundary_off } from "../commonmark/quotes.js";
 import {
   close_menu_before_leaving_insert,
   normal_mode_guards,
@@ -100,6 +101,7 @@ export function vim_keybindings(
     vim_in_surfaces,
     vim_surface_search,
     caret_stays_off_final_empty_line,
+    lazy_line_boundary_off.of(true),
     // These plugins come after vim(), so getCM(view) exists when they are
     // built.
     undo_steps(),

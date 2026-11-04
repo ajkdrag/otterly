@@ -269,14 +269,37 @@ function escape_cell_pipes(value: string): string {
 
 // Row and column edits. Each returns changes for the table's own lines only.
 
-export function append_row_change(
+// An empty row below after_row. Row 0 is the header, so its new row goes
+// below the delimiter line.
+export function insert_row_change(
   state: EditorState,
   table: TableModel,
+  after_row: number,
 ): ChangeSpec {
-  const template = table.rows.at(-1) ?? table.rows[0];
-  if (!template) return [];
-  // Reuse the last row's spelling with every cell emptied, so padding and
-  // pipes look like the rows around it.
+  const target = table.rows[after_row];
+  if (!target) return [];
+  // Reuse that row's spelling with every cell emptied, so padding and pipes
+  // look like the rows around it. A lazy row ("text" right under a table) has
+  // no pipes, and emptied it is a blank line that ends the table, so it takes
+  // the header's spelling.
+  let template = target;
+  let row = emptied_row(state, template);
+  if (!row.includes("|") && table.rows[0]) {
+    template = table.rows[0];
+    row = emptied_row(state, template);
+  }
+  // The line prefix keeps a quoted or listed table in its container. Take it
+  // from the delimiter line: in a list item the header line starts with the
+  // item's marker, and a copy of that would start a new item.
+  const prefix = state.sliceDoc(
+    state.doc.lineAt(table.delimiter_from).from,
+    table.delimiter_from,
+  );
+  const from = after_row === 0 ? table.delimiter_to : target.to;
+  return { from, insert: `\n${prefix}${row}` };
+}
+
+function emptied_row(state: EditorState, template: TableRow): string {
   let row = state.sliceDoc(template.from, template.to);
   for (const cell of [...template.cells].sort(
     (left, right) => right.from - left.from,
@@ -286,7 +309,7 @@ export function append_row_change(
       row.slice(0, cell.from - template.from) +
       row.slice(cell.to - template.from);
   }
-  return { from: table.node.to, insert: `\n${row}` };
+  return row;
 }
 
 export function delete_row_change(

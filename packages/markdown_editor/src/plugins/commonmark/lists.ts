@@ -317,7 +317,7 @@ export function change_list_indent(
   return true;
 }
 
-function remove_columns(
+export function remove_columns(
   state: EditorState,
   text: string,
   line_from: number,

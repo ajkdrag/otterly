@@ -14,7 +14,7 @@ import type {
 import { focus_selection } from "../../core/surface.js";
 import { strikethrough_keys } from "../commonmark/format_commands.js";
 import { strikethrough } from "../commonmark/marks.js";
-import { append_row_change } from "./table_model.js";
+import { insert_row_change } from "./table_model.js";
 import { TableWidget, table_model } from "./table_widget.js";
 import { gfm_theme } from "./theme.js";
 
@@ -72,7 +72,7 @@ function finish_table_source(context: KeyContext): boolean {
     return false;
   view.dispatch({
     ...(model.rows.length === 1
-      ? { changes: append_row_change(state, model) }
+      ? { changes: insert_row_change(state, model, 0) }
       : {}),
     effects: finish_block_construction.of(null),
     userEvent: "input",

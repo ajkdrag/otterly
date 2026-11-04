@@ -42,20 +42,10 @@ export const commonmark_theme: ThemeSpec = {
   // Line rules here only touch line boxes that never show plain text alone:
   // headings hide their marks, list and quote lines hide their markers, and
   // blank rows hide their whitespace. Vertical space for anything else goes
-  // on wrappers (render.wrap and render.gap). See "Line boxes" in DESIGN.md.
-  // Headings nested in lists and quotes keep a paragraph's spacing.
-  [line_selector(".md-heading:not(.md-prose-heading)")]: {
-    paddingTop:
-      "var(--editor-paragraph-spacing, var(--editor-spacing, 1.5rem))",
-  },
+  // on wrappers (render.wrap). See "Line boxes" in DESIGN.md.
   [line_selector(".md-setext-underline")]: {
     lineHeight: "0",
     fontSize: "0",
-  },
-  // Space above every item but the first. It sits on the item's wrapper, not
-  // on a line (see "Line boxes" in DESIGN.md).
-  ".md-wrap.md-list-item-spaced": {
-    paddingTop: "var(--editor-list-item-spacing, 0px)",
   },
   [line_selector(".md-list-line")]: {
     paddingLeft: "calc(var(--md-list-depth, 1) * 1.5rem)",
@@ -93,20 +83,43 @@ export const commonmark_theme: ThemeSpec = {
   // A quote is one wrapper around its lines and widgets. A nested quote is a
   // wrapper inside it, so each level draws its own bar, and only the
   // outermost paints the background.
+  //
+  // The outer box keeps a small margin so it never touches a neighbour.
+  // CodeMirror measures the wrapper's border box and a CSS margin would
+  // escape its height map, so the margin is a transparent top and bottom
+  // border, and the tint stops at the padding box (background-clip). The bar
+  // is an inset shadow instead of a left border: a left border meeting the
+  // transparent ones would taper into the margin at its corners. The padding
+  // has the bar's 2px on the left, where the border used to be.
+  //
+  //   border-top    (margin, transparent)
+  //   |  padding    (inset, tinted)
+  //   |  > text
+  //   |  padding    (inset, tinted)
+  //   border-bottom (margin, transparent)
   ".md-wrap.md-quote": {
     marginLeft: "calc(var(--editor-spacing, 1.5rem) * 0.5)",
     padding:
-      "calc(var(--editor-spacing, 1.5rem) * 0.75) var(--editor-spacing, 1.5rem)",
-    borderLeft:
-      "2px solid var(--editor-blockquote-border, var(--border, #ddd))",
-    borderRadius: "0 var(--radius-sm, 0.25rem) var(--radius-sm, 0.25rem) 0",
+      "var(--editor-block-padding-y, 0.75rem) var(--editor-spacing, 1.5rem) var(--editor-block-padding-y, 0.75rem) calc(var(--editor-spacing, 1.5rem) + 2px)",
+    borderTop: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    borderBottom: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    boxShadow:
+      "inset 2px 0 0 var(--editor-blockquote-border, var(--border, #ddd))",
+    // The tint's corner is the outer radius minus the border, so the
+    // vertical radius adds the margin back to keep the tint round.
+    borderRadius:
+      "0 var(--radius-sm, 0.25rem) var(--radius-sm, 0.25rem) 0 / 0 calc(var(--radius-sm, 0.25rem) + var(--editor-block-margin-y, 0.5rem)) calc(var(--radius-sm, 0.25rem) + var(--editor-block-margin-y, 0.5rem)) 0",
+    backgroundClip: "padding-box",
     backgroundColor: "var(--editor-blockquote-bg, transparent)",
     color: "var(--editor-blockquote-text, var(--muted-foreground, #737373))",
     fontStyle: "italic",
   },
+  // A nested quote is part of the outer box, so it has no margin of its own.
   ".md-wrap.md-quote .md-wrap.md-quote": {
     marginLeft: "0",
     paddingRight: "0",
+    borderTopWidth: "0",
+    borderBottomWidth: "0",
     backgroundColor: "transparent",
   },
   // An empty quoted line keeps text metrics, so the first typed character
@@ -141,8 +154,13 @@ export const commonmark_theme: ThemeSpec = {
     padding: "2px 6px",
     lineHeight: "1.4",
   },
-  ".md-code-line": {
-    fontFamily: "var(--font-mono, monospace)",
+  ".md-code-line": { fontFamily: "var(--font-mono, monospace)" },
+  // Indented code is a tinted box with the same transparent margin as a
+  // quote, so a heading right after it does not touch the tint.
+  ".md-wrap.md-indented-code": {
+    borderTop: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    borderBottom: "var(--editor-block-margin-y, 0.5rem) solid transparent",
+    backgroundClip: "padding-box",
     backgroundColor: "var(--muted, #f2f2f2)",
   },
 };

@@ -18,7 +18,7 @@ import {
 } from "@codemirror/view";
 import { is_rich } from "./editor_mode.js";
 import { line_container, type Layer, type LineContainer } from "./context.js";
-import { get_registry, type BlockConstruct } from "./plugin.js";
+import { get_registry, type BlockConstruct, type ThemeSpec } from "./plugin.js";
 import { reveal_freeze, touches } from "./reveal.js";
 import { complete_tree } from "./syntax.js";
 import { guard } from "./inline_rendering.js";
@@ -264,7 +264,7 @@ export abstract class BlockWidget extends WidgetType {
   destroy(dom: HTMLElement): void {
     controllers.get(dom)?.destroy();
     controllers.delete(dom);
-    height_observers.get(dom)?.disconnect();
+    height_observers.get(dom)?.observer.disconnect();
   }
 
   // Widgets handle their own events. CodeMirror must not treat clicks or
@@ -380,7 +380,7 @@ function layer_signature(block: Block): string {
 }
 
 // These mirror the list line styles in the commonmark theme.
-const block_theme = EditorView.baseTheme({
+export const block_theme_spec: ThemeSpec = {
   // flow-root keeps a child's margins inside each wrapper.
   ".md-block-layer, .md-block-body": { display: "flow-root" },
   // A widget inside a quote sits in the quote's wrapper. Its own text does
@@ -389,11 +389,15 @@ const block_theme = EditorView.baseTheme({
     fontStyle: "normal",
     color: "var(--editor-text, var(--foreground, #242424))",
   },
-  ".md-block-selected": { position: "relative" },
-  ".md-block-selected::after": {
+  // The overlay covers the card only. The body's padding is the transparent
+  // margin around the card (the widget themes set it), and the list layers
+  // around the body hold the indent, so neither gets tinted. The card itself
+  // may scroll (a wide table), so the overlay can't live inside it.
+  ".md-block-selected .md-block-body": { position: "relative" },
+  ".md-block-selected .md-block-body::after": {
     content: '""',
     position: "absolute",
-    inset: "0",
+    inset: "var(--editor-block-margin-y, 0.5rem) 0",
     pointerEvents: "none",
     backgroundColor: "var(--editor-selection-bg, rgba(64, 128, 255, 0.2))",
   },
@@ -410,7 +414,9 @@ const block_theme = EditorView.baseTheme({
     textAlign: "right",
     color: "var(--muted-foreground, #737373)",
   },
-});
+};
+
+const block_theme = EditorView.baseTheme(block_theme_spec);
 
 export function block_extensions(): Extension {
   return [block_field, block_theme, block_selection];
@@ -624,7 +630,10 @@ function shows_source(state: EditorState, block: Block): boolean {
 
 const measured_heights = new Map<string, number>();
 const measured_heights_limit = 500;
-const height_observers = new WeakMap<HTMLElement, ResizeObserver>();
+const height_observers = new WeakMap<
+  HTMLElement,
+  { key: string; observer: ResizeObserver }
+>();
 
 function height_key(block: Block): string {
   return `${block.construct.name}\u0000${block.source}`;
@@ -635,8 +644,12 @@ function height_key(block: Block): string {
 function remember_height(dom: HTMLElement, block: Block) {
   dom.dataset.mdBlock = block.construct.name;
   if (typeof ResizeObserver === "undefined") return;
-  height_observers.get(dom)?.disconnect();
   const key = height_key(block);
+  // Typing above a widget updates it with the same key. Its observer already
+  // records that key, so keep it instead of building a new one per edit.
+  const current = height_observers.get(dom);
+  if (current?.key === key) return;
+  current?.observer.disconnect();
   const observer = new ResizeObserver((entries) => {
     const height = entries[0]?.borderBoxSize?.[0]?.blockSize;
     if (!height) return;
@@ -648,5 +661,5 @@ function remember_height(dom: HTMLElement, block: Block) {
     }
   });
   observer.observe(dom);
-  height_observers.set(dom, observer);
+  height_observers.set(dom, { key, observer });
 }

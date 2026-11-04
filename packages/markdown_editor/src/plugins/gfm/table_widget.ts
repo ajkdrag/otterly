@@ -14,7 +14,11 @@ import {
   type Block,
   type BlockController,
 } from "../../core/block_field.js";
-import { current_tree } from "../../core/context.js";
+import {
+  continuation_prefix,
+  current_tree,
+  line_container,
+} from "../../core/context.js";
 import { render_static } from "../../core/static_render.js";
 import {
   NestedEditor,
@@ -30,12 +34,12 @@ import {
   toggle_strikethrough,
 } from "../commonmark/format_commands.js";
 import {
-  append_row_change,
   cell_padding,
   cell_window,
   delete_column_changes,
   delete_row_change,
   insert_column_changes,
+  insert_row_change,
   read_table,
   type CellPadding,
   type TableModel,
@@ -63,6 +67,14 @@ export function table_model(
 }
 
 export class TableWidget extends BlockWidget {
+  // The controller's model holds cell offsets and syntax nodes. An edit above
+  // the table moves them without changing its source, and an equal widget
+  // never reaches update(). Its cells then rendered and edited text one
+  // offset off, so a moved table counts as changed. update() keeps the DOM.
+  protected same_options(other: BlockWidget): boolean {
+    return other.block.node_from === this.block.node_from;
+  }
+
   protected estimate_height(): number {
     const rows = this.block.source.split("\n").length - 1;
     return rows > virtualize_after_rows
@@ -84,9 +96,10 @@ type CaretPlacement =
 
 class TableController implements BlockController {
   readonly root = document.createElement("div");
-  private readonly frame = document.createElement("div");
   private readonly table_host = document.createElement("div");
-  private readonly actions = document.createElement("div");
+  // The right-click menu while it is open. It lives in root, so focus in it
+  // still counts as focus in the table and the active cell keeps its editor.
+  private cell_menu: HTMLElement | null = null;
   private viewport: TableViewport | null = null;
   private model: TableModel;
   private widget: TableWidget;
@@ -103,22 +116,30 @@ class TableController implements BlockController {
     this.widget = widget;
     this.model = require_model(view.state, widget.block);
     this.root.className = "md-table-widget";
-    this.frame.className = "md-table-frame";
-    this.actions.className = "md-table-actions";
-    this.actions.setAttribute("role", "toolbar");
-    this.actions.setAttribute("aria-label", "Table actions");
     this.table_host.className = "md-table-host";
-    this.frame.append(this.table_host, this.actions);
-    this.root.append(wrap_in_layers(widget.block, this.frame));
+    this.root.append(wrap_in_layers(widget.block, this.table_host));
     this.build_table();
     this.root.addEventListener("mousedown", this.on_mousedown);
     this.root.addEventListener("focusout", this.on_focusout);
+    this.root.addEventListener("contextmenu", this.on_contextmenu);
   }
 
   update(widget: BlockWidget): boolean {
+    // The menu's entries were built for the old rows and columns.
+    this.close_cell_menu();
     if (!(widget instanceof TableWidget)) return false;
     const model = table_model(this.view.state, widget.block);
     if (!model) return false;
+    // An edit above the table only moved it. The cells show the same text,
+    // so swapping in the model with the new offsets is enough.
+    if (
+      widget.block.source === this.widget.block.source &&
+      widget.read_only === this.widget.read_only
+    ) {
+      this.widget = widget;
+      this.model = model;
+      return true;
+    }
     const same_shape =
       model.rows.length === this.model.rows.length &&
       model.rows.every(
@@ -163,10 +184,12 @@ class TableController implements BlockController {
   }
 
   destroy(): void {
+    this.close_cell_menu();
     this.drop_editor();
     this.viewport?.destroy();
     this.root.removeEventListener("mousedown", this.on_mousedown);
     this.root.removeEventListener("focusout", this.on_focusout);
+    this.root.removeEventListener("contextmenu", this.on_contextmenu);
   }
 
   owns(position: number): boolean {
@@ -254,7 +277,6 @@ class TableController implements BlockController {
       on_edge: (direction, vertical) =>
         this.move_from_edge(direction, vertical),
     });
-    this.render_actions();
   }
 
   private drop_editor() {
@@ -271,7 +293,6 @@ class TableController implements BlockController {
       element.classList.remove("md-table-cell-active");
       this.render_cell(element, row, column);
     }
-    this.render_actions();
   }
 
   private current_window(): SourceWindow | null {
@@ -323,6 +344,8 @@ class TableController implements BlockController {
       { key: "Enter", run: () => this.move_cell(1, true) },
       { key: "Shift-Enter", run: () => this.move_cell(-1, true) },
       { key: "Escape", run: () => this.leave(1) },
+      { key: "Shift-F10", run: () => this.open_cell_menu_from_keyboard() },
+      { key: "ContextMenu", run: () => this.open_cell_menu_from_keyboard() },
       { key: "Mod-b", run: outer(toggle_bold) },
       { key: "Mod-i", run: outer(toggle_italic) },
       { key: "Mod-e", run: outer(toggle_inline_code) },
@@ -367,14 +390,14 @@ class TableController implements BlockController {
         );
         return true;
       }
-      return this.leave(direction, goal_x);
+      return this.leave_by_arrow(direction, goal_x);
     }
     const next = this.horizontal_neighbor(this.active, direction);
     if (next) {
       this.activate(next, { edge: direction > 0 ? "start" : "end" });
       return true;
     }
-    return this.leave(direction);
+    return this.leave_by_arrow(direction, null);
   }
 
   // The next cell along the row, wrapping to the next or previous row.
@@ -393,8 +416,52 @@ class TableController implements BlockController {
   private leave(direction: -1 | 1, goal_x: number | null = null): boolean {
     const block = block_for_dom(this.view, this.root);
     if (!block) return false;
+    // At a document edge there is nowhere to go, so the cell keeps its editor.
+    // Dropping it would leave focus on nothing, and typing would be lost.
+    const at_edge =
+      direction < 0
+        ? block.from === 0
+        : block.to === this.view.state.doc.length;
+    if (at_edge) return true;
     this.drop_editor();
     return leave_block(this.view, block, direction, goal_x);
+  }
+
+  // Right or Down past a table that ends the note has no row to move to, so
+  // it starts one, like a code block does (CODE-019). Blank lines after the
+  // table still count as the end: most saved notes end with a line break.
+  private leave_by_arrow(direction: -1 | 1, goal_x: number | null): boolean {
+    const block = block_for_dom(this.view, this.root);
+    const { state } = this.view;
+    if (
+      !block ||
+      direction < 0 ||
+      /\S/.test(state.sliceDoc(block.to)) ||
+      this.widget.read_only
+    )
+      return this.leave(direction, goal_x);
+    const prefix = continuation_prefix(
+      line_container(state, state.doc.lineAt(block.to)),
+    );
+    // GFM reads a non-blank line right after a table as another table row,
+    // so the new row needs a blank row before it. Blank lines already there
+    // serve as these two rows, with their whitespace set to the prefix.
+    const rows = "\n" + prefix + "\n" + prefix;
+    const reused_to =
+      block.to +
+      state.sliceDoc(block.to).split("\n").slice(0, 3).join("\n").length;
+    const changes =
+      state.sliceDoc(block.to, reused_to) === rows
+        ? []
+        : { from: block.to, to: reused_to, insert: rows };
+    this.drop_editor();
+    this.view.dispatch({
+      changes,
+      selection: { anchor: block.to + rows.length },
+      userEvent: "input.table",
+    });
+    this.view.focus();
+    return true;
   }
 
   // Structure edits change only this table's lines, then focus a surviving
@@ -412,77 +479,197 @@ class TableController implements BlockController {
     );
   }
 
-  private append_row(column: number) {
+  private insert_row_below(row: number, column: number) {
     this.change_structure(
-      append_row_change(this.view.state, this.model),
-      { row: this.model.rows.length, column },
+      insert_row_change(this.view.state, this.model, row),
+      { row: row + 1, column },
       "start",
     );
   }
 
-  private render_actions() {
-    this.actions.replaceChildren();
-    const active = this.active;
-    if (!active || this.widget.read_only) return;
+  private append_row(column: number) {
+    this.insert_row_below(this.model.rows.length - 1, column);
+  }
+
+  private show_source() {
+    const block = block_for_dom(this.view, this.root);
+    if (!block) return;
+    this.drop_editor();
+    this.view.dispatch({
+      effects: edit_block_source.of(block.from),
+      selection: { anchor: block.from },
+    });
+    this.view.focus();
+  }
+
+  // Right-click on a cell makes it the active cell, then opens the table
+  // menu for it in place of the browser's menu.
+  private on_contextmenu = (event: MouseEvent) => {
+    if (this.widget.read_only) return;
+    const target = event.target as HTMLElement;
+    // Some browsers follow the menu key with a contextmenu event on the
+    // focused element, which by then is our open menu.
+    if (this.cell_menu?.contains(target)) {
+      event.preventDefault();
+      return;
+    }
+    const element = target.closest<HTMLElement>("[data-row][data-col]");
+    if (!element || !this.root.contains(element)) return;
+    event.preventDefault();
+    const cell = {
+      row: Number(element.dataset.row),
+      column: Number(element.dataset.col),
+    };
+    if (this.active?.row !== cell.row || this.active.column !== cell.column)
+      this.activate(cell, { point: { x: event.clientX, y: event.clientY } });
+    this.open_cell_menu(cell, event.clientX, event.clientY);
+  };
+
+  // Shift-F10 or the menu key opens the same menu under the active cell.
+  private open_cell_menu_from_keyboard(): boolean {
+    if (!this.active || this.widget.read_only) return false;
+    const element = this.cell_element(this.active.row, this.active.column);
+    if (!element) return false;
+    const bounds = element.getBoundingClientRect();
+    this.open_cell_menu(this.active, bounds.left, bounds.bottom);
+    return true;
+  }
+
+  private open_cell_menu({ row, column }: ActiveCell, x: number, y: number) {
+    this.close_cell_menu();
     const columns = this.model.rows[0]?.cells.length ?? 0;
-    this.actions.append(
-      action_button("Add row", () => {
-        this.append_row(active.column);
+    const menu = document.createElement("div");
+    menu.className = "md-table-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Table");
+    const item = (label: string, action: () => void, disabled = false) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "md-table-menu-item";
+      button.setAttribute("role", "menuitem");
+      button.textContent = label;
+      button.disabled = disabled;
+      button.addEventListener("click", () => {
+        this.close_cell_menu();
+        action();
+      });
+      return button;
+    };
+    menu.append(
+      item("Insert row below", () => {
+        this.insert_row_below(row, column);
       }),
-      action_button(
+      item(
         "Delete row",
         () => {
-          const change = delete_row_change(
-            this.view.state,
-            this.model,
-            active.row,
-          );
+          const change = delete_row_change(this.view.state, this.model, row);
           if (change)
-            this.change_structure(
-              change,
-              { row: active.row - 1, column: active.column },
-              "end",
-            );
+            this.change_structure(change, { row: row - 1, column }, "end");
         },
-        active.row === 0,
+        row === 0,
       ),
-      action_button("Add column", () => {
+      item("Insert column left", () => {
         this.change_structure(
-          insert_column_changes(this.view.state, this.model, active.column + 1),
-          { row: active.row, column: active.column + 1 },
+          insert_column_changes(this.view.state, this.model, column),
+          { row, column },
           "start",
         );
       }),
-      action_button(
+      item("Insert column right", () => {
+        this.change_structure(
+          insert_column_changes(this.view.state, this.model, column + 1),
+          { row, column: column + 1 },
+          "start",
+        );
+      }),
+      item(
         "Delete column",
         () => {
           this.change_structure(
-            delete_column_changes(this.view.state, this.model, active.column),
-            { row: active.row, column: Math.min(active.column, columns - 2) },
+            delete_column_changes(this.view.state, this.model, column),
+            { row, column: Math.min(column, columns - 2) },
             "end",
           );
         },
         columns <= 1,
       ),
-      action_button("Edit Markdown", () => {
-        const block = block_for_dom(this.view, this.root);
-        if (!block) return;
-        this.drop_editor();
-        this.view.dispatch({
-          effects: edit_block_source.of(block.from),
-          selection: { anchor: block.from },
-        });
-        this.view.focus();
+      item("Edit Markdown", () => {
+        this.show_source();
       }),
     );
+    // Pressing an item must not move focus out of the menu first.
+    menu.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
+    menu.addEventListener("keydown", this.on_cell_menu_keydown);
+    this.root.append(menu);
+    this.cell_menu = menu;
+    // Fixed at the pointer, pulled back inside the window when it would
+    // overflow the right or bottom edge.
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = `${String(Math.max(0, Math.min(x, window.innerWidth - bounds.width)))}px`;
+    menu.style.top = `${String(Math.max(0, Math.min(y, window.innerHeight - bounds.height)))}px`;
+    const document_node = this.root.ownerDocument;
+    document_node.addEventListener(
+      "mousedown",
+      this.on_outside_mousedown,
+      true,
+    );
+    document_node.addEventListener("scroll", this.close_cell_menu, true);
+    window.addEventListener("blur", this.close_cell_menu);
+    menu
+      .querySelector<HTMLButtonElement>("button:enabled")
+      ?.focus({ preventScroll: true });
   }
+
+  private close_cell_menu = () => {
+    const menu = this.cell_menu;
+    if (!menu) return;
+    this.cell_menu = null;
+    const document_node = this.root.ownerDocument;
+    document_node.removeEventListener(
+      "mousedown",
+      this.on_outside_mousedown,
+      true,
+    );
+    document_node.removeEventListener("scroll", this.close_cell_menu, true);
+    window.removeEventListener("blur", this.close_cell_menu);
+    menu.remove();
+  };
+
+  private on_outside_mousedown = (event: MouseEvent) => {
+    if (!this.cell_menu?.contains(event.target as Node)) this.close_cell_menu();
+  };
+
+  // Escape or Tab closes the menu and returns to the cell. Arrow keys move
+  // between enabled items. Enter on a focused button clicks it natively.
+  private on_cell_menu_keydown = (event: KeyboardEvent) => {
+    const menu = this.cell_menu;
+    if (!menu) return;
+    if (event.key === "Escape" || event.key === "Tab") {
+      this.close_cell_menu();
+      this.editor?.inner.focus();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      const items = [
+        ...menu.querySelectorAll<HTMLButtonElement>("button:enabled"),
+      ];
+      const current = items.indexOf(
+        menu.ownerDocument.activeElement as HTMLButtonElement,
+      );
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const next = (current + step + items.length) % items.length;
+      items[next]?.focus({ preventScroll: true });
+    } else return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   // Clicking a cell activates it with the caret under the pointer. The
   // default mousedown would place a native caret before the editor exists.
   private on_mousedown = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
     if (event.button !== 0 || this.widget.read_only) return;
-    if (target.closest("[data-md-link-target], .md-table-actions")) return;
+    if (target.closest("[data-md-link-target]")) return;
     const element = target.closest<HTMLElement>("[data-row][data-col]");
     if (!element || !this.root.contains(element)) return;
     const cell = {
@@ -497,8 +684,16 @@ class TableController implements BlockController {
 
   private on_focusout = (event: FocusEvent) => {
     const next = event.relatedTarget as Node | null;
+    // The menu stays open only while focus is in it or in the cell it acts on.
+    if (
+      this.cell_menu &&
+      !this.cell_menu.contains(next) &&
+      !this.editor?.inner.dom.contains(next)
+    )
+      this.close_cell_menu();
     if (next && this.root.contains(next)) return;
-    // Wait a tick: the toolbar's mousedown moves focus before its click runs.
+    // Wait a tick: closing the menu drops its focused item, and the picked
+    // entry focuses a cell again right after.
     queueMicrotask(() => {
       if (!this.root.contains(this.root.ownerDocument.activeElement))
         this.drop_editor();
@@ -669,29 +864,6 @@ function require_model(state: EditorState, block: Block): TableModel {
   const model = table_model(state, block);
   if (!model) throw new RangeError("Table block has no table node");
   return model;
-}
-
-function action_button(
-  label: string,
-  action: () => void,
-  disabled = false,
-): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "md-table-action";
-  button.textContent = label;
-  button.setAttribute("aria-label", label);
-  button.disabled = disabled;
-  // Keep focus in the cell editor while pressing a toolbar button.
-  button.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-  });
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!button.disabled) action();
-  });
-  return button;
 }
 
 const cell_editor_theme = EditorView.theme({

@@ -11,29 +11,10 @@ import type { Render } from "../../core/inline_rendering.js";
 import type { KeyContext } from "../../core/keys.js";
 import type { InlineConstruct, LineConstruct } from "../../core/plugin.js";
 
-// Block spacing. A block sets the space it wants before itself and after
-// itself. The next block's first line takes the larger of the two, through
-// CSS max(), so a shared boundary is counted once.
-export const paragraph_gap =
-  "var(--editor-paragraph-spacing, var(--editor-spacing, 1.5rem))";
-const heading_gap_before = [0, 2, 1.75, 1.5, 1.25, 1, 0.75];
-const heading_gap_after = [0, 1, 0.85, 0.5, 0.5, 0.4, 0.4];
-
-export function set_gap_after(render: Render, node: SyntaxNode, gap: string) {
-  if (node.parent?.name !== "Document") return;
-  const next = node.nextSibling;
-  if (!next) return;
-  render.gap(next, { after: gap });
-}
-
 export const paragraph: LineConstruct = {
   kind: "line",
   name: "paragraph",
   nodes: ["Paragraph", "Task"],
-  decorate(node, render) {
-    if (node.name === "Paragraph")
-      set_gap_after(render, node.node, paragraph_gap);
-  },
   keys: { "Shift-Enter": insert_hard_break },
 };
 
@@ -100,7 +81,6 @@ export const heading: LineConstruct = {
       return;
     }
     const level = Number(/\d$/.exec(node.name)?.[0] ?? "1");
-    const top_level = node.node.parent?.name === "Document";
     const { doc } = render.state;
     const first = doc.lineAt(node.from);
     const marks = node.node.getChildren("HeaderMark");
@@ -128,20 +108,6 @@ export const heading: LineConstruct = {
         render.line(underline_line.from, "md-setext-underline");
         render.hide(underline_line.from, underline_line.to);
       }
-    }
-    if (top_level) {
-      render.line(first.from, "md-prose-heading");
-      render.gap(node.node, {
-        before:
-          level === 1 && !node.node.prevSibling
-            ? "0px"
-            : `calc(var(--editor-spacing, 1.5rem) * ${String(heading_gap_before[level] ?? 1)})`,
-      });
-      set_gap_after(
-        render,
-        node.node,
-        `calc(var(--editor-spacing, 1.5rem) * ${String(heading_gap_after[level] ?? 0.5)} * var(--editor-heading-spacing-after, 1))`,
-      );
     }
   },
 };
@@ -317,6 +283,7 @@ export const indented_code: LineConstruct = {
   nodes: ["CodeBlock"],
   literal: true,
   decorate(node, render) {
+    render.wrap(node.node, "md-indented-code");
     render.lines(node.from, node.to, "md-code-line");
   },
 };
@@ -342,11 +309,9 @@ export const list_spacing: LineConstruct = {
     let previous: SyntaxNode | null = null;
     for (let item = node.node.firstChild; item; item = item.nextSibling) {
       if (item.name !== "ListItem") continue;
-      // Items sit at normal line spacing unless the theme sets
-      // --editor-list-item-spacing. The blank separator rows of a loose list
-      // add their own space on top.
+      // Items sit at normal line spacing. Only the blank separator rows of a
+      // loose list add space between them.
       if (previous) {
-        render.wrap(item, "md-list-item-spaced");
         const from = doc.lineAt(previous.to).number + 1;
         const to = doc.lineAt(item.from).number;
         for (let number = from; number < to; number++)
@@ -360,7 +325,6 @@ export const list_spacing: LineConstruct = {
       }
       previous = item;
     }
-    set_gap_after(render, node.node, paragraph_gap);
   },
 };
 

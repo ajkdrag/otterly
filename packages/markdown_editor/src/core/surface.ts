@@ -382,7 +382,10 @@ export class NestedEditor {
 
   private run_history(command: typeof source_undo): boolean {
     const changed = command(this.outer);
-    if (changed) focus_selection(this.outer);
+    // When the history took the caret out of this surface, or removed the
+    // block (and this view with it), no surface owns the caret. Focus would
+    // fall to the body, and the next key would go nowhere.
+    if (changed && !focus_selection(this.outer)) this.outer.focus();
     return true;
   }
 

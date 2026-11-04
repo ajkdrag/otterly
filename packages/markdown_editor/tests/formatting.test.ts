@@ -2,9 +2,17 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
+import { set_editor_mode } from "../src/core/editor_mode";
 import type { MarkdownPlugin } from "../src/core/plugin";
 import { source_undo } from "../src/core/source_state";
-import { code_blocks } from "../src/plugins/code_blocks/index";
+import {
+  code_blocks,
+  convert_to_code_block,
+} from "../src/plugins/code_blocks/index";
+import {
+  toggle_list,
+  type ListKind,
+} from "../src/plugins/commonmark/block_commands";
 import { commonmark } from "../src/plugins/commonmark/index";
 import { frontmatter } from "../src/plugins/frontmatter/index";
 import { gfm } from "../src/plugins/gfm/index";
@@ -441,24 +449,30 @@ describe("block style shortcuts", () => {
     expect(doc(test)).toBe("> # title");
   });
 
-  test("FMT-007 each paragraph becomes one list item, continuation lines indented", () => {
-    const test = editor("‹one\ntwo\n\nthree‸");
-    test.press("Mod-Alt-7");
-    expect(doc(test)).toBe("1. one\n   two\n\n2. three");
-  });
-
-  test("FMT-007 a bullet inside a quote keeps the quote markers on every line", () => {
+  test("FMT-007 a caret marks only its own line, inside the quote", () => {
     const test = editor("> o‸ne\n> two");
     test.press("Mod-Alt-8");
-    expect(doc(test)).toBe("> - one\n>   two");
+    expect(doc(test)).toBe("> - one\n> two");
   });
 
+  test.each([
+    ["- item‸", "item"],
+    ["1. item‸", "- item"],
+  ])(
+    "FMT-007 the bullet key restyles an existing item: %j",
+    (source, expected) => {
+      const test = editor(source);
+      test.press("Mod-Alt-8");
+      expect(doc(test)).toBe(expected);
+    },
+  );
+
   test.each(["- item‸", "1. item‸"])(
-    "FMT-007 an existing list item is not restyled: %s",
+    "FMT-007 heading and code keys leave the first paragraph of an item alone: %s",
     (source) => {
       const test = editor(source);
       const before = doc(test);
-      test.press("Mod-Alt-8", "Mod-Alt-2", "Mod-Alt-c");
+      test.press("Mod-Alt-2", "Mod-Alt-c");
       expect(doc(test)).toBe(before);
     },
   );
@@ -483,7 +497,7 @@ describe("block style shortcuts", () => {
   ])("FMT-007 literal content rejects block shortcuts: %j", (source) => {
     const test = editor(source);
     const before = test.saved();
-    test.press("Mod-Alt-1", "Mod-Alt-c");
+    test.press("Mod-Alt-1", "Mod-Alt-8", "Mod-Alt-c");
     expect(test.saved()).toBe(before);
   });
 
@@ -497,6 +511,198 @@ describe("block style shortcuts", () => {
     const test = with_cursors("one\n\nskip\n\nthree", [1, 13]);
     test.press("Mod-Alt-2");
     expect(doc(test)).toBe("## one\n\nskip\n\n## three");
+  });
+});
+
+describe("toggling lists over selected lines", () => {
+  const toggle = (source: string, kind: ListKind) => {
+    const test = editor(source);
+    toggle_list(kind)(test.view);
+    return test;
+  };
+
+  test.each<[ListKind, string, string]>([
+    ["bullet", "‹one\ntwo\nthree‸", "- one\n- two\n- three"],
+    ["bullet", "‹one\ntwo\n\nthree\nfour‸", "- one\n- two\n\n- three\n- four"],
+    ["ordered", "‹one\n\ntwo\nthree‸", "1. one\n\n2. two\n3. three"],
+    ["ordered", "‹- a\n- b‸", "1. a\n2. b"],
+    ["bullet", "‹- a\nplain\n1. c‸", "- a\n- plain\n- c"],
+    ["task", "‹- a\nb‸", "- [ ] a\n- [ ] b"],
+    ["task", "‹* a‸", "* [ ] a"],
+    ["bullet", "‹- [x] a‸", "- a"],
+    ["bullet", "‹> one\n> two‸", "> - one\n> - two"],
+    ["ordered", "‹  indented‸", "1. indented"],
+  ])("FMT-007 %s list from %j", (kind, source, expected) => {
+    expect(doc(toggle(source, kind))).toBe(expected);
+  });
+
+  test.each<[ListKind, string, string]>([
+    ["bullet", "‹- a\n- b‸", "a\nb"],
+    ["task", "‹- [ ] a\n- [x] b‸", "a\nb"],
+    ["ordered", "‹1. a\n\n2) b‸", "a\n\nb"],
+  ])(
+    "FMT-007 %s toggles off when every line already is one: %j",
+    (kind, source, expected) => {
+      expect(doc(toggle(source, kind))).toBe(expected);
+    },
+  );
+
+  test("FMT-007 a lazy quoted line gets its quote marker back", () => {
+    expect(doc(toggle("‹> one\ntwo‸", "bullet"))).toBe("> - one\n> - two");
+  });
+
+  test("FMT-007 a caret on an empty line gets a marker and stays after it", () => {
+    const test = toggle("one\n\n‸", "bullet");
+    expect(test.source()).toBe("one\n\n- ‸");
+  });
+
+  test("FMT-007 a selection ending at the start of a line leaves that line alone", () => {
+    expect(doc(toggle("‹one\ntwo\n‸three", "bullet"))).toBe(
+      "- one\n- two\nthree",
+    );
+  });
+
+  test("FMT-007 continuation lines stay with their item", () => {
+    expect(doc(toggle("‹- a\n  b‸", "ordered"))).toBe("1. a\n   b");
+    expect(doc(toggle("‹- a\n  b‸", "bullet"))).toBe("a\nb");
+  });
+
+  test("FMT-007 nested items keep their nesting and number per parent", () => {
+    expect(doc(toggle("‹- a\n  - b\n- c\n  - d‸", "ordered"))).toBe(
+      "1. a\n   1. b\n2. c\n   1. d",
+    );
+  });
+
+  test("FMT-007 an unselected child follows its parent's wider marker", () => {
+    expect(doc(toggle("- a‸\n  - b", "ordered"))).toBe("1. a\n   - b");
+  });
+
+  test("FMT-007 removing a middle item does not glue it onto the item above", () => {
+    expect(doc(toggle("- a\n- ‹b‸\n- c", "bullet"))).toBe("- a\n\nb\n- c");
+  });
+
+  test.each([
+    ["‹1. a‸\n2. b", "a\n\n2. b"],
+    ["1. a\n2. ‹b‸\n3. c", "1. a\n\nb\n\n3. c"],
+    ["‹1. a\n   more‸\n2. b", "a\nmore\n\n2. b"],
+  ])(
+    "FMT-007 removing an item does not glue the next numbered item onto it: %j",
+    (source, expected) => {
+      expect(doc(toggle(source, "ordered"))).toBe(expected);
+    },
+  );
+
+  test.each<[ListKind, string, string]>([
+    ["bullet", "a\n‸\nb", "a\n\n- \nb"],
+    ["ordered", "a\n‸\nb", "a\n\n1. \nb"],
+    ["bullet", "a\n‸", "a\n\n- "],
+  ])(
+    "FMT-007 a marker on a blank line under a paragraph does not join it: %s %j",
+    (kind, source, expected) => {
+      expect(doc(toggle(source, kind))).toBe(expected);
+    },
+  );
+
+  test.each<[string, string]>([
+    ["1. a\n2. b\n‹c‸", "1. a\n2. b\n3. c"],
+    ["1. a\n2. b\n3. ‹c\nd‸", "1. a\n2. b\n3. c\n4. d"],
+    ["1. a\n   - x\n‹c‸", "1. a\n   - x\n2. c"],
+  ])(
+    "FMT-007 ordered numbering continues the list directly above: %j",
+    (source, expected) => {
+      expect(doc(toggle(source, "ordered"))).toBe(expected);
+    },
+  );
+
+  test.each<[ListKind, string, string]>([
+    ["bullet", "‹+ a\nb‸", "+ a\n+ b"],
+    ["ordered", "‹1) a\nb‸", "1) a\n2) b"],
+    ["bullet", "* a\n‹b‸", "* a\n* b"],
+  ])(
+    "FMT-007 new items use the list's own bullet or delimiter: %s %j",
+    (kind, source, expected) => {
+      expect(doc(toggle(source, kind))).toBe(expected);
+    },
+  );
+
+  test.each(["‹- \n- b‸", "‹-\n- b‸"])(
+    "FMT-007 an empty item loses its marker like the others: %j",
+    (source) => {
+      expect(doc(toggle(source, "bullet"))).toBe("\nb");
+    },
+  );
+
+  test("FMT-007 a callout title keeps its place and its body becomes a list", () => {
+    expect(doc(toggle("‹> [!note] Title\n> body‸", "bullet"))).toBe(
+      "> [!note] Title\n> - body",
+    );
+  });
+
+  test.each(["# ti‸tle", "‹Title\n===‸", "text\n\n‹***‸"])(
+    "FMT-007 headings and rules get no marker: %j",
+    (source) => {
+      const test = toggle(source, "bullet");
+      expect(test.saved()).toBe(source.replace(/[‹‸]/g, ""));
+    },
+  );
+
+  test("FMT-007 a heading in the selection keeps its text and restarts numbering", () => {
+    expect(doc(toggle("‹one\n# h\ntwo\nthree‸", "ordered"))).toBe(
+      "1. one\n# h\n1. two\n2. three",
+    );
+  });
+
+  test.each<[string, string]>([
+    ["‹a\n\n> b\n\nc‸", "1. a\n\n> 1. b\n\n1. c"],
+    ["‹> a\n> b\n\nc‸", "> 1. a\n> 2. b\n\n1. c"],
+    ["‹> a\n>\n> > b\n>\n> c‸", "> 1. a\n>\n> > 1. b\n>\n> 1. c"],
+    ["1. x\n‹> a‸", "1. x\n> 1. a"],
+    ["‹1) a\n\n> b‸", "1) a\n\n> 1. b"],
+  ])(
+    "FMT-007 ordered numbering restarts when the quote around the line changes: %j",
+    (source, expected) => {
+      expect(doc(toggle(source, "ordered"))).toBe(expected);
+    },
+  );
+
+  test("FMT-007 a selected continuation paragraph becomes a nested item and back", () => {
+    const test = editor("- a\n\n  ‹b‸");
+    test.press("Mod-Alt-8");
+    expect(doc(test)).toBe("- a\n\n  - b");
+    test.press("Mod-Alt-8");
+    expect(doc(test)).toBe("- a\n\n  b");
+  });
+
+  test("FMT-007 a selected continuation line becomes a nested item and back", () => {
+    const test = editor("1. a\n   ‹cont‸");
+    test.press("Mod-Alt-7");
+    expect(doc(test)).toBe("1. a\n   1. cont");
+    // Removing a nested item never glues its text onto the parent's paragraph.
+    test.press("Mod-Alt-7");
+    expect(doc(test)).toBe("1. a\n\n   cont");
+  });
+
+  test("FMT-007 removing a nested item and the next outer item keeps them apart", () => {
+    const test = editor("- a\n  - ‹b\n- c‸");
+    test.press("Mod-Alt-8");
+    expect(doc(test)).toBe("- a\n\n  b\n\nc");
+    test.press("Mod-Alt-8");
+    expect(doc(test)).toBe("- a\n\n  - b\n\n- c");
+    test.press("Mod-Alt-8");
+    expect(doc(test)).toBe("- a\n\n  b\n\nc");
+  });
+
+  test("FMT-007 a selection touching a fence changes nothing", () => {
+    const source = "‹one\n```\nx\n```\ntwo‸";
+    expect(doc(toggle(source, "bullet"))).toBe(source.replace(/[‹‸]/g, ""));
+  });
+
+  test("FMT-007 one undo reverts the whole list conversion", () => {
+    const test = editor("‹one\ntwo\n\n- three‸");
+    test.press("Mod-Alt-7");
+    expect(doc(test)).toBe("1. one\n2. two\n\n3. three");
+    expect(source_undo(test.view)).toBe(true);
+    expect(doc(test)).toBe("one\ntwo\n\n- three");
   });
 });
 
@@ -544,5 +750,75 @@ describe("converting prose to code", () => {
     const test = editor("```` ``‸` ````");
     test.press("Mod-Alt-c");
     expect(doc(test)).toContain("````\n");
+  });
+
+  test.each([
+    ["‹one\ntwo\n\nthree\nfour‸", "```\none\ntwo\n\nthree\nfour\n```"],
+    ["‹# h\npara\n\nmore‸", "```\nh\npara\n\nmore\n```"],
+    ["‹> one\n>\n> **two**‸", "> ```\n> one\n>\n> two\n> ```"],
+    ["‹one\n\n- **item**\n\ntwo‸", "```\none\n\n- **item**\n\ntwo\n```"],
+  ])("FMT-008 one selection makes one fence: %j", (source, expected) => {
+    const test = editor(source);
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe(expected);
+  });
+
+  test("FMT-008 a line that leaves the quote ends the fence and the next block starts another", () => {
+    const test = editor("‹> one\n\ntwo‸");
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe("> ```\n> one\n> ```\n\n```\ntwo\n```");
+  });
+
+  test("FMT-008 in source mode the fence keeps the Markdown source the user sees", () => {
+    const test = editor("‹# Head\n\nsome **bold** and [a](b)‸");
+    set_editor_mode(test.view, "source");
+    convert_to_code_block(test.view);
+    expect(doc(test)).toBe("```\n# Head\n\nsome **bold** and [a](b)\n```");
+  });
+
+  test("FMT-008 a selected block with another prefix at the end gets its own fence", () => {
+    const test = editor("‹one\n\n> quoted‸");
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe("```\none\n```\n\n> ```\n> quoted\n> ```");
+  });
+
+  test("FMT-008 a selection touching an HTML comment changes nothing", () => {
+    const source = "‹one\n\n<!-- c -->\n\ntwo‸";
+    const test = editor(source);
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe(source.replace(/[‹‸]/g, ""));
+  });
+
+  test("FMT-008 a callout title keeps its marker and its body becomes code", () => {
+    const test = editor("‹> [!note] Title\n>\n> body‸");
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe("> [!note] Title\n>\n> ```\n> body\n> ```");
+  });
+
+  test("FMT-008 each selection range gets its own fence", () => {
+    const test = with_cursors("one\n\nskip\n\nthree", [1, 13]);
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe("```\none\n```\n\nskip\n\n```\nthree\n```");
+  });
+
+  test("FMT-008 two carets in one paragraph make one fence", () => {
+    const test = with_cursors("one two", [1, 5]);
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe("```\none two\n```");
+  });
+
+  test("FMT-008 a selection touching a fence changes nothing", () => {
+    const source = "‹one\n```\nx\n```\ntwo‸";
+    const test = editor(source);
+    test.press("Mod-Alt-c");
+    expect(doc(test)).toBe(source.replace(/[‹‸]/g, ""));
+  });
+
+  test("FMT-008 a selection across blank lines keeps its text and direction", () => {
+    const test = editor("o‸ne\n\n**thr**‹ee");
+    test.press("Mod-Alt-c");
+    expect(selected(test)).toEqual({ text: "ne\n\nthr", backwards: true });
+    expect(source_undo(test.view)).toBe(true);
+    expect(doc(test)).toBe("one\n\n**thr**ee");
   });
 });

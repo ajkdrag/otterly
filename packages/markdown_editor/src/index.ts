@@ -91,9 +91,14 @@ export {
   change_list_indent,
   delimited_mark,
 } from "./plugins/commonmark/index.js";
+export {
+  toggle_list,
+  type ListKind,
+} from "./plugins/commonmark/block_commands.js";
 export { gfm } from "./plugins/gfm/index.js";
 export {
   code_blocks,
+  convert_to_code_block,
   read_code_block_view_states,
   set_code_block_view_states,
   refresh_code_diagrams,
@@ -138,6 +143,7 @@ export {
   type MarkdownClipboardOptions,
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
+export { line_numbers } from "./plugins/line_numbers.js";
 export {
   vim_keybindings,
   close_vim_prompt,
