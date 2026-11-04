@@ -1,6 +1,6 @@
 [package]
 name = "otterly"
-version = "0.7.1"
+version = "0.8.0"
 description = "Local-first markdown vault"
 authors = ["altamkhan"]
 edition = "2021"
