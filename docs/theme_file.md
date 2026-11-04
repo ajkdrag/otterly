@@ -106,12 +106,12 @@ Every key is optional. `theme.schema.json` lists all of them with types, ranges 
 
 - Base: `name`, `extends`, `color_scheme` (`light` or `dark`)
 - Interface: `accent_hue`, `accent_chroma`, `ui_radius`, `file_tree_density`, `font_family_sans`, `font_family_mono`
-- Typography: `font_size`, `line_height`, `paragraph_spacing`, `heading_spacing_after`, `list_item_spacing`, `spacing`, `editor_text_color`, `link_color`
+- Typography: `font_size`, `line_height`, `paragraph_spacing`, `spacing`, `editor_text_color`, `link_color`
 - Layout: `editor_padding_x`, `editor_padding_y`, `editor_max_width_ch`
 - Headings: `heading_color`, `heading_font_weight`, `heading_1_size` to `heading_6_size`
 - Bold and italic: `bold_style`, `bold_color`, `italic_color`
 - Blockquotes: `blockquote_style`, `blockquote_border_color`, `blockquote_bg_color`, `blockquote_text_color`
-- Code: `inline_code_bg`, `inline_code_text_color`, `code_block_style`, `code_block_bg`, `code_block_text_color`, `code_block_radius`
+- Code: `inline_code_bg`, `inline_code_text_color`, `code_block_style`, `code_block_bg`, `code_block_text_color`, `code_block_radius`, `block_padding_y`, `block_margin_y`
 - Highlights and tables: `highlight_bg`, `highlight_text_color`, `selection_bg`, `caret_color`, `table_border_color`, `table_header_bg`, `table_cell_padding`
 - Tags: `tag_text_color`, `tag_bg`, `tag_border_color`, `tag_radius`, `tag_padding_x`
 - Escape hatch: `tokens`
@@ -122,6 +122,10 @@ Rules worth knowing:
 - Fonts are one family name, like `Inter`. Not a CSS stack: `Inter, sans-serif` is an error.
 - `editor_max_width_ch: null` and leaving it out both mean "use the Layout setting". A number overrides the Layout setting while this theme is active.
 - `file_tree_density` (`compact`, `normal`, `comfortable`) sets the file tree row height to 26, 30 or 34 px. The tree is virtualized and places its rows from this setting, so `--size-tree-row` in `tokens` is an error.
+- `paragraph_spacing` is the height of each blank row between blocks, in rem. Blocks with no blank row between them touch. Values below 1.25em change nothing, because a blank row is never shorter than that (the caret needs the room).
+- `block_padding_y` is the space above and below the text inside code blocks, quotes and callouts, in rem (0.5 to 1.5). The bottom inset of a code block is its resize handle, and below 0.5 it gets too thin to grab.
+- `block_margin_y` is the space above and below code blocks, tables, quotes and callouts, in rem (default 0.5). It keeps a box from touching its neighbour when there is no blank row. A blank row adds `paragraph_spacing` on top.
+- `heading_spacing_after` and `list_item_spacing` were removed. Old files that set them still load, the keys are ignored.
 - `ui_radius` is in rem and sets `--radius`.
 - The tag keys style the `#tag` chips in notes and in the omnibar, the Tags pane and the links panel. `tag_radius` is a multiplier of `--radius`, and `tag_padding_x` is in em. Leave `tag_border_color` unset (or `null`) for no outline. The hover look follows the text and background colors. To set it yourself, use the `--editor-tag-text-hover` and `--editor-tag-bg-hover` tokens. `--editor-tag-hash-opacity` sets how faint the `#` is.
 - Older WebKitGTK builds (Linux) may not know `light-dark()`, so a color or color token written with it fails validation there. "Create from current theme" on a copy of Mocha writes a lot of them. I have not verified which WebKitGTK versions are affected. If you hit it, start from `nordic-dark` or `nordic-light`, or use plain colors.

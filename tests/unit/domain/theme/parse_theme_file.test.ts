@@ -132,6 +132,16 @@ describe("parse_theme_file", () => {
     ]);
   });
 
+  it("skips fields retired from older versions instead of rejecting the file", () => {
+    const theme = parse_valid(
+      "heading_spacing_after: 1\nlist_item_spacing: 1\nfont_size: 1.1\n",
+    );
+
+    expect(theme.font_size).toBe(1.1);
+    expect(theme).not.toHaveProperty("heading_spacing_after");
+    expect(theme).not.toHaveProperty("list_item_spacing");
+  });
+
   it("says JSON comments are not allowed, not that a strange key is unknown", () => {
     const errors = parse_errors(
       '{\n  "name": "x", // warm\n  "accent_hue": 10\n}',
@@ -161,6 +171,12 @@ describe("parse_theme_file", () => {
         message: "font_size must be a number from 0.875 to 1.25 (got 2)",
       },
     ]);
+  });
+
+  it("rejects a block padding too thin to grab the code block resize handle", () => {
+    expect(parse_errors("block_padding_y: 0.25\n")[0]?.message).toBe(
+      "block_padding_y must be a number from 0.5 to 1.5 (got 0.25)",
+    );
   });
 
   it("rejects numbers written as strings", () => {

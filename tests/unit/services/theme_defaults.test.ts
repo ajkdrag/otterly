@@ -35,7 +35,7 @@ describe("theme defaults", () => {
       font_family_mono: "IBM Plex Mono",
       font_size: 1,
       line_height: 1.7,
-      paragraph_spacing: 1.25,
+      paragraph_spacing: 1.5,
       spacing: "normal",
       heading_color: "inherit",
       heading_font_weight: 500,
@@ -51,6 +51,8 @@ describe("theme defaults", () => {
       blockquote_style: "default",
       code_block_style: "default",
       code_block_radius: 0.5,
+      block_padding_y: 0.75,
+      block_margin_y: 0.5,
       table_cell_padding: 0.65,
       tag_text_color: null,
       tag_bg: null,
@@ -112,6 +114,60 @@ describe("theme defaults", () => {
       ui_radius: 0.25,
       file_tree_density: "normal",
       editor_max_width_ch: null,
+    });
+  });
+
+  it("loads a theme saved with the retired spacing fields and fills the block insets", async () => {
+    const saved_before: Record<string, unknown> = {
+      ...BUILTIN_NORDIC_LIGHT,
+      id: "old_spacing",
+      name: "Saved with list spacing",
+      is_builtin: false,
+      heading_spacing_after: 2,
+      list_item_spacing: 1,
+      paragraph_spacing: 2,
+    };
+    delete saved_before.block_padding_y;
+    delete saved_before.block_margin_y;
+    const service = create_theme_service({
+      active_theme_id: "old_spacing",
+      user_themes: [saved_before],
+    });
+
+    const result = await service.load_themes();
+
+    expect(result.user_themes[0]).toMatchObject({
+      id: "old_spacing",
+      paragraph_spacing: 2,
+      block_padding_y: 0.75,
+      block_margin_y: 0.5,
+    });
+    expect(result.user_themes[0]).not.toHaveProperty("list_item_spacing");
+    expect(result.user_themes[0]).not.toHaveProperty("heading_spacing_after");
+  });
+
+  it("clamps saved block insets and margins to the slider ranges", async () => {
+    const service = create_theme_service({
+      user_themes: [
+        {
+          ...BUILTIN_MOCHA,
+          id: "thin",
+          block_padding_y: 0,
+          block_margin_y: -1,
+        },
+        { ...BUILTIN_MOCHA, id: "wide", block_padding_y: 9, block_margin_y: 9 },
+      ],
+    });
+
+    const result = await service.load_themes();
+
+    expect(result.user_themes[0]).toMatchObject({
+      block_padding_y: 0.5,
+      block_margin_y: 0,
+    });
+    expect(result.user_themes[1]).toMatchObject({
+      block_padding_y: 1.5,
+      block_margin_y: 1.5,
     });
   });
 

@@ -6,6 +6,9 @@
   /* Runtime-configurable tokens (modified via settings) */
   --editor-font-size: 1rem;
   --editor-zoom: 1;
+  /* "flex" shows the line number gutter in source mode and text files. */
+  --editor-gutter-display: none;
+  --editor-line-number-color: var(--muted-foreground);
   --editor-line-height: 1.85;
   --editor-max-width: min(85ch, 90%);
   --editor-spacing: 1.5rem;
@@ -19,6 +22,8 @@
   --editor-code-block-max-height: 24rem;
   --editor-code-font-size: calc(0.8125rem * var(--editor-zoom));
   --editor-code-line-height: 1.5;
+  --editor-block-padding-y: 0.75rem;
+  --editor-block-margin-y: 0.5rem;
 
   /* Body text — warm gray, softer than foreground for comfortable reading */
   --editor-text: oklch(0.46 0.01 55);

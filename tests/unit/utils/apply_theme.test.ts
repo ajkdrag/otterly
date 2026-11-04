@@ -82,6 +82,19 @@ describe("apply_theme", () => {
     expect(store.get("--editor-heading-font")).toBe("var(--font-heading)");
   });
 
+  it("sets the block padding and margin and none of the retired spacing variables", () => {
+    apply_theme({
+      ...BUILTIN_NORDIC_DARK,
+      block_padding_y: 1,
+      block_margin_y: 0.25,
+    });
+
+    expect(store.get("--editor-block-padding-y")).toBe("1rem");
+    expect(store.get("--editor-block-margin-y")).toBe("0.25rem");
+    expect(store.has("--editor-heading-spacing-after")).toBe(false);
+    expect(store.has("--editor-list-item-spacing")).toBe(false);
+  });
+
   it("cleans up previous theme properties on switch", () => {
     const custom = {
       ...BUILTIN_NORDIC_DARK,

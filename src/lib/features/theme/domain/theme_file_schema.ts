@@ -5,6 +5,7 @@ import {
 } from "$lib/features/theme/domain/theme_style_descriptors";
 import {
   FONT_FAMILY_PATTERN,
+  RETIRED_THEME_KEYS,
   TOKEN_NAME_PATTERN,
 } from "$lib/features/theme/domain/parse_theme_file";
 
@@ -42,6 +43,14 @@ export function build_theme_file_schema(): JsonSchema {
 
   for (const desc of STYLE_DESCRIPTORS) {
     properties[desc.theme_key] = descriptor_schema(desc);
+  }
+
+  // Listed so editors do not flag old files. The parser skips them.
+  for (const key of RETIRED_THEME_KEYS) {
+    properties[key] = {
+      deprecated: true,
+      description: "No longer used. Otterly ignores it.",
+    };
   }
 
   properties.tokens = {

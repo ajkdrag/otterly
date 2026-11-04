@@ -53,6 +53,12 @@ const TREE_ROW_TOKEN = "--size-tree-row";
 // "Inter, sans-serif" would silently match no font at all.
 export const FONT_FAMILY_PATTERN = /^[^",;\\\n\r]+$/;
 const DEFAULT_FILE_THEME_NAME = "Theme file";
+// Fields that no longer do anything. Files written for older versions still
+// set them, so they are skipped instead of failing the whole file as unknown.
+export const RETIRED_THEME_KEYS = new Set([
+  "heading_spacing_after",
+  "list_item_spacing",
+]);
 // JSON has no comments. In a { } block YAML folds a // or /* comment into the
 // next key, so it shows up as a key that starts like this. Without a message
 // of its own it reads as an unknown key with a strange name.
@@ -155,6 +161,8 @@ function parse_theme_file_text(
       tokens = read_tokens(entry.node, doc, line_at, errors, is_valid_color);
       continue;
     }
+
+    if (RETIRED_THEME_KEYS.has(key)) continue;
 
     const desc = DESCRIPTOR_BY_KEY.get(key);
     if (!desc) {

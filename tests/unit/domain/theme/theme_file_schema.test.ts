@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { build_theme_file_schema } from "$lib/features/theme/domain/theme_file_schema";
-import { parse_theme_file } from "$lib/features/theme/domain/parse_theme_file";
+import {
+  RETIRED_THEME_KEYS,
+  parse_theme_file,
+} from "$lib/features/theme/domain/parse_theme_file";
 import { STYLE_DESCRIPTORS } from "$lib/features/theme/domain/theme_style_descriptors";
 
 type PropertySchema = {
@@ -23,6 +26,7 @@ function sample_value(key: string): unknown {
     case "tokens":
       return { "--sidebar": "red" };
   }
+  if (RETIRED_THEME_KEYS.has(key)) return 1;
   const desc = STYLE_DESCRIPTORS.find((d) => d.theme_key === key);
   if (!desc) throw new Error(`no sample value for schema key ${key}`);
   switch (desc.control) {

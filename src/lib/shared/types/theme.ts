@@ -34,8 +34,6 @@ export type Theme = {
   font_size: number;
   line_height: number;
   paragraph_spacing: number;
-  heading_spacing_after: number;
-  list_item_spacing: number;
   spacing: ThemeSpacing;
   heading_color: ThemeHeadingColor;
   heading_font_weight: number;
@@ -68,6 +66,11 @@ export type Theme = {
   code_block_bg: string | null;
   code_block_text_color: string | null;
   code_block_radius: number;
+  // Space above and below the text inside code blocks, quotes and callouts.
+  block_padding_y: number;
+  // Space above and below boxed blocks (code, table, quote, callout), so a
+  // box never touches its neighbour.
+  block_margin_y: number;
   inline_code_bg: string | null;
   inline_code_text_color: string | null;
   highlight_bg: string | null;
@@ -96,9 +99,7 @@ const SHARED_DEFAULTS: Omit<
   font_family_mono: "IBM Plex Mono",
   font_size: 1.0,
   line_height: 1.7,
-  paragraph_spacing: 1.25,
-  heading_spacing_after: 1,
-  list_item_spacing: 0,
+  paragraph_spacing: 1.5,
   spacing: "normal",
   heading_color: "inherit",
   heading_font_weight: 500,
@@ -126,6 +127,8 @@ const SHARED_DEFAULTS: Omit<
   code_block_bg: null,
   code_block_text_color: null,
   code_block_radius: 0.5,
+  block_padding_y: 0.75,
+  block_margin_y: 0.5,
   inline_code_bg: null,
   inline_code_text_color: null,
   highlight_bg: null,

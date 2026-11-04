@@ -47,8 +47,9 @@ export const code_block_theme = CodeMirrorView.theme({
     fontFamily: "var(--font-mono)",
     fontSize: "var(--editor-code-font-size)",
   },
+  // No bottom inset: the code block's resize handle row below the box is it.
   ".cm-content": {
-    padding: "0.75rem 0",
+    padding: "var(--editor-block-padding-y) 0 0",
     caretColor: "var(--caret-color, var(--foreground))",
   },
   ".cm-line": { padding: "0 0.75rem" },

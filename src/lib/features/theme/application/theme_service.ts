@@ -20,6 +20,7 @@ import {
   parse_theme_file,
 } from "$lib/features/theme/domain/parse_theme_file";
 import { build_theme_file_schema } from "$lib/features/theme/domain/theme_file_schema";
+import { STYLE_DESCRIPTORS } from "$lib/features/theme/domain/theme_style_descriptors";
 import { theme_to_file_text } from "$lib/features/theme/domain/theme_file_text";
 import { error_message } from "$lib/shared/utils/error_message";
 import { create_logger } from "$lib/shared/utils/logger";
@@ -273,11 +274,6 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
     font_size: num(raw.font_size, defaults.font_size),
     line_height: num(raw.line_height, defaults.line_height),
     paragraph_spacing: num(raw.paragraph_spacing, defaults.paragraph_spacing),
-    heading_spacing_after: num(
-      raw.heading_spacing_after,
-      defaults.heading_spacing_after,
-    ),
-    list_item_spacing: num(raw.list_item_spacing, defaults.list_item_spacing),
     spacing: enum_val(
       raw.spacing,
       ["compact", "normal", "spacious"],
@@ -336,6 +332,8 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
     code_block_bg: nullable_str(raw.code_block_bg),
     code_block_text_color: nullable_str(raw.code_block_text_color),
     code_block_radius: num(raw.code_block_radius, defaults.code_block_radius),
+    block_padding_y: ranged_num(raw, "block_padding_y", defaults),
+    block_margin_y: ranged_num(raw, "block_margin_y", defaults),
     inline_code_bg: nullable_str(raw.inline_code_bg),
     inline_code_text_color: nullable_str(raw.inline_code_text_color),
     highlight_bg: nullable_str(raw.highlight_bg),
@@ -360,6 +358,18 @@ function normalize_theme(raw: Record<string, unknown>): Theme {
 
 function num(val: unknown, fallback: number): number {
   return typeof val === "number" && Number.isFinite(val) ? val : fallback;
+}
+
+// Saved themes skip the theme file checks. A block inset of 0 would leave no
+// code block resize handle to grab, so these keys are kept in slider range.
+function ranged_num(
+  raw: Record<string, unknown>,
+  key: "block_padding_y" | "block_margin_y",
+  defaults: Theme,
+): number {
+  const value = num(raw[key], defaults[key]);
+  const desc = STYLE_DESCRIPTORS.find((entry) => entry.theme_key === key);
+  return Math.min(desc?.max ?? value, Math.max(desc?.min ?? value, value));
 }
 
 function nullable_num(val: unknown): number | null {
