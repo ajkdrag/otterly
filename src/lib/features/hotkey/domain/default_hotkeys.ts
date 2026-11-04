@@ -245,4 +245,12 @@ export const DEFAULT_HOTKEYS: HotkeyBinding[] = [
     description: "Reset editor zoom to 100%",
     category: "editing",
   },
+  {
+    action_id: ACTION_IDS.editor_toggle_line_numbers,
+    key: "CmdOrCtrl+Shift+Y",
+    phase: "capture",
+    label: "Toggle Line Numbers",
+    description: "Show or hide line numbers in source mode and text files",
+    category: "editing",
+  },
 ];

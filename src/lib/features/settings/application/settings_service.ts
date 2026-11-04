@@ -183,6 +183,17 @@ export class SettingsService {
     }
   }
 
+  // Saved on every toggle, like zoom.
+  async save_line_numbers_enabled(enabled: boolean): Promise<void> {
+    try {
+      await this.settings_port.set_setting("line_numbers_enabled", enabled);
+    } catch (error) {
+      log.error("Save line numbers setting failed", {
+        error: error_message(error),
+      });
+    }
+  }
+
   async load_recent_command_ids(): Promise<string[]> {
     try {
       const stored = await this.settings_port.get_setting<unknown>(

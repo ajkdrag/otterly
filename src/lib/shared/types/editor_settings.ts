@@ -20,6 +20,7 @@ export type EditorSettings = {
   max_open_tabs: number;
   editor_max_width_ch: number;
   editor_zoom: number;
+  line_numbers_enabled: boolean;
   heading_filename_delimiter: HeadingFilenameDelimiter;
   vim_mode_enabled: boolean;
   // macOS only: while Vim mode is on, a held letter repeats instead of
@@ -38,6 +39,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   max_open_tabs: 5,
   editor_max_width_ch: 85,
   editor_zoom: 1,
+  line_numbers_enabled: false,
   heading_filename_delimiter: "spaces",
   vim_mode_enabled: false,
   vim_repeat_held_keys: true,
@@ -52,6 +54,7 @@ export const GLOBAL_ONLY_SETTING_KEYS: readonly (keyof EditorSettings)[] = [
   "autosave_delay_ms",
   "editor_max_width_ch",
   "editor_zoom",
+  "line_numbers_enabled",
   "heading_filename_delimiter",
   "vim_mode_enabled",
   "vim_repeat_held_keys",

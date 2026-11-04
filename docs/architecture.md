@@ -151,7 +151,7 @@ Closing, quitting and updating:
 
 #### Document windows
 
-A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window, labelled `document-<hash>`. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
+A file the OS opens with Otterly (double click, "Open With", a second launch with a path) gets its own document window, labelled `document-<hash>`. A document window has its own small composition root (`create_document_window_context`) with theme, hotkeys, the global editor settings (zoom, width, line numbers, autosave, Vim mode), and the `document` and `vim` features, and nothing that needs a vault.
 
 It reuses the vault app's find in file, status bar, help dialog, and clipboard service, and registers the vault app's action ids where the meaning is the same. Hotkeys are the defaults filtered to the actions the window registers, so a shortcut for something missing here does nothing and does not show in Help. Reveal in the file manager is a document command (`reveal_document`) with no path argument, like read and write.
 

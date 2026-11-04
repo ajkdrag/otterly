@@ -1,6 +1,7 @@
 export {
   register_settings_actions,
   register_editor_zoom_actions,
+  register_line_numbers_actions,
 } from "$lib/features/settings/application/settings_actions";
 export { SettingsService } from "$lib/features/settings/application/settings_service";
 export type { SettingsPort } from "$lib/features/settings/ports";

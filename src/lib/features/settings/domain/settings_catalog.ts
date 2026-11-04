@@ -201,4 +201,11 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
       "reading width",
     ],
   },
+  {
+    key: "line_numbers_enabled",
+    label: "Line Numbers",
+    description: "Show line numbers in source mode and in text files",
+    category: "Layout",
+    keywords: ["line numbers", "gutter", "lines", "source", "code", "layout"],
+  },
 ];

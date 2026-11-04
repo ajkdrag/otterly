@@ -24,17 +24,26 @@ function create_harness() {
     git: new GitStore(),
   };
   const save_editor_zoom = vi.fn().mockResolvedValue(undefined);
+  const save_line_numbers_enabled = vi.fn().mockResolvedValue(undefined);
 
   register_settings_actions({
     registry,
     stores,
-    services: { settings: { save_editor_zoom } } as never,
+    services: {
+      settings: {
+        save_editor_zoom,
+        save_line_numbers_enabled,
+        reset_load_operation: () => {},
+        reset_save_operation: () => {},
+      },
+      hotkey: { merge_config: (defaults: unknown) => defaults },
+    } as never,
     default_mount_config: {
       reset_app_state: true,
     },
   });
 
-  return { registry, stores, save_editor_zoom };
+  return { registry, stores, save_editor_zoom, save_line_numbers_enabled };
 }
 
 describe("register_settings_actions: editor zoom", () => {
@@ -65,5 +74,44 @@ describe("register_settings_actions: editor zoom", () => {
 
     expect(stores.ui.editor_settings.editor_zoom).toBe(1);
     expect(save_editor_zoom).toHaveBeenLastCalledWith(1);
+  });
+});
+
+describe("register_settings_actions: line numbers", () => {
+  it("turns line numbers on and off, saving each change", async () => {
+    const { registry, stores, save_line_numbers_enabled } = create_harness();
+
+    await registry.execute(ACTION_IDS.editor_toggle_line_numbers);
+    expect(stores.ui.editor_settings.line_numbers_enabled).toBe(true);
+    expect(save_line_numbers_enabled).toHaveBeenLastCalledWith(true);
+
+    await registry.execute(ACTION_IDS.editor_toggle_line_numbers);
+    expect(stores.ui.editor_settings.line_numbers_enabled).toBe(false);
+    expect(save_line_numbers_enabled).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("register_settings_actions: saving right away with the Settings dialog open", () => {
+  it.each([
+    [ACTION_IDS.editor_toggle_line_numbers, { line_numbers_enabled: true }],
+    [ACTION_IDS.editor_zoom_in, { editor_zoom: 1.1 }],
+  ])("%s survives closing the dialog", async (action_id, expected) => {
+    const { registry, stores } = create_harness();
+    registry.register({
+      id: ACTION_IDS.theme_revert,
+      label: "Revert Theme",
+      execute: () => {},
+    });
+    stores.ui.settings_dialog = {
+      ...stores.ui.settings_dialog,
+      open: true,
+      current_settings: { ...stores.ui.editor_settings },
+      persisted_settings: { ...stores.ui.editor_settings },
+    };
+
+    await registry.execute(action_id);
+    await registry.execute(ACTION_IDS.settings_close);
+
+    expect(stores.ui.editor_settings).toMatchObject(expected);
   });
 });

@@ -239,7 +239,7 @@ describe("HotkeyService", () => {
     it("returns null when no conflict", () => {
       const config = service.merge_config(DEFAULT_HOTKEYS, []);
       const conflict = service.detect_conflict(
-        "CmdOrCtrl+Shift+Y",
+        "CmdOrCtrl+Alt+Shift+Y",
         "capture",
         "note.request_save",
         config,

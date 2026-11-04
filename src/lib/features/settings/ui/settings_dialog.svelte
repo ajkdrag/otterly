@@ -274,6 +274,21 @@
             </div>
             <div class="SettingsDialog__row">
               <div class="SettingsDialog__label-group">
+                <span class="SettingsDialog__label">Line Numbers</span>
+                <span class="SettingsDialog__description"
+                  >Show line numbers in source mode and in text files</span
+                >
+              </div>
+              <Switch.Root
+                aria-label="Line numbers"
+                checked={editor_settings.line_numbers_enabled}
+                onCheckedChange={(v: boolean) => {
+                  update("line_numbers_enabled", v);
+                }}
+              />
+            </div>
+            <div class="SettingsDialog__row">
+              <div class="SettingsDialog__label-group">
                 <span class="SettingsDialog__label">Max Open Tabs</span>
                 <span class="SettingsDialog__description"
                   >Limit the number of tabs for better performance</span

@@ -82,6 +82,7 @@ export function register_settings_actions(input: ActionRegistrationInput) {
   }
 
   register_editor_zoom_actions(input);
+  register_line_numbers_actions(input);
 
   registry.register({
     id: ACTION_IDS.settings_open,
@@ -173,10 +174,7 @@ export function register_editor_zoom_actions(input: {
   const { registry, stores, services } = input;
 
   async function set_editor_zoom(zoom: number) {
-    stores.ui.set_editor_settings({
-      ...stores.ui.editor_settings,
-      editor_zoom: zoom,
-    });
+    apply_saved_editor_settings(stores.ui, { editor_zoom: zoom });
     await services.settings.save_editor_zoom(zoom);
   }
 
@@ -203,4 +201,41 @@ export function register_editor_zoom_actions(input: {
     label: "Reset Zoom",
     execute: () => set_editor_zoom(DEFAULT_EDITOR_SETTINGS.editor_zoom),
   });
+}
+
+// Shared with document windows, like the zoom actions.
+export function register_line_numbers_actions(input: {
+  registry: ActionRegistry;
+  stores: { ui: UIStore };
+  services: { settings: SettingsService };
+}) {
+  const { registry, stores, services } = input;
+
+  registry.register({
+    id: ACTION_IDS.editor_toggle_line_numbers,
+    label: "Toggle Line Numbers",
+    execute: async () => {
+      const line_numbers_enabled =
+        !stores.ui.editor_settings.line_numbers_enabled;
+      apply_saved_editor_settings(stores.ui, { line_numbers_enabled });
+      await services.settings.save_line_numbers_enabled(line_numbers_enabled);
+    },
+  });
+}
+
+// Zoom and line numbers save right away, outside the Settings dialog. Closing
+// the dialog puts its snapshot back, so an open dialog takes the new value
+// too. Otherwise the change would revert on screen and stay saved.
+function apply_saved_editor_settings(
+  ui: UIStore,
+  patch: Partial<EditorSettings>,
+) {
+  ui.set_editor_settings({ ...ui.editor_settings, ...patch });
+  const dialog = ui.settings_dialog;
+  if (!dialog.open) return;
+  ui.settings_dialog = {
+    ...dialog,
+    current_settings: { ...dialog.current_settings, ...patch },
+    persisted_settings: { ...dialog.persisted_settings, ...patch },
+  };
 }

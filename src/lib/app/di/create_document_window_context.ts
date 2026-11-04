@@ -6,6 +6,7 @@ import type { EditorPort } from "$lib/features/editor";
 import {
   SettingsService,
   register_editor_zoom_actions,
+  register_line_numbers_actions,
   type SettingsPort,
 } from "$lib/features/settings";
 import type { VaultSettingsPort } from "$lib/features/vault";
@@ -43,6 +44,7 @@ import { create_op_toast_reactor } from "$lib/reactors/op_toast.reactor.svelte";
 import { create_theme_reactor } from "$lib/reactors/theme.reactor.svelte";
 import { create_theme_file_reactor } from "$lib/reactors/theme_file.reactor.svelte";
 import { create_editor_zoom_reactor } from "$lib/reactors/editor_zoom.reactor.svelte";
+import { create_editor_line_numbers_reactor } from "$lib/reactors/editor_line_numbers.reactor.svelte";
 import { create_editor_width_reactor } from "$lib/reactors/editor_width.reactor.svelte";
 import { create_document_autosave_reactor } from "$lib/reactors/document_autosave.reactor.svelte";
 import { create_document_close_request_reactor } from "$lib/reactors/document_close_request.reactor.svelte";
@@ -168,6 +170,11 @@ export function create_document_window_context(input: {
     stores: { ui: stores.ui },
     services: { settings: settings_service },
   });
+  register_line_numbers_actions({
+    registry: action_registry,
+    stores: { ui: stores.ui },
+    services: { settings: settings_service },
+  });
   // The theme file reactor runs theme.reload_file. The other theme actions
   // come along and nothing in this window calls them.
   register_theme_actions({
@@ -182,6 +189,7 @@ export function create_document_window_context(input: {
     create_theme_reactor(stores.ui),
     create_theme_file_reactor(theme_service, action_registry),
     create_editor_zoom_reactor(stores.ui),
+    create_editor_line_numbers_reactor(stores.ui),
     create_editor_width_reactor(stores.ui),
     create_document_autosave_reactor(
       stores.document,

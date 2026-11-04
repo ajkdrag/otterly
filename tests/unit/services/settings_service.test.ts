@@ -233,6 +233,16 @@ describe("SettingsService", () => {
     expect(settings_port.set_setting).toHaveBeenCalledWith("editor_zoom", 1.2);
   });
 
+  it("loads line_numbers_enabled for a window without a vault", async () => {
+    const { service } = make_service({
+      global_get: (key) => (key === "line_numbers_enabled" ? true : null),
+    });
+
+    const settings = await service.load_global_editor_settings();
+
+    expect(settings.line_numbers_enabled).toBe(true);
+  });
+
   it("loads the saved zoom for a window without a vault", async () => {
     const { service, vault_settings_port } = make_service({
       global_get: (key) => (key === "editor_zoom" ? 1.3 : null),
