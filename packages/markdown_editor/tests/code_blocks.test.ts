@@ -67,6 +67,21 @@ describe("fenced code", () => {
     expect(view.saved()).toBe("```\ncode\n```\nafter");
   });
 
+  test.each([
+    ["a list item", "‸- a\n- b", "```\ncode\n```\n- a\n- b"],
+    ["a paragraph line", "‸text below\n- a", "```\ncode\n```\ntext below\n- a"],
+    ["a quote line", "> ‸text\n> more", "> ```\n> code\n> ```\n> text\n> more"],
+    ["inside a list item", "- ‸item\n- b", "- ```\n  code\n  ```\n  item\n- b"],
+  ])(
+    "TYPE-006 a fence typed in front of text on %s closes, and the text stays below it",
+    (_name, source, expected) => {
+      const view = editor(source);
+      view.type("```");
+      view.press("Enter").type("code");
+      expect(view.saved()).toBe(expected);
+    },
+  );
+
   test("CODE-002 a quoted fence gets the quote prefix on its body", () => {
     const view = editor("> ‸");
     view.type("```");

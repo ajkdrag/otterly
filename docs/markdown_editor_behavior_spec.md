@@ -363,7 +363,7 @@ A synthetic giant single paragraph remains a known reparse cost. Parser time bud
 
 - **Setup/action:** Type three backticks, a language token, and Enter; repeat after pasting/reopening an unfinished fence header.
 - **Expected:** The header remains editable while being constructed. Enter establishes the code body and moves focus to it before the next character.
-- **Edge cases/notes:** Include empty language, quoted/listed fences, and rapid body typing. No key may land above a newly mounted widget. When the opening fence is unclosed and text follows it, Enter also adds a closing fence, so the rest of the note does not become code.
+- **Edge cases/notes:** Include empty language, quoted/listed fences, and rapid body typing. No key may land above a newly mounted widget. When the opening fence is unclosed and text follows it, Enter also adds a closing fence, so the rest of the note does not become code. A fence typed in front of an existing line ("```" before "- item") reads that line as its info string, so Enter moves the text after the caret below the closing fence and keeps it a normal line.
 
 ### TYPE-007. Table delimiters remain source until Enter
 

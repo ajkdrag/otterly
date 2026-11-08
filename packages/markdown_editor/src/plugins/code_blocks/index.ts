@@ -140,15 +140,16 @@ const diagram_revision = StateField.define<number>({
   },
 });
 
-// Enter at the end of an opening fence that is still being typed starts the
-// body and moves focus into it before the next key. An unclosed fence with
-// text below would swallow the rest of the note, so it gets a closing fence.
+// Enter after an opening fence that is still being typed starts the body and
+// moves focus into it before the next key. An unclosed fence with text below
+// would swallow the rest of the note, so it gets a closing fence. Text after
+// the caret on the fence line (a fence typed in front of "- item") would be
+// read as its info string, so it moves below the closing fence instead.
 function start_code_body(context: KeyContext): boolean {
   const { state } = context;
   const range = state.selection.main;
   if (!range.empty || state.selection.ranges.length !== 1) return false;
   const line = state.doc.lineAt(range.head);
-  if (range.head !== line.to) return false;
   const block = get_blocks(state).find(
     (candidate) =>
       candidate.from === line.from &&
@@ -161,13 +162,22 @@ function start_code_body(context: KeyContext): boolean {
     (is_block_rendered(state, block) && !source.needs_opening_newline)
   )
     return false;
+  // The caret sits right after the fence, or after the language typed so far.
+  if (range.head < source.opening_to) return false;
+  const text_after_caret = state.sliceDoc(range.head, line.to).trim();
+  // A fence that already has a closing line keeps Enter's plain behavior.
+  if (text_after_caret && source.closing_from !== null) return false;
   const prefix = source.continuation_prefix;
-  const has_text_below =
-    source.closing_from === null && line.to < state.doc.length;
+  const needs_closing_fence =
+    source.closing_from === null &&
+    (text_after_caret !== "" || line.to < state.doc.length);
   const insert =
-    "\n" + prefix + (has_text_below ? "\n" + prefix + source.fence : "");
+    "\n" +
+    prefix +
+    (needs_closing_fence ? "\n" + prefix + source.fence : "") +
+    (text_after_caret ? "\n" + prefix + text_after_caret : "");
   context.dispatch({
-    changes: { from: range.head, insert },
+    changes: { from: range.head, to: line.to, insert },
     selection: { anchor: range.head + 1 + prefix.length },
     effects: finish_block_construction.of(null),
     userEvent: "input",
