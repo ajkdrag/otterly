@@ -54,8 +54,13 @@ export const reveal_surfaces_at_caret = Facet.define<string, readonly string[]>(
   },
 );
 
+// A "caret" block always does. Up and down enter it as source, because the
+// browser's own arrows would step over the widget.
 export function reveals_at_caret(state: EditorState, block: Block): boolean {
-  return state.facet(reveal_surfaces_at_caret).includes(block.construct.name);
+  return (
+    block.construct.reveal === "caret" ||
+    state.facet(reveal_surfaces_at_caret).includes(block.construct.name)
+  );
 }
 
 // A line of a rendered surface block that the surface does not edit, such as

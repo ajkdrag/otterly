@@ -278,6 +278,8 @@ Row and column actions are a right-click menu on a cell. Shift-F10 or the menu k
 | block `surface` | Only while constructing or after `edit_block_source`.                                                                  |
 | block `surface` | With `reveal_surfaces_at_caret` naming the construct: like a `caret` block, and also while a selection lies inside it. |
 
+The browser's up and down keys step over a rendered widget, so a caret on the line next to a `caret` block (or a surface under `reveal_surfaces_at_caret`) would never reach it. `enter_adjacent_block` moves it onto the block's nearest line, which shows the source. Left and right already reach the block's edge, and Vim's j and k count lines the same way. The math plugin is the first `caret` block.
+
 Non-empty selections never reveal, so text does not shift while selecting. The one exception is a selection inside a surface block under `reveal_surfaces_at_caret` that names its construct: it keeps the source, so Vim's visual mode in a table does not swap the widget back in. A selection that reaches past the block keeps the widget. `reveal_ranges` lets a plugin force a range to show source; find uses it for the selected match. Reveal does not change while the mouse button is down, or for 100 ms after release, so a click does not move text under the pointer. A key taken by a `surface_keydown` handler ends that early (`end_reveal_freeze`).
 
 Images draw their widget after the source and keep it visible while the source is revealed, so the caret entering an image does not make the layout jump.

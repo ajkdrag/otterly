@@ -1450,6 +1450,46 @@ A `#tag` is plain text. The editor draws it as a chip, and the index counts it f
 - **Expected:** Chips are drawn for the visible part only. The tag parser runs only at a `#`, so Lezer stays incremental and typing latency does not grow with the number of tags. Neither the editor nor completion scans the whole document.
 - **Edge cases/notes:** One giant paragraph is the known PERF-006 limit and is not made worse by tags. Record the measurement setup with the result.
 
+## 27. Math
+
+TeX between dollar signs, drawn by KaTeX. The syntax rules are in the top comment of `packages/markdown_editor/src/plugins/math/math_syntax.ts`, and the tests are in `packages/markdown_editor/tests/math.test.ts`.
+
+### MATH-001. Inline formulas follow Pandoc's rules, so prices stay text
+
+- **Setup/action:** Type `The area is $\pi r^2$ here`, then `It costs $5 and $10 today`, `I paid $5, he paid $6.` and `($5)-($6)`.
+- **Expected:** `$\pi r^2$` becomes a formula. The three price lines stay plain text. The opening `$` needs a non-space after it. The closing `$` needs a non-space before it and no digit after it. The TeX holds no other unescaped `$`, and `\$` is a literal dollar. A formula stays on one line.
+- **Edge cases/notes:** `$$x$$` inside a paragraph is an inline formula drawn as display math. Backticks, links and emphasis around a formula keep their own meaning, and `*` or `_` inside the TeX is TeX.
+
+### MATH-002. A caret touching a formula shows its source
+
+- **Setup/action:** Click a rendered inline formula, or arrow into it from either side. Then move the caret away.
+- **Expected:** The caret shows the `$...$` source in the monospace style while it touches the formula, and the formula returns when it leaves. Typing inside the source changes the saved text and nothing else. A non-empty selection does not reveal. Source mode always shows the dollars.
+- **Edge cases/notes:** The same reveal rule as images and links, so the mouse freeze applies.
+
+### MATH-003. Math blocks
+
+- **Setup/action:** Type `$$` on its own line, a line of TeX, and a closing `$$` line. Also write a whole-line `$$ a^2 + b^2 $$`. Put the block inside a list item and a quote.
+- **Expected:** A closed block draws as a centered formula. A click, or an arrow onto the block, puts the caret in the first TeX line and shows the lines. Moving away draws it again. The slash menu has "Math Block", which starts with the caret on the empty middle line. Inside a list item the formula keeps the item's indent and marker. In a quote it ends where the quote ends.
+- **Edge cases/notes:** Arrow Up from the line under a block, and Arrow Down from the line above it, enter it on its nearest line and show its source. Vim's `j` and `k` do the same. Arrow Left from the start of the line below also reaches it. Up, Down and Enter move through the TeX lines like text. A block that ends the note keeps its source until you leave by clicking or typing below it. A `$$` line directly under a paragraph line starts a block. `$$a$$ and $$b$$` on one line is a paragraph with two inline formulas.
+
+### MATH-004. An unclosed `$$` does not swallow the note
+
+- **Setup/action:** Type `$$` and a line of TeX at the top of a note that has more text below, with a blank line between them.
+- **Expected:** The two lines stay source. The text under the blank line renders as usual, headings included. Typing the closing `$$` line draws the block once the caret leaves.
+- **Edge cases/notes:** A block never holds a blank line. Without a blank line the block runs to the end of its container, still drawn as source.
+
+### MATH-005. Slow loads and bad TeX
+
+- **Setup/action:** Open a note with formulas on the first launch of the session. Write `$\frac{$` and `$\unknowncommand$`.
+- **Expected:** KaTeX loads on the first formula. Until then the formula shows its TeX in a muted monospace style, and no gap opens. A formula KaTeX rejects keeps its TeX in the error color, and hovering it shows KaTeX's message. A render that is still running when its formula goes away is cancelled. Nothing in a formula can write a link, a script or an event handler.
+- **Edge cases/notes:** The first formula after a failed load tries to load KaTeX again. `\href`, `\url` and `\includegraphics` are off, and sizes and macro expansion have caps.
+
+### MATH-006. Formulas in table cells and ` ```math ` fences
+
+- **Setup/action:** Put `$x^2$` in a table cell that is not being edited. Add a fenced block tagged `math` with a formula inside.
+- **Expected:** The inactive cell draws the formula and the active cell edits the source. The `math` fence is a code block whose preview draws the formula as display math, with the same zoom, resize and hide-source controls as a diagram.
+- **Edge cases/notes:** @Incomplete: the search index reads tags from the raw text, so a `#tag` inside a formula counts there while the editor draws no chip.
+
 ## Acceptance record for future changes
 
 For each run, record scenario IDs, platform/WebView, app build, fixture identity, and the result. Separate automated state checks, real-browser interaction, and native Tauri computer use. Record failed scenarios and unmeasured combinations alongside passes.

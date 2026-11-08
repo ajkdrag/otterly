@@ -34,6 +34,7 @@ import {
   insert_markdown_source,
   line_numbers,
   links,
+  math,
   read_code_block_view_states,
   refresh_code_diagrams,
   replace_all_find_matches,
@@ -74,6 +75,7 @@ import {
   code_block_highlight,
   markdown_source_highlight,
 } from "./code_editor_config";
+import { render_math_element } from "./katex_preview";
 import { render_mermaid_element } from "./mermaid_preview";
 import { clipboard_html_to_markdown } from "./html_clipboard";
 
@@ -190,11 +192,17 @@ export function create_codemirror_editor_port(
             code_block_theme,
             syntaxHighlighting(code_block_highlight),
           ],
-          diagram_languages: ["mermaid"],
-          render_diagram: ({ content, signal }) =>
-            render_mermaid_element(content, signal),
+          diagram_languages: ["mermaid", "math"],
+          render_diagram: ({ language, content, signal }) =>
+            language.toLowerCase() === "math"
+              ? render_math_element(content, true, signal)
+              : render_mermaid_element(content, signal),
           on_view_states_change: (states) =>
             events.on_code_block_view_states_change?.([...states]),
+        }),
+        math({
+          render_math: ({ tex, display, signal }) =>
+            render_math_element(tex, display, signal),
         }),
         links({
           open_link,

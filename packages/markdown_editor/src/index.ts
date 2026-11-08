@@ -143,6 +143,7 @@ export {
   type MarkdownClipboardOptions,
 } from "./plugins/clipboard.js";
 export { callouts } from "./plugins/callouts/index.js";
+export { math, type MathOptions } from "./plugins/math/index.js";
 export { line_numbers } from "./plugins/line_numbers.js";
 export {
   vim_keybindings,

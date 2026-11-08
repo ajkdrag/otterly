@@ -62,6 +62,7 @@ Positions in the public API are UTF-16 offsets in the LF-normalized display docu
 | `find()`           | Find and replace, with highlights inside code blocks and table cells.               |
 | `clipboard(...)`   | Markdown-first paste, HTML conversion through the host, image paste.                |
 | `callouts()`       | `> [!note]` callouts. A small example of a construct plugin.                        |
+| `math(...)`        | `$x^2$` and `$$` blocks, drawn by a host `render_math` callback.                    |
 
 `vim_keybindings(...)` is an extension, not a plugin, so it also works on text states. It wraps `@replit/codemirror-vim`, with fixes from pnpm patches. Put it in a compartment to toggle it, and call `apply_vimrc(text)` to load a vimrc. See [the design](DESIGN.md).
 

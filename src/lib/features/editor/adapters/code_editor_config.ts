@@ -21,13 +21,23 @@ const plain_language = LanguageDescription.of({
   alias: ["plain", "text"],
   support: plain_text_support,
 });
-// language-data has no mermaid grammar, so it highlights as plain text. The
-// picker writes the name into the fence, and renderers expect lowercase.
+// language-data has no mermaid or math grammar, so both highlight as plain
+// text. The picker writes the name into the fence, and renderers expect
+// lowercase. Without a "math" entry, searching the picker finds Mathematica.
 const mermaid_language = LanguageDescription.of({
   name: "mermaid",
   support: plain_text_support,
 });
-export const code_languages = [plain_language, mermaid_language, ...languages];
+const math_language = LanguageDescription.of({
+  name: "math",
+  support: plain_text_support,
+});
+export const code_languages = [
+  plain_language,
+  mermaid_language,
+  math_language,
+  ...languages,
+];
 
 export function render_code_language(language: string): string {
   if (!language) return "Plain";
@@ -37,6 +47,7 @@ export function render_code_language(language: string): string {
     false,
   );
   if (match === mermaid_language) return "Mermaid";
+  if (match === math_language) return "Math";
   return match ? match.name || "Plain" : language;
 }
 
